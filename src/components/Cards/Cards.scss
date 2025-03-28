@@ -1,0 +1,194 @@
+@use "../../mixins.scss" as mix;
+
+.card-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-column-gap: 16px;
+  grid-row-gap: 30px;
+  margin-top: 15px;
+
+  .card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 1px 4px 9px 0px #0000003B;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    
+    
+
+    .img-wrap {
+      // width: 270px;
+      width: 100%;
+      position: relative;
+      img {
+        // width: 100%;
+
+        // height: 170px;
+        // border-radius: 5px;
+        // background-position: center;
+        // background-size: cover;
+
+        width: 100%;
+        height: 170px; /* Or you can use 'auto' and remove fixed height */
+        border-radius: 5px;
+        object-fit: cover; /* Ensures the image maintains its aspect ratio */
+        object-position: center; /* Centers the image within its container */
+        background-position: center;
+        background-size: cover;
+      }
+
+      .buttom-title {
+        position: absolute;
+        bottom: 1%;
+        width: -webkit-fill-available;
+        padding: 12px 4px;
+        background-color: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        color: #fff;
+        p {
+          font-size: 13px;
+        }
+      }
+    }
+    h2{
+      padding: 0px 4px;
+      overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    }
+    .profile-view-wrap{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0px 4px;
+      .profile-wrapper{
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        
+        .profile-img{
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          object-fit: cover;
+          display: inline-block;
+          background-size: cover;
+          background-repeat: no-repeat;
+          background-position: 50% 50%;
+          
+        }
+        h2 {
+          font-size: 12.95px;
+          font-weight: 600;
+          color: #000;
+          margin: 5px 0;
+        }
+      }
+      .view-wrap{
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        background: #E32933;
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 24px;
+        // font-size: 4.02px;
+        .icon{
+          font-size: 12px;
+        }
+        p{
+          font-size: 10.5px;
+        }
+
+      }
+  
+    }
+    
+    .wrap {
+      .user-wrap {
+        position: absolute;
+        top: 4%;
+        left: 1%;
+        gap: 5px;
+        padding: 3px 7px;
+        border-radius: 12px;
+        color: #fff;
+        background: #E32933;
+        img {
+          width: 15px;
+          height: 15px;
+          border-radius: 50%;
+        }
+        span {
+          font-size: 10px;
+        }
+      }
+
+      .play {
+        position: absolute;
+        top: 4%;
+        right: 1%;
+        font-size: 10px;
+        padding: 3px 7px;
+        border-radius: 12px;
+        color: #fff;
+        background-color: #fff;
+        background: #E32933;
+      }
+    }
+
+    h2 {
+      font-size: 12.95px;
+      font-weight: 600;
+      color: #000;
+      margin: 5px 0;
+    }
+    h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #555;
+      margin: 6px 0;
+      padding: 0px 4px;
+    }
+    p {
+      font-size: 14px;
+    }
+
+    .bottom-action {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 3px 4px;
+      // border-radius: 5px;
+      border-top: 1px solid grey;
+      margin-top: 2px;
+      border-top-width: 1px;
+      border-color:rgb(226, 232, 240);
+      // border: 1px solid grey;
+      .wrap-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        margin-bottom: 2px;
+        .flex-div {
+          gap: 2px;
+          .icon {
+            font-size: 17px;
+            &:hover {
+              color: red;
+            }
+          }
+          .icon-heart{
+            font-size: 15px;
+            &:hover {
+              color: red;
+            }
+          }
+        }
+      }
+    }
+  }
+}

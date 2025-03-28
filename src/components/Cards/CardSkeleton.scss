@@ -1,0 +1,28 @@
+.feed-wrap-skeleton-in {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    
+    .skeleton-card {
+      .video-thumbnail-skeleton {
+        width: 100%;
+        height: 180px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+      }
+      
+      .line-skeleton {
+        height: 12px;
+        margin-bottom: 6px;
+        border-radius: 6px;
+        
+        &:first-child {
+          width: 80%;
+        }
+        &:last-child {
+          width: 60%;
+        }
+      }
+    }
+  }

@@ -1,0 +1,81 @@
+@use "../mixins.scss" as mix;
+.profile-page-container{
+    .com-profile-img-wrap{
+        position: relative;
+        img {
+            width: 100%; /* Make the image take up 100% of its container's width */
+            height: auto; /* Maintain aspect ratio */
+            border-radius: 20px; /* Rounded corners */
+            object-fit: cover; /* Ensure the image covers the entire area without stretching */
+            display: block; /* Remove any extra space below the image */
+            @include mix.respond(phone) {
+                height: 100px;
+          }
+        }
+        .wrap{
+            position: absolute;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            bottom: 10%;
+            left: 10px;
+            img{
+                width: 30%;
+                @include mix.respond(phone) {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+              }
+            }
+            span{
+                font-size: 28px;
+                font-weight: bold;
+                color: #fff;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                -webkit-text-stroke-width: 1px ;
+                -webkit-text-fill-color: transparent;
+                @include mix.respond(phone) {
+                    font-size: 20px;
+              }
+            }
+        }
+        
+        
+    }
+    .toggle-wrap{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 10px 0px;
+        border-bottom: 1px solid grey;
+        padding: 0px  40px;
+        padding-bottom: 7px;
+        @include mix.respond(phone) {
+            padding: 0px  5px;
+      }
+        .wrap{
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            
+            span{
+                padding-bottom: 3px;
+                box-sizing: border-box;
+                // background-color: yellow;
+                &:hover {
+                    box-sizing: border-box;
+                    // padding-bottom: 3px;
+                    border-bottom: 1px solid rgba(62, 62, 223, 0.548);
+                  }
+            }
+        }
+        .followers{
+            padding: 5px 15px;
+            border-radius: 7px;
+            box-shadow: 0px 1px 7px 0px #00000040;
+            font-size: 13.5px;
+
+        }
+    }
+}

@@ -1,0 +1,58 @@
+.skeleton-loader {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .skeleton-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f5f5f5;
+    padding: 10px;
+    border-radius: 6px;
+    width: 100%;
+  }
+  
+  .skeleton {
+    background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 4px;
+  }
+  
+  .skeleton-type {
+    margin-left: 5px;
+    width: 50%;
+    height: 20px;
+  }
+  
+  .skeleton-amount {
+    width: 50%;
+    height: 20px;
+  }
+  
+  .skeleton-account {
+    width: 50%;
+    height: 20px;
+  }
+  
+  .skeleton-date {
+    width: 50%;
+    height: 20px;
+  }
+  
+  .skeleton-memo {
+    width: 50%;
+    height: 20px;
+  }
+  
+  @keyframes loading {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  

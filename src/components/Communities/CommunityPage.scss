@@ -1,0 +1,98 @@
+.community-page-wrap{
+
+    .com-profile-img-wrap{
+        position: relative;
+        img {
+            width: 100%; /* Make the image take up 100% of its container's width */
+            height: auto; /* Maintain aspect ratio */
+            border-radius: 20px; /* Rounded corners */
+            object-fit: cover; /* Ensure the image covers the entire area without stretching */
+            display: block; /* Remove any extra space below the image */
+        }
+        .wrap{
+            position: absolute;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            bottom: 10%;
+            left: 10px;
+            img{
+                width: 30%;
+            }
+            span{
+                font-size: 28px;
+                font-weight: bold;
+                color: #fff;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                -webkit-text-stroke-width: 1px ;
+                -webkit-text-fill-color: transparent;
+            }
+        }
+    }
+    .title-wrap{
+        margin: 10px 0px;
+        h3{
+            margin-bottom: 5px;
+        }
+        p{
+            padding-left: 20px;
+            font-size: 13.35px;
+            line-height: 21px;
+        }
+    }
+
+    
+
+      .search-tren-wrapper{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        margin: 10px 0px;
+
+        .search-wrapper {
+            margin-bottom: 20px;
+        
+            input {
+              width: 70%;
+              padding: 10px;
+              border: 1px solid #e2e2ec;
+              border-radius: 8px;
+              font-size: 1rem;
+              outline: none;
+              transition: border-color 0.3s;
+              &:focus {
+                border-color: #0073e6;
+              }
+            }
+          }
+          .trend-btn-wrap {
+            display: flex;
+            align-items: center;
+            
+            span {
+              padding: 7px 20px;
+              background-color: #6a798886;
+              cursor: pointer;
+          
+              // First child
+              &:first-child {
+                border-radius: 7px 0px 0px 7px;
+              }
+          
+              // Second child
+              &:nth-child(2) {
+                border-radius: 0px 7px 7px 0px;
+              }
+          
+              &.active {
+                background-color: red;
+              }
+            }
+          }
+          
+
+      }
+
+}

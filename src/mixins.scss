@@ -1,0 +1,42 @@
+// Media Query Manager
+// 0px - 600px;   phone
+// 600ox - 900px;  Tablet Protrait
+// 900px - 1200px;  Tablet landscape
+// 1200px - 1800px; Desktop
+
+@mixin respond($breakpoint) {
+  @if $breakpoint == sm-phone {
+    @media screen and (max-width: 375px) {
+      @content;
+    }
+  }
+  @if $breakpoint == phone {
+    @media screen and (max-width: 767px) {
+      @content;
+    }
+  }
+  @if $breakpoint == tab {
+    @media screen and (min-width: 768px) and (max-width: 1024px) {
+      @content;
+    }
+  }
+  @if $breakpoint == desktop {
+    @media screen and (min-width: 1025px) {
+      @content;
+    }
+  }
+  @if $breakpoint == lg-desktop {
+    @media screen and (min-width: 1441px) {
+      @content;
+    }
+  }
+  @if $breakpoint == xs-phone {
+    @media screen and (max-width: 320px) {
+      @content;
+    }
+  }
+}
+
+
+
+// background-color: rgba(0, 0, 0, .6);

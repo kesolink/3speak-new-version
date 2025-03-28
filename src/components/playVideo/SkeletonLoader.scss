@@ -1,0 +1,119 @@
+// Skeleton Loader Styles
+.skeleton-loader {
+    padding: 10px;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 6px 0 #20212447;
+  
+    .skeleton-video {
+      height: 450px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      animation: pulse 1.5s infinite;
+    }
+  
+    .skeleton-title {
+      height: 24px;
+      width: 70%;
+      background: #f0f0f0;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      animation: pulse 1.5s infinite;
+    }
+  
+    .skeleton-tag {
+      display: inline-block;
+      height: 20px;
+      width: 80px;
+      background: #f0f0f0;
+      margin-right: 8px;
+      border-radius: 4px;
+      animation: pulse 1.5s infinite;
+    }
+  
+    .skeleton-community {
+      height: 18px;
+      width: 120px;
+      background: #f0f0f0;
+      margin: 10px 0;
+      border-radius: 4px;
+      animation: pulse 1.5s infinite;
+    }
+  
+    .skeleton-stats {
+      display: flex;
+      gap: 20px;
+      margin: 15px 0;
+  
+      div {
+        height: 16px;
+        width: 60px;
+        background: #f0f0f0;
+        border-radius: 4px;
+        animation: pulse 1.5s infinite;
+      }
+    }
+  
+    .skeleton-publisher {
+      display: flex;
+      align-items: center;
+      margin: 20px 0;
+  
+      &-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #f0f0f0;
+        margin-right: 15px;
+        animation: pulse 1.5s infinite;
+      }
+  
+      &-info {
+        flex: 1;
+        
+        div {
+          height: 18px;
+          width: 40%;
+          background: #f0f0f0;
+          margin-bottom: 6px;
+          border-radius: 4px;
+          animation: pulse 1.5s infinite;
+  
+          &:last-child {
+            width: 30%;
+          }
+        }
+      }
+  
+      &-button {
+        width: 80px;
+        height: 30px;
+        background: #f0f0f0;
+        border-radius: 6px;
+        animation: pulse 1.5s infinite;
+      }
+    }
+  
+    .skeleton-description {
+      height: 100px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      margin: 15px 0;
+      animation: pulse 1.5s infinite;
+    }
+  
+    .skeleton-comment {
+      height: 120px;
+      background: #f0f0f0;
+      border-radius: 8px;
+      margin: 15px 0;
+      animation: pulse 1.5s infinite;
+    }
+  
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+  }
