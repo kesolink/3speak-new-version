@@ -18,8 +18,7 @@ import LoginNew from "./page/Login/LoginNew";
 import { useAppStore } from "./lib/store";
 import { useEffect } from "react";
 import ProfileNav from "./components/nav/ProfileNav";
-import StudioPage from "./components/studio/studioPage";
-import TestStudio from "./components/studio/TestStudio";
+import StudioPage from "./components/studio/StudioPage";
 import CommunitiesRender from "./components/Communities/CommunitiesRender";
 import CommunityPage from "./components/Communities/CommunityPage";
 import TagFeed from "./page/TagFeed";
@@ -61,7 +60,6 @@ function App() {
             <Route path="/keychain" element={<KeyChainLogin />} />
             <Route path="/newlogin" element={<LoginNew />} />
             <Route path="/studio" element={<StudioPage />} />
-            <Route path="/teststudio" element={<TestStudio />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route
               path="/community/:communityName"
