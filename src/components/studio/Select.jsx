@@ -12,7 +12,7 @@ function Select() {
           <span>Edit your draft video</span>
         </div>
         <span className="or">or</span>
-        <Link to="/teststudio">
+        <Link to="/studio">
           <div className="draft-wrap">
             <FaUpload size={40} />
             <span>Create a new video</span>

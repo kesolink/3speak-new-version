@@ -111,10 +111,10 @@ function Card2({
               {video?.author?.profile?.images?.avatar ? <img className="profile-img" src={video?.author?.profile?.images?.avatar} alt="" /> : <FaCircleUser size={16} />}
               <h2>{video.author.username}</h2>
               </div>
-              <div className="view-wrap">
+              {/* <div className="view-wrap">
               <FaCirclePlay className="icon" />
               <p>112 views</p>
-              </div>
+              </div> */}
               </div>
               {/* <h3>Vibes</h3> */}
               <div className="bottom-action">
