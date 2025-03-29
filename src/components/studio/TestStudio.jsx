@@ -2,8 +2,8 @@ import  { useEffect, useState } from "react";
 import axios from "axios";
 // import * as tus from "tus-js-client";
 import "./TestStudio.scss"
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+// import ReactQuill from 'react-quill';
+// import 'react-quill/dist/quill.snow.css';
 import { SiComma } from "react-icons/si";
 import Communitie_modal from "../modal/Communitie_modal";
 import Beneficiary_modal from "../modal/Beneficiary_modal"
@@ -12,6 +12,7 @@ import Upload_modal from "../modal/Upload_modal";
 import cloud from "../../assets/image/upload-cloud.png"
 import { MdPeopleAlt } from "react-icons/md";
 import DOMPurify from 'dompurify';
+import TextEditor from "./TextEditor"
 // import { Client: HiveClient } from "@hiveio/dhive";
 
 
@@ -80,142 +81,6 @@ function TestStudio() {
     setBeneficiaryOpen( (prev)=> !prev)
   }
 
-  
-  
-
-  // const calculateVideoDuration = (file) => {
-  //   return new Promise((resolve) => {
-  //     const video = document.createElement("video");
-  //     video.preload = "metadata";
-
-  //     video.onloadedmetadata = () => {
-  //       window.URL.revokeObjectURL(video.src); // Clean up
-  //       resolve(video.duration); // Duration in seconds
-  //     };
-
-  //     video.src = URL.createObjectURL(file);
-  //   });
-  // };
-
-  // Handle video upload
-  // const handleFileUpload = async (event) => {
-  //   const file = event.target.files[0];
-  //   if (!file) return;
-
-  //   setVideoFile(file);
-
-  //   const duration = await calculateVideoDuration(file);
-  //   setVideoDuration(duration);
-
-  //   const upload = new tus.Upload(file, {
-  //     endpoint: tusEndPoint,
-  //     retryDelays: [0, 3000, 5000, 10000, 20000],
-  //     metadata: {
-  //       filename: file.name,
-  //       filetype: file.type,
-  //     },
-  //     onError: (error) => {
-  //       console.error("Upload failed:", error);
-  //     },
-  //     onProgress: (bytesUploaded, bytesTotal) => {
-  //       const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
-  //       setUploadProgress(percentage);
-  //     },
-  //     onSuccess: () => {
-  //       const finalURL = upload.url.replace(tusEndPoint, "");
-  //       setUploadURL(finalURL);
-  //       console.log("Upload successful! URL:", finalURL);
-  //     },
-  //   });
-
-  //   upload.start();
-  // };
-
-  // Handle thumbnail upload
-  // const handleThumbnailUpload = (event) => {
-  //   const file = event.target.files[0];
-  //   if (!file) return;
-
-  //   const upload = new tus.Upload(file, {
-  //     endpoint: tusEndPoint,
-  //     retryDelays: [0, 3000, 5000, 10000, 20000],
-  //     metadata: {
-  //       filename: file.name,
-  //       filetype: file.type,
-  //     },
-  //     onError: function (error) {
-  //       console.error("Thumbnail upload failed:", error);
-  //     },
-  //     onProgress: function (bytesUploaded, bytesTotal) {
-  //       const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
-  //       console.log(`Thumbnail upload progress: ${percentage}%`);
-  //     },
-  //     onSuccess: function () {
-  //       const uploadedUrl = upload.url;
-  //       console.log("Thumbnail uploaded successfully:", uploadedUrl);
-  
-  //       // Save the uploaded thumbnail URL in state
-  //       setThumbnailPreview(uploadedUrl);
-  //       setThumbnailFile(uploadedUrl);
-  //       // setThumbnailFile(file);
-  //     },
-  //   });
-  
-  //   upload.start();
-
-  //   // const previewURL = URL.createObjectURL(file);
-  //   // setThumbnailPreview(previewURL);
-  //   // setThumbnailFile(file);
-  // };
-
-  // Update video information
-  // const updateVideoInfo = async () => {
-  //   if (!uploadURL || !videoFile || !thumbnailFile) {
-  //     console.error("Missing video or thumbnail information.");
-  //     return;
-  //   }
-  //   const oFilename = videoFile.name;
-  //   const fileSize = videoFile.size;
-  //   // const thumbnailURL = "https://www.shutterstock.com/shutterstock/photos/2033709224/display_1500/stock-vector-vector-illustration-material-tiger-tiger-line-drawing-material-2033709224.jpg";
-  //   // const thumbnailURL = URL.createObjectURL(thumbnailFile);
-  //   console.log("Username====>",  username)
-  //   console.log("ACCESS TOKEN====>", accessToken)
-  //   console.log("thumbnailurl====>", thumbnailFile)
-  //   console.log("videoDuration====>", Math.round(videoDuration))
-  //   console.log("Video-URL====>", uploadURL)
-  //   const thumbnailIdentifier = thumbnailFile.replace("https://uploads.3speak.tv/files/", "");
-    
-
-  //   try {
-  //     const { data } = await axios.post(
-  //       `${studioEndPoint}/mobile/api/upload_info`,
-  //       {
-  //         filename: uploadURL,
-  //         oFilename,
-  //         size: fileSize,
-  //         duration: Math.round(videoDuration), // Duration in seconds
-  //         thumbnail: thumbnailIdentifier,
-  //         owner: username,
-  //         isReel: false, // Adjust as needed
-  //       },
-  //       {
-  //         withCredentials: false,
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //           Authorization: `Bearer ${accessToken}`,
-  //         },
-  //       }
-  //     );
-
-  //     console.log("Video info updated successfully:", data);
-  //     setVideoId(data._id)
-  //     // handleSubmitDetails()
-  //     return data;
-  //   } catch (e) {
-  //     console.error(e);
-  //     throw e;
-  //   }
-  // };
 
   const handleSelect = (e)=>{
     const value = e.target.value;
@@ -300,7 +165,8 @@ function TestStudio() {
         <div className="input-group">
           <label htmlFor="">Description</label>
           <div className="wrap-dec">
-          <ReactQuill theme="snow" value={description} onChange={setDescription}  style={{ height: "90%", }} />
+          {/* <ReactQuill theme="snow" value={description} onChange={setDescription}  style={{ height: "90%", }} /> */}
+          <TextEditor description={description} setDescription={setDescription} style={{ height: "80%", }} />
           </div>
         </div>
 
