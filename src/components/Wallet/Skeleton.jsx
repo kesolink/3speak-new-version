@@ -1,6 +1,6 @@
 import React from 'react';
-import './skeleton.scss';
-import clsx from 'clsx';
+import './Skeleton.scss';
+
 
 const Skeleton = ({ rows = 5 }) => {
   return (
