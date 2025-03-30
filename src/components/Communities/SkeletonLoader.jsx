@@ -3,7 +3,7 @@ import './SkeletonLoader.scss';
 
 const SkeletonLoader = () => {
   return (
-    <div className="skeleton-loader">
+    <div className="skeleton-loaders">
       {[...Array(50)].map((_, index) => (
         <div key={index} className="skeleton-card">
           <div className="skeleton-img-wrap"></div>

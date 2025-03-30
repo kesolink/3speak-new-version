@@ -82,7 +82,7 @@ function Login() {
             onChange={(e) => setPostingKey(e.target.value)}
           />
 
-          <span>We don't store your private keys.</span>
+          <span className='private-text'>We don't store your private keys.</span>
 
           <button onClick={logMe} >Login</button>
 

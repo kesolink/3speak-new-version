@@ -1,17 +1,17 @@
 
 import "./Feed.scss"
 
-import thumb1 from "../../assets/image/thumb01.jfif"
-import thumb2 from "../../assets/image/thumb02.jfif"
-import thumb3 from "../../assets/image/thumb03.jfif"
-import thumb4 from "../../assets/image/thumb04.jfif"
-import thumb5 from "../../assets/image/thumb05.jfif"
-import thumb6 from "../../assets/image/thumb06.jfif"
-import thumb7 from "../../assets/image/thumb07.jfif"
-import thumb8 from "../../assets/image/thumb08.jfif"
-import thumb9 from "../../assets/image/thumb09.jfif"
-import thumb10 from "../../assets/image/thumb10.jfif"
-import user_img from "../../assets/image/user-img.avif"
+// import thumb1 from "../../assets/image/thumb01.jfif"
+// import thumb2 from "../../assets/image/thumb02.jfif"
+// import thumb3 from "../../assets/image/thumb03.jfif"
+// import thumb4 from "../../assets/image/thumb04.jfif"
+// import thumb5 from "../../assets/image/thumb05.jfif"
+// import thumb6 from "../../assets/image/thumb06.jfif"
+// import thumb7 from "../../assets/image/thumb07.jfif"
+// import thumb8 from "../../assets/image/thumb08.jfif"
+// import thumb9 from "../../assets/image/thumb09.jfif"
+// import thumb10 from "../../assets/image/thumb10.jfif"
+// import user_img from "../../assets/image/user-img.avif"
 import { Link } from "react-router-dom"
 import { IoChevronUpCircleOutline } from "react-icons/io5"
 import { GiEternalLove } from "react-icons/gi"
@@ -21,6 +21,10 @@ import { useEffect, useState } from "react"
 import Auth_modal from "../modal/Auth_modal"
 import { has3SpeakPostAuth } from '../../utils/hiveUtils';
 import { useAppStore } from '../../lib/store';
+import CardSkeleton from "../Cards/CardSkeleton"
+import { useQuery } from "@apollo/client"
+import { LATEST_FEED } from "../../graphql/queries"
+import Cards from "../Cards/Cards"
 function Feed() {
   const [isOpen, setIsOpen] = useState(false)
   const {user} = useAppStore();
@@ -28,6 +32,11 @@ function Feed() {
   useEffect(()=>{
     checkPostAuth(user);
   },[])
+
+  const { data, loading, error } = useQuery(LATEST_FEED);
+  const videos = data?.feed?.items || [];
+  console.log(videos)
+  // console.log(JSON.stringify(data.feed.items, null, 2));
 
   const toggleUploadModal = ()=>{
     setIsOpen( (prev)=> !prev)
@@ -40,12 +49,19 @@ function Feed() {
       }
     }
 
+    // console.log(data);
+
   return (
     <>
     <>
     <CommunitiesTags />
 
-    <div className="feed">
+    {loading ? 
+        <CardSkeleton /> :
+        <Cards videos={videos} loading={loading} error={error} className="custom-video-feed" />
+      }
+
+    {/* <div className="feed">
       <Link to={`video/20/4521`} className="card">
         <div className="img-wrap">
           <img src={thumb1} alt="" />
@@ -574,7 +590,7 @@ function Feed() {
             <p> 2 days ago</p>
         </div>
       </Link>
-    </div>
+    </div> */}
     </>
     {isOpen && <Auth_modal  isOpen={isOpen} close={toggleUploadModal} />}
     </>

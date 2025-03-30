@@ -13,7 +13,6 @@ function CommunityPage() {
     const { communityName: id } = useParams(); 
     const [dataMain, setDataMain] = useState(null)
     const [trend, setTrend]= useState(true)
-    const [newPost , setNewPost] = useState(false)
     console.log(id)
     // const [data, setData] = useState(null);
     const fetchCommunityData = async (id) => {
@@ -41,7 +40,7 @@ function CommunityPage() {
 
 
 
-    const { loading, error, data } = useQuery(GET_COMMUNITIES, {
+    const { loading, data } = useQuery(GET_COMMUNITIES, {
         variables: { id: id },
       });
     

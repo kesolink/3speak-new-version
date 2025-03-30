@@ -53,16 +53,24 @@
         padding-bottom: 7px;
         @include mix.respond(phone) {
             padding: 0px  5px;
+            padding-bottom: 7px;
+            
       }
         .wrap{
             display: flex;
             align-items: center;
             gap: 15px;
+            @include mix.respond(phone) {
+                padding-bottom: 0px;
+          }
             
             span{
                 padding-bottom: 3px;
                 box-sizing: border-box;
                 // background-color: yellow;
+                @include mix.respond(phone) {
+                    padding-bottom: 0px;
+              }
                 &:hover {
                     box-sizing: border-box;
                     // padding-bottom: 3px;
