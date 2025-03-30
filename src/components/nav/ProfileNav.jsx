@@ -15,7 +15,7 @@ import logo from "../../assets/image/3S_logo.svg";
 import { SiTelegram } from "react-icons/si";
 
 function ProfileNav({isVisible, onclose}) {
-  const { authenticated, LogOut, userhiveDetails } = useAppStore();
+  const {  LogOut } = useAppStore();
     const getUserProfile = useGetMyQuery()?.profile;
     console.log(getUserProfile)
 
@@ -43,24 +43,24 @@ function ProfileNav({isVisible, onclose}) {
             </div>
            </div>
            <div className="list-wrap">
-          <Link to="/profile"  className="wrap">
+          <Link to="/profile"  className="wrap" onClick={onclose}>
             <IoMdPerson className="icon" /> <span>My Channel</span>
           </Link>
-          <Link  className="wrap">
+          <Link  className="wrap" onClick={onclose}>
             <TiThList className="icon" /> <span>Playlist</span>
           </Link>
-          <Link  className="wrap">
+          <Link  to="/upload" className="wrap" onClick={onclose}>
             <MdCloudUpload className="icon" /> <span>Upload Video</span>
           </Link>
-          <Link to="/wallet" className="wrap">
+          <Link to="/wallet" className="wrap" onClick={onclose}>
             <RiWallet3Fill className="icon" /> <span>Wallet</span>
           </Link>
-          <Link  className="wrap">
+          {/* <Link  className="wrap">
             <FaJxl className="icon" /> <span>Proposals</span>
-          </Link>
-          <Link  className="wrap">
+          </Link> */}
+          {/* <Link  className="wrap">
             <FaCheckToSlot className="icon" /> <span>witnesses</span>
-          </Link>
+          </Link> */}
           {/* <Link  className="wrap">
             <FaRegSmile className="icon" /> <span>Switch User</span>
           </Link> */}

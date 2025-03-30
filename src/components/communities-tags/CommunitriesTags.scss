@@ -1,3 +1,4 @@
+@use "../../mixins.scss" as *;
 .wrap-community {
     display: flex;
     align-items: center;
@@ -17,6 +18,12 @@
         border-radius: 12px;
         background-color: rgb(252, 235, 235);
         border: 1px solid rgb(247, 193, 189);
+        cursor: pointer;
+      }
+      .tags{
+        @include respond(phone) {
+          display: none;
+        }
       }
     }
     .wrap-upload-video {

@@ -17,6 +17,7 @@
 @media (max-width: 767px) {
   .container {
     padding-left: 2%;
+    padding-top: 10px;
   }
   .large-container {
     padding-left: 2%;

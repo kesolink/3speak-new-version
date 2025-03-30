@@ -1,25 +1,37 @@
 import { useQuery } from "@apollo/client";
-import React from "react";
-import { useParams } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { GET_SOCIAL_FEED_BY_CREATOR, GET_TOTAL_COUNT_OF_FOLLOWING } from "../graphql/queries";
 import { useAppStore } from "../lib/store";
 import "./ProfilePage.scss";
 import Cards from "../components/Cards/Cards";
+import {getFollowers} from "../hive-api/api"
 
 function ProfilePage() {
   const { user } = useAppStore();
+  const [follower, setFollower] = useState(null)
   // GET_TOTAL_COUNT_OF_FOLLOWING
   // const { username } = useParams();
+  useEffect(()=>{
+    getFollowersCount(user)
+  },[])
   const { loading, error, data } = useQuery(GET_SOCIAL_FEED_BY_CREATOR, {
     variables: { id: user },
   });
   const videos = data?.socialFeed?.items || [];
   console.log(data);
 
-  // const {  data: followers } = useQuery(GET_TOTAL_COUNT_OF_FOLLOWING, {
-  //   variables: { id: user },
-  // });
-  // console.log(followers);
+
+  const getFollowersCount = async (user)=>{
+    try{
+      const follower = await getFollowers(user)
+    setFollower(follower)
+    } catch (err){
+      console(err)
+    }
+  }
+console.log(follower)
+
   return (
     <div className="profile-page-container">
       <div className="com-profile-img-wrap">
@@ -32,9 +44,10 @@ function ProfilePage() {
       </div>
       <div className="toggle-wrap">
         <div className="wrap">
-          <span>Video</span> <span>wallet</span>
+          <span>Videos</span> 
+          <Link to="/wallet"><span>wallet</span></Link>
         </div>
-        <span className="followers">Followers </span>
+        <span className="followers">{` Followers ${follower?.follower_count}`}</span>
       </div>
       <div className="container-video">
         {loading ? (<span>Loading...</span>) : (<Cards videos={videos} loading={loading} error={error}

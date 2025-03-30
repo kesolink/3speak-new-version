@@ -14,7 +14,7 @@
     // 6px 0 15px rgba(243, 157, 157, 0.3);
     box-shadow: 0px 1px 7px 0px #00000040;
     @include mix.respond(phone) {
-      display: none;
+      display: none  !important;
     }
 
 .shortcut-links{
@@ -39,6 +39,9 @@
     width: fit-content;
     flex-wrap: wrap;
     cursor: pointer;
+    // @include mix.respond(phone) {
+    //     display: none;
+    //   }
     span{
         font-size: 14px;
         font-weight: 500;

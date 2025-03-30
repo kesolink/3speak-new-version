@@ -26,6 +26,16 @@ const client = new Client(SERVERS, {
       }
   };
 
+  export const getFollowers = async (username)=>{
+    try{
+      const count = await client.database.call('get_follow_count', [username]);
+      return count
+    } catch (error){
+      console.error(error);
+          return null;
+    }
+  }
+
   export const isAccountValid = async (username)=>{
     try {
       const accounts = await client.database.getAccounts([username]);
