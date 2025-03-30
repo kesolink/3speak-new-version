@@ -15,7 +15,7 @@ import logo from "../../assets/image/3S_logo.svg";
 import { SiTelegram } from "react-icons/si";
 
 function ProfileNav({isVisible, onclose}) {
-  const {  LogOut } = useAppStore();
+  const {  LogOut, user } = useAppStore();
     const getUserProfile = useGetMyQuery()?.profile;
     console.log(getUserProfile)
 
@@ -23,10 +23,10 @@ function ProfileNav({isVisible, onclose}) {
     <div className={`profilenav-container ${isVisible ? 'visible' : ''}`} onClick={onclose}>
         <div className="profile-wrap" onClick={(e) => e.stopPropagation()}>
           
-           <div className='pro-top-wrap'style={{ backgroundImage: `url(https://images.hive.blog/512x512/${getUserProfile?.images?.cover})`, backgroundSize: "cover", backgroundPosition: "center",}}> 
+           <div className='pro-top-wrap'style={{ backgroundImage: `url(https://images.hive.blog/u/${user}/cover)`, backgroundSize: "cover", backgroundPosition: "center",}}> 
             {/* <img className='' src={getUserProfile?.images?.cover} alt="" /> */}
-            <img className='avatar-img' src={getUserProfile?.images?.avatar} alt="" />
-            <span className='username'>{getUserProfile?.name}</span>
+            <img className='avatar-img' src={`https://images.hive.blog/u/${user}/avatar`} alt="" />
+            <span className='username'>{user}</span>
             <div className="power-wrap">
               <div className="wrap">
               <MdOutlineKeyboardArrowUp />
