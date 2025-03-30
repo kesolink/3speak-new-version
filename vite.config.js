@@ -14,6 +14,7 @@ export default defineConfig({
       }
     })
   ],
+  base: "/", // Ensure this is correct for Vercel deployment
   assetsInclude: ['**/*.mkv', '**/*.JPG'],
   resolve: {
     alias: {
