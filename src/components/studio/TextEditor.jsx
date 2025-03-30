@@ -8,12 +8,10 @@ const TextEditor = ({ description, setDescription }) => {
     modules: {
       toolbar: [
         ['bold', 'italic', 'underline'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['link', ]
-        // ['link', 'image']
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link']
       ]
     },
-    // 👇 Ensure LTR (Left-to-Right) direction
     theme: 'snow',
     bounds: document.body,
     scrollingContainer: 'html',
@@ -23,10 +21,14 @@ const TextEditor = ({ description, setDescription }) => {
   useEffect(() => {
     if (quill && description) {
       quill.clipboard.dangerouslyPasteHTML(description);
+      
+      // Explicitly set LTR direction
+      quill.root.style.direction = 'ltr';
+      quill.root.setAttribute('dir', 'ltr');
     }
-  }, [quill]); // Only runs when Quill initializes
+  }, [quill]);
 
-  // Update parent state on text changes (debounced to avoid loops)
+  // Update parent state on text changes
   useEffect(() => {
     if (!quill) return;
 
@@ -42,8 +44,12 @@ const TextEditor = ({ description, setDescription }) => {
   }, [quill, setDescription]);
 
   return (
-    <div style={{ width: '100%', height: 270 }}>
-      <div ref={quillRef} />
+    <div style={{ 
+      width: '100%', 
+      height: 270,
+      direction: 'ltr' // Ensure parent container is LTR
+    }}>
+      <div ref={quillRef} dir="ltr" /> {/* Explicit LTR on editor */}
     </div>
   );
 };
