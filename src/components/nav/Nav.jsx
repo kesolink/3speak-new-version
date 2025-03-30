@@ -19,7 +19,7 @@ import apple_icon from "../../assets/image/app-store.png"
 import play_store from "../../assets/image/playstore.png"
 import { useState } from "react";
 function Nav({ setSideBar, toggleProfileNav }) {
-  const { authenticated, LogOut } = useAppStore();
+  const { authenticated, LogOut, user } = useAppStore();
   const [nav, setNav] = useState(false)
 
   const getUserProfile = useGetMyQuery()?.profile;
@@ -103,10 +103,10 @@ function Nav({ setSideBar, toggleProfileNav }) {
 
       {authenticated ? (
         <div className="nav-right flex-div">
-          <span>{getUserProfile?.username}</span>
+          <span>{user}</span>
           {/* <IoIosNotifications size={20} /> */}
           
-          <img src={getUserProfile?.images?.avatar} alt="" onClick={toggleProfileNav} />
+          <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" onClick={toggleProfileNav} />
           {/* <div className="dropdown-menu">
             <Link className="list">My Channel</Link>
             <Link className="list">Upload Video</Link>

@@ -27,7 +27,7 @@ import { LATEST_FEED } from "../../graphql/queries"
 import Cards from "../Cards/Cards"
 function Feed() {
   const [isOpen, setIsOpen] = useState(false)
-  const {user} = useAppStore();
+  const {authenticated, user} = useAppStore();
 
   useEffect(()=>{
     checkPostAuth(user);
@@ -43,6 +43,9 @@ function Feed() {
   }
 
     async function checkPostAuth(username) {
+      if(!authenticated){
+        return
+      }
       const hasAuth = await has3SpeakPostAuth(username);
       if (!hasAuth) {
         setIsOpen(true);

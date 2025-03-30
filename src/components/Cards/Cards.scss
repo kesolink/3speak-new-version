@@ -1,4 +1,4 @@
-@use "../../mixins.scss" as mix;
+@use "../../mixins.scss" as *;
 
 .card-container {
   display: grid;
@@ -36,6 +36,9 @@
         object-position: center; /* Centers the image within its container */
         background-position: center;
         background-size: cover;
+        @include respond(phone) {
+          height: 195px;
+        }
       }
 
       .buttom-title {
@@ -160,13 +163,16 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 3px 4px;
+      padding: 5px 4px;
       // border-radius: 5px;
       border-top: 1px solid grey;
       margin-top: 2px;
       border-top-width: 1px;
       border-color:rgb(226, 232, 240);
       // border: 1px solid grey;
+      @include respond(phone) {
+        padding: 7px 4px;
+      }
       .wrap-left {
         display: flex;
         align-items: center;
