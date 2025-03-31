@@ -30,6 +30,7 @@
     "hive-content-renderer": "^1.0.3",
     "js-md5": "^0.8.3",
     "keychain-sdk": "^0.8.5",
+    "ldrs": "^1.1.6",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",
     "quill": "^2.0.3",

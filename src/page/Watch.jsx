@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Recommended from '../components/recommended/Recommended';
 import { useSearchParams } from 'react-router-dom';
 import { GET_RELATED, GET_VIDEO_DETAILS } from '../graphql/queries';
 import { useQuery } from '@apollo/client';
+import BarLoader from '../components/Loader/BarLoader';
 
 function Watch() {
   const [searchParams] = useSearchParams();
@@ -32,8 +33,9 @@ function Watch() {
   const isNetworkError = videoError && videoError.networkError;
 
   if (videoLoading || suggestionsLoading) {
-    return <div>Loading...</div>;
+    return <BarLoader /> ;
   }
+
   
 
   if (videoError || suggestionsError) {
