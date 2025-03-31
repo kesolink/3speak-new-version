@@ -22,6 +22,7 @@ import { getUersContent } from "../../utils/hiveUtils";
 import ToolTip from "../tooltip/ToolTip";
 import { ImSpinner9 } from "react-icons/im";
 import { useNavigate } from "react-router-dom";
+import BarLoader from "../Loader/BarLoader";
 
 const PlayVideo = ({ videoDetails, author, permlink }) => {
   const { user } = useAppStore();
@@ -138,7 +139,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   }, [spkvideo]);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <BarLoader />;
   }
 
   const handleVote = (username, permlink, weight = 10000) => {
