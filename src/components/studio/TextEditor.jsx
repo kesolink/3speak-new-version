@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useQuill } from "react-quilljs";
-import "quill/dist/quill.snow.css";
+// import "quill/dist/quill.snow.css";
 
 const TextEditor = ({ description, setDescription }) => {
   const { quill, quillRef } = useQuill({

@@ -31,7 +31,6 @@ export default defineConfig({
     sourcemap: true,
   },
   optimizeDeps: {
-    include: ["react-quilljs", "quill"], // 👈 Ensure Quill is included
     esbuildOptions: {
       define: {
         global: 'globalThis',
