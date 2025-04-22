@@ -1,19 +1,23 @@
 import { RiProfileLine } from "react-icons/ri";
-import "./Sidebar.scss"
-import apple_icon from "../../assets/image/app-store.png"
-import play_store from "../../assets/image/playstore.png"
+import "./Sidebar.scss";
+import apple_icon from "../../assets/image/app-store.png";
+import play_store from "../../assets/image/playstore.png";
 import { PiUserSwitchBold } from "react-icons/pi";
 import { HiInformationCircle } from "react-icons/hi";
-import { MdOutlineDashboard, MdOutlineDynamicFeed, MdOutlineLeaderboard } from "react-icons/md";
+import {
+  MdOutlineDashboard,
+  MdOutlineDynamicFeed,
+  MdOutlineLeaderboard,
+} from "react-icons/md";
 import { LuNewspaper } from "react-icons/lu";
 import { FaFire, FaRegSmile } from "react-icons/fa";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { Link } from "react-router-dom";
 
-const Sidebar = ({sidebar}) => {
-  console.log(sidebar)
+const Sidebar = ({ sidebar }) => {
+  console.log(sidebar);
   return (
-    <div className={`sidebar ${sidebar? "":"small-sidebar" }`}>
+    <div className={`sidebar ${sidebar ? "" : "small-sidebar"}`}>
       <div className="shortcut-links">
         <Link to="/" className="side-link">
           <MdOutlineDashboard className="icon" /> <span>Home</span>
@@ -22,12 +26,12 @@ const Sidebar = ({sidebar}) => {
           <IoCloudUploadSharp className="icon" /> <span>Upload Video</span>
         </Link>
         <Link to="/firstupload" className="side-link">
-          <FaRegSmile className="icon"/> <span>First Uploads</span>
+          <FaRegSmile className="icon" /> <span>First Uploads</span>
         </Link>
-        
+
         <Link to="/trend" className="side-link">
           <FaFire className="icon" /> <span>Trending Content</span>
-        </Link> 
+        </Link>
         <Link to="/new" className="side-link">
           <LuNewspaper className="icon" /> <span>New Content</span>
         </Link>
@@ -46,16 +50,18 @@ const Sidebar = ({sidebar}) => {
       <div className="subscibed-list">
         <h3>Download</h3>
         <div className="side-link">
-          <img src={apple_icon} alt=""className="store-icon" /> <span>Apple Store</span>
+          <img src={apple_icon} alt="" className="store-icon" />{" "}
+          <span>Apple Store</span>
         </div>
         <div className="side-link">
-        <img src={play_store} alt=""className="store-icon" /> <span>Play Store</span>
+          <img src={play_store} alt="" className="store-icon" />{" "}
+          <span>Play Store</span>
         </div>
         <div className="side-link">
-          <PiUserSwitchBold className="icon"  /> <span>Switch Account</span>
+          <PiUserSwitchBold className="icon" /> <span>Switch Account</span>
         </div>
         <div className="side-link">
-          <RiProfileLine className="icon"  /> <span>Home</span>
+          <RiProfileLine className="icon" /> <span>Home</span>
         </div>
       </div>
     </div>

@@ -18,16 +18,19 @@ import { RiProfileLine } from "react-icons/ri";
 import apple_icon from "../../assets/image/app-store.png"
 import play_store from "../../assets/image/playstore.png"
 import { useState } from "react";
+import SearchList from "./SearchList";
 function Nav({ setSideBar, toggleProfileNav }) {
   const { authenticated, LogOut, user } = useAppStore();
   const [nav, setNav] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('');
+  // const [query, setQuery] =useState("")
 
   const getUserProfile = useGetMyQuery()?.profile;
   console.log("User profile", getUserProfile);
   // console.log(getUserProfile.images.avatar);
   const handleNav = () =>{
     setNav((prev) => !prev);
-    console.log(nav)
+    // console.log(nav)
    }
 
 
@@ -45,9 +48,10 @@ function Nav({ setSideBar, toggleProfileNav }) {
       </div>
       <div className="nav-middle flex-dev">
         <div className="search-box">
-          <input type="text" placeholder="Search community" />
+          <input  value={searchTerm} type="text" placeholder="Search users or communities..." onChange={(e)=> setSearchTerm(e.target.value) } />
           <CiSearch className="search-icon" />
         </div>
+        <SearchList searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
       </div>
       <div className={nav ? "side-nav" : "side-nav-else"}>
       <AiOutlineClose className="close-nav" onClick={handleNav}/> 

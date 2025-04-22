@@ -6,6 +6,10 @@ import { useAppStore } from "../lib/store";
 import "./ProfilePage.scss";
 import Cards from "../components/Cards/Cards";
 import {getFollowers} from "../hive-api/api"
+import { Quantum } from 'ldrs/react'
+import 'ldrs/react/Quantum.css'
+import BarLoader from "../components/Loader/BarLoader";
+import icon from "../../public/images/stack.png"
 
 function ProfilePage() {
   const { user } = useAppStore();
@@ -47,12 +51,12 @@ console.log(follower)
           <span>Videos</span> 
           <Link to="/wallet"><span>wallet</span></Link>
         </div>
-        <span className="followers">{` Followers ${follower?.follower_count}`}</span>
+        <span className="followers"> Followers{" "} {follower?.follower_count !== undefined ? ( follower.follower_count ) : (<Quantum size="15" speed="1.75" color="red" />  )}</span>
       </div>
       <div className="container-video">
-        {loading ? (<span>Loading...</span>) : (<Cards videos={videos} loading={loading} error={error}
+        {loading ? (<BarLoader/>) : videos?.length === 0 ? ( <div className='empty-wrap'>  <img src={icon} alt="" /><span>No Video Data Available</span></div>) : (<Cards videos={videos} loading={loading} error={error}
             className="custom-video-feed" />
-        )}
+        ) }
       </div>
     </div>
   );

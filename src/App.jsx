@@ -25,6 +25,8 @@ import TagFeed from "./page/TagFeed";
 import LeaderBoard from "./page/LeaderBoard";
 import ProfilePage from "./page/ProfilePage";
 import Wallet from "./page/Wallet";
+import Testing from "./components/Testingfile/Testing";
+import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
 
 function App() {
   const { initializeAuth, authenticated } = useAppStore();
@@ -68,7 +70,9 @@ function App() {
             <Route path="/t/:tag" element={<TagFeed />} />
             <Route path="/leaderboard" element={<LeaderBoard />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/wallet" element={<Wallet />} />
+            <Route path="/p/:user" element={<UserProfilePage />} />
+            <Route path="/wallet/:user" element={<Wallet />} />
+            <Route path="/testing" element={<Testing />} />
           </Routes>
         </div>
         <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} />

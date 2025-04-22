@@ -6,6 +6,7 @@ import TrxHistory from '../components/Wallet/TrxHistory';
 import { useAppStore } from '../lib/store';
 import { Client } from '@hiveio/dhive';
 import TransferModal from '../components/Wallet/TransferModal';
+import { useParams } from 'react-router-dom';
 
 const client = new Client([
   'https://api.hive.blog',
@@ -15,7 +16,8 @@ const client = new Client([
 ]);
 
 function Wallet() {
-  const { user } = useAppStore();
+  const { user: currentUser } = useAppStore();
+  const {user} = useParams()
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedCoin, setSelectedCoin] = useState(null);
   const [amount, setAmount] = useState('');
@@ -153,12 +155,12 @@ function Wallet() {
                   <h2>{coin.name}</h2>
                   <p>Current Balance</p>
                 </div>
-                <button
+                {currentUser === user &&<button
                   className="transfer-btn"
                   onClick={() => handleTransfer(coin.name)}
                 >
                   Transfer {coin.name}
-                </button>
+                </button>}
               </div>
 
               <div className="balance-section">
