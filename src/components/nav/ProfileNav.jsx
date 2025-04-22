@@ -4,7 +4,7 @@ import { useAppStore } from '../../lib/store';
 import { useGetMyQuery } from '../../hooks/getUserDetails';
 import { MdCloudUpload, MdKeyboardArrowDown, MdOutlineKeyboardArrowUp } from "react-icons/md";
 import { ImPower } from "react-icons/im";
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaDiscord, FaLanguage} from 'react-icons/fa';
 import { IoPower } from 'react-icons/io5';
 import { FaCheckToSlot, FaJxl, FaSquareXTwitter, FaUserGroup } from 'react-icons/fa6';
@@ -15,9 +15,13 @@ import logo from "../../assets/image/3S_logo.svg";
 import { SiTelegram } from "react-icons/si";
 
 function ProfileNav({isVisible, onclose}) {
+  const navigate = useNavigate()
   const {  LogOut, user } = useAppStore();
     const getUserProfile = useGetMyQuery()?.profile;
     console.log(getUserProfile)
+    const handlewallletNavigation = ()=>{
+      navigate(`/wallet/${user}`)
+    }
 
   return (
     <div className={`profilenav-container ${isVisible ? 'visible' : ''}`} onClick={onclose}>
@@ -52,9 +56,9 @@ function ProfileNav({isVisible, onclose}) {
           <Link  to="/upload" className="wrap" onClick={onclose}>
             <MdCloudUpload className="icon" /> <span>Upload Video</span>
           </Link>
-          <Link to="/wallet" className="wrap" onClick={onclose}>
+          <div className="wrap" onClick={()=>{handlewallletNavigation(); onclose()}}>
             <RiWallet3Fill className="icon" /> <span>Wallet</span>
-          </Link>
+          </div>
           {/* <Link  className="wrap">
             <FaJxl className="icon" /> <span>Proposals</span>
           </Link> */}
