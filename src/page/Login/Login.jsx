@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './Login.scss';
 import logo from '../../assets/image/3S_logo.svg';
 import keychain from '../../assets/image/keychain.png';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 // import dhive from "@hiveio/dhive";
 import hive from '@hiveio/hive-js';
+import { useAppStore } from '../../lib/store';
+import { LOCAL_STORAGE_ACCESS_TOKEN_KEY, LOCAL_STORAGE_USER_ID_KEY } from '../../hooks/localStorageKeys';
+import { LuLogOut } from 'react-icons/lu';
 // import hive from '@hiveio/hive-js/dist/hivejs.min.js';
 
 // import { Buffer } from 'buffer'
@@ -13,14 +16,24 @@ import hive from '@hiveio/hive-js';
 // import { AuthActions } from '../../hooks/auth/AuthActions';
 // import { Providers } from "@aioha/aioha";
 
+// pill== 5JxrS6DFUWGRu87XyNhUETGuEJdnG1weKcLE3SPFWBst4fnxyPN
+
 
 
 
 function Login() {
+  const { initializeAuth, setActiveUser, switchAccount, clearAccount } = useAppStore();
   const [username, setUsername] = useState('');
   const [postingKey, setPostingKey] = useState('');
   const studioEndPoint = "https://studio.3speak.tv";
   const client = axios.create({});
+  const navigate = useNavigate();
+  const [accountList, setAccountList] = useState([]);
+  
+    useEffect(()=>{
+      const getAccountlist = JSON.parse(localStorage.getItem("accountsList")) || [];
+      setAccountList(getAccountlist)
+    },[])
 
   async function logMe() {
       try {
@@ -42,14 +55,18 @@ function Login() {
         console.log(access_token)
         access_token = access_token.replace("#", "");
         console.log(`Decrypted ${access_token}\n\n`);
-      //   setAccessToken(access_token);
+        window.localStorage.setItem(LOCAL_STORAGE_ACCESS_TOKEN_KEY, access_token);
+                      window.localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, username);
+                      initializeAuth()
+                      setActiveUser()
+                      navigate("/");
       } catch (err) {
         console.log(err);
         throw err;
       }
     }
 
-    // 5JxrS6DFUWGRu87XyNhUETGuEJdnG1weKcLE3SPFWBst4fnxyPN
+    // 
 
   // const handleLogin = (e) => {
   //   e.preventDefault();
@@ -59,6 +76,17 @@ function Login() {
   //     alert('Please enter both username and posting key');
   //   }
   // };
+
+  const handleSwitchAccount = (user)=>{
+    switchAccount(user)
+    navigate("/")
+
+  }
+  const removeAccount = (user)=> {
+    clearAccount(user)
+    const refreshed = JSON.parse(localStorage.getItem("accountsList")) || [];
+  setAccountList(refreshed);
+  }
 
  
 
@@ -100,6 +128,18 @@ function Login() {
           <div className="wrap-signup">
             <span>Don't have an account?</span><span className="last">Sign up now!</span>
           </div>
+          <div className="switch-acct-wrapper">
+            <h3>Login As</h3>        
+              <div className="list-acct-wrap">
+                      {accountList.map((list, idex)=>(
+                        <div key={idex} className='wrap' onClick={()=>handleSwitchAccount(list.username)}>   
+                        <img src={`https://images.hive.blog/u/${list.username}/avatar`} alt="" /> <span>{list.username}</span> 
+                        <LuLogOut size={12}  onClick={(e) => {e.stopPropagation();  removeAccount(list.username);}} />
+                        </div>
+                      ))}
+                    
+                    </div>
+                    </div>
         </div>
       </div>
     </div>
