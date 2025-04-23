@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import "./ProfileNav.scss"
 import { useAppStore } from '../../lib/store';
 import { useGetMyQuery } from '../../hooks/getUserDetails';
@@ -16,12 +16,25 @@ import { SiTelegram } from "react-icons/si";
 
 function ProfileNav({isVisible, onclose}) {
   const navigate = useNavigate()
-  const {  LogOut, user } = useAppStore();
+  const {  LogOut, user, switchAccount } = useAppStore();
+  const [showDropdown, setShowDropdown] = useState(false);
     const getUserProfile = useGetMyQuery()?.profile;
+    const [accountList, setAccountList] = useState([]);
+      
+        useEffect(()=>{
+          const getAccountlist = JSON.parse(localStorage.getItem("accountsList")) || [];
+          setAccountList(getAccountlist)
+        },[])
     console.log(getUserProfile)
+
     const handlewallletNavigation = ()=>{
       navigate(`/wallet/${user}`)
     }
+    const handleSwitchAccount = (user)=>{
+    switchAccount(user)
+    navigate("/")
+
+  }
 
   return (
     <div className={`profilenav-container ${isVisible ? 'visible' : ''}`} onClick={onclose}>
@@ -29,7 +42,7 @@ function ProfileNav({isVisible, onclose}) {
           
            <div className='pro-top-wrap'style={{ backgroundImage: `url(https://images.hive.blog/u/${user}/cover)`, backgroundSize: "cover", backgroundPosition: "center",}}> 
             {/* <img className='' src={getUserProfile?.images?.cover} alt="" /> */}
-            <img className='avatar-img' src={`https://images.hive.blog/u/${user}/avatar`} alt="" />
+            <img className='avatar-img' src={`https://images.hive.blog/u/${user}/avatar`}  alt="" />
             <span className='username'>{user}</span>
             <div className="power-wrap">
               <div className="wrap">
@@ -59,18 +72,15 @@ function ProfileNav({isVisible, onclose}) {
           <div className="wrap" onClick={()=>{handlewallletNavigation(); onclose()}}>
             <RiWallet3Fill className="icon" /> <span>Wallet</span>
           </div>
-          {/* <Link  className="wrap">
-            <FaJxl className="icon" /> <span>Proposals</span>
-          </Link> */}
-          {/* <Link  className="wrap">
-            <FaCheckToSlot className="icon" /> <span>witnesses</span>
-          </Link> */}
-          {/* <Link  className="wrap">
-            <FaRegSmile className="icon" /> <span>Switch User</span>
-          </Link> */}
-          <Link  className="wrap">
+          <div  className="wrap dropdown-parent" onClick={() => setShowDropdown(!showDropdown)}>
             <FaUserGroup className="icon" /> <span>Switch User</span>
-          </Link>
+            {showDropdown && accountList.length > 0 &&(<div className="dropdown-menu">
+              <span className='close-btn' onClick={() => setShowDropdown(!showDropdown)}>x</span>
+              {accountList.map((list, index)=>(
+                <div key={index} className="list" onClick={(e)=>{e.stopPropagation(); handleSwitchAccount(list.username); setShowDropdown(!showDropdown)}}> <img src={`https://images.hive.blog/u/${list.username}/avatar`} alt="" /> <span>{list.username}</span></div>
+              ))}
+            </div>)}
+          </div> 
           <Link  className="wrap">
             <FaLanguage className="icon" /> <span>Language Settings</span>
           </Link>
