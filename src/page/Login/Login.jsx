@@ -128,7 +128,7 @@ function Login() {
           <div className="wrap-signup">
             <span>Don't have an account?</span><span className="last">Sign up now!</span>
           </div>
-          <div className="switch-acct-wrapper">
+          {accountList.length > 0 &&<div className="switch-acct-wrapper">
             <h3>Login As</h3>        
               <div className="list-acct-wrap">
                       {accountList.map((list, idex)=>(
@@ -139,8 +139,8 @@ function Login() {
                       ))}
                     
                     </div>
-                    </div>
-        </div>
+                    </div>}
+          </div>
       </div>
     </div>
   );
