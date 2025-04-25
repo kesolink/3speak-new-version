@@ -1,44 +1,43 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 export default defineConfig({
   plugins: [
     react(),
     nodePolyfills({
-      include: ['buffer', 'stream', 'crypto', 'util'],
+      include: ["buffer", "stream", "crypto", "util", "process", "querystring"],
       globals: {
         Buffer: true,
         global: true,
         process: true,
-      }
-    })
+      },
+    }),
   ],
-  base: "/", // Ensure this is correct for Vercel deployment
-  assetsInclude: ['**/*.mkv', '**/*.JPG'],
+  define: {
+    "process.env": {},
+    global: "globalThis", // Ensures `global` is available
+  },
   resolve: {
     alias: {
-      crypto: 'crypto-browserify',
-      stream: 'stream-browserify',
-      util: 'util',
-    }
-  },
-  define: {
-    'process.env': {},
-    global: 'globalThis',
-  },
-  build: {
-    sourcemap: true,
+      // Ensure browser-compatible versions of Node.js modules
+      crypto: "crypto-browserify",
+      stream: "stream-browserify",
+      util: "util/",
+      querystring: "querystring-es3",
+    },
   },
   optimizeDeps: {
     esbuildOptions: {
       define: {
-        global: 'globalThis',
+        global: "globalThis", // Fixes global scope issues
       },
     },
+    include: ["react-quilljs", "quill"], // Explicitly optimize these deps
   },
-  css: {
-    devSourcemap: true,
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true, // Helps with CJS/ESM interop
+    },
   },
-  
 });
