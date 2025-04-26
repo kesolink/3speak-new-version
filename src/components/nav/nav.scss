@@ -137,13 +137,14 @@
       }
       .search-wrap-sm{
         position: relative;
+        padding-top: 12px;
         .wrap{
           display: flex;
           align-items: center;
           background-color: red;
           background-color: #fff;
           gap: 2px;
-          border-radius: 5px;
+          border-radius: 8px;
           height: 30px;
           padding: 0px 5px;
           input{

@@ -60,6 +60,14 @@ function Nav({ setSideBar, toggleProfileNav }) {
 
       <div >
             <div className="shortcut-links">
+
+            <div className="search-wrap-sm">
+                <div className="wrap">
+                 <input type="text" value={searchTermSm}  onChange={(e)=> setSearchTermSm(e.target.value) } />
+                 <CiSearch size={20} color="green" />
+                </div>
+                <SearchList_Sm searchTerm={searchTermSm} setSearchTerm={setSearchTermSm} handleNav={handleNav} />
+              </div>
               <Link to="/" className="side-link-n" onClick={handleNav}>
                 <MdOutlineDashboard className="icon" /> <span>Home</span>
               </Link>
@@ -85,13 +93,7 @@ function Nav({ setSideBar, toggleProfileNav }) {
               {/* <div className="side-link-n" onClick={handleNav}>
                 <HiInformationCircle className="icon" /> <span>About 3speak</span>
               </div> */}
-              <div className="search-wrap-sm">
-                <div className="wrap">
-                 <input type="text" value={searchTermSm}  onChange={(e)=> setSearchTermSm(e.target.value) } />
-                 <CiSearch size={20} color="green" />
-                </div>
-                <SearchList_Sm searchTerm={searchTermSm} setSearchTerm={setSearchTermSm} handleNav={handleNav} />
-              </div>
+              
 
           
       
