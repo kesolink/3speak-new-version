@@ -46,6 +46,31 @@ const client = new Client(SERVERS, {
     }
   }
 
+  export const fetchBalances = async (user) => {
+    console.log(user)
+    try {
+      const [account] = await client.database.getAccounts([user]);
+      const dgp = await client.database.getDynamicGlobalProperties();
+
+      const vestsToHP = (vests) => {
+        const totalVests = parseFloat(dgp.total_vesting_shares.split(' ')[0]);
+        const totalHP = parseFloat(dgp.total_vesting_fund_hive.split(' ')[0]);
+        return (vests * totalHP) / totalVests;
+      };
+
+      return({
+        hp: vestsToHP(parseFloat(account.vesting_shares.split(' ')[0])),
+        hbd: parseFloat(account.hbd_balance.split(' ')[0]),
+        hive: parseFloat(account.balance.split(' ')[0]),
+        savings_hbd: parseFloat(account.savings_hbd_balance.split(' ')[0])
+      });
+
+    } catch (err) {
+      console.error('Failed to fetch balances', err);
+      
+    } 
+  };
+
 
   export const createHiveCommunityKY = async (username, communityName, keys, activeKey) => {
     return new Promise(async (resolve, reject) => {

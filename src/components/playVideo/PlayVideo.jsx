@@ -23,6 +23,7 @@ import ToolTip from "../tooltip/ToolTip";
 import { ImSpinner9 } from "react-icons/im";
 import { useNavigate } from "react-router-dom";
 import BarLoader from "../Loader/BarLoader";
+import TipModal from "../../components/tip-reward/TipModal"
 
 const PlayVideo = ({ videoDetails, author, permlink }) => {
   const { user } = useAppStore();
@@ -30,6 +31,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   const [openTooltip, setOpenToolTip] = useState(false);
   const [tooltipVoters, setTooltipVoters] = useState([]);
   const [voted, setVoted] = useState(null)
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
   const navigate = useNavigate();
 
   // Define getTooltipVoters BEFORE useEffect
@@ -177,7 +179,13 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
 
   // console.log(videoDetails);
 
+  // const handleSendTip = (amount: string, currency: string, memo: string) => {
+  //   console.log("Sending tip:", { amount, currency, memo });
+  //   // Implement your tip sending logic here
+  // };
+
   return (
+    <>
     <div className="play-video">
       <div className="top-container">
 {videoUrlSelected ? (
@@ -242,7 +250,8 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
               <GiTwoCoins className="icon" />
               <span>${videoDetails?.stats.total_hive_reward.toFixed(2)}</span>
             </span>
-            <span>Reply</span>
+            {/* <span>Reply</span> */}
+            <button className="tip-btn" onClick={() => setIsTipModalOpen(true)}>Tip</button>
           </div>
         </div>
       </div>
@@ -282,6 +291,13 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
         permlink={permlink}
       />
     </div>
+    {isTipModalOpen && <TipModal
+    recipient={author}
+    isOpen={isTipModalOpen}
+    onClose={() => setIsTipModalOpen(false)}
+    // onSendTip={handleSendTip}
+     />}
+    </>
   );
 };
 
