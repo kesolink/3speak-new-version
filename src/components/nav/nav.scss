@@ -135,6 +135,26 @@
               color: red;
             }
       }
+      .search-wrap-sm{
+        position: relative;
+        .wrap{
+          display: flex;
+          align-items: center;
+          background-color: red;
+          background-color: #fff;
+          gap: 2px;
+          border-radius: 5px;
+          height: 30px;
+          padding: 0px 5px;
+          input{
+            width: 100%;
+            height: 100%;
+            outline: none;
+            border: none;
+            padding-left: 4px;
+          }
+        }
+      }
       
   }
   .side-link-n{
