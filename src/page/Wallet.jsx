@@ -172,8 +172,6 @@ function Wallet() {
                   ≈ ${(coin.balance * coin.usdPrice).toFixed(2)} USD
                 </p>
               </div>
-
-              <div className="chart-container" id={`${coin.name}-chart`}></div>
             </div>
           ))}
         </div>

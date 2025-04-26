@@ -53,10 +53,17 @@ function Login() {
         let access_token = hive.memo.decode(postingKey, memo);
         // let access_token = dhive?.memo.decode(postingKey, memo);
         console.log(access_token)
-        access_token = access_token.replace("#", "");
-        console.log(`Decrypted ${access_token}\n\n`);
-        window.localStorage.setItem(LOCAL_STORAGE_ACCESS_TOKEN_KEY, access_token);
+        const decodedMessage = access_token.replace("#", "");
+        const existing = JSON.parse(localStorage.getItem("accountsList")) || [];
+          
+            // Avoid duplicates
+            const filtered = existing.filter(acc => acc.username !== username);
+          
+            const updated = [...filtered, { username, access_token: decodedMessage }];
+        // console.log(`Decrypted ${access_token}\n\n`);
+        // window.localStorage.setItem(LOCAL_STORAGE_ACCESS_TOKEN_KEY, access_token);
                       window.localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, username);
+                      localStorage.setItem("accountsList", JSON.stringify(updated));
                       localStorage.setItem("activeAccount", username);
                       initializeAuth()
                       setActiveUser()
