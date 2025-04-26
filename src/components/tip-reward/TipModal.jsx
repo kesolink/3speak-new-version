@@ -5,6 +5,10 @@ import { fetchBalances, isAccountValid } from '../../hive-api/api';
 import { useAppStore } from '../../lib/store';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { LineSpinner } from 'ldrs/react'
+import 'ldrs/react/LineSpinner.css'
+
+
 
 
 const TipModal = ({ recipient, isOpen, onClose, onSendTip }) => {
@@ -13,10 +17,11 @@ const TipModal = ({ recipient, isOpen, onClose, onSendTip }) => {
   const [currency, setCurrency] = useState("HIVE");
   const [memo, setMemo] = useState("");
   const [step, setStep] = useState(1)
-  const [balErr, setBalErr] = useState ("")
+//   const [balErr, setBalErr] = useState ("")
   const [balances, setBalances] = useState({})
   const [selectedBalance, setSelectedBalance] = useState()
-  const [error, setError] = useState()
+//   const [error, setError] = useState()
+  const [loading, setLoading] = useState(false);
 
 
   useEffect(()=>{
@@ -31,8 +36,15 @@ const TipModal = ({ recipient, isOpen, onClose, onSendTip }) => {
   }, [balances, currency]);
   
   const getbalance = async ()=>{
+    setLoading(true)
+    try{
     const data = await fetchBalances(activetUser)
     setBalances(data)
+    }catch(err){
+        console.log("error fetching this data", err)
+    }finally{
+        setLoading(false)
+    }
   }
 
   
@@ -126,8 +138,14 @@ const TipModal = ({ recipient, isOpen, onClose, onSendTip }) => {
                 <option value="HIVE">HIVE</option>
                 <option value="HBD">HBD</option>
               </select>
-              <div className='balance-wrap'><span>Available balance: {" "}</span> <span>{currency === "HIVE" ? <div>{balances.hive}</div>: <div>{balances.hbd}</div>}</span></div>
+              <div className='balance-wrap'>
+                <span>Available balance: {currency}</span>
+                 {loading ? (<LineSpinner size="10" stroke="3" speed="1" color="red" /> )
+                 :
+                 <span>{currency === "HIVE" ? <div>{balances.hive}</div>: <div>{balances.hbd}</div>}</span>}</div>
             </div>
+
+            
              
 
             <div className="field">

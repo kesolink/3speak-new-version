@@ -14,6 +14,7 @@ import {
 // import ReactJWPlayer from "react-jw-player";
 import JWPlayer from "@jwplayer/jwplayer-react";
 import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
 import CommentSection from "./CommentSection";
 import { useAppStore } from '../..//lib/store';
@@ -33,6 +34,22 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   const [voted, setVoted] = useState(null)
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
   const navigate = useNavigate();
+
+  dayjs.extend(relativeTime);
+
+  const formatRelativeTime = (date) => {
+    const now = dayjs();
+    const created = dayjs(date);
+    const diffInMinutes = now.diff(created, "minute");
+  
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = now.diff(created, "hour");
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = now.diff(created, "day");
+    if (diffInDays < 30) return `${diffInDays}d ago`;
+    const diffInMonths = now.diff(created, "month");
+    return `${diffInMonths}mo ago`;
+  };
 
   // Define getTooltipVoters BEFORE useEffect
   const getTooltipVoters = async () => {
@@ -232,7 +249,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
             </div>
             <div className="wrap">
               <LuTimer />
-              <span>{dayjs(videoDetails?.created_at).fromNow()}</span>
+              <span>{formatRelativeTime(videoDetails?.created_at)}</span>
             </div>
           </div>
           <div className="wrap-right">

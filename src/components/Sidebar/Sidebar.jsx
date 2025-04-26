@@ -60,9 +60,7 @@ const Sidebar = ({ sidebar }) => {
         <div className="side-link">
           <PiUserSwitchBold className="icon" /> <span>Switch Account</span>
         </div>
-        <div className="side-link">
-          <RiProfileLine className="icon" /> <span>Home</span>
-        </div>
+        
       </div>
     </div>
   );

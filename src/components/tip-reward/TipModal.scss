@@ -40,6 +40,9 @@
       h2 {
         font-size: 1.5rem;
         font-weight: 600;
+        @include mix.respond(phone) {
+            font-size: 18px;
+          }
       }
     }
   
@@ -53,10 +56,16 @@
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+      @include mix.respond(phone) {
+        gap: 0.35rem;
+      }
   
       label {
         font-weight: 500;
         color: #333;
+        @include mix.respond(phone) {
+            font-size: 14px;
+          }
       }
   
       input, select {
@@ -64,6 +73,9 @@
         border: 2px solid #e1e1e1;
         border-radius: 8px;
         transition: border-color 0.2s;
+        @include mix.respond(phone) {
+            padding:8px;
+          }
   
         &:focus {
           border-color: #0066cc;
@@ -90,6 +102,9 @@
         border-radius: 8px;
         font-weight: 500;
         transition: transform 0.2s;
+        @include mix.respond(phone) {
+            padding: 0.55rem 1.5rem;
+          }
   
         &:hover {
           transform: translateY(-1px);

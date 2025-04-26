@@ -19,10 +19,12 @@ import apple_icon from "../../assets/image/app-store.png"
 import play_store from "../../assets/image/playstore.png"
 import { useState } from "react";
 import SearchList from "./SearchList";
+import SearchList_Sm from "./SearchList_Sm";
 function Nav({ setSideBar, toggleProfileNav }) {
   const { authenticated, LogOut, user } = useAppStore();
   const [nav, setNav] = useState(false)
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchTermSm, setSearchTermSm] = useState('');
   // const [query, setQuery] =useState("")
 
   const getUserProfile = useGetMyQuery()?.profile;
@@ -80,9 +82,18 @@ function Nav({ setSideBar, toggleProfileNav }) {
               <Link to="/leaderboard" className="side-link-n" onClick={handleNav}>
                 <MdOutlineLeaderboard className="icon" /> <span>Leaderboard</span>
               </Link>
-              <div className="side-link-n" onClick={handleNav}>
+              {/* <div className="side-link-n" onClick={handleNav}>
                 <HiInformationCircle className="icon" /> <span>About 3speak</span>
+              </div> */}
+              <div className="search-wrap-sm">
+                <div className="wrap">
+                 <input type="text" value={searchTermSm}  onChange={(e)=> setSearchTermSm(e.target.value) } />
+                 <CiSearch size={20} color="green" />
+                </div>
+                <SearchList_Sm searchTerm={searchTermSm} setSearchTerm={setSearchTermSm} handleNav={handleNav} />
               </div>
+
+          
       
               <hr />
             </div>
@@ -94,9 +105,7 @@ function Nav({ setSideBar, toggleProfileNav }) {
               <div className="side-link-n">
               <img src={play_store} alt=""className="store-icon" /> <span>Play Store</span>
               </div>
-              <div className="side-link-n">
-                <PiUserSwitchBold className="icon"  /> <span>Switch Account</span>
-              </div>
+              
               
             </div>
           </div>

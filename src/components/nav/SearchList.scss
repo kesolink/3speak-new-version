@@ -22,6 +22,29 @@
   }
 }
 
+.search-list-sm{
+  position: relative;
+right: 0px;
+top: 0px;
+width: 100%; // w-48
+background-color: #fff; // bg-white
+border-radius: 0.5rem; // rounded-lg
+box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); // shadow-lg
+padding: 0.5rem 0; // py-2
+border: 1px solid #e5e7eb;
+&.center{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+&.list{
+  padding: 3px 9px ;
+  right: 700px;
+  text-align: center;
+}
+}
+
+
 .search-results {
   padding: 0px 4px 4px 4px;
 }
