@@ -110,6 +110,19 @@ function StudioPage() {
     }
     const thumbnailIdentifier = thumbnailFile.replace("https://uploads.3speak.tv/files/", "");
     try {
+      const data = {
+        beneficiaries: beneficiaries,
+        description: `${description}<br/><sub>Uploaded using 3Speak Mobile App</sub>`,
+        videoId: videoId, // Using uploaded video URL as videoId
+        title,
+        isNsfwContent: false,
+        tags,
+        thumbnail: thumbnailIdentifier,
+        communityID: community,
+        declineRewards,
+        rewardPowerup
+      }
+      console.log(data)
       
       const response = await client.post(`${studioEndPoint}/mobile/api/update_info`,
         {

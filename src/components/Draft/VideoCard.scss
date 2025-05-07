@@ -1,0 +1,235 @@
+@use "../../mixins.scss" as *;
+$primary-blue: #1EAEDB;
+$primary-red: #ea384c;
+$white: #ffffff;
+$light-gray: #f8f9fa;
+$gray: #e9ecef;
+$dark-gray: #6c757d;
+$black: #212529;
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 25px;
+    
+    @include respond(tab) {
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 20px;
+    }
+    
+    @include respond(phone) {
+      grid-template-columns: 1fr;
+      gap: 15px;
+    }
+  }
+  
+  .video-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: all 0.3s ease-in-out;
+    position: relative;
+    
+    &:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+      
+      .video-card__thumbnail::after {
+        opacity: 0.3;
+      }
+    }
+    
+    &__thumbnail {
+      position: relative;
+      height: 160px;
+      overflow: hidden;
+      
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: all 0.3s ease-in-out;
+
+      }
+      
+      &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: $primary-blue;
+        opacity: 0;
+        transition: all 0.3s ease-in-out;
+
+      }
+    }
+    
+    &__content {
+      padding: 15px;
+    }
+    
+    &__title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    
+    &__meta {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: stretch;
+      margin-bottom: 15px;
+    }
+    
+    &__date {
+      font-size: 13px;
+      color: $dark-gray;
+    }
+    
+    &__status {
+      display: inline-block;
+      padding: 3px 8px;
+      font-size: 12px;
+      border-radius: 30px;
+      font-weight: 500;
+      
+      &--published {
+        background-color: rgba($primary-blue, 0.1);
+        color: $primary-blue;
+      }
+      
+      &--failed {
+        background-color: rgba($primary-red, 0.1);
+        color: $primary-red;
+      }
+    }
+    
+    &__actions {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: stretch;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+  }
+
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+    
+    &--primary {
+      background-color: $primary-blue;
+      color: $white;
+      
+      &:hover {
+        background-color: darken($primary-blue, 8%);
+      }
+    }
+    
+    &--secondary {
+      background-color: $white;
+      color: $black;
+      border: 1px solid $gray;
+      
+      &:hover {
+        background-color: $light-gray;
+      }
+    }
+    
+    &--danger {
+      background-color: $primary-red;
+      color: $white;
+      
+      &:hover {
+        background-color: darken($primary-red, 8%);
+      }
+    }
+    
+    &--sm {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+    
+    &--icon-only {
+      padding: 8px;
+      
+      &.btn--sm {
+        padding: 6px;
+      }
+    }
+    
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+
+
+
+
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  .animate-pulse {
+    animation: pulse 2s infinite;
+  }
+  
+  // Add animation delays for grid items
+  .video-grid {
+    .video-card {
+      opacity: 0;
+      animation: fadeIn 0.5s ease-out forwards;
+      
+      @for $i from 1 through 12 {
+        &:nth-child(#{$i}) {
+          animation-delay: #{$i * 0.1}s;
+        }
+      }
+    }
+  }
+
+  

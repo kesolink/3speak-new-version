@@ -10,6 +10,7 @@ import client from './lib/apolloClient';
 import store from '../src/redux/Store'; // Importing the Redux store (replace with your store file path)
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import { Buffer } from 'buffer';
 window.Buffer = Buffer;
 

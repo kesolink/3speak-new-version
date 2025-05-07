@@ -10,7 +10,7 @@ import { LuLogOut } from "react-icons/lu";
 // import { has3SpeakPostAuth } from '../../utils/hiveUtils';
 function KeyChainLogin() {
   const client = axios.create({});
-  const { initializeAuth, setActiveUser, switchAccount, clearAccount } = useAppStore();
+  const { initializeAuth,  switchAccount, clearAccount } = useAppStore();
   const studioEndPoint = "https://studio.3speak.tv";
   const [username, setUsername] = useState('');
   // const [accessToken, setAccessToken] = useState("");
@@ -78,9 +78,9 @@ function KeyChainLogin() {
           
             // Set current user (optional)
             localStorage.setItem("activeAccount", username);
+
           
             initializeAuth();
-            setActiveUser();
             navigate("/");
           }
         }

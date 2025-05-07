@@ -14,19 +14,6 @@ export const createAuthUserSlice = (set) => ({
   userDetails: null,
 
 
-
-  // Initialize the store on app load
-  // initializeAuth: () => {
-  //   if (typeof window !== "undefined") {
-  //     const userId = window.localStorage.getItem(LOCAL_STORAGE_USER_ID_KEY);
-  //     const accessToken = window.localStorage.getItem("access_token");
-  //     if (accessToken && userId) {
-  //       set({ authenticated: true, userId });
-  //     } else {
-  //       set({ authenticated: false });
-  //     }
-  //   }
-  // },
   initializeAuth: () => {
     const activeUser = localStorage.getItem("activeAccount");
     const accounts = JSON.parse(localStorage.getItem("accountsList") || "[]");
@@ -34,19 +21,13 @@ export const createAuthUserSlice = (set) => ({
   
     if (found) {
       set({ authenticated: true, userId: found.username, user: found.username });
+      localStorage.setItem("access_token", found.access_token);
     } else {
       set({ authenticated: false });
     }
   },
   
 
-  setActiveUser: async () => {
-    const accounts = localStorage.getItem("user_id");
-    if (accounts) {
-      set({ user: accounts });
-      // console.log("im from setAccounts now", user);
-    }
-  },
 
   switchAccount: (username) => {
     localStorage.setItem("activeAccount", username);
@@ -54,13 +35,15 @@ export const createAuthUserSlice = (set) => ({
     
     if (account) {
       set({ userId: username, user: username, authenticated: true });
+      localStorage.setItem("access_token", account.access_token);
     }
   },
 
 
-   // The LogOut fuction only remove the active from the localstorage
+   // The LogOut fuction only remove the activeaccount and access-token from the localstorage and reset global auth state
   LogOut: () => {  
     localStorage.removeItem("activeAccount");
+    localStorage.removeItem("access_token");
   
     set({
       authenticated: false,
@@ -80,9 +63,23 @@ export const createAuthUserSlice = (set) => ({
     localStorage.setItem("accountsList", JSON.stringify(updatedAccounts));
 
   },
-  
+
+
 
   
+//   @@@@@@@@@@@@@@@@@@@@@
+//   @@@((((((((((((((((@@@
+//   @@@((((@@@@@@@@((((@@@
+//   @@@((((@@@@@@@((((((((
+//   @@@@@@@@@@@@((((((((((
+//   ((((((((((@@@@@@@@@@@@@
+//   ((((((((((((((((((@@@@
+//   ((((@@@@@@@@@@(((((@@@
+//   @@@((((@@@@@@@@((((@@@
+//   @@@((((((((((((((((@@@
+//   @@@@@@@@@@@@@@@@@@@@@
+
+
 
   // Set accounts from localStorage
   setAccounts: async () => {
@@ -101,10 +98,10 @@ export const createAuthUserSlice = (set) => ({
       const data = await api.auth.checkAuthentication(token);
       if (data) {
         console.log("checkAuthentication", data);
-        set({ allowAccess: data, authenticated: true });
+        // set({ allowAccess: data, authenticated: true });
       }
     } else {
-      set({ allowAccess: false, authenticated: false });
+      // set({ allowAccess: false, authenticated: false });
     }
   },
 
