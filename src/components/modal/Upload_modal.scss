@@ -60,6 +60,19 @@
     }
   }
 
+  .err-upload{
+    color: #fff;
+  font-size: 14px;
+  margin: 10px 0px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  text-align: center;
+  display: inline-block; /* Ensure transform affects only this text */
+  animation: shake 0.5s ease-in-out; /* Shake for 0.5s */
+  background-color: #d9534f;
+
+  }
+
   
 
 
