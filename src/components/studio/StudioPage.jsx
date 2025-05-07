@@ -1,7 +1,7 @@
 import  { useEffect, useState } from "react";
 import axios from "axios";
 // import * as tus from "tus-js-client";
-import "./TestStudio.scss"
+import "./StudioPage.scss"
 // import ReactQuill from 'react-quill';
 // import 'react-quill/dist/quill.snow.css';
 import { SiComma } from "react-icons/si";
@@ -13,6 +13,11 @@ import cloud from "../../assets/image/upload-cloud.png"
 import { MdPeopleAlt } from "react-icons/md";
 import DOMPurify from 'dompurify';
 import TextEditor from "./TextEditor"
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { useNavigate } from "react-router-dom";
+import { TailChase } from 'ldrs/react'
+import 'ldrs/react/TailChase.css'
 // import { Client: HiveClient } from "@hiveio/dhive";
 
 
@@ -43,6 +48,8 @@ function StudioPage() {
   const [declineRewards, SetDeclineRewards] = useState(false)
   const [rewardPowerup, setRewardPowerup  ] = useState(false)
   const [communitiesData, setCommunitiesData] = useState([]);
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
   
   console.log("accesstokrn=====>", accessToken)
 
@@ -105,29 +112,30 @@ function StudioPage() {
     console.log(thumbnailFile)
 
     if (!title || !description || !tags || !community || !thumbnailFile ) {
-      alert("Please fill in all fields, upload a thumbnail, and upload a video!");
+      toast.error("Please fill in all fields, upload a thumbnail, and upload a video!");
       return;
     }
     const thumbnailIdentifier = thumbnailFile.replace("https://uploads.3speak.tv/files/", "");
     try {
-      const data = {
-        beneficiaries: beneficiaries,
-        description: `${description}<br/><sub>Uploaded using 3Speak Mobile App</sub>`,
-        videoId: videoId, // Using uploaded video URL as videoId
-        title,
-        isNsfwContent: false,
-        tags,
-        thumbnail: thumbnailIdentifier,
-        communityID: community,
-        declineRewards,
-        rewardPowerup
-      }
-      console.log(data)
+      setLoading(true)
+      // const data = {
+      //   beneficiaries: beneficiaries,
+      //   description: `${description}<br/><sub>Uploaded using 3Speak Mobile App</sub>`,
+      //   videoId: videoId, // Using uploaded video URL as videoId
+      //   title,
+      //   isNsfwContent: false,
+      //   tags,
+      //   thumbnail: thumbnailIdentifier,
+      //   communityID: community,
+      //   declineRewards,
+      //   rewardPowerup
+      // }
+      // console.log(data)
       
       const response = await client.post(`${studioEndPoint}/mobile/api/update_info`,
         {
           beneficiaries: beneficiaries,
-          description: `${description}<br/><sub>Uploaded using 3Speak Mobile App</sub>`,
+          description: `${description}<br/><sub>Uploaded using 3Speak new web App</sub>`,
           videoId: videoId, // Using uploaded video URL as videoId
           title,
           isNsfwContent: false,
@@ -144,10 +152,14 @@ function StudioPage() {
       });
 
       console.log("Details submitted successfully:", response.data);
-      alert("Video details submitted successfully!");
+      // alert("Video details submitted successfully!");
+      toast.success("Video uploaded successfully!")
+      navigate("/")
     } catch (error) {
       console.error("Failed to submit details:", error);
-      alert("Failed to submit video details.");
+      // alert("Failed to submit video details.");
+      toast.error("Failed uploading video details.")
+      setLoading(false)
     }
   };
 
@@ -243,12 +255,14 @@ function StudioPage() {
           )} */}
         {/* <button onClick={updateVideoInfo}>Update Video Info</button> */}
         <div className="submit-btn-wrap">
-        <button onClick={()=>{console.log("description===>", description); handleSubmitDetails()}}>Submit Details</button>
+        <button onClick={()=>{console.log("description===>", description); handleSubmitDetails()}}>{loading  ? <span className="wrap-loader" >Processing <TailChase size="15" speed="1.75" color="white" /></span> : "Submit Details"}</button>
         </div>
 
         </div>
         <div className="Preview">
         <h3>Preview</h3>
+
+        {/* {loading && <TailChase size="15" speed="1.75" color="white" />} */}
 
         {/* Show the title */}
         <div className="preview-title">

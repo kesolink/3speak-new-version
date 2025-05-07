@@ -60,8 +60,8 @@ function App() {
             <Route path="/firstupload" element={<FirstUploads />} />
             <Route path="/trend" element={<Trend />} />
             <Route path="/new" element={<NewVideos />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/keychain" element={<KeyChainLogin />} />
+            <Route path="/login" element={<KeyChainLogin />} />
+            {/* <Route path="/keychain" element={<KeyChainLogin />} /> */}
             <Route path="/newlogin" element={<LoginNew />} />
             <Route path="/studio" element={<StudioPage />} />
             <Route path="/draft" element={<DraftStudio />} />

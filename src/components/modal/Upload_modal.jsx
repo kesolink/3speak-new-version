@@ -5,6 +5,8 @@ import * as tus from "tus-js-client";
 import cloud from "../../assets/image/cloud-blue.png";
 import gif_icon from "../../assets/image/icons-gif.gif";
 import thumbnail from "../../assets/image/thumbnail.png";
+import { TailChase } from 'ldrs/react'
+import 'ldrs/react/TailChase.css'
 
 function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbnailFile, setThumbnailFile }) {
   const studioEndPoint = "https://studio.3speak.tv";
@@ -16,7 +18,13 @@ function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbn
   const [uploadProgress, setUploadProgress] = useState(0);
   const [thumbnailProgress, setThumbnailProgress] = useState(0); // State for thumbnail progress
   const [thumbnailPreview, setThumbnailPreview] = useState(null);
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+
+
+// Default values shown
+
 
   const videoInputRef = useRef(null);
   const thumbnailInputRef = useRef(null);
@@ -122,6 +130,7 @@ function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbn
     const thumbnailIdentifier = thumbnailFile.replace("https://uploads.3speak.tv/files/", "");
 
     try {
+      setLoading(true)
       const { data } = await axios.post(
         `${studioEndPoint}/mobile/api/upload_info`,
         {
@@ -152,6 +161,7 @@ function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbn
       const errorMessage =
         e.response?.data?.message || "Failed to update video info. Please try again.";
       setError(errorMessage);
+      setLoading(false)
     }
   };
 
@@ -164,7 +174,7 @@ function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbn
       >
         <div className="modal-header">
           <h2>Upload Video and Thumbnail</h2>
-          {error && <span className="error-message">{error}</span> }
+          {error && <span className="err-upload">{error}</span> }
           <button className="close-btn" onClick={close}>
             &times;
           </button>
@@ -221,7 +231,7 @@ function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbn
           </div>}
         </div>
         <div className="updateVideoInfo-btn-wrap">
-          <button className="btn" onClick={updateVideoInfo}>Update Video Info</button>
+          <button className="btn" onClick={updateVideoInfo}>Update Video Info {loading && <TailChase size="15" speed="1.75" color="white" />}</button>
         </div>
       </div>
     </div>
