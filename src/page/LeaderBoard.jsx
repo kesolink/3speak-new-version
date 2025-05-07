@@ -1,7 +1,6 @@
 import React from 'react'
 import "./LeaderBoard.scss"
 import { GET_LEADER_BOARD } from '../graphql/queries';
-import { useQuery } from '@apollo/client';
 import "./LeaderBoard.scss"
 function LeaderBoard() {
     

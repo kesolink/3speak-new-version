@@ -27,6 +27,8 @@ import ProfilePage from "./page/ProfilePage";
 import Wallet from "./page/Wallet";
 import Testing from "./components/Testingfile/Testing";
 import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
+import DraftStudio from "./components/studio/DraftStudio";
+import EditVideo from "./page/EditVideo";
 
 function App() {
   const { initializeAuth, authenticated } = useAppStore();
@@ -62,6 +64,8 @@ function App() {
             <Route path="/keychain" element={<KeyChainLogin />} />
             <Route path="/newlogin" element={<LoginNew />} />
             <Route path="/studio" element={<StudioPage />} />
+            <Route path="/draft" element={<DraftStudio />} />
+            <Route path="/editvideo/:d" element={<EditVideo />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route
               path="/community/:communityName"

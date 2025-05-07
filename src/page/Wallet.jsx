@@ -69,31 +69,6 @@ function Wallet() {
     }
   };
 
-// const fetchBalances = async () => {
-//     try {
-//       const [account] = await client.database.getAccounts([user]);
-//       const dgp = await client.database.getDynamicGlobalProperties();
-  
-//       // Define vestsToHP before using it
-//       const vestsToHP = (vests) => {
-//         const totalVests = parseFloat(dgp.total_vesting_shares.split(' ')[0]);
-//         const totalHP = parseFloat(dgp.total_vesting_fund_hive.split(' ')[0]);
-//         return (vests * totalHP) / totalVests;
-//       };
-  
-//       setBalances((prevBalances) => ({
-//         ...prevBalances,
-//         hp: vestsToHP(parseFloat(account.vesting_shares.split(' ')[0])),
-//         hbd: parseFloat(account.hbd_balance.split(' ')[0]),
-//         hive: parseFloat(account.balance.split(' ')[0]),
-//         savings_hbd: parseFloat(account.savings_hbd_balance.split(' ')[0])
-//       }));
-//     } catch (err) {
-//       console.error("Error fetching balances:", err);
-//     }
-//   };
-  
-
   const fetchPrices = async () => {
     try {
       const marketData = await client.call('market_history_api', 'get_ticker', {});

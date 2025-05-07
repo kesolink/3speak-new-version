@@ -13,6 +13,13 @@ const client = new Client([
 const BATCH_SIZE = 100;
 const MAX_TRANSACTIONS = 100;
 
+async function vestsToHP(vests) {
+  const dgp = await client.database.getDynamicGlobalProperties();
+  const totalVests = parseFloat(dgp.total_vesting_shares.split(" ")[0]);
+  const totalHP = parseFloat(dgp.total_vesting_fund_hive.split(" ")[0]);
+  return (vests * totalHP) / totalVests;
+}
+
 async function fetchAllTransactions(username) {
   let transactions = [];
   let start = -1;
@@ -22,44 +29,48 @@ async function fetchAllTransactions(username) {
     try {
       const batch = await client.database.getAccountHistory(username, start, BATCH_SIZE);
 
-      const processed = batch
-        .map(([index, op]) => {
-          const [type, data] = op.op;
+      const processed = await Promise.all(batch.map(async ([index, op]) => {
+        const [type, data] = op.op;
 
-          if (type === "transfer") {
-            const isSend = data.from === username;
-            const [amount, currency] = data.amount.split(" ");
+        if (type === "transfer") {
+          const isSend = data.from === username;
+          const [amount, currency] = data.amount.split(" ");
 
-            return {
-              id: index,
-              type: isSend ? "send" : "receive",
-              amount: parseFloat(amount),
-              coin: currency,
-              address: isSend ? data.to : data.from,
-              date: new Date(op.timestamp + "Z"),
-              memo: data.memo,
-            };
-          }
+          return {
+            id: index,
+            type: isSend ? "send" : "receive",
+            amount: parseFloat(amount),
+            coin: currency,
+            address: isSend ? data.to : data.from,
+            date: new Date(op.timestamp + "Z"),
+            memo: data.memo,
+          };
+        }
 
-          if (type === "claim_reward_balance") {
-            return {
-              id: index,
-              type: "claim",
-              amount: {
-                HIVE: data.reward_hive_balance ? parseFloat(data.reward_hive_balance.split(" ")[0]) : 0,
-                HBD: data.reward_hbd_balance ? parseFloat(data.reward_hbd_balance.split(" ")[0]) : 0,
-                HP: data.reward_vests ? parseFloat(data.reward_vests.split(" ")[0]) : 0,
-              },
-              date: new Date(op.timestamp + "Z"),
-              memo: "Claimed Rewards",
-            };
-          }
+        if (type === "claim_reward_balance") {
+          const hive = data.reward_hive_balance ? parseFloat(data.reward_hive_balance.split(" ")[0]) : 0;
+          const hbd = data.reward_hbd_balance ? parseFloat(data.reward_hbd_balance.split(" ")[0]) : 0;
+          const hp = data.reward_vests
+            ? await vestsToHP(parseFloat(data.reward_vests.split(" ")[0]))
+            : 0;
 
-          return null;
-        })
-        .filter((tx) => tx !== null);
+          return {
+            id: index,
+            type: "claim",
+            amount: {
+              HIVE: hive,
+              HBD: hbd,
+              HP: hp,
+            },
+            date: new Date(op.timestamp + "Z"),
+            memo: "Claimed Rewards",
+          };
+        }
 
-      transactions = [...transactions, ...processed];
+        return null;
+      }));
+
+      transactions = [...transactions, ...processed.filter(Boolean)];
       start = batch[0][0] - BATCH_SIZE;
       if (start < 0) break;
 
@@ -142,27 +153,17 @@ function TrxHistory({ user }) {
                   </td>
                   <td>
                     {transaction.type === "claim" ? (
-                      <>
-                        {transaction.amount.HIVE > 0 && (
-                          <div className="tx-amount">
-                            {transaction.amount.HIVE.toFixed(3)} HIVE
-                          </div>
-                        )}
-                        {transaction.amount.HBD > 0 && (
-                          <div className="tx-amount">
-                            {transaction.amount.HBD.toFixed(3)} HBD
-                          </div>
-                        )}
-                        {transaction.amount.HP > 0 && (
-                          <div className="tx-amount">
-                            {transaction.amount.HP.toFixed(3)} HP
-                          </div>
-                        )}
-                      </>
+                      <span className="tx-amount">
+                        {transaction.amount.HBD > 0 &&
+                          `${transaction.amount.HBD.toFixed(3)} HBD `}
+                        {transaction.amount.HP > 0 &&
+                          `${transaction.amount.HP.toFixed(3)} HP `}
+                        {transaction.amount.HIVE > 0 &&
+                          `${transaction.amount.HIVE.toFixed(3)} HIVE`}
+                      </span>
                     ) : (
                       <span className="tx-amount">
-                        {transaction.amount.toFixed(3)}
-                        <span>{transaction.coin}</span>
+                        {transaction.amount.toFixed(3)} {transaction.coin}
                       </span>
                     )}
                   </td>
