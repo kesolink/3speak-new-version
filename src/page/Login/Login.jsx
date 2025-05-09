@@ -64,7 +64,7 @@ function Login() {
         // window.localStorage.setItem(LOCAL_STORAGE_ACCESS_TOKEN_KEY, access_token);
                       window.localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, username);
                       localStorage.setItem("accountsList", JSON.stringify(updated));
-                      localStorage.setItem("activeAccount", username);
+                      // localStorage.setItem("activeAccount", username);
                       initializeAuth()
                       setActiveUser()
                       navigate("/");
