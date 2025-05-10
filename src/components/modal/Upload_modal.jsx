@@ -18,13 +18,9 @@ function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbn
   const [uploadProgress, setUploadProgress] = useState(0);
   const [thumbnailProgress, setThumbnailProgress] = useState(0); // State for thumbnail progress
   const [thumbnailPreview, setThumbnailPreview] = useState(null);
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-
-
-
-// Default values shown
-
+  const [loading, setLoading] = useState(false)
+  
 
   const videoInputRef = useRef(null);
   const thumbnailInputRef = useRef(null);
