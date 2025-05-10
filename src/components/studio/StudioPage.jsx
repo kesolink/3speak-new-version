@@ -118,24 +118,10 @@ function StudioPage() {
     const thumbnailIdentifier = thumbnailFile.replace("https://uploads.3speak.tv/files/", "");
     try {
       setLoading(true)
-      // const data = {
-      //   beneficiaries: beneficiaries,
-      //   description: `${description}<br/><sub>Uploaded using 3Speak Mobile App</sub>`,
-      //   videoId: videoId, // Using uploaded video URL as videoId
-      //   title,
-      //   isNsfwContent: false,
-      //   tags,
-      //   thumbnail: thumbnailIdentifier,
-      //   communityID: community,
-      //   declineRewards,
-      //   rewardPowerup
-      // }
-      // console.log(data)
-      
       const response = await client.post(`${studioEndPoint}/mobile/api/update_info`,
         {
           beneficiaries: beneficiaries,
-          description: `${description}<br/><sub>Uploaded using 3Speak new web App</sub>`,
+          description: `${description}<br/><sub>Uploaded using 3Speak Mobile App</sub>`,
           videoId: videoId, // Using uploaded video URL as videoId
           title,
           isNsfwContent: false,
@@ -152,12 +138,10 @@ function StudioPage() {
       });
 
       console.log("Details submitted successfully:", response.data);
-      // alert("Video details submitted successfully!");
       toast.success("Video uploaded successfully!")
       navigate("/")
     } catch (error) {
       console.error("Failed to submit details:", error);
-      // alert("Failed to submit video details.");
       toast.error("Failed uploading video details.")
       setLoading(false)
     }
@@ -261,8 +245,6 @@ function StudioPage() {
         </div>
         <div className="Preview">
         <h3>Preview</h3>
-
-        {/* {loading && <TailChase size="15" speed="1.75" color="white" />} */}
 
         {/* Show the title */}
         <div className="preview-title">
