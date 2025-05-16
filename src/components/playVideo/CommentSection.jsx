@@ -1,150 +1,159 @@
 import React, { useEffect, useState } from 'react';
-import "./CommentSection.scss";
+import './CommentSection.scss';
+import './BlogContent.scss';
 import { GiTwoCoins } from 'react-icons/gi';
 import { BiDislike, BiLike } from 'react-icons/bi';
 import { useQuery } from '@apollo/client';
 import { GET_COMMENTS } from '../../graphql/queries';
 import dayjs from 'dayjs';
 import { useAppStore } from '../../lib/store';
-import { renderPostBody } from "@ecency/render-helper";
-import "./BlogContent.scss"
-// import { Client } from "@hiveio/dhive";
+import { renderPostBody } from '@ecency/render-helper';
 
 function CommentSection({ videoDetails, author, permlink }) {
-  // const client = new Client("https://api.hive.blog");
-
-  // async function getComments(author, permlink) {
-  //   try {
-  //     const comments = await client.call("condenser_api", "get_content_replies", [author, permlink]);
-  
-  //     console.log("Comments:", comments);
-  //     return comments;
-  //   } catch (error) {
-  //     console.error("Error fetching comments:", error);
-  //     return [];
-  //   }
-  // }
-  // getComments(author, permlink);
-
-
-
-
   const { data, loading, error, refetch } = useQuery(GET_COMMENTS, {
     variables: { author, permlink },
   });
 
   const { user } = useAppStore();
-  const [commentInfo, setCommentInfo] = useState("");
+  const [commentInfo, setCommentInfo] = useState('');
   const [activeReply, setActiveReply] = useState(null);
-  const [singleData, setSingleData] = useState(null);
-  const [openTooltip, setOpenToolTip] = useState(false)
-  const [tooltipVoters, setTooltipVoters] = useState([]);
-  const commentData = data?.socialPost?.children || [];
-  // console.log("commentData=====>", commentData)
-  const [renderedContent, setRenderedContent] = useState(null);
+  const [replyToComment, setReplyToComment] = useState(null);
+  const [commentList, setCommentList] = useState([]);
 
-
+  useEffect(() => {
+    if (data?.socialPost?.children) {
+      setCommentList(data.socialPost.children);
+    }
+  }, [data]);
 
   const processedBody = (content) => {
-    if (!content) return ""; // Ensure there's content before processing
-  
-    // console.log("Raw content:", content);
-  
-    // Convert to HTML using @ecency/render-helper
-    const renderedHTML = renderPostBody(content, false);
-    // console.log("Rendered HTML:", renderedHTML);
-  
-    return renderedHTML; // Directly return the processed HTML
+    if (!content) return '';
+    return renderPostBody(content, false);
   };
 
-  const handlePostComment = () => {
-    if (!singleData) return;
-    const parent_permlink = singleData.permlink;
-    const parent_author = singleData.author.username;
-    const permlinks = `re-${parent_permlink}-${Date.now()}`;
+  const handlePostComment = async () => {
+    if (!replyToComment) return;
+
+    const parent_permlink = replyToComment.permlink;
+    const parent_author = replyToComment.author.username;
+    const new_permlink = `re-${parent_permlink}-${Date.now()}`;
+
+    if (!commentInfo.trim()) return;
 
     if (window.hive_keychain) {
       window.hive_keychain.requestBroadcast(
         user,
         [
           [
-            "comment",
+            'comment',
             {
               parent_author,
               parent_permlink,
               author: user,
-              permlink: permlinks,
-              weight: 10000,
-              title: "",
+              permlink: new_permlink,
+              title: '',
               body: commentInfo,
-              json_metadata: "{\"app\":\"3speak/new-version\"}",
-              __config: { "originalBody": null, "comment_options": {} },
+              json_metadata: '{"app":"3speak/new-version"}',
             },
           ],
         ],
-        "Posting",
-        async(response) => {
+        'Posting',
+        async (response) => {
           if (response.success) {
-            setCommentInfo("")
-            setActiveReply(null)
-            // alert("Comment posted successfully!");
+            const newComment = {
+              author: {
+                username: user,
+                profile: {
+                  images: {
+                    avatar: 'https://via.placeholder.com/40',
+                  },
+                },
+              },
+              permlink: new_permlink,
+              created_at: new Date().toISOString(),
+              body: commentInfo,
+              stats: {
+                num_likes: 0,
+                num_dislikes: 0,
+                total_hive_reward: 0,
+              },
+              children: [],
+            };
+
+            const addReply = (comments) =>
+              comments.map((comment) => {
+                if (comment.permlink === parent_permlink) {
+                  return {
+                    ...comment,
+                    children: [...(comment.children || []), newComment],
+                  };
+                } else if (comment.children) {
+                  return {
+                    ...comment,
+                    children: addReply(comment.children),
+                  };
+                }
+                return comment;
+              });
+
+            setCommentList((prev) => addReply(prev));
+            setCommentInfo('');
+            setActiveReply(null);
+            setReplyToComment(null);
             await refetch();
-            
           } else {
             alert(`Comment failed: ${response.message}`);
           }
         }
       );
     } else {
-      alert("Hive Keychain is not installed. Please install the extension.");
+      alert('Hive Keychain is not installed. Please install the extension.');
     }
   };
 
-
   const handleVote = (username, permlink, weight = 10000) => {
     if (window.hive_keychain) {
-      // const [author, postPermlink] = permlink.split("/"); // Split permlink into author and postPermlink
       window.hive_keychain.requestBroadcast(
         user,
         [
           [
-            "vote",
+            'vote',
             {
               voter: user,
               author: username,
               permlink,
-              weight, // 10000 = 100%, 5000 = 50%
+              weight,
             },
           ],
         ],
-        "Posting",
+        'Posting',
         (response) => {
           if (response.success) {
-            alert("Vote successful!");
+            alert('Vote successful!');
           } else {
             alert(`Vote failed: ${response.message}`);
           }
         }
       );
     } else {
-      alert("Hive Keychain is not installed. Please install the extension.");
+      alert('Hive Keychain is not installed. Please install the extension.');
     }
   };
-// console.log(videoDetails)
+
   return (
     <div className="vid-comment-wrap">
-      <h4>{videoDetails?.stats.num_comments} Comments</h4>
-      {commentData.map((comment, index) => (
+      <h4>{commentList.length} Comments</h4>
+      {commentList.map((comment, index) => (
         <Comment
           key={index}
           comment={comment}
           activeReply={activeReply}
           setActiveReply={setActiveReply}
+          setReplyToComment={setReplyToComment}
           setCommentInfo={setCommentInfo}
           commentInfo={commentInfo}
-          setSingleData={setSingleData}
           handlePostComment={handlePostComment}
-          depth={0} // Track nesting level
+          depth={0}
           handleVote={handleVote}
           processedBody={processedBody}
         />
@@ -153,29 +162,57 @@ function CommentSection({ videoDetails, author, permlink }) {
   );
 }
 
-// Recursive Comment Component for Nested Replies
-function Comment({ comment, activeReply, setActiveReply, processedBody, setCommentInfo, commentInfo, setSingleData, handlePostComment, depth, handleVote }) {
+function Comment({
+  comment,
+  activeReply,
+  setActiveReply,
+  setReplyToComment,
+  processedBody,
+  setCommentInfo,
+  commentInfo,
+  handlePostComment,
+  depth,
+  handleVote,
+}) {
+  const isReplying = activeReply === comment.permlink;
+
   return (
-    <div className="comment-container" style={{ marginLeft: depth > 0 ? "40px" : "0px" }}>
+    <div className="comment-container" style={{ marginLeft: depth > 0 ? '40px' : '0px' }}>
       <div className="comment">
         <img src={comment?.author?.profile?.images?.avatar || 'https://via.placeholder.com/40'} alt="Author Avatar" />
         <div>
           <h3>
             {comment?.author?.username}
-            <span >{dayjs(comment?.created_at).fromNow()}</span>
+            <span>{dayjs(comment?.created_at).fromNow()}</span>
           </h3>
-          <p className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || "") }} />
+          <p className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '') }} />
           <div className="comment-action">
-            <div className="wrap"><BiLike onClick={()=> {handleVote(comment?.author?.username, comment.permlink);}} /> <span>{comment?.stats?.num_likes ?? 0}</span></div>
-            <div className="wrap"><BiDislike /> <span>{comment?.stats?.num_dislikes ?? 0}</span></div>
-            <div className="wrap"><GiTwoCoins /> <span>${comment?.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span></div>
-            <span className="main-reply" onClick={() => { setActiveReply(comment.permlink); setSingleData(comment); }}>Reply</span>
+            <div className="wrap">
+              <BiLike onClick={() => handleVote(comment?.author?.username, comment.permlink)} />
+              <span>{comment?.stats?.num_likes ?? 0}</span>
+            </div>
+            <div className="wrap">
+              <BiDislike />
+              <span>{comment?.stats?.num_dislikes ?? 0}</span>
+            </div>
+            <div className="wrap">
+              <GiTwoCoins />
+              <span>${comment?.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span>
+            </div>
+            <span
+              className="main-reply"
+              onClick={() => {
+                setActiveReply(comment.permlink);
+                setReplyToComment(comment);
+              }}
+            >
+              Reply
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Reply Input Box */}
-      {activeReply === comment.permlink && (
+      {isReplying && (
         <div className="add-comment-wrap sub">
           <span>Reply:</span>
           <textarea
@@ -191,22 +228,21 @@ function Comment({ comment, activeReply, setActiveReply, processedBody, setComme
         </div>
       )}
 
-      {/* Render nested replies recursively */}
       {comment.children && comment.children.length > 0 && (
         <div className="nested-comments">
-          {comment.children.map((childComment, index) => (
+          {comment.children.map((child, index) => (
             <Comment
               key={index}
-              comment={childComment}
+              comment={child}
               activeReply={activeReply}
               setActiveReply={setActiveReply}
+              setReplyToComment={setReplyToComment}
               setCommentInfo={setCommentInfo}
               commentInfo={commentInfo}
-              setSingleData={setSingleData}
               handlePostComment={handlePostComment}
-              depth={depth + 1} // Increase depth for indentation
+              depth={depth + 1}
               handleVote={handleVote}
-              processedBody={processedBody} 
+              processedBody={processedBody}
             />
           ))}
         </div>

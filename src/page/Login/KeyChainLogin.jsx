@@ -8,6 +8,8 @@ import { LOCAL_STORAGE_ACCESS_TOKEN_KEY, LOCAL_STORAGE_USER_ID_KEY } from '../..
 import { useAppStore } from '../../lib/store';
 import { MdSwitchAccount } from 'react-icons/md';
 import { LuLogOut } from 'react-icons/lu';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 // import { has3SpeakPostAuth } from '../../utils/hiveUtils';
 function KeyChainLogin() {
   const client = axios.create({});
@@ -34,6 +36,10 @@ function KeyChainLogin() {
 // }
 
   async function logMe() {
+    if(!username){
+      toast.error("Username is required to proceed.")
+      return
+    }
     try {
       let response = await client.get(
         `${studioEndPoint}/mobile/login?username=${username}`,
@@ -97,7 +103,7 @@ function KeyChainLogin() {
             type="text"
             placeholder="Username"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => setUsername(e.target.value.toLowerCase())}
           />
 
           <div className="wrap keychain-down" onClick={logMe}>

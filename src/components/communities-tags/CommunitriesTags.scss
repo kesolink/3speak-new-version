@@ -24,6 +24,11 @@
         @include respond(phone) {
           display: none;
         }
+        &.tab-out{
+          @include respond(tab) {
+          display: none;
+        }
+        }
       }
     }
     .wrap-upload-video {

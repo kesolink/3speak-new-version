@@ -34,6 +34,8 @@ const BlogContent = ({ author, permlink}) => {
     fetchContent();
   }, [author, permlink]);
 
+  console.log(content)
+
   // Render content when it changes
   useEffect(() => {
 
@@ -46,12 +48,12 @@ const BlogContent = ({ author, permlink}) => {
           ? content.join("\n")
           : "";
 
-          console.error("contentString", contentString);
+          // console.error("contentString", contentString);
 
       try {
         // Render the content using @ecency/render-heper
         const renderedHTML = renderPostBody(contentString, false);
-        console.log("Rendered HTML Output:", renderedHTML);
+        // console.log("Rendered HTML Output:", renderedHTML);
         setRenderedContent(renderedHTML);
       } catch (error) {
         console.error("Error rendering post body:", error);

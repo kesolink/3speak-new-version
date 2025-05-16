@@ -61,6 +61,7 @@ export const createAuthUserSlice = (set) => ({
           allowAccess: null,
           userDetails: null,
           listAccounts: [],
+          isProcessing: null,
         });
     
         console.log("User has been logged out successfully.");

@@ -25,7 +25,7 @@ function ProfileNav({isVisible, onclose}) {
           const getAccountlist = JSON.parse(localStorage.getItem("accountsList")) || [];
           setAccountList(getAccountlist)
         },[])
-    console.log(getUserProfile)
+    // console.log(getUserProfile)
 
     const handlewallletNavigation = ()=>{
       navigate(`/wallet/${user}`)
