@@ -8,9 +8,14 @@ import { renderPostBody } from "@ecency/render-helper";
 import { convert } from 'html-to-text';
 import axios from 'axios';
 import { API_URL_FROM_WEST } from '../utils/config';
+import TextEditor from '../components/studio/TextEditor';
+import { useAppStore } from '../lib/store';
+import * as dhive from '@hiveio/dhive';
+const client = new dhive.Client(['https://api.hive.blog']);
 
 const EditVideo = () => {
   const location = useLocation();
+  const {user} = useAppStore()
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
@@ -55,76 +60,55 @@ const EditVideo = () => {
 
 
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    // Optional: convert plain text back to simple HTML with paragraphs
-    const htmlDescription = description
-      .split('\n\n') // double line breaks = new paragraph
-      .map(paragraph => `<p>${paragraph.replace(/\n/g, ' ')}</p>`)
-      .join('');
-      const data = {
-        'title': title,
-        'description': description,
-        'tags': tags,
-        '_id': id,
-        'permlink': permlink,
-        
-        
-    }
+  const tagsArray = tags.split(',').map(tag => tag.trim()).filter(Boolean);
 
-    console.log(data)
+  // Convert description to HTML paragraphs
+  const htmlDescription = description
+    .split('\n\n')
+    .map(paragraph => `<p>${paragraph.replace(/\n/g, ' ')}</p>`)
+    .join('');
 
-      try{
-        const response = await axios.post(API_URL_FROM_WEST + "/v1/upload/update_post", data, { headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`, // This must be set from the browser session or via a proxy
-          withCredentials: true
-        }}  )
-    toast.success('Video updated successfully');
-    console.log("Video updated:", response.data);
-    setTimeout(() => navigate('/'), 1500);
-
-      }
-      // catch (err){
-      //   console.error("Something went wrong:", err);
-      //   toast.error('Failed to update video');
-      // }
-
-      catch (err) {
-        if (err.response) {
-          // Server responded with a status outside 2xx
-          console.error("API error response:", err.response.data);
-          console.error("Status:", err.response.status);
-          toast.error(`Failed to update video: ${err.response.data?.message || 'Unknown error'}`);
-        } else if (err.request) {
-          // No response received
-          console.error("No response received:", err.request);
-          toast.error("No response from server");
-        } else {
-          // Something else caused the error
-          console.error("Error setting up request:", err.message);
-          toast.error("Error: " + err.message);
-  }
-}
-
-    // // Simulate saving with a toast
-    // toast.success('Video updated successfully');
-
-    
-
-    // // Navigate home after short delay
-    // setTimeout(() => navigate('/'), 1500);
-
-    console.log({
-      title,
-      description: htmlDescription, // send this to backend if needed
-      tags,
-      thumbnailUrl,
-      permlink,
-      id
-    });
+  const metadata = {
+    tags: tagsArray,
+    app: 'your-app-name/0.1', // replace with your app name
+    format: 'html',
   };
+
+  const jsonMetadata = JSON.stringify(metadata);
+
+  const commentOp = [
+    'comment',
+    {
+      parent_author: '',
+      parent_permlink: tagsArray[0] || 'video',
+      author: user,
+      permlink: permlink,
+      title: title,
+      body: htmlDescription,
+      json_metadata: jsonMetadata,
+    },
+  ];
+
+  // Broadcast the operation via Keychain
+  window.hive_keychain.requestBroadcast(
+    user,
+    [commentOp],
+    'Posting',
+    async (response) => {
+      if (response.success) {
+        toast.success("Post successfully updated on Hive!");
+        navigate("/draft")      
+      } else {
+        toast.error("Failed to update post on Hive");
+        console.error("Keychain Error:", response.message);
+      }
+    }
+  );
+};
+
 
   const renderedHTML = renderPostBody(description, false);
 
@@ -163,17 +147,18 @@ const EditVideo = () => {
             
             <div className="form-group">
               <label htmlFor="description">Description</label>
-              <textarea 
+              {/* <textarea 
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Video description"
                 className="form-textarea"
                 rows={8}
-              />
+              /> */}
+              <TextEditor description={description} setDescription={setDescription} style={{ height: "100%", }} />
             </div>
             
-            <div className="form-group">
+            <div className="form-group tap-sp">
               <label htmlFor="tags">Tags (comma separated)</label>
               <input
                 id="tags"

@@ -58,6 +58,9 @@ $black: #212529;
   .edit-form {
     .form-group {
       margin-bottom: 20px;
+      &.tap-sp{
+        margin-top: 60px;
+      }
       
       label {
         display: block;

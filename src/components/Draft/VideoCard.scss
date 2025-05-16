@@ -39,7 +39,7 @@ $black: #212529;
       }
     }
     
-    &__thumbnail {
+    .thumbnail {
       position: relative;
       height: 160px;
       overflow: hidden;
@@ -66,11 +66,11 @@ $black: #212529;
       }
     }
     
-    &__content {
+    .content {
       padding: 15px;
     }
     
-    &__title {
+    .title {
       font-size: 16px;
       font-weight: 600;
       margin-bottom: 10px;
@@ -80,20 +80,20 @@ $black: #212529;
       overflow: hidden;
     }
     
-    &__meta {
+    .metas {
         display: flex;
         flex-direction: row;
-        justify-content: flex-start;
+        justify-content: space-between;
         align-items: stretch;
       margin-bottom: 15px;
     }
     
-    &__date {
+    .date {
       font-size: 13px;
       color: $dark-gray;
     }
     
-    &__status {
+    .status {
       display: inline-block;
       padding: 3px 8px;
       font-size: 12px;
@@ -105,13 +105,13 @@ $black: #212529;
         color: $primary-blue;
       }
       
-      &--failed {
+      &--publish_manual {
         background-color: rgba($primary-red, 0.1);
         color: $primary-red;
       }
     }
     
-    &__actions {
+    .actions {
         display: flex;
         flex-direction: row;
         justify-content: flex-start;

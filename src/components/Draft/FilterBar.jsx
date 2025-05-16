@@ -18,7 +18,7 @@ const FilterBar = ({ onFilterChange, activeFilter }) => {
   return (
     <div className="filter">
       <div className="filter__content">
-        <h2 className="filter__title">Filter Videos</h2>
+        <h2 className="filter__title"> Videos Draft</h2>
         <div className="filter__options">
           {filters.map(filter => (
             <button
