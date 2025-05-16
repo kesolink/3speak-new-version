@@ -34,6 +34,8 @@ const VideoGrid = ({ videos }) => {
     toast.success(`Publishing video coming soon`);
   };
 
+  console.log(filteredVideos)
+
   return (
     <div>
       <FilterBar onFilterChange={handleFilterChange} activeFilter={filter} />

@@ -1,29 +1,27 @@
 import React from 'react';
 import "./VideoCard.scss"
+import dayjs from "dayjs";
+import {  useNavigate } from 'react-router-dom';
 const VideoCard = ({  video, onEdit, onView, onDelete, onPublish}) => {
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  };
+  const navigate = useNavigate()
+  const handleNavigate = ()=>{
+    navigate(`/watch?v=${video?.owner}/${video.permlink ?? "unknown"}`)
+  }
 
   return (
     <div className="video-card">
-      <div className="video-card__thumbnail">
+      <div className="thumbnail">
         <img src={video.thumbUrl} alt={video.title} />
       </div>
-      <div className="video-card__content">
-        <h3 className="video-card__title">{video.title || ""}</h3>
-        <div className="video-card__meta">
-          <span className="video-card__date">{formatDate(video.createdAt)}</span>
-          <span className={`video-card__status video-card__status--${video.status}`}>
+      <div className="content">
+        <h3 className="title">{video.title || ""}</h3>
+        <div className="metas">
+          <span className="date">{dayjs(video.created).fromNow()}</span>
+          <span className={`status status--${video.status}`}>
             {video.status === 'published' ? 'Published' : 'Failed'}
           </span>
         </div>
-        <div className="video-card__actions">
+        <div className="actions">
           {video.status === 'published' ? (
             <>
               <button 
@@ -38,7 +36,7 @@ const VideoCard = ({  video, onEdit, onView, onDelete, onPublish}) => {
               </button>
               <button 
                 className="btn btn--secondary btn--sm" 
-                onClick={() => onView(video.id)}
+                onClick={handleNavigate}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
