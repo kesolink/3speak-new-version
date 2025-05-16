@@ -8,7 +8,7 @@ import thumbnail from "../../assets/image/thumbnail.png";
 import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
 
-function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbnailFile, setThumbnailFile }) {
+function Upload_modal({ setPrevVideoUrl, setPrevVideoFile,  close, isOpen, setVideoId, username, accessToken, thumbnailFile, setThumbnailFile }) {
   const studioEndPoint = "https://studio.3speak.tv";
   const tusEndPoint = "https://uploads.3speak.tv/files/";
 
@@ -54,6 +54,10 @@ function Upload_modal({ close, isOpen, setVideoId, username, accessToken, thumbn
     if (!file) return;
 
     setVideoFile(file);
+    setPrevVideoFile(file)
+
+    const url = URL.createObjectURL(file);
+    setPrevVideoUrl(url)
 
     const duration = await calculateVideoDuration(file);
     setVideoDuration(duration);

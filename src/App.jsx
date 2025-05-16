@@ -29,15 +29,21 @@ import Testing from "./components/Testingfile/Testing";
 import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
 import DraftStudio from "./components/studio/DraftStudio";
 import EditVideo from "./page/EditVideo";
+import ScrollToTop from "./components/ScrollToTop";
 
 function App() {
   const { initializeAuth, authenticated } = useAppStore();
   const [sidebar, setSideBar] = useState(true);
   const [profileNavVisible, setProfileNavVisible] = useState(false);
+  const [globalCloseRender, setGlobalCloseRender] = useState(false)
+
+
   useEffect(() => {
     initializeAuth();
     // authenticated()
   }, []);
+
+  
 
   // const closeProfileNav = ()=>{
   //   setProfileNavVisible(!profileNavVisible)
@@ -48,11 +54,12 @@ function App() {
   };
 
   return (
-    <div>
-      <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} />
+    <div onClick={()=> {setGlobalCloseRender(true)}}>
+      <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav}  globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} />
       <div>
         <Sidebar sidebar={sidebar} />
         <div className={`container ${sidebar ? "" : "large-container"}`}>
+          <ScrollToTop />
           <Routes>
             <Route path="/" element={<Feed />} />
             <Route path="/watch" element={<Watch />} />

@@ -1,8 +1,8 @@
+@use "../../mixins.scss" as *;
 .search-list {
   position: absolute;
   right: 700px;
   top: 50px;
-
   // margin-top: 0.5rem; // mt-2
   width: 12rem; // w-48
   background-color: #fff; // bg-white
@@ -10,6 +10,10 @@
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); // shadow-lg
   padding: 0.5rem 0; // py-2
   border: 1px solid #e5e7eb;
+  @include respond(tab) {
+      right: 130px;
+      top: 40px;
+    }
   &.center {
     display: flex;
     justify-content: center;

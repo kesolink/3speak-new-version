@@ -9,10 +9,14 @@ import "./Cards.scss";
 import { useAppStore } from '../..//lib/store';
 import { FaCirclePlay } from "react-icons/fa6";
 import img from "../../assets/image/deleted.jpg"
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { getUersContent } from "../../utils/hiveUtils";
+import { useState } from "react";
 
 dayjs.extend(relativeTime);
 
-function Card2({
+function Cards({
     videos = [],
     loading = false,
     error = null,
@@ -22,7 +26,8 @@ function Card2({
     className = "",
     truncateLength = 65,
   }) {
-       const {user} = useAppStore();
+       const {user, authenticated} = useAppStore();
+       const [isLoading, setIsLoading] = useState(false)
       if (loading) return <div>Loading...</div>;
       if (error) return <div>Error: {error}</div>;
     
@@ -35,10 +40,24 @@ function Card2({
       );
       
       const voters = (numVotes) => (numVotes <= 0 ? 0 : numVotes);
-      console.log(videos)
+      // console.log(videos)
     
-       const handleVote = (username, permlink, weight = 10000) => {
-        if (window.hive_keychain) {
+       const handleVote = async (username, permlink, weight = 10000) => {
+        if(!authenticated){
+                toast.error("Login to complete this operation")
+                return
+              }
+
+              try{
+                setIsLoading(true)
+                const data = await getUersContent(username, permlink);
+                      if (data.active_votes.some(vote => vote.voter === user)){
+                        toast.info("You have already vote this post")
+                        setIsLoading(false)
+                        return
+                      }
+
+                      if (window.hive_keychain) {
           // const [author, postPermlink] = permlink.split("/"); // Split permlink into author and postPermlink
           window.hive_keychain.requestBroadcast(
             user,
@@ -56,18 +75,24 @@ function Card2({
             "Posting",
             (response) => {
               if (response.success) {
-                alert("Vote successful!");
+                toast.success("Vote successful!");
               } else {
-                alert(`Vote failed: ${response.message}`);
+                toast.error(`Vote failed: ${response.message}`);
               }
             }
           );
         } else {
-          alert("Hive Keychain is not installed. Please install the extension.");
+          toast.info("Hive Keychain is not installed. Please install the extension.");
         }
+              }catch(err){
+                console.log("somthing went wrong" , err)
+
+              }
+
+
+        
       };
 
-      console.log(videos)
 
 
 
@@ -138,7 +163,7 @@ function Card2({
 }
 
 // PropType validation
-Card2.propTypes = {
+Cards.propTypes = {
   videos: PropTypes.arrayOf(
     PropTypes.shape({
       id: PropTypes.string,
@@ -169,4 +194,4 @@ Card2.propTypes = {
   truncateLength: PropTypes.number,
 };
 
-export default Card2
+export default Cards

@@ -1,7 +1,7 @@
 // import { keychainBroadcast, addAccountTokeychain } from "../helpers/keychain";
 import { Client, PrivateKey } from "@hiveio/dhive";
  const SERVERS = [
-    "https://rpc.ecency.com",
+    // "https://rpc.ecency.com",
     "https://api.deathwing.me",
     "https://api.hive.blog",
     "https://api.openhive.network"

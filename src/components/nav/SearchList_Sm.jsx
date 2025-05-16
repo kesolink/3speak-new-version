@@ -147,7 +147,7 @@ function SearchList_Sm({searchTerm, setSearchTerm, handleNav}) {
 
 
 
-          console.log(searchResults)
+          // console.log(searchResults)
 
 
 

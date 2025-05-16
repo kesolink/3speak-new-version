@@ -18,6 +18,10 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useNavigate } from "react-router-dom";
 import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
+import { useAppStore } from "../../lib/store";
+import Arrow from "./../../../public/images/arrow.png"
+import VideoPreview from "./VideoPreview"
+// import { useAppStore } from '../..//lib/store';
 // import { Client: HiveClient } from "@hiveio/dhive";
 
 
@@ -26,6 +30,7 @@ import 'ldrs/react/TailChase.css'
 
 function StudioPage() {
  const client = axios.create({});
+ const {updateProcessing} = useAppStore()
   const studioEndPoint = "https://studio.3speak.tv";
   // const tusEndPoint = "https://uploads.3speak.tv/files/";
 
@@ -48,11 +53,14 @@ function StudioPage() {
   const [declineRewards, SetDeclineRewards] = useState(false)
   const [rewardPowerup, setRewardPowerup  ] = useState(false)
   const [communitiesData, setCommunitiesData] = useState([]);
+  const [prevVideoUrl, setPrevVideoUrl ] = useState(null)
+  const [prevVideoFile, setPrevVideoFile ] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   
+  
   console.log("accesstokrn=====>", accessToken)
-
+// updateProcessing
   useEffect(() => {
     const fetchCommunities = async () => {
       try {
@@ -138,6 +146,7 @@ function StudioPage() {
       });
 
       console.log("Details submitted successfully:", response.data);
+      updateProcessing(response.data.permlink)
       toast.success("Video uploaded successfully!")
       navigate("/")
     } catch (error) {
@@ -153,18 +162,19 @@ function StudioPage() {
   return (
     <>
     <div className="studio-container">
-      <div className="upload-video" onClick={toggleUploadModal}>
+      {videoId ? <div className="upload-video remove-pointer">
+        <span>Upload complete. You can now proceed with the video details.</span>
+        <img className="arrow-in"  src={Arrow} alt="" />
+        {/* <img src={cloud} alt="" /> */}
+        </div> :
+       <div className="upload-video" onClick={toggleUploadModal}>
       <img src={cloud} alt="" />
         <p>
            Click to start the upload.
           <br />
           Max. Filesize is 5GB. Note: Your video will not be encoded if it is above the size limit!
         </p>
-      
-        {/* <input type="file" onChange={handleFileUpload} />
-        <div>Upload Progress: {uploadProgress}%</div>
-        {uploadURL && <div>Uploaded Video URL: {uploadURL}</div>} */}
-      </div>
+      </div>}
       <div className="video-detail-wrap">
         <div className="video-items">
         <div className="input-group">
@@ -183,7 +193,7 @@ function StudioPage() {
           <label htmlFor="">Tag</label>
           <input type="text" value={tags} onChange={(e) => setTags(e.target.value)}  />
           <div className="wrap">
-          <span>Separate multiple tags with a </span> <SiComma size={9} />
+          <span>Separate multiple tags with </span> <span>Space</span>
           </div>
         </div>
 
@@ -269,19 +279,18 @@ function StudioPage() {
 
         {/* Show the video preview */}
         {videoId && (
-          <div className="preview-video">
-            <video controls style={{ width: "100%", maxWidth: "600px",marginTop: "10px", borderRadius: "8px" }}>
-              <source
-                src={`https://uploads.3speak.tv/files/${videoId}`}
-                type="video/mp4"
-              />
-              Your browser does not support the video tag.
-            </video>
-          </div>
-        )}
+              <div className="preview-video">
+                {/* <video
+                  src={URL.createObjectURL(prevVideoFile)}
+                  controls
+                  width="100%"
+                  style={{ marginTop: "1rem", borderRadius: "10px" }}
+                /> */}
+                <VideoPreview file={prevVideoFile} />
+                </div>)}
 
         {/* Show the thumbnail image */}
-        {thumbnailFile && (
+        {videoId && (
           <div className="preview-thumbnail">
             <img
               src={thumbnailFile}
@@ -296,7 +305,7 @@ function StudioPage() {
       </div>
     </div>
     { isOpen && <Communitie_modal isOpen={isOpen} data={communitiesData} close={closeCommunityModal } setCommunity={setCommunity} />}
-{uploadModalOpen && <Upload_modal  setVideoId={setVideoId} accessToken={accessToken} username={username} isOpen={uploadModalOpen} close={toggleUploadModal} setThumbnailFile={setThumbnailFile} thumbnailFile={thumbnailFile} /> }
+{uploadModalOpen && <Upload_modal setPrevVideoUrl={setPrevVideoUrl} setPrevVideoFile={setPrevVideoFile}  setVideoId={setVideoId} accessToken={accessToken} username={username} isOpen={uploadModalOpen} close={toggleUploadModal} setThumbnailFile={setThumbnailFile} thumbnailFile={thumbnailFile} /> }
 {benficaryOpen && <Beneficiary_modal close={toggleBeneficiaryModal} isOpen={benficaryOpen} setBeneficiaries={setBeneficiaries} />  }
     </>
   );

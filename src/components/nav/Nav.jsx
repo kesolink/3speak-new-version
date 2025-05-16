@@ -20,15 +20,15 @@ import play_store from "../../assets/image/playstore.png"
 import { useState } from "react";
 import SearchList from "./SearchList";
 import SearchList_Sm from "./SearchList_Sm";
-function Nav({ setSideBar, toggleProfileNav }) {
+function Nav({ setSideBar, toggleProfileNav, globalClose, setGlobalClose }) {
   const { authenticated, LogOut, user } = useAppStore();
   const [nav, setNav] = useState(false)
   const [searchTerm, setSearchTerm] = useState('');
   const [searchTermSm, setSearchTermSm] = useState('');
   // const [query, setQuery] =useState("")
 
-  const getUserProfile = useGetMyQuery()?.profile;
-  console.log("User profile", getUserProfile);
+  // const getUserProfile = useGetMyQuery()?.profile;
+  // console.log("User profile", getUserProfile);
   // console.log(getUserProfile.images.avatar);
   const handleNav = () =>{
     setNav((prev) => !prev);
@@ -41,19 +41,19 @@ function Nav({ setSideBar, toggleProfileNav }) {
     <nav className="nav-container">
       <div className="nav-left flex-dev">
         <GiToggles size={25} className="menu-icon" onClick={() => setSideBar((prev) => (prev === false ? true : false))}/>
-        <img className="logo" src={logo} alt="" />
+        <Link to="/"><img className="logo" src={logo} alt="" /></Link>
       </div>
       
       <div className="phone-nav-left" >
         <GiToggles size={25} className="menu-icon" onClick={handleNav}/>
-        <img className="logo" src={logo} alt="" />
+        <Link to="/"><img className="logo" src={logo} alt="" /></Link>
       </div>
       <div className="nav-middle flex-dev">
         <div className="search-box">
-          <input  value={searchTerm} type="text" placeholder="Search users or communities..." onChange={(e)=> setSearchTerm(e.target.value) } />
+          <input onFocus={() => setGlobalClose(false)} value={searchTerm} type="text" placeholder="Search users or communities..." onChange={(e)=> setSearchTerm(e.target.value.toLowerCase()) } />
           <CiSearch className="search-icon" />
         </div>
-        <SearchList searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+        <SearchList searchTerm={searchTerm} setSearchTerm={setSearchTerm} globalClose={globalClose} setGlobalClose={setGlobalClose} />
       </div>
       <div className={nav ? "side-nav" : "side-nav-else"}>
       <AiOutlineClose className="close-nav" onClick={handleNav}/> 

@@ -16,12 +16,18 @@
     @include mix.respond(phone) {
         display: none;
       }
+
+      @include mix.respond(tab) {
+        display: none;
+      }
     .menu-icon {
       width: 30px;
       margin-right: 20px;
+      cursor: pointer;
     }
     .logo {
       width: 130px;
+      cursor: pointer;
     }
   }
   .phone-nav-left{
@@ -44,6 +50,14 @@
   }
 
   .nav-middle {
+
+    @include mix.respond(tab) {
+        position: relative;
+      }
+
+
+
+    
     .search-box {
       // border: 1px solid #ccc;
       margin-right: 15px;

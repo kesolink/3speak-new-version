@@ -16,6 +16,9 @@
     @include mix.respond(phone) {
       display: none  !important;
     }
+    @include mix.respond(tab) {
+      display: none  !important;
+    }
 
 .shortcut-links{
     .icon{

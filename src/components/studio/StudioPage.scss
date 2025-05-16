@@ -16,6 +16,10 @@
     border-radius: 10px;
     border: 1px solid #ccc;
     box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+    cursor: pointer;
+    &.remove-pointer{
+      cursor: default;
+    }
     @include mix.respond(phone) {
       padding: 12px 0px;
     }
@@ -33,6 +37,15 @@
           font-size: 14.5px;
         }
     }
+    span{
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .arrow-in{
+      padding-top: 15px;
+      width: 40px;
+    }
+
   }
 
   .video-detail-wrap {
@@ -110,6 +123,7 @@
         width: fit-content;
         border-radius: 4px;
         padding: 7px 10px;
+        cursor: pointer;
         span {
           font-size: 14px;
           color: #858796;
@@ -151,6 +165,7 @@
             border-radius: 5px;
             background-color: #ccc;
             gap: 5px;
+            cursor: pointer;
             span {
               font-size: 12.35px;
               color: black;
@@ -166,6 +181,7 @@
             border: 2px solid #ccc;
             border-radius: 5px;
             outline: none;
+            cursor: pointer;
             transition: all 0.3s ease;
             appearance: none; /* Remove default dropdown arrow for consistent styling */
           }
@@ -213,6 +229,7 @@
           border: none;
           background-color: #4ba1d3;
           color: #fff;
+          cursor: pointer;
         }
       }
     }

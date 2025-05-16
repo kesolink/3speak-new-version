@@ -25,14 +25,20 @@ import { ImSpinner9 } from "react-icons/im";
 import { useNavigate } from "react-router-dom";
 import BarLoader from "../Loader/BarLoader";
 import TipModal from "../../components/tip-reward/TipModal"
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+ import { TailChase } from 'ldrs/react'
+import 'ldrs/react/TailChase.css'
 
 const PlayVideo = ({ videoDetails, author, permlink }) => {
-  const { user } = useAppStore();
+  const { user, authenticated } = useAppStore();
   const [commentData, setCommentData] = useState("");
   const [openTooltip, setOpenToolTip] = useState(false);
   const [tooltipVoters, setTooltipVoters] = useState([]);
   const [voted, setVoted] = useState(null)
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+  const [isVoted, setIsVoted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate();
 
   dayjs.extend(relativeTime);
@@ -65,6 +71,12 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
       console.log(data)
       // 9126375037
 
+      if (data.active_votes.some(vote => vote.voter === user)) {
+      setIsVoted(true);
+    } else {
+      setIsVoted(false);
+    }
+
       const topVotes = data.active_votes
         .sort((a, b) => parseInt(b.rshares) - parseInt(a.rshares))
         .slice(0, 10)
@@ -87,6 +99,10 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   }, [author, permlink]); // Add author and permlink as dependencies
 
   const handlePostComment = () => {
+    if(!authenticated){
+        toast.error("Login to make comment")
+        return
+      }
     const parent_permlink = permlink;
     const permlinks = `re-${parent_permlink}-${Date.now()}`;
     if (window.hive_keychain) {
@@ -111,9 +127,10 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
         "Posting",
         (response) => {
           if (response.success) {
-            alert("Comment successful!");
+            setCommentData("")
+            toast.success("Comment successful!");
           } else {
-            alert(`Comment failed: ${response.message}`);
+            toast.error(`Comment failed: ${response.message}`);
           }
         }
       );
@@ -161,8 +178,23 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
     return <BarLoader />;
   }
 
-  const handleVote = (username, permlink, weight = 10000) => {
-    if (window.hive_keychain) {
+
+
+  const handleVote = async (username, permlink, weight = 10000) => {
+    if(!authenticated){
+        toast.error("Login to upvote")
+        return
+      }
+    try{
+      setIsLoading(true)
+      const data = await getUersContent(author, permlink);
+      if (data.active_votes.some(vote => vote.voter === user)){
+        toast.info("You have already vote this post")
+        setIsLoading(false)
+        return
+      }
+
+      if (window.hive_keychain) {
       window.hive_keychain.requestBroadcast(
         user,
         [
@@ -179,20 +211,58 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
         "Posting",
         (response) => {
           if (response.success) {
-            alert("Vote successful!");
+            toast.success("Vote successful!");
+            setIsVoted(true);
+            setIsLoading(false)
+
+
           } else {
-            alert(`Vote failed: ${response.message}`);
+            toast.error(`Vote failed: ${response.message}`);
           }
         }
       );
     } else {
-      alert("Hive Keychain is not installed. Please install the extension.");
+      toast.info("Hive Keychain is not installed. Please install the extension.");
     }
+
+    }catch(err){
+      console.log("somthing went wrong" , err)
+    }
+    
   };
   const handleSelectTag = (tag) => {
     console.log(tag)
     navigate(`/t/${tag}`);
   };
+
+  const followUserWithKeychain = (follower, following) => {
+  const json = JSON.stringify([
+    'follow',
+    {
+      follower,
+      following,
+      what: ['blog'], // use [] to unfollow
+    },
+  ]);
+
+  window.hive_keychain.requestCustomJson(
+    follower,
+    'follow',
+    'Posting',
+    json,
+    'Follow User',
+    (response) => {
+      if (response.success) {
+        console.log('Successfully followed user:', response);
+        // Optional: show toast
+      } else {
+        console.error('Failed to follow user:', response.message);
+        // Optional: show toast
+      }
+    }
+  );
+};
+
 
   // console.log(videoDetails);
 
@@ -254,7 +324,9 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
           </div>
           <div className="wrap-right">
             <span className="wrap">
-              <BiLike className="icon" onClick={() => { handleVote(author, permlink) }} />
+              {isLoading ?
+                <div className="loader-circle"><TailChase className="loader-circle" size="15" speed="1.5" color="red" /></div> :
+              <BiLike className={isVoted ? "icon-red" :"icon"} onClick={() => { handleVote(author, permlink) }} />}
               <div className="amount" onMouseEnter={() => setOpenToolTip(true)} onMouseLeave={() => setOpenToolTip(false)}>{videoDetails?.stats.num_votes}</div>
               {openTooltip && <ToolTip tooltipVoters={tooltipVoters} />}
             </span>
@@ -280,7 +352,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
           <p>{videoDetails?.author?.id}</p>
           <span>{followData?.follows?.followers_count} Followers</span>
         </div>
-        <button>Follow</button>
+        {author !== user && <button onClick={()=>followUserWithKeychain(user, author)}>Follow</button>}
       </div>
 
       <div className="description-wrap">
