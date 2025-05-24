@@ -11,7 +11,7 @@ import 'ldrs/react/TailChase.css';
 
 const client = new Client(['https://api.hive.blog']);
 
-const UpvoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, setVotedPosts, setActiveTooltipPermlink }) => {
+const UpvoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, setVotedPosts, setActiveTooltipPermlink, cardStyle }) => {
   const { user, authenticated } = useAppStore();
   const [votingPower, setVotingPower] = useState(100);
   const [weight, setWeight] = useState(100);
@@ -162,7 +162,7 @@ const UpvoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, setVoted
   return (
     <div className="upvote-tooltip-wrap" ref={tooltipRef} onClick={(e) =>{ e.preventDefault()}}>
       {showTooltip && (
-        <div className="tooltip-box">
+        <div className={`tooltip-box ${cardStyle ? "card" : ""}  `}>
           <p>Vote Weight: {weight}%</p>
           <div className="wrap">
             {isLoading ? (

@@ -35,6 +35,11 @@
       @content;
     }
   }
+  @if $breakpoint == s8-plus {
+  @media screen and (max-width: 360px) and (max-height: 740px) {
+    @content;
+  }
+}
 }
 
 

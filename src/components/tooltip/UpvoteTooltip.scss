@@ -15,14 +15,33 @@
     padding: 10px;
     z-index: 100;
     width: 210px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     @include respond(phone) {
-          width: 293px;
-        }
-    .wrap{
-        display: flex;
-        align-items: center;
-        justify-content: center;
+      width: 200px;
+      padding: 6px;
+      // left: 160px;
+    }
+    &.card{
+      @include respond(phone) {
+      left: 110px;
+    }
+
+    }
+
+    p {
+      @include respond(phone) {
+        padding: 0px;
+        margin: 0px;
+        font-size: 12px;
+        text-align: center;
+      }
+      padding: 0px;
+      margin: 0px;
+    }
+    .wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     input[type="range"] {
