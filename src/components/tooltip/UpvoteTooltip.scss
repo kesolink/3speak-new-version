@@ -23,9 +23,14 @@
     }
     &.card{
       @include respond(phone) {
-      left: 110px;
+      // left: 110px;
     }
-
+    }
+    &.comment{
+      @include respond(phone) {
+      right: 100px;
+      left: auto;
+    }
     }
 
     p {

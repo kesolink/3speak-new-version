@@ -8,6 +8,7 @@ import { useAppStore } from '../../lib/store';
 import { renderPostBody } from '@ecency/render-helper';
 import { Client } from '@hiveio/dhive';
 import UpvoteTooltip from '../tooltip/UpvoteTooltip';
+import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 
 const client = new Client(['https://api.hive.blog']);
 
@@ -20,6 +21,7 @@ function CommentSection({ videoDetails, author, permlink }) {
   const [selectedPost, setSelectedPost] = useState({ author: '', permlink: '' });
   const [showTooltip, setShowTooltip] = useState(false);
   const [activeTooltipPermlink, setActiveTooltipPermlink] = useState(null);
+  const [commemtStyle, setCommentStyle] = useState(true);
 
   useEffect(() => {
     const fetchComments = async () => {
@@ -40,6 +42,7 @@ function CommentSection({ videoDetails, author, permlink }) {
     const result = await Promise.all(
       comments.map(async (comment) => {
         const children = await client.call('condenser_api', 'get_content_replies', [comment.author, comment.permlink]);
+        const has_voted = comment.active_votes?.some(v => v.voter === user) ?? false;
         return {
           author: {
             username: comment.author,
@@ -57,6 +60,7 @@ function CommentSection({ videoDetails, author, permlink }) {
             num_dislikes: comment.active_votes?.filter((v) => v.percent < 0).length || 0,
             total_hive_reward: parseFloat(comment.pending_payout_value),
           },
+          has_voted,
           children: await loadNestedComments(children),
         };
       })
@@ -231,6 +235,7 @@ function CommentSection({ videoDetails, author, permlink }) {
         <Comment
           commentIndex={index}
           comment={comment}
+          setCommentList={setCommentList}
           activeReply={activeReply}
           setActiveReply={setActiveReply}
           setReplyToComment={setReplyToComment}
@@ -246,6 +251,8 @@ function CommentSection({ videoDetails, author, permlink }) {
           setShowTooltip={setShowTooltip}
           activeTooltipPermlink={activeTooltipPermlink}
           setActiveTooltipPermlink={setActiveTooltipPermlink}
+          commemtStyle={commemtStyle}
+          
         />
       ))}
     </div>
@@ -255,6 +262,7 @@ function CommentSection({ videoDetails, author, permlink }) {
 function Comment({
   commentIndex,
   comment,
+  setCommentList,
   activeReply,
   setActiveReply,
   setReplyToComment,
@@ -269,7 +277,8 @@ function Comment({
   showTooltip,
   setShowTooltip,
   activeTooltipPermlink,
-  setActiveTooltipPermlink
+  setActiveTooltipPermlink,
+  commemtStyle
 }) {
   const isReplying = activeReply === comment.permlink;
 
@@ -285,13 +294,15 @@ function Comment({
           <p className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '') }} />
           <div className="comment-action">
             <div className="wrap">
-              <BiLike onClick={() => toggleTooltip(comment?.author?.username, comment.permlink, commentIndex)} />
+              <BiLike style={{ color: comment.has_voted ? 'red' : '' }}
+              onClick={() => toggleTooltip(comment?.author?.username, comment.permlink, commentIndex)}
+               />
               <span>{comment?.stats?.num_likes ?? 0}</span>
             </div>
-            <div className="wrap">
+            {/* <div className="wrap">
               <BiDislike />
               <span>{comment?.stats?.num_dislikes ?? 0}</span>
-            </div>
+            </div> */}
             <div className="wrap">
               <GiTwoCoins />
               <span>${comment?.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span>
@@ -305,14 +316,14 @@ function Comment({
             >
               Reply
             </span>
-            <UpvoteTooltip
-              showTooltip={activeTooltipPermlink === comment.permlink}
-              setShowTooltip={setShowTooltip}
-              author={selectedPost?.author || ''}
-              permlink={selectedPost?.permlink || ''}
-              setActiveTooltipPermlink={setActiveTooltipPermlink}
-              
-              // setVotedPosts={setVotedPosts}
+            <CommentVoteTooltip
+             author={comment?.author?.username}
+             permlink={comment.permlink}
+             showTooltip={showTooltip && activeTooltipPermlink === comment.permlink}
+             setShowTooltip={setShowTooltip}
+             setCommentList={setCommentList}
+             setActiveTooltipPermlink={setActiveTooltipPermlink}
+             commemtStyle={commemtStyle}
             />
           </div>
         </div>
@@ -338,8 +349,10 @@ function Comment({
         <div className="nested-comments">
           {comment.children.map((child, index) => (
             <Comment
-              key={index}
+              key={`${child.permlink}-${index}`}
+              commentIndex={index}
               comment={child}
+              setCommentList={setCommentList}
               activeReply={activeReply}
               setActiveReply={setActiveReply}
               setReplyToComment={setReplyToComment}
@@ -347,13 +360,14 @@ function Comment({
               commentInfo={commentInfo}
               handlePostComment={handlePostComment}
               depth={depth + 1}
-              // handleVote={handleVote}
+              handleVote={handleVote}
+              processedBody={processedBody}
               toggleTooltip={toggleTooltip}
               selectedPost={selectedPost}
-              processedBody={processedBody}
               showTooltip={showTooltip}
               setShowTooltip={setShowTooltip}
               activeTooltipPermlink={activeTooltipPermlink}
+              setActiveTooltipPermlink={setActiveTooltipPermlink}
             />
           ))}
         </div>

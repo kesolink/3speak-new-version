@@ -341,7 +341,9 @@ const handleProfileNavigate = (user) => {
             <span className="wrap">
               {isLoading ?
                 <div className="loader-circle"><TailChase className="loader-circle" size="15" speed="1.5" color="red" /></div> :
-              <BiLike className={isVoted ? "icon-red" :"icon"} onClick={() => { toggleTooltip(author, permlink) }} />}
+              <BiLike className={isVoted ? "icon-red" :"icon"} 
+              onClick={() => { toggleTooltip(author, permlink) }} 
+              />}
               <div className="amount" onMouseEnter={() => setOpenToolTip(true)} onMouseLeave={() => setOpenToolTip(false)}>{videoDetails?.stats.num_votes}</div>
               {openTooltip && <ToolTip tooltipVoters={tooltipVoters} />}
             </span>
@@ -362,6 +364,7 @@ const handleProfileNavigate = (user) => {
               setShowTooltip={setShowTooltip}
               author={author}
               permlink={permlink}
+              setIsVoted={setIsVoted}
               
               // setVotedPosts={setVotedPosts}
             />
@@ -404,6 +407,7 @@ const handleProfileNavigate = (user) => {
         videoDetails={videoDetails}
         author={author}
         permlink={permlink}
+        setIsVoted={setIsVoted}
       />
     </div>
     {isTipModalOpen && <TipModal
