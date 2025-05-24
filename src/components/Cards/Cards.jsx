@@ -1,197 +1,190 @@
 import { IoChevronUpCircleOutline } from "react-icons/io5";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FaHeart } from "react-icons/fa";
-import { FaCircleUser } from "react-icons/fa6";
 import PropTypes from "prop-types";
 import "./Cards.scss";
-import { useAppStore } from '../..//lib/store';
-import { FaCirclePlay } from "react-icons/fa6";
-import img from "../../assets/image/deleted.jpg"
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { useAppStore } from "../../lib/store";
+import { toast } from "react-toastify";
 import { getUersContent } from "../../utils/hiveUtils";
 import { useState } from "react";
+import UpvoteTooltip from "../tooltip/UpvoteTooltip";
+import img from "../../assets/image/deleted.jpg";
 
 dayjs.extend(relativeTime);
 
 function Cards({
-    videos = [],
-    loading = false,
-    error = null,
-    defaultThumbnail = "default_thumb.jpg",
-    defaultUsername = "Anonymous",
-    linkPrefix = "/video",
-    className = "",
-    truncateLength = 65,
-  }) {
-       const {user, authenticated} = useAppStore();
-       const [isLoading, setIsLoading] = useState(false)
-      if (loading) return <div>Loading...</div>;
-      if (error) return <div>Error: {error}</div>;
-    
-    
-      const filteredVideos = videos.filter(
-        (video) =>
-          video.spkvideo !== null && // Ensure spkvideo is not null
-          video.spkvideo !== undefined && // Ensure spkvideo is not undefined
-          !video.spkvideo.thumbnail_url?.includes("https://media.3speak.tv") // Ensure thumbnail_url does not include the specified string
-      );
-      
-      const voters = (numVotes) => (numVotes <= 0 ? 0 : numVotes);
-      // console.log(videos)
-    
-       const handleVote = async (username, permlink, weight = 10000) => {
-        if(!authenticated){
-                toast.error("Login to complete this operation")
-                return
-              }
+  videos = [],
+  loading = false,
+  error = null,
+  defaultThumbnail = "default_thumb.jpg",
+  className = "",
+  truncateLength = 65,
+}) {
+  const { user, authenticated } = useAppStore();
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTooltipIndex, setActiveTooltipIndex] = useState(null);
+  const [selectedPost, setSelectedPost] = useState({ username: "", permlink: "" });
+  const [votedPosts, setVotedPosts] = useState([]);
 
-              try{
-                setIsLoading(true)
-                const data = await getUersContent(username, permlink);
-                      if (data.active_votes.some(vote => vote.voter === user)){
-                        toast.info("You have already vote this post")
-                        setIsLoading(false)
-                        return
-                      }
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
 
-                      if (window.hive_keychain) {
-          // const [author, postPermlink] = permlink.split("/"); // Split permlink into author and postPermlink
-          window.hive_keychain.requestBroadcast(
-            user,
-            [
-              [
-                "vote",
-                {
-                  voter: user,
-                  author: username,
-                  permlink,
-                  weight, // 10000 = 100%, 5000 = 50%
-                },
-              ],
-            ],
-            "Posting",
-            (response) => {
-              if (response.success) {
-                toast.success("Vote successful!");
-              } else {
-                toast.error(`Vote failed: ${response.message}`);
-              }
-            }
-          );
-        } else {
-          toast.info("Hive Keychain is not installed. Please install the extension.");
-        }
-              }catch(err){
-                console.log("somthing went wrong" , err)
+  const filteredVideos = videos.filter(
+    (video) =>
+      video.spkvideo !== null &&
+      video.spkvideo !== undefined &&
+      !video.spkvideo.thumbnail_url?.includes("https://media.3speak.tv")
+  );
 
-              }
+  const voters = (numVotes) => (numVotes <= 0 ? 0 : numVotes);
 
+  // const handleVote = async (username, permlink, weight = 10000) => {
+  //   if (!authenticated) {
+  //     toast.error("Login to complete this operation");
+  //     return;
+  //   }
 
-        
-      };
+  //   try {
+  //     setIsLoading(true);
+  //     const data = await getUersContent(username, permlink);
+  //     if (data.active_votes.some((vote) => vote.voter === user)) {
+  //       toast.info("You have already voted on this post");
+  //       setIsLoading(false);
+  //       return;
+  //     }
 
+  //     if (window.hive_keychain) {
+  //       window.hive_keychain.requestBroadcast(
+  //         user,
+  //         [
+  //           [
+  //             "vote",
+  //             {
+  //               voter: user,
+  //               author: username,
+  //               permlink,
+  //               weight,
+  //             },
+  //           ],
+  //         ],
+  //         "Posting",
+  //         (response) => {
+  //           setIsLoading(false);
+  //           if (response.success) {
+  //             toast.success("Vote successful!");
+  //             setVotedPosts((prev) => [...prev, `${username}/${permlink}`]);
+  //           } else {
+  //             toast.error(`Vote failed: ${response.message}`);
+  //           }
+  //         }
+  //       );
+  //     } else {
+  //       toast.info("Hive Keychain is not installed. Please install the extension.");
+  //     }
+  //   } catch (err) {
+  //     console.log("Something went wrong", err);
+  //     setIsLoading(false);
+  //   }
+  // };
 
+  const toggleTooltip = (username, permlink, index) => {
+    setSelectedPost({ username, permlink });
+    setActiveTooltipIndex((prev) => (prev === index ? null : index));
+  };
 
-
+  const handleProfileNavigation = (user) => {
+    navigate(`/p/${user}`);
+  };
 
   return (
     <div className={`card-container ${className}`}>
-          {filteredVideos.map((video, index) => (
-            <Link
-            to={`/watch?v=${video?.author?.username}/${video.permlink ?? "unknown"}`}
-              className="card"
-              key={index}
-            >
-              <div className="img-wrap">
-                <img
-                  // src={`https://images.hive.blog/320x0/${
-                  //   video.spkvideo?.thumbnail_url ?? ""
-                  // }`}
-                  src={
-                    video.spkvideo?.thumbnail_url === "https://media.3speak.tv/jevmpseu/thumbnails/default.png"
-                      ? img
-                      : `https://images.hive.blog/320x0/${video.spkvideo?.thumbnail_url ?? ""}`
-                  }
-                  alt="thumbnail"
-                  onError={(e) => (e.currentTarget.src = defaultThumbnail)}
-                />
-                <div className="wrap">
-                  {/* <div className="user-wrap flex-div">
-                  <span>${video.stats?.total_hive_reward.toFixed(2) ?? "0.00"}</span>
-                  </div> */}
-                  <span className="play">
-                    {Math.floor(video.spkvideo?.duration / 60)}:
-                    {Math.floor(video.spkvideo?.duration % 60)
-                      .toString()
-                      .padStart(2, "0")}
-                  </span>
-                </div>
+      {filteredVideos.map((video, index) => {
+        const postKey = `${video.author.username}/${video.permlink}`;
+        const hasVoted = votedPosts.includes(postKey);
+
+        return (
+          <Link
+            to={`/watch?v=${video.author.username}/${video.permlink}`}
+            className="card"
+            key={index}
+          >
+            <div className="img-wrap">
+              <img
+                src={
+                  video.spkvideo?.thumbnail_url === "https://media.3speak.tv/jevmpseu/thumbnails/default.png"
+                    ? img
+                    : `https://images.hive.blog/320x0/${video.spkvideo?.thumbnail_url ?? ""}`
+                }
+                alt="thumbnail"
+                onError={(e) => (e.currentTarget.src = defaultThumbnail)}
+              />
+              <div className="wrap">
+                <span className="play">
+                  {Math.floor(video.spkvideo?.duration / 60)}:
+                  {Math.floor(video.spkvideo?.duration % 60)
+                    .toString()
+                    .padStart(2, "0")}
+                </span>
               </div>
-              <h2>{video.title}</h2>
-              <div className="profile-view-wrap">
+            </div>
+
+            <h2>{video.title}</h2>
+
+            <div className="profile-view-wrap">
               <div className="profile-wrapper">
-              {video?.author?.profile?.images?.avatar ? <img className="profile-img" src={video?.author?.profile?.images?.avatar} alt="" /> : <FaCircleUser size={16} />}
-              <h2>{video.author.username}</h2>
+                <img
+                  className="profile-img"
+                  src={`https://images.hive.blog/u/${video.author.username}/avatar`}
+                  alt=""
+                />
+                <h2
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation(); //  prevent click from bubbling to parent Link
+                    handleProfileNavigation(video.author.username);
+                  }}
+                >
+                  {video.author.username}
+                </h2>
               </div>
-              {/* <div className="view-wrap">
-              <FaCirclePlay className="icon" />
-              <p>112 views</p>
-              </div> */}
-              </div>
-              {/* <h3>Vibes</h3> */}
-              <div className="bottom-action">
-                <div className="wrap-left">
-                  <div className="wrap flex-div">
-                    <IoChevronUpCircleOutline className="icon" onClick={ (e) =>{ e.preventDefault(); handleVote(video.author.username, video.permlink)}} />
-                    <span>${video.stats?.total_hive_reward.toFixed(2) ?? "0.00"}</span>
-                  </div>
-                  {/* <span>|</span> */}
-                  <div className="wrap flex-div">
-                    <FaHeart className="icon-heart" />
-                    <span>{voters(video.stats?.num_votes)}</span>
-                  </div>
+            </div>
+
+            <div className="bottom-action">
+              <div className="wrap-left">
+                <div className="wrap flex-div">
+                  <IoChevronUpCircleOutline
+                    className={`icon ${hasVoted ? "voted" : ""}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleTooltip(video.author.username, video.permlink, index);
+                    }}
+                  />
+                  <span>${video.stats?.total_hive_reward.toFixed(2) ?? "0.00"}</span>
                 </div>
-                <p>{dayjs(video.created_at).fromNow()}</p>
+
+                <div className="wrap flex-div">
+                  <FaHeart className="icon-heart" />
+                  <span>{voters(video.stats?.num_votes)}</span>
+                </div>
               </div>
-            </Link>
-          ))}
-        </div>
-  )
+              <p>{dayjs(video.created_at).fromNow()}</p>
+            </div>
+
+            <UpvoteTooltip
+              showTooltip={activeTooltipIndex === index}
+              setShowTooltip={setActiveTooltipIndex}
+              author={selectedPost.username}
+              permlink={selectedPost.permlink}
+              setVotedPosts={setVotedPosts}
+            />
+          </Link>
+        );
+      })}
+    </div>
+  );
 }
 
-// PropType validation
-Cards.propTypes = {
-  videos: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string,
-      title: PropTypes.string,
-      created_at: PropTypes.string,
-      spkvideo: PropTypes.shape({
-        thumbnail_url: PropTypes.string,
-        duration: PropTypes.number,
-      }),
-      author: PropTypes.shape({
-        username: PropTypes.string,
-      }),
-      community: PropTypes.shape({
-        about: PropTypes.string,
-      }),
-      stats: PropTypes.shape({
-        total_hive_reward: PropTypes.number,
-        num_votes: PropTypes.number,
-      }),
-    })
-  ),
-  loading: PropTypes.bool,
-  error: PropTypes.object,
-  defaultThumbnail: PropTypes.string,
-  defaultUsername: PropTypes.string,
-  linkPrefix: PropTypes.string,
-  className: PropTypes.string,
-  truncateLength: PropTypes.number,
-};
-
-export default Cards
+export default Cards;

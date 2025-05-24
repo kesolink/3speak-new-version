@@ -13,12 +13,14 @@ import { IoMdPerson } from 'react-icons/io';
 import { RiWallet3Fill } from 'react-icons/ri';
 import logo from "../../assets/image/3S_logo.svg";
 import { SiTelegram } from "react-icons/si";
+import { getVotePower } from '../../utils/hiveUtils';
 
 function ProfileNav({isVisible, onclose}) {
   const navigate = useNavigate()
   const {  LogOut, user, switchAccount } = useAppStore();
   const [showDropdown, setShowDropdown] = useState(false);
-    const getUserProfile = useGetMyQuery()?.profile;
+  const [votingPower, setVotingPower] = useState(0);
+  const [rc, setRc] = useState(0);
     const [accountList, setAccountList] = useState([]);
       
         useEffect(()=>{
@@ -36,6 +38,24 @@ function ProfileNav({isVisible, onclose}) {
 
   }
 
+  const fetchVotePower = async (user) => {
+    try{
+      const result = await getVotePower(user);
+      if (result){
+        const { vp, rcPercent } = result;
+        console.log("Vote power", vp)
+        setRc(rcPercent.toFixed(2));
+        setVotingPower((vp / 100).toFixed(2));
+      }
+    } catch (err) {
+      console.error('Error fetching account:', err);
+    }
+  }
+  useEffect(() => {
+    if (!user) return;
+    fetchVotePower(user);
+  }, []);
+
   return (
     <div className={`profilenav-container ${isVisible ? 'visible' : ''}`} onClick={onclose}>
         <div className="profile-wrap" onClick={(e) => e.stopPropagation()}>
@@ -47,16 +67,16 @@ function ProfileNav({isVisible, onclose}) {
             <div className="power-wrap">
               <div className="wrap">
               <MdOutlineKeyboardArrowUp />
-              <span>100%</span>
+              <span>{votingPower}% {" "} VP</span>
               </div>
               <div className="wrap">
               <MdKeyboardArrowDown />
-              <span>100%</span>
+              <span>{rc}% {" "} RC</span>
               </div>
-              <div className="wrap">
+              {/* <div className="wrap">
               <ImPower />
               <span>100%</span>
-              </div>
+              </div> */}
             </div>
            </div>
            <div className="list-wrap">

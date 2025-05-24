@@ -34,7 +34,7 @@ const BlogContent = ({ author, permlink}) => {
     fetchContent();
   }, [author, permlink]);
 
-  console.log(content)
+  // console.log(content)
 
   // Render content when it changes
   useEffect(() => {
