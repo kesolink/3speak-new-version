@@ -28,6 +28,7 @@ function Cards({
   const [activeTooltipIndex, setActiveTooltipIndex] = useState(null);
   const [selectedPost, setSelectedPost] = useState({ username: "", permlink: "" });
   const [votedPosts, setVotedPosts] = useState([]);
+  const [cardStyle, setCardStyle] = useState(true);
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
@@ -179,6 +180,7 @@ function Cards({
               author={selectedPost.username}
               permlink={selectedPost.permlink}
               setVotedPosts={setVotedPosts}
+              cardStyle={cardStyle}
             />
           </Link>
         );
