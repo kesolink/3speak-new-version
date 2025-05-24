@@ -54,3 +54,35 @@ export async function getUersContent(author, permlink) {
     const power = (votingPower * votePerc) / 1e4 / 50 + 1;
     return (power * vestingShares) / 1e4;
   };
+
+  export const getVotePower = async (username) => {
+    try {
+      // Get full account data
+        const [account] = await client.database.getAccounts([username]);
+
+        // --- Calculate Voting Power ---
+        const lastVote = new Date(account.last_vote_time + 'Z');
+        const now = new Date();
+        const secondsSinceLastVote = (now - lastVote) / 1000;
+        const regenerated = (10000 * secondsSinceLastVote) / (5 * 60 * 60 * 24);
+        let vp = account.voting_power + regenerated;
+        if (vp > 10000) vp = 10000;
+
+        // --- Get RC ---
+    const rcData = await client.call('rc_api', 'find_rc_accounts', { accounts: [username] });
+    const rcAccount = rcData.rc_accounts?.[0];
+
+    const maxRC = parseFloat(rcAccount.max_rc);
+    const currentRC = parseFloat(rcAccount.rc_manabar.current_mana);
+    const rcPercent = (currentRC / maxRC) * 100;
+        return {
+      vp,       // voting power
+      rcPercent, // Resource Credit (0 - 100)
+      account,  // full account data
+      rc: rcAccount,    // Raw RC data
+    };
+    } catch (error) {
+        console.error("Error fetching voting power:", error);
+        return null;
+    }
+  }

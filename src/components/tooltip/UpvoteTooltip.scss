@@ -1,0 +1,49 @@
+@use "../../mixins.scss" as *;
+.upvote-tooltip-wrap {
+  position: relative;
+  display: inline-block;
+
+  .tooltip-box {
+    position: absolute;
+    top: -50px;
+    // left: 10%;
+    right: -100px;
+    transform: translateX(-50%);
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 10px;
+    z-index: 100;
+    width: 210px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    @include respond(phone) {
+          width: 293px;
+        }
+    .wrap{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    button {
+      margin-top: 8px;
+      padding: 6px 12px;
+      background: #1fae51;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  }
+
+  .upvote-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+  }
+}

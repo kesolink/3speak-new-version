@@ -27,8 +27,10 @@ import BarLoader from "../Loader/BarLoader";
 import TipModal from "../../components/tip-reward/TipModal"
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
- import { TailChase } from 'ldrs/react'
+import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
+import { getFollowers } from "../../hive-api/api";
+import UpvoteTooltip from "../tooltip/UpvoteTooltip";
 
 const PlayVideo = ({ videoDetails, author, permlink }) => {
   const { user, authenticated } = useAppStore();
@@ -39,6 +41,8 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
   const [isVoted, setIsVoted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [followData, setFollowData] = useState(null);
+  const [showTooltip, setShowTooltip] = useState(false);
   const navigate = useNavigate();
 
   dayjs.extend(relativeTime);
@@ -93,6 +97,20 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
     }
   };
 
+  useEffect(() => {
+      getFollowersCount(author);
+    }, []);
+
+    const getFollowersCount = async (author) => {
+        try {
+          const follower = await getFollowers(author);
+          console.log("Follower data:", follower);
+          setFollowData(follower);
+        } catch (err) {
+          console.log(err);
+        }
+      };
+
   // Call getTooltipVoters in useEffect
   useEffect(() => {
     getTooltipVoters();
@@ -142,17 +160,9 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   const {
     data: getVideo,
     loading,
-    error,
   } = useQuery(GET_VIDEO, { variables: { author, permlink }, ssr: true });
   const spkvideo = getVideo?.socialPost.spkvideo;
   const [videoUrlSelected, setVideoUrlSelected] = useState(null);
-
-  const { data: followData, loading: followLoading } = useQuery(
-    GET_TOTAL_COUNT_OF_FOLLOWING,
-    {
-      variables: { id: videoDetails?.author?.id || "" },
-    }
-  );
 
   const getUserProfile = useQuery(GET_PROFILE, {
     variables: { id: videoDetails?.author?.id },
@@ -217,11 +227,13 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
 
 
           } else {
+            setIsLoading(false)
             toast.error(`Vote failed: ${response.message}`);
           }
         }
       );
     } else {
+      setIsLoading(false)
       toast.info("Hive Keychain is not installed. Please install the extension.");
     }
 
@@ -263,13 +275,16 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   );
 };
 
+const handleProfileNavigate = (user) => {
+      navigate(`/p/${user}`);
+     }
 
-  // console.log(videoDetails);
+     const toggleTooltip = () => {
+    setShowTooltip((prev)=> !prev)
+  };
 
-  // const handleSendTip = (amount: string, currency: string, memo: string) => {
-  //   console.log("Sending tip:", { amount, currency, memo });
-  //   // Implement your tip sending logic here
-  // };
+
+
 
   return (
     <>
@@ -326,10 +341,11 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
             <span className="wrap">
               {isLoading ?
                 <div className="loader-circle"><TailChase className="loader-circle" size="15" speed="1.5" color="red" /></div> :
-              <BiLike className={isVoted ? "icon-red" :"icon"} onClick={() => { handleVote(author, permlink) }} />}
+              <BiLike className={isVoted ? "icon-red" :"icon"} onClick={() => { toggleTooltip(author, permlink) }} />}
               <div className="amount" onMouseEnter={() => setOpenToolTip(true)} onMouseLeave={() => setOpenToolTip(false)}>{videoDetails?.stats.num_votes}</div>
               {openTooltip && <ToolTip tooltipVoters={tooltipVoters} />}
             </span>
+            
 
             <span className="wrap">
               <BiDislike className="icon" />
@@ -341,6 +357,14 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
             </span>
             {/* <span>Reply</span> */}
             <button className="tip-btn" onClick={() => setIsTipModalOpen(true)}>Tip</button>
+            <UpvoteTooltip
+              showTooltip={showTooltip}
+              setShowTooltip={setShowTooltip}
+              author={author}
+              permlink={permlink}
+              
+              // setVotedPosts={setVotedPosts}
+            />
           </div>
         </div>
       </div>
@@ -349,8 +373,10 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
       <div className="publisher">
         <img src={profile?.images?.avatar} alt="" />
         <div>
-          <p>{videoDetails?.author?.id}</p>
-          <span>{followData?.follows?.followers_count} Followers</span>
+          <p 
+          onClick={()=>handleProfileNavigate(videoDetails?.author?.id)}
+          >{videoDetails?.author?.id}</p>
+          <span>{followData?.follower_count} Followers</span>
         </div>
         {author !== user && <button onClick={()=>followUserWithKeychain(user, author)}>Follow</button>}
       </div>
@@ -361,7 +387,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
         </div>
       </div>
 
-      <div className="add-comment-wrap">
+      {/* <div className="add-comment-wrap">
         <span>Reply:</span>
         <textarea
           className="textarea-box"
@@ -372,7 +398,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
         <div className="btn-wrap">
           <button onClick={handlePostComment}>Comment</button>
         </div>
-      </div>
+      </div> */}
 
       <CommentSection
         videoDetails={videoDetails}

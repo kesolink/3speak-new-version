@@ -3,28 +3,66 @@ import './CommentSection.scss';
 import './BlogContent.scss';
 import { GiTwoCoins } from 'react-icons/gi';
 import { BiDislike, BiLike } from 'react-icons/bi';
-import { useQuery } from '@apollo/client';
-import { GET_COMMENTS } from '../../graphql/queries';
 import dayjs from 'dayjs';
 import { useAppStore } from '../../lib/store';
 import { renderPostBody } from '@ecency/render-helper';
+import { Client } from '@hiveio/dhive';
+import UpvoteTooltip from '../tooltip/UpvoteTooltip';
+
+const client = new Client(['https://api.hive.blog']);
 
 function CommentSection({ videoDetails, author, permlink }) {
-  const { data, loading, error, refetch } = useQuery(GET_COMMENTS, {
-    variables: { author, permlink },
-  });
-
   const { user } = useAppStore();
   const [commentInfo, setCommentInfo] = useState('');
   const [activeReply, setActiveReply] = useState(null);
   const [replyToComment, setReplyToComment] = useState(null);
   const [commentList, setCommentList] = useState([]);
+  const [selectedPost, setSelectedPost] = useState({ author: '', permlink: '' });
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [activeTooltipPermlink, setActiveTooltipPermlink] = useState(null);
 
   useEffect(() => {
-    if (data?.socialPost?.children) {
-      setCommentList(data.socialPost.children);
-    }
-  }, [data]);
+    const fetchComments = async () => {
+      try {
+        const replies = await client.call('condenser_api', 'get_content_replies', [author, permlink]);
+        console.log('Replies:', replies);
+        const commentsWithChildren = await loadNestedComments(replies);
+        setCommentList(commentsWithChildren);
+      } catch (error) {
+        console.error('Failed to fetch comments from Hive:', error);
+      }
+    };
+
+    fetchComments();
+  }, [author, permlink]);
+
+  const loadNestedComments = async (comments) => {
+    const result = await Promise.all(
+      comments.map(async (comment) => {
+        const children = await client.call('condenser_api', 'get_content_replies', [comment.author, comment.permlink]);
+        return {
+          author: {
+            username: comment.author,
+            profile: {
+              images: {
+                avatar: `https://images.hive.blog/u/${comment.author}/avatar`,
+              },
+            },
+          },
+          permlink: comment.permlink,
+          created_at: comment.created,
+          body: comment.body,
+          stats: {
+            num_likes: comment.active_votes?.filter((v) => v.percent > 0).length || 0,
+            num_dislikes: comment.active_votes?.filter((v) => v.percent < 0).length || 0,
+            total_hive_reward: parseFloat(comment.pending_payout_value),
+          },
+          children: await loadNestedComments(children),
+        };
+      })
+    );
+    return result;
+  };
 
   const processedBody = (content) => {
     if (!content) return '';
@@ -32,13 +70,14 @@ function CommentSection({ videoDetails, author, permlink }) {
   };
 
   const handlePostComment = async () => {
-    if (!replyToComment) return;
-
-    const parent_permlink = replyToComment.permlink;
-    const parent_author = replyToComment.author.username;
-    const new_permlink = `re-${parent_permlink}-${Date.now()}`;
-
     if (!commentInfo.trim()) return;
+
+    // Determine if we're replying to the main post or a comment
+    const isReplyingToMainPost = !replyToComment;
+    
+    const parent_author = isReplyingToMainPost ? author : replyToComment.author.username;
+    const parent_permlink = isReplyingToMainPost ? permlink : replyToComment.permlink;
+    const new_permlink = `re-${parent_permlink}-${Date.now()}`;
 
     if (window.hive_keychain) {
       window.hive_keychain.requestBroadcast(
@@ -65,7 +104,7 @@ function CommentSection({ videoDetails, author, permlink }) {
                 username: user,
                 profile: {
                   images: {
-                    avatar: 'https://via.placeholder.com/40',
+                    avatar: `https://images.hive.blog/u/${user}/avatar`,
                   },
                 },
               },
@@ -80,27 +119,33 @@ function CommentSection({ videoDetails, author, permlink }) {
               children: [],
             };
 
-            const addReply = (comments) =>
-              comments.map((comment) => {
-                if (comment.permlink === parent_permlink) {
-                  return {
-                    ...comment,
-                    children: [...(comment.children || []), newComment],
-                  };
-                } else if (comment.children) {
-                  return {
-                    ...comment,
-                    children: addReply(comment.children),
-                  };
-                }
-                return comment;
-              });
+            if (isReplyingToMainPost) {
+              // Add the new comment to the top level comments
+              setCommentList(prev => [newComment, ...prev]);
+            } else {
+              // Add the reply to the appropriate comment
+              const addReply = (comments) =>
+                comments.map((comment) => {
+                  if (comment.permlink === parent_permlink) {
+                    return {
+                      ...comment,
+                      children: [...(comment.children || []), newComment],
+                    };
+                  } else if (comment.children) {
+                    return {
+                      ...comment,
+                      children: addReply(comment.children),
+                    };
+                  }
+                  return comment;
+                });
 
-            setCommentList((prev) => addReply(prev));
+              setCommentList((prev) => addReply(prev));
+            }
+
             setCommentInfo('');
             setActiveReply(null);
             setReplyToComment(null);
-            await refetch();
           } else {
             alert(`Comment failed: ${response.message}`);
           }
@@ -140,12 +185,51 @@ function CommentSection({ videoDetails, author, permlink }) {
     }
   };
 
+  const toggleTooltip = (author, permlink, index) => {
+    console.log('Toggle Tooltip:', author, permlink, index);
+    setSelectedPost({ author, permlink });
+    console.log('Selected Post:', selectedPost);
+    // setShowTooltip((prev)=> !prev)
+    setShowTooltip(prev => !prev || activeTooltipPermlink !== permlink);
+  //   setShowTooltip((prev) => {
+  //   const isSame = activeTooltipPermlink === permlink;
+  //   if (!isSame) setActiveTooltipPermlink(permlink);
+  //   else setActiveTooltipPermlink(null);
+  //   return !prev || !isSame;
+  // });
+    setActiveTooltipPermlink((prev) => (prev === permlink ? null : permlink));
+  };
+
   return (
     <div className="vid-comment-wrap">
+      
+      
+      {/* Main comment form */}
+      <div className="add-comment-wrap">
+        <span>Add a comment:</span>
+        <textarea
+          placeholder="Write your comment here..."
+          className="textarea-box"
+          value={commentInfo}
+          onChange={(e) => setCommentInfo(e.target.value)}
+        />
+        <div className="btn-wrap">
+          <button onClick={() => {
+            setCommentInfo('');
+            setReplyToComment(null);
+          }}>Cancel</button>
+          <button onClick={() => {
+            setReplyToComment(null);
+            handlePostComment();
+          }}>Comment</button>
+        </div>
+      </div>
+
       <h4>{commentList.length} Comments</h4>
+      
       {commentList.map((comment, index) => (
         <Comment
-          key={index}
+          commentIndex={index}
           comment={comment}
           activeReply={activeReply}
           setActiveReply={setActiveReply}
@@ -156,6 +240,12 @@ function CommentSection({ videoDetails, author, permlink }) {
           depth={0}
           handleVote={handleVote}
           processedBody={processedBody}
+          toggleTooltip={toggleTooltip}
+          selectedPost={selectedPost}
+          showTooltip={showTooltip}
+          setShowTooltip={setShowTooltip}
+          activeTooltipPermlink={activeTooltipPermlink}
+          setActiveTooltipPermlink={setActiveTooltipPermlink}
         />
       ))}
     </div>
@@ -163,6 +253,7 @@ function CommentSection({ videoDetails, author, permlink }) {
 }
 
 function Comment({
+  commentIndex,
   comment,
   activeReply,
   setActiveReply,
@@ -173,11 +264,17 @@ function Comment({
   handlePostComment,
   depth,
   handleVote,
+  toggleTooltip,
+  selectedPost,
+  showTooltip,
+  setShowTooltip,
+  activeTooltipPermlink,
+  setActiveTooltipPermlink
 }) {
   const isReplying = activeReply === comment.permlink;
 
   return (
-    <div className="comment-container" style={{ marginLeft: depth > 0 ? '40px' : '0px' }}>
+    <div className="comment-container" style={{ marginLeft: depth > 0 ? '40px' : '0px' }} >
       <div className="comment">
         <img src={comment?.author?.profile?.images?.avatar || 'https://via.placeholder.com/40'} alt="Author Avatar" />
         <div>
@@ -188,7 +285,7 @@ function Comment({
           <p className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '') }} />
           <div className="comment-action">
             <div className="wrap">
-              <BiLike onClick={() => handleVote(comment?.author?.username, comment.permlink)} />
+              <BiLike onClick={() => toggleTooltip(comment?.author?.username, comment.permlink, commentIndex)} />
               <span>{comment?.stats?.num_likes ?? 0}</span>
             </div>
             <div className="wrap">
@@ -208,6 +305,15 @@ function Comment({
             >
               Reply
             </span>
+            <UpvoteTooltip
+              showTooltip={activeTooltipPermlink === comment.permlink}
+              setShowTooltip={setShowTooltip}
+              author={selectedPost?.author || ''}
+              permlink={selectedPost?.permlink || ''}
+              setActiveTooltipPermlink={setActiveTooltipPermlink}
+              
+              // setVotedPosts={setVotedPosts}
+            />
           </div>
         </div>
       </div>
@@ -241,8 +347,13 @@ function Comment({
               commentInfo={commentInfo}
               handlePostComment={handlePostComment}
               depth={depth + 1}
-              handleVote={handleVote}
+              // handleVote={handleVote}
+              toggleTooltip={toggleTooltip}
+              selectedPost={selectedPost}
               processedBody={processedBody}
+              showTooltip={showTooltip}
+              setShowTooltip={setShowTooltip}
+              activeTooltipPermlink={activeTooltipPermlink}
             />
           ))}
         </div>
