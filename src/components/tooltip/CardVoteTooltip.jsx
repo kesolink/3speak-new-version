@@ -11,7 +11,7 @@ import 'ldrs/react/TailChase.css';
 
 const client = new Client(['https://api.hive.blog']);
 
-const UpvoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, cardStyle, setIsVoted }) => {
+const CardVoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, setVotedPosts, cardStyle }) => {
   const { user, authenticated } = useAppStore();
   const [votingPower, setVotingPower] = useState(100);
   const [weight, setWeight] = useState(100);
@@ -19,7 +19,6 @@ const UpvoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, cardStyl
   const [accountData, setAccountData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const tooltipRef = useRef(null);
-  const [commemtStyle, setCommentStyle] = useState(true);
 
   console.log('UpvoteTooltip', { author, permlink, showTooltip });
 
@@ -137,10 +136,8 @@ const UpvoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, cardStyl
             toast.success('Vote successful');
             setIsLoading(false);
             setShowTooltip(false);
-            // setActiveTooltipPermlink(null);
-            setIsVoted(true);
             // console.log(showTooltip)
-            // setVotedPosts((prev) => [...prev, `${author}/${permlink}`]);
+            setVotedPosts((prev) => [...prev, `${author}/${permlink}`]);
             
           } else {
             toast.error('Vote failed, please try again');
@@ -164,7 +161,7 @@ const UpvoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, cardStyl
   return (
     <div className="upvote-tooltip-wrap" ref={tooltipRef} onClick={(e) =>{ e.preventDefault()}}>
       {showTooltip && (
-        <div className={`tooltip-box ${cardStyle ? "card" : ""} ${commemtStyle ? "comment" : ""}`}>
+        <div className={`tooltip-box ${cardStyle ? "card" : ""}  `}>
           <p>Vote Weight: {weight}%</p>
           <div className="wrap">
             {isLoading ? (
@@ -187,4 +184,4 @@ const UpvoteTooltip = ({ author, permlink, showTooltip, setShowTooltip, cardStyl
   );
 };
 
-export default UpvoteTooltip;
+export default CardVoteTooltip;

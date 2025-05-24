@@ -11,6 +11,7 @@ import { getUersContent } from "../../utils/hiveUtils";
 import { useState } from "react";
 import UpvoteTooltip from "../tooltip/UpvoteTooltip";
 import img from "../../assets/image/deleted.jpg";
+import CardVoteTooltip from "../tooltip/CardVoteTooltip";
 
 dayjs.extend(relativeTime);
 
@@ -174,7 +175,7 @@ function Cards({
               <p>{dayjs(video.created_at).fromNow()}</p>
             </div>
 
-            <UpvoteTooltip
+            <CardVoteTooltip
               showTooltip={activeTooltipIndex === index}
               setShowTooltip={setActiveTooltipIndex}
               author={selectedPost.username}
