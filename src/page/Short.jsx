@@ -75,12 +75,17 @@ const VideoShort = () => {
 
   /* ---------- 3SPEAK POSTMESSAGE API ---------- */
 
+  // Get stable iframe id for a video
+  const getPlayerId = useCallback((video) => `player-${video?.id}`, []);
+
   const sendCommand = useCallback((command, data = {}) => {
-    const iframe = document.getElementById('controlled-player');
+    const currentVid = videos[currentIndex];
+    if (!currentVid) return;
+    const iframe = document.getElementById(getPlayerId(currentVid));
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage({ type: command, ...data }, '*');
     }
-  }, []);
+  }, [videos, currentIndex, getPlayerId]);
 
   const togglePlayPause = useCallback((e) => {
     e.stopPropagation();
@@ -144,29 +149,45 @@ const VideoShort = () => {
       const data = event.data;
       if (!data || !data.type) return;
 
+      const currentVid = videos[currentIndex];
+      if (!currentVid) return;
+
       switch (data.type) {
         case '3speak-player-ready':
-          const iframe = document.getElementById('controlled-player');
-          if (iframe && data.isVertical !== undefined) {
-            if (data.isVertical) {
-              iframe.style.position = 'absolute';
-              iframe.style.top = '0';
-              iframe.style.left = '50%';
-              iframe.style.transform = 'translateX(-50%)';
-              iframe.style.width = 'auto';
-              iframe.style.height = '100%';
-              iframe.style.aspectRatio = '9 / 16';
-            } else {
-              iframe.style.position = 'absolute';
-              iframe.style.top = '50%';
-              iframe.style.left = '0';
-              iframe.style.transform = 'translateY(-50%)';
-              iframe.style.width = '100%';
-              iframe.style.height = 'auto';
-              iframe.style.aspectRatio = '16 / 9';
+          // Apply styles to all preloaded iframes that report ready
+          // Only autoplay the current one
+          const currentIframe = document.getElementById(getPlayerId(currentVid));
+          if (currentIframe && data.isVertical !== undefined) {
+            // Apply orientation styles to the iframe that sent the message
+            const sourceIframe = event.source ?
+              Array.from(document.querySelectorAll('iframe')).find(f => f.contentWindow === event.source) :
+              currentIframe;
+
+            if (sourceIframe && data.isVertical !== undefined) {
+              if (data.isVertical) {
+                sourceIframe.style.position = 'absolute';
+                sourceIframe.style.top = '0';
+                sourceIframe.style.left = '50%';
+                sourceIframe.style.transform = 'translateX(-50%)';
+                sourceIframe.style.width = 'auto';
+                sourceIframe.style.height = '100%';
+                sourceIframe.style.aspectRatio = '9 / 16';
+              } else {
+                sourceIframe.style.position = 'absolute';
+                sourceIframe.style.top = '50%';
+                sourceIframe.style.left = '0';
+                sourceIframe.style.transform = 'translateY(-50%)';
+                sourceIframe.style.width = '100%';
+                sourceIframe.style.height = 'auto';
+                sourceIframe.style.aspectRatio = '16 / 9';
+              }
+            }
+
+            // Only autoplay if this is the current video's iframe
+            if (sourceIframe === currentIframe) {
+              setTimeout(() => sendCommand('play'), 100);
             }
           }
-          setTimeout(() => sendCommand('play'), 100);
           break;
 
         case '3speak-timeupdate':
@@ -199,14 +220,38 @@ const VideoShort = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [sendCommand, isScrubbing]);
+  }, [sendCommand, isScrubbing, videos, currentIndex, getPlayerId]);
 
-  // Reset player state when video changes
+  // Track previous video to pause it
+  const prevVideoRef = useRef(null);
+
+  // Reset player state and control playback when video changes
   useEffect(() => {
+    const currentVid = videos[currentIndex];
+    if (!currentVid) return;
+
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
-  }, [currentIndex]);
+
+    // Pause the previous video
+    if (prevVideoRef.current && prevVideoRef.current.id !== currentVid.id) {
+      const prevIframe = document.getElementById(getPlayerId(prevVideoRef.current));
+      if (prevIframe?.contentWindow) {
+        prevIframe.contentWindow.postMessage({ type: 'pause' }, '*');
+      }
+    }
+
+    // Play the current video after a short delay
+    setTimeout(() => {
+      const currentIframe = document.getElementById(getPlayerId(currentVid));
+      if (currentIframe?.contentWindow) {
+        currentIframe.contentWindow.postMessage({ type: 'play' }, '*');
+      }
+    }, 100);
+
+    prevVideoRef.current = currentVid;
+  }, [currentIndex, videos, getPlayerId]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -565,6 +610,16 @@ const VideoShort = () => {
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  // Dynamic preload range based on device
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const preloadRange = isMobile
+    ? { before: 2, after: 4 }  // 7 iframes on mobile
+    : { before: 3, after: 5 }; // 9 iframes on desktop
+  const preloadedIndices = [];
+  for (let i = Math.max(0, currentIndex - preloadRange.before); i <= Math.min(videos.length - 1, currentIndex + preloadRange.after); i++) {
+    preloadedIndices.push(i);
+  }
+
   /* ---------- RENDER ---------- */
 
   if (loading && videos.length === 0) {
@@ -611,16 +666,31 @@ const VideoShort = () => {
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          <iframe
-            id="controlled-player"
-            key={currentVideo.id}
-            src={`https://play.3speak.tv/embed?v=${currentVideo.author}/${currentVideo.permlink}&mode=iframe&controls=0`}
-            width="100%"
-            height="100%"
-            frameBorder="0"
-            allow="autoplay; fullscreen"
-            allowFullScreen
-          />
+          {/* Preloaded iframes for smooth playback */}
+          {preloadedIndices.map((idx) => {
+            const video = videos[idx];
+            const isCurrent = idx === currentIndex;
+            return (
+              <iframe
+                key={video.id}
+                id={getPlayerId(video)}
+                src={`https://play.3speak.tv/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0`}
+                width="100%"
+                height="100%"
+                frameBorder="0"
+                allow="autoplay; fullscreen"
+                allowFullScreen
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  opacity: isCurrent ? 1 : 0,
+                  pointerEvents: 'none',
+                  zIndex: isCurrent ? 1 : 0,
+                }}
+              />
+            );
+          })}
 
           {/* Transparent overlay for play/pause */}
           <div
