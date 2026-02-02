@@ -9,6 +9,10 @@ import BarLoader from '../components/Loader/BarLoader';
 import { useTVMode } from '../context/TVModeContext';
 import { useTVSidebarNavigation } from '../hooks/useTVSidebarNavigation';
 import TVContextMenu from '../components/tv/TVContextMenu';
+import TVProgressBar from '../components/tv/TVProgressBar';
+import { followWithAioha } from '../hive-api/aioha';
+import { toast } from 'react-toastify';
+import { useAppStore } from '../lib/store';
 
 // Number of author videos to show at the top of recommendations
 const AUTHOR_VIDEOS_COUNT = 4;
@@ -37,6 +41,7 @@ function Watch() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isTVMode, notifyNavigationState } = useTVMode();
+  const { authenticated } = useAppStore();
   const v = searchParams.get('v'); // Extract the "v" query parameter
   const [author, permlink] = (v ?? 'unknown/unknown').split('/');
 
@@ -45,6 +50,10 @@ function Watch() {
   const [sidebarFocusIndex, setSidebarFocusIndex] = useState(0);
   const [mainFocusIndex, setMainFocusIndex] = useState(0); // 0 = player, 1+ = other focusable items
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [isCssFullscreen, setIsCssFullscreen] = useState(false); // Track CSS fullscreen state from Tizen parent
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
   const playerIframeRef = useRef(null);
   const recommendedRef = useRef(null);
   const mainContentRef = useRef(null);
@@ -61,6 +70,7 @@ function Watch() {
           playerWrapper.classList.add('tv-focused');
         }
       }, 200);
+      // Note: Fullscreen is now triggered after player-ready event in message handler
     }
   }, [isTVMode, notifyNavigationState]);
 
@@ -91,6 +101,53 @@ function Watch() {
   const triggerTogglePlay = useCallback(() => {
     sendPlayerCommand('toggle-play');
   }, [sendPlayerCommand]);
+
+  const triggerFullscreen = useCallback(() => {
+    // In TV mode (iframe context), request fullscreen from parent Tizen app
+    // The parent will handle CSS fullscreen and send back fullscreen-entered/exited
+    if (isTVMode && window.parent !== window) {
+      console.log('[Watch.jsx] TV Mode: Requesting fullscreen from parent, current state:', isCssFullscreen);
+      if (isCssFullscreen) {
+        window.parent.postMessage({ type: 'request-exit-fullscreen' }, '*');
+      } else {
+        window.parent.postMessage({ type: 'request-fullscreen' }, '*');
+      }
+      return;
+    }
+
+    // Non-TV mode: use browser fullscreen API
+    // First try to send command to player
+    sendPlayerCommand('fullscreen');
+
+    // Also use browser fullscreen API on the iframe/wrapper
+    const iframe = document.querySelector('.video-iframe-wrapper iframe');
+    const wrapper = document.querySelector('.video-iframe-wrapper');
+    const target = iframe || wrapper;
+
+    if (target) {
+      if (document.fullscreenElement) {
+        // Already in fullscreen, exit
+        console.log('[Watch.jsx] Exiting fullscreen');
+        document.exitFullscreen?.().catch(err => console.error('[Watch.jsx] Exit fullscreen error:', err));
+      } else {
+        // Enter fullscreen
+        console.log('[Watch.jsx] Requesting fullscreen on:', target.tagName);
+        const requestFullscreen = target.requestFullscreen ||
+                                   target.webkitRequestFullscreen ||
+                                   target.mozRequestFullScreen ||
+                                   target.msRequestFullscreen;
+        if (requestFullscreen) {
+          requestFullscreen.call(target)
+            .then(() => console.log('[Watch.jsx] Fullscreen activated'))
+            .catch(err => console.error('[Watch.jsx] Fullscreen error:', err));
+        } else {
+          console.log('[Watch.jsx] No fullscreen API available');
+        }
+      }
+    } else {
+      console.log('[Watch.jsx] No target element found for fullscreen');
+    }
+  }, [sendPlayerCommand, isTVMode, isCssFullscreen]);
 
   // Listen for media control events from parent Tizen wrapper
   useEffect(() => {
@@ -139,6 +196,44 @@ function Watch() {
 
     const handleTVKeys = (event) => {
       switch (event.keyCode) {
+        // Enter key on video player - trigger fullscreen
+        case 13: // Enter
+          // Only handle if video is focused
+          if (tvFocusArea === 'video') {
+            console.log('[Watch.jsx] Enter key - sending fullscreen command and focusing iframe');
+            // Send fullscreen command to player
+            sendPlayerCommand('fullscreen');
+            // Focus the iframe so it receives the Enter key for user gesture
+            focusPlayerIframe();
+            // Don't preventDefault - let the Enter key reach the player for user gesture context
+          }
+          break;
+
+        // Left/Right arrow keys - seek in fullscreen mode
+        case 37: // Left arrow - seek backward
+          if (isCssFullscreen) {
+            console.log('[Watch.jsx] Seeking backward 10s');
+            const iframe = document.querySelector('.video-iframe-wrapper iframe');
+            if (iframe && iframe.contentWindow) {
+              iframe.contentWindow.postMessage({ type: 'seekBackward', seconds: 10 }, '*');
+            }
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          break;
+
+        case 39: // Right arrow - seek forward
+          if (isCssFullscreen) {
+            console.log('[Watch.jsx] Seeking forward 10s');
+            const iframe = document.querySelector('.video-iframe-wrapper iframe');
+            if (iframe && iframe.contentWindow) {
+              iframe.contentWindow.postMessage({ type: 'seekForward', seconds: 10 }, '*');
+            }
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          break;
+
         // Play/Pause media keys
         case 10252: // Samsung MediaPlayPause
         case 415:   // MediaPlay
@@ -160,7 +255,14 @@ function Watch() {
         case 404:   // Green color button (F1)
         case 405:   // Yellow color button (F2)
         case 406:   // Blue color button (F3)
-          setShowContextMenu(true);
+          // Exit fullscreen first before showing the context menu
+          if (isCssFullscreen) {
+            window.parent.postMessage({ type: 'request-exit-fullscreen' }, '*');
+            // Delay showing menu to allow fullscreen exit to complete
+            setTimeout(() => setShowContextMenu(true), 300);
+          } else {
+            setShowContextMenu(true);
+          }
           event.preventDefault();
           event.stopPropagation();
           break;
@@ -173,7 +275,7 @@ function Watch() {
     // Use capture phase to handle before other handlers
     document.addEventListener('keydown', handleTVKeys, true);
     return () => document.removeEventListener('keydown', handleTVKeys, true);
-  }, [isTVMode, navigate, triggerTogglePlay]);
+  }, [isTVMode, navigate, triggerTogglePlay, triggerFullscreen, tvFocusArea, isCssFullscreen]);
 
   // Listen for TV back button event (from TVModeContext)
   useEffect(() => {
@@ -188,7 +290,7 @@ function Watch() {
     return () => document.removeEventListener('tv-back-button', handleBackButton);
   }, [showContextMenu]);
 
-  // Listen for messages from parent frame (navigate-back, player-ready)
+  // Listen for messages from parent frame and player iframe
   useEffect(() => {
     const handleMessage = (event) => {
       // Handle navigate-back from parent (when parent decides not to exit)
@@ -201,18 +303,53 @@ function Watch() {
         return;
       }
 
-      // Handle player-ready for auto-play
+      // Handle player-ready for auto-play and fullscreen
       if (event.data && event.data.type === '3speak-player-ready') {
-        // Small delay to ensure player is fully ready
+        console.log('[Watch.jsx] Player ready received');
+        setIsPlayerReady(true);
+        // Small delay to ensure player is fully ready, then play
         setTimeout(() => {
           triggerPlay();
         }, 100);
+        // In TV mode, enter fullscreen after player is ready
+        if (isTVMode && window.parent !== window) {
+          setTimeout(() => {
+            console.log('[Watch.jsx] Auto-requesting fullscreen after player ready');
+            window.parent.postMessage({ type: 'request-fullscreen' }, '*');
+          }, 300);
+        }
+      }
+
+      // Handle timeupdate from player (for TV progress bar)
+      if (event.data && event.data.type === '3speak-timeupdate') {
+        setVideoCurrentTime(event.data.currentTime || 0);
+        setVideoDuration(event.data.duration || 0);
+      }
+
+      // Handle duration change from player
+      if (event.data && event.data.type === '3speak-durationchange') {
+        setVideoDuration(event.data.duration || 0);
+      }
+
+      // Handle CSS fullscreen events from Tizen parent
+      if (event.data && event.data.type === 'fullscreen-entered') {
+        console.log('[Watch.jsx] Received fullscreen-entered from parent');
+        setIsCssFullscreen(true);
+        // Forward to player iframe
+        sendPlayerCommand('fullscreen-entered');
+      }
+
+      if (event.data && event.data.type === 'fullscreen-exited') {
+        console.log('[Watch.jsx] Received fullscreen-exited from parent');
+        setIsCssFullscreen(false);
+        // Forward to player iframe
+        sendPlayerCommand('fullscreen-exited');
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [triggerPlay, navigate]);
+  }, [triggerPlay, navigate, sendPlayerCommand, isTVMode]);
 
   const { data: videoData, loading: videoLoading, error: videoError } = useQuery(GET_VIDEO_DETAILS, {
     variables: { author, permlink },
@@ -392,7 +529,8 @@ function Watch() {
   const handleSelect = useCallback(() => {
     if (tvFocusArea === 'video') {
       if (mainFocusIndex === 0) {
-        triggerTogglePlay();
+        // In TV mode, Enter on video player triggers fullscreen
+        triggerFullscreen();
         focusPlayerIframe();
       } else {
         const focusableItems = mainContentRef.current?.querySelectorAll('[data-tv-main-focusable="true"]');
@@ -409,17 +547,27 @@ function Watch() {
         }
       }
     }
-  }, [tvFocusArea, mainFocusIndex, sidebarFocusIndex, triggerTogglePlay, focusPlayerIframe, navigate]);
+  }, [tvFocusArea, mainFocusIndex, sidebarFocusIndex, triggerFullscreen, focusPlayerIframe, navigate]);
 
   // Context menu action handlers
-  const handleFollow = useCallback(() => {
-    console.log('Watch.jsx: Follow/Unfollow action triggered for:', author);
-    // Find and click the follow button in PlayVideo component
-    const followBtn = document.querySelector('.follow-btn, [data-action="follow"]');
-    if (followBtn) {
-      followBtn.click();
+  const handleFollow = useCallback(async () => {
+    console.log('[handleFollow] Follow action triggered for:', author);
+
+    if (!authenticated) {
+      toast.error('Login to follow users');
+      return;
     }
-  }, [author]);
+
+    try {
+      console.log('[handleFollow] Calling followWithAioha...');
+      await followWithAioha(author, true);
+      console.log('[handleFollow] Follow successful');
+      toast.success(`Successfully followed @${author}`);
+    } catch (error) {
+      console.error('[handleFollow] Follow failed:', error);
+      toast.error(`Failed to follow: ${error.message}`);
+    }
+  }, [author, authenticated]);
 
   const handleVote = useCallback(() => {
     console.log('Watch.jsx: Vote action triggered');
@@ -432,13 +580,22 @@ function Watch() {
 
   const handleJumpToComment = useCallback(() => {
     console.log('Watch.jsx: Jump to comment action triggered');
-    // Find the comment input and scroll to it / focus it
-    const commentInput = document.querySelector('.comment-input, textarea[placeholder*="comment"], .new-comment-input');
-    if (commentInput) {
-      commentInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      commentInput.focus();
+    // Find the comment wrapper (which has the enterTvInputMode onClick handler)
+    const commentWrapper = document.querySelector('.add-comment-wrap[data-tv-custom-keyboard="true"]');
+    if (commentWrapper) {
+      commentWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // In TV mode, click the wrapper to trigger enterTvInputMode which opens the keyboard
+      if (isTVMode) {
+        setTimeout(() => {
+          commentWrapper.click();
+        }, 25);
+      } else {
+        // Non-TV mode: just focus the textarea
+        const textarea = commentWrapper.querySelector('textarea');
+        if (textarea) textarea.focus();
+      }
     }
-  }, []);
+  }, [isTVMode]);
 
   const handleExpandDescription = useCallback(() => {
     console.log('Watch.jsx: Expand description action triggered');
@@ -482,7 +639,7 @@ function Watch() {
   }
 
   return (
-    <div className={`play-container ${isTVMode ? 'tv-mode-watch' : ''}`}>
+    <div className={`play-container ${isTVMode ? 'tv-mode-watch' : ''} ${isCssFullscreen ? 'css-fullscreen-mode' : ''}`}>
 
       <div
         ref={mainContentRef}
@@ -492,6 +649,11 @@ function Watch() {
           videoDetails={videoDetails}
           author={author}
           permlink={permlink}
+          tvProgressBar={isTVMode && !isCssFullscreen ? {
+            currentTime: videoCurrentTime,
+            duration: videoDuration,
+            isVisible: true,
+          } : null}
         />
       </div>
 
@@ -511,6 +673,15 @@ function Watch() {
           onJumpToComment={handleJumpToComment}
           onExpandDescription={handleExpandDescription}
           creatorName={author}
+        />
+      )}
+
+      {/* TV Progress Bar - shown in fullscreen mode */}
+      {isTVMode && isCssFullscreen && (
+        <TVProgressBar
+          currentTime={videoCurrentTime}
+          duration={videoDuration}
+          isVisible={true}
         />
       )}
     </div>

@@ -15,6 +15,7 @@ import { estimate, getVotePower } from '../../utils/hiveUtils';
 import { filterByReputation } from '../../utils/reputation';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { useTVMode } from '../../context/TVModeContext';
+import { useTVKeyboard } from '../../context/TVKeyboardContext';
 
 const client = new Client(['https://api.hive.blog']);
 
@@ -37,6 +38,7 @@ const getRenderer = async () => {
 function CommentSection({ videoDetails, author, permlink }) {
   const { user } = useAppStore();
   const { isTVMode } = useTVMode();
+  const { openKeyboard } = useTVKeyboard();
   const [commentInfo, setCommentInfo] = useState('');
   const [replyText, setReplyText] = useState("");
   const [activeReply, setActiveReply] = useState(null);
@@ -58,6 +60,80 @@ function CommentSection({ videoDetails, author, permlink }) {
   const textareaRef = useRef(null);
   const cancelBtnRef = useRef(null);
   const commentBtnRef = useRef(null);
+
+  // Function to enter TV input mode (called when Enter is pressed on the comment input container)
+  // In TV mode, we open the on-screen keyboard instead of focusing the textarea
+  const enterTvInputMode = useCallback(() => {
+    console.log('[CommentSection] enterTvInputMode called, isTVMode:', isTVMode);
+    if (isTVMode) {
+      // Open the on-screen keyboard with callbacks to handle comment posting
+      console.log('[CommentSection] Opening keyboard for comment input');
+      openKeyboard({
+        initialValue: commentInfo,
+        placeholder: 'Write your comment here...',
+        onChange: (val) => {
+          console.log('[CommentSection] onChange called with:', val);
+          setCommentInfo(val);
+        },
+        onSubmit: async (value) => {
+          // When user presses "Done" on the keyboard, post the comment
+          console.log('[CommentSection] onSubmit called with value:', value);
+          if (value.trim()) {
+            setCommentInfo(value);
+            // Post comment using the keyboard value directly
+            const parent_author = author;
+            const parent_permlink = permlink;
+            const new_permlink = `re-${parent_permlink}-${Date.now()}`;
+            console.log('[CommentSection] Posting comment to:', parent_author, parent_permlink);
+
+            try {
+              const result = await commentWithAioha(
+                parent_author,
+                parent_permlink,
+                new_permlink,
+                '',
+                value,
+                { app: '3speak/new-version' }
+              );
+
+              if (result.success) {
+                toast.success('Comment posted successfully!');
+                const newComment = {
+                  author: {
+                    username: user,
+                    profile: {
+                      images: {
+                        avatar: `https://images.hive.blog/u/${user}/avatar`,
+                      },
+                    },
+                  },
+                  permlink: new_permlink,
+                  created_at: new Date().toISOString(),
+                  body: value,
+                  stats: {
+                    num_likes: 0,
+                    num_dislikes: 0,
+                    total_hive_reward: 0,
+                  },
+                  children: [],
+                };
+                setCommentList(prev => [newComment, ...prev]);
+                setCommentInfo('');
+              } else {
+                toast.error('Comment failed, please try again');
+              }
+            } catch (err) {
+              console.error('Comment failed:', err);
+              toast.error(err.message || 'Comment failed, please try again');
+            }
+          }
+        },
+      });
+    } else {
+      setTvInputFocusIndex(0);
+      textareaRef.current?.focus();
+    }
+  }, [isTVMode, openKeyboard, commentInfo, author, permlink, user]);
 
   // Handle TV mode keyboard navigation within comment input
   useEffect(() => {
@@ -109,7 +185,12 @@ function CommentSection({ videoDetails, author, permlink }) {
           }
           break;
         case 13: // Enter
-          if (tvInputFocusIndex === 1) {
+          if (tvInputFocusIndex === 0) {
+            // Textarea - open on-screen keyboard
+            enterTvInputMode();
+            event.preventDefault();
+            event.stopPropagation();
+          } else if (tvInputFocusIndex === 1) {
             // Cancel button - clear and exit
             setCommentInfo('');
             setReplyToComment(null);
@@ -124,7 +205,6 @@ function CommentSection({ videoDetails, author, permlink }) {
             event.preventDefault();
             event.stopPropagation();
           }
-          // If on textarea (index 0), let the default Enter behavior work (new line)
           break;
         case 10009: // Samsung TV Back
         case 27: // Escape
@@ -141,15 +221,7 @@ function CommentSection({ videoDetails, author, permlink }) {
     // Use capture phase to intercept events before Watch.jsx
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isTVMode, tvInputFocusIndex]);
-
-  // Function to enter TV input mode (called when Enter is pressed on the comment input container)
-  const enterTvInputMode = useCallback(() => {
-    if (isTVMode) {
-      setTvInputFocusIndex(0);
-      textareaRef.current?.focus();
-    }
-  }, [isTVMode]);
+  }, [isTVMode, tvInputFocusIndex, enterTvInputMode]);
 
 
       
@@ -392,6 +464,7 @@ function CommentSection({ videoDetails, author, permlink }) {
         data-tv-main-focusable="true"
         data-tv-focusable-type="comment-input"
         data-tv-enter-handler="true"
+        data-tv-custom-keyboard="true"
         onClick={enterTvInputMode}
       >
         <span>Add a comment:</span>

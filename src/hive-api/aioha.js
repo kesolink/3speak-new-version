@@ -54,16 +54,23 @@ const withHiveAuthWaiting = async (operation, message = 'Waiting for approval...
 
 // Helper function to vote on content
 export const voteWithAioha = async (author, permlink, weight = 10000) => {
+  console.log('[voteWithAioha] Called with:', { author, permlink, weight });
+  console.log('[voteWithAioha] Current user:', aioha.getCurrentUser());
+  console.log('[voteWithAioha] Current provider:', aioha.getCurrentProvider());
+  console.log('[voteWithAioha] Is logged in:', aioha.isLoggedIn());
+
   return withHiveAuthWaiting(async () => {
     try {
+      console.log('[voteWithAioha] Calling aioha.vote...');
       const result = await aioha.vote(author, permlink, weight);
+      console.log('[voteWithAioha] Vote result:', result);
       if (result.success) {
         return { success: true, result: result.result };
       } else {
         throw new Error(result.error || 'Vote failed');
       }
     } catch (error) {
-      console.error('Vote error:', error);
+      console.error('[voteWithAioha] Vote error:', error);
       throw error;
     }
   }, 'Approve vote on HiveAuth...');

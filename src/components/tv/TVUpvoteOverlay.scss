@@ -4,11 +4,12 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: var(--overlay-bg);
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.85));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
+  backdrop-filter: blur(4px);
   animation: tvOverlayFadeIn 0.2s ease;
 }
 
@@ -18,20 +19,21 @@
 }
 
 .tv-upvote-modal {
-  background: var(--card-bg);
-  border: 2px solid var(--accent-primary);
+  background: var(--bg-elevated, #1a1a1a);
+  border: 3px solid var(--accent-primary, #e53935);
   border-radius: 16px;
-  padding: 40px 60px;
+  padding: 48px 64px;
   min-width: 500px;
   text-align: center;
-  box-shadow: var(--shadow-lg), 0 0 30px rgba(229, 57, 53, 0.2);
+  box-shadow: 0 0 60px rgba(229, 57, 53, 0.4),
+              0 20px 40px rgba(0, 0, 0, 0.5);
   animation: tvModalScaleIn 0.2s ease;
 
   h2 {
-    color: var(--text-primary);
+    color: var(--text-primary, #fff);
     font-size: 28px;
     margin: 0 0 24px 0;
-    font-weight: 600;
+    font-weight: 700;
   }
 }
 
@@ -50,7 +52,7 @@
   .weight-value {
     font-size: 64px;
     font-weight: 700;
-    color: var(--accent-primary);
+    color: var(--accent-primary, #e53935);
     line-height: 1;
   }
 
@@ -67,20 +69,17 @@
   gap: 16px;
   padding: 16px 20px;
   border-radius: 12px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-light);
+  background: transparent;
+  border: 3px solid var(--border-color, #3d3d3d);
   transition: all 0.2s ease;
 
   &.focused {
-    background: var(--accent-light);
-    border-color: var(--accent-primary);
-    outline: 3px solid var(--accent-primary);
-    outline-offset: 2px;
-    box-shadow: 0 0 20px rgba(229, 57, 53, 0.3);
+    border-color: var(--accent-primary, #e53935);
+    box-shadow: 0 0 20px rgba(229, 57, 53, 0.4);
   }
 
   .slider-label {
-    color: var(--text-secondary);
+    color: var(--text-secondary, #aaa);
     font-size: 14px;
     min-width: 40px;
   }
@@ -91,7 +90,7 @@
   height: 8px;
   -webkit-appearance: none;
   appearance: none;
-  background: var(--border-color);
+  background: var(--border-color, #3d3d3d);
   border-radius: 4px;
   outline: none;
 
@@ -100,7 +99,7 @@
     appearance: none;
     width: 24px;
     height: 24px;
-    background: var(--accent-primary);
+    background: var(--accent-primary, #e53935);
     border-radius: 50%;
     cursor: pointer;
     box-shadow: 0 0 10px rgba(229, 57, 53, 0.5);
@@ -109,7 +108,7 @@
   &::-moz-range-thumb {
     width: 24px;
     height: 24px;
-    background: var(--accent-primary);
+    background: var(--accent-primary, #e53935);
     border-radius: 50%;
     cursor: pointer;
     border: none;
@@ -118,7 +117,7 @@
 }
 
 .slider-hint {
-  color: var(--text-muted);
+  color: var(--text-muted, #666);
   font-size: 14px;
   margin-top: 12px;
   margin-bottom: 24px;
@@ -133,9 +132,9 @@
   padding: 16px 48px;
   font-size: 18px;
   font-weight: 600;
-  color: var(--text-primary);
-  background: var(--bg-elevated);
-  border: 2px solid var(--border-color);
+  color: var(--text-primary, #fff);
+  background: transparent;
+  border: 3px solid var(--border-color, #3d3d3d);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -143,11 +142,9 @@
   min-height: 56px;
 
   &.focused {
-    background: var(--accent-primary);
-    border-color: var(--accent-primary);
-    color: white;
+    border-color: var(--accent-primary, #e53935);
     transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(229, 57, 53, 0.5);
+    box-shadow: 0 0 20px rgba(229, 57, 53, 0.4);
   }
 
   &:disabled {
@@ -163,25 +160,25 @@
   gap: 12px;
   margin-top: 20px;
   padding: 16px 24px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--accent-primary);
+  background: transparent;
+  border: 3px solid var(--accent-primary, #e53935);
   border-radius: 12px;
   animation: hiveAuthPulse 2s ease-in-out infinite;
 
   span {
-    color: var(--text-primary);
+    color: var(--text-primary, #fff);
     font-size: 16px;
     font-weight: 500;
   }
 }
 
 @keyframes hiveAuthPulse {
-  0%, 100% { opacity: 1; border-color: var(--accent-primary); }
-  50% { opacity: 0.8; border-color: var(--accent-light); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .close-hint {
-  color: var(--text-muted);
+  color: var(--text-muted, #666);
   font-size: 12px;
   margin-top: 24px;
   margin-bottom: 0;

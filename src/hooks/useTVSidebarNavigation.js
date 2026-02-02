@@ -75,27 +75,32 @@ export function useTVSidebarNavigation({
             return;
 
           case 13: // Enter - activate sidebar item
-            // Index 0 is search field
-            if (tvSidebarFocusIndex === 0) {
-              const searchInput = document.querySelector('.tv-search-input');
-              if (searchInput && searchInput.value.trim()) {
-                navigate(`/p/${searchInput.value.trim()}`);
-                closeSidebar();
-              }
-              event.preventDefault();
-              return;
-            }
-
-            // For other items, find and activate
+            // Find the focused element
             const focusedEl = document.querySelector(`[data-tv-sidebar-index="${tvSidebarFocusIndex}"]`);
             if (focusedEl) {
+              // Check if it's the search wrapper - open keyboard, don't close sidebar
+              if (focusedEl.classList.contains('tv-search-wrapper')) {
+                document.dispatchEvent(new CustomEvent('tv-open-keyboard'));
+                event.preventDefault();
+                return;
+              }
+
+              // Check if it's an action item (login, theme toggle) - don't close sidebar
+              if (focusedEl.classList.contains('tv-action-item')) {
+                focusedEl.click();
+                event.preventDefault();
+                return;
+              }
+
+              // Navigation link - navigate and close sidebar
               const href = focusedEl.getAttribute('href');
               if (href) {
                 navigate(href);
+                closeSidebar();
               } else {
                 focusedEl.click();
+                closeSidebar();
               }
-              closeSidebar();
             }
             event.preventDefault();
             return;

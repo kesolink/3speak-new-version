@@ -24,7 +24,7 @@
             height: 450px; // adjust as needed
             font-size: 18px;
             color: var(--text-secondary);
-            background-color: #000;
+            background-color: var(--card-bg);
             width: 100%;
             border-radius: 8px;
 
@@ -160,7 +160,7 @@
   width: 100%;
   padding-top: 56.25%; // 16:9 ratio
   overflow: hidden; // stops scrollbars
-  background: #000;
+  background: var(--card-bg);
 }
 
 .video-iframe-wrapper iframe {

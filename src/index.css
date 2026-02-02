@@ -1028,3 +1028,15 @@ body.tv-mode * {
   -ms-overflow-style: none;
 }
 
+/* TV Mode - Ensure Sonner toasts are visible */
+body.tv-mode [data-sonner-toaster],
+body.tv-mode [data-sonner-toast] {
+  z-index: 99999 !important;
+}
+
+/* TV Mode - Make toasts larger for 10-foot UI */
+body.tv-mode [data-sonner-toast] {
+  font-size: 1.25rem !important;
+  padding: 16px 24px !important;
+}
+

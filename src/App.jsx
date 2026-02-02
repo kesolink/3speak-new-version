@@ -60,6 +60,7 @@ import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_ACCESS_TOKEN_KEY, LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
 import axios from "axios";
 import { TVModeProvider, useTVMode } from "./context/TVModeContext";
+import { TVKeyboardProvider } from "./context/TVKeyboardContext";
 import ExitDialog from "./components/tv/ExitDialog";
 
 // Inner component that uses TV mode context
@@ -531,7 +532,7 @@ function AppContent() {
 
   // Handle login callback from AiohaModal
   const handleAiohaLogin = async (loginResult) => {
-    console.log("Aioha login result:", loginResult);
+    console.log("handleAiohaLogin called with:", loginResult);
     loginInProgress.current = true; // Mark login as in progress to prevent duplicate signing
 
     if (!loginResult || loginResult.error) {
@@ -574,8 +575,13 @@ function AppContent() {
       setUser(loginResult.username);
       initializeAuth();
       setLoginModalOpen(false);
-      toast.success("Login successful!");
-      loginInProgress.current = false;
+
+      toast.success(`Welcome! Logged in as @${loginResult.username}`);
+      // Delay clearing the flag to ensure state updates have settled
+      // This prevents the aiohaUser sync useEffect from triggering
+      setTimeout(() => {
+        loginInProgress.current = false;
+      }, 100);
     } catch (err) {
       console.error("3Speak auth error:", err);
       toast.error("Login failed: " + (err.response?.data?.error || err.message));
@@ -678,11 +684,13 @@ function AppContent() {
   );
 }
 
-// Main App component wraps with TVModeProvider
+// Main App component wraps with TVModeProvider and TVKeyboardProvider
 function App() {
   return (
     <TVModeProvider>
-      <AppContent />
+      <TVKeyboardProvider>
+        <AppContent />
+      </TVKeyboardProvider>
     </TVModeProvider>
   );
 }

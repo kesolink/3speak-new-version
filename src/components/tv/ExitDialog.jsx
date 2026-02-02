@@ -59,7 +59,7 @@ function ExitDialog() {
   return (
     <div className="exit-dialog-overlay">
       <div className="exit-dialog">
-        <h2>Exit App?</h2>
+        <h2>Exit 3Speak?</h2>
         <p>Do you really want to leave?</p>
         <div className="exit-dialog-buttons">
           <button

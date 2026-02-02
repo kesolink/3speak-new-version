@@ -24,6 +24,7 @@ dist-ssr
 *.sw?
 echo ".env" >> .gitignore
 .env
+images/
 
 # Internal documentation (not for public repo)
 INTERNAL_*.md

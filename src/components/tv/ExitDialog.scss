@@ -4,31 +4,33 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.85));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
+  backdrop-filter: blur(4px);
 }
 
 .exit-dialog {
-  background: #1a1a2e;
-  border: 2px solid #e94560;
+  background: var(--bg-elevated, #1a1a1a);
+  border: 3px solid var(--accent-primary, #e53935);
   border-radius: 16px;
   padding: 48px 64px;
   text-align: center;
   min-width: 500px;
-  box-shadow: 0 0 40px rgba(233, 69, 96, 0.3);
+  box-shadow: 0 0 60px rgba(229, 57, 53, 0.4),
+              0 20px 40px rgba(0, 0, 0, 0.5);
 
   h2 {
-    color: #fff;
+    color: var(--text-primary, #fff);
     font-size: 36px;
     margin: 0 0 16px 0;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   p {
-    color: #ccc;
+    color: var(--text-secondary, #aaa);
     font-size: 24px;
     margin: 0 0 40px 0;
   }
@@ -47,37 +49,18 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 3px solid transparent;
+  background: transparent;
+  color: var(--text-primary, #fff);
+  border: 3px solid var(--border-color, #3d3d3d);
 
   &:focus {
     outline: none;
   }
-}
-
-.exit-dialog-btn-yes {
-  background: transparent;
-  color: #e94560;
-  border-color: #e94560;
 
   &:hover,
   &.tv-focused {
-    background: #e94560;
-    color: #fff;
+    border-color: var(--accent-primary, #e53935);
     transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
-  }
-}
-
-.exit-dialog-btn-no {
-  background: #e94560;
-  color: #fff;
-  border-color: #e94560;
-
-  &:hover,
-  &.tv-focused {
-    background: #ff6b8a;
-    border-color: #ff6b8a;
-    transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+    box-shadow: 0 0 20px rgba(229, 57, 53, 0.4);
   }
 }

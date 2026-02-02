@@ -29,13 +29,14 @@ import 'ldrs/react/TailChase.css';
 import { getFollowers } from "../../hive-api/api";
 import UpvoteTooltip from "../tooltip/UpvoteTooltip";
 import TVUpvoteOverlay from "../tv/TVUpvoteOverlay";
+import TVProgressBar from "../tv/TVProgressBar";
 import axios from "axios";
 import { FEED_URL } from '../../utils/config';
 import { followWithAioha, voteWithAioha, isLoggedIn, isHiveAuthProvider } from "../../hive-api/aioha";
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false }) => {
+const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false, tvProgressBar }) => {
   const { user, authenticated } = useAppStore();
   const { isTVMode } = useTVMode();
   const navigate = useNavigate();
@@ -346,6 +347,8 @@ const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false }) =>
 
   // TV Mode vote handler - uses Aioha for HiveAuth support
   const handleTvVote = async () => {
+    console.log('[handleTvVote] Called, authenticated:', authenticated, 'user:', user);
+
     if (!authenticated) {
       toast.error('Login to complete this operation');
       return;
@@ -353,32 +356,16 @@ const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false }) =>
 
     setTvVoteLoading(true);
     const voteWeight = Math.round(weight * 100);
+    console.log('[handleTvVote] Vote weight:', voteWeight, 'author:', author, 'permlink:', permlink);
 
     try {
-      // Check for existing vote
-      const data = await getUersContent(author, permlink);
-      if (!data) {
-        toast.error('Could not fetch post data');
-        setTvVoteLoading(false);
-        return;
-      }
-      const existingVote = data.active_votes?.find((vote) => vote.voter === user);
-
-      if (existingVote) {
-        if (existingVote.percent === voteWeight) {
-          toast.info('Previous value is not acceptable. Vote with a different value.');
-          setTvVoteLoading(false);
-          return;
-        }
-      }
-
       // Use Aioha to vote (supports HiveAuth, Keychain, etc.)
       // Note: HiveAuth waiting popup is handled globally by HiveAuthContext
+      console.log('[handleTvVote] Calling voteWithAioha...');
       await voteWithAioha(author, permlink, voteWeight);
+      console.log('[handleTvVote] voteWithAioha completed');
 
-      if (!existingVote) {
-        setOptimisticVoteCount((prevCount) => prevCount + 1);
-      }
+      setOptimisticVoteCount((prevCount) => prevCount + 1);
 
       toast.success('Vote successful');
       setIsVoted(true);
@@ -400,7 +387,7 @@ const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false }) =>
             <div className="video-iframe-wrapper">
               <iframe
                 key={forceAutoplay ? 'autoplay' : 'normal'}
-                src={`${import.meta.env.VITE_PLAYER_URL || 'https://play.3speak.tv'}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe&debug=1`}
+                src={`${import.meta.env.VITE_PLAYER_URL || 'https://play.3speak.tv'}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe&debug=1${isTVMode ? '&tvmode=true&controls=0' : ''}`}
                 style={{
                   position: "absolute",
                   top: 0,
@@ -415,6 +402,15 @@ const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false }) =>
                 allowFullScreen
                 allow="autoplay; encrypted-media; fullscreen"
               />
+              {/* TV Progress Bar overlay on video */}
+              {tvProgressBar && (
+                <TVProgressBar
+                  currentTime={tvProgressBar.currentTime}
+                  duration={tvProgressBar.duration}
+                  isVisible={tvProgressBar.isVisible}
+                  overlay={true}
+                />
+              )}
             </div>
           ) : (
             <div className="video-loader">
@@ -596,6 +592,11 @@ PlayVideo.propTypes = {
   author: PropTypes.string.isRequired,
   permlink: PropTypes.string.isRequired,
   forceAutoplay: PropTypes.bool,
+  tvProgressBar: PropTypes.shape({
+    currentTime: PropTypes.number,
+    duration: PropTypes.number,
+    isVisible: PropTypes.bool,
+  }),
 };
 
 export default PlayVideo;
