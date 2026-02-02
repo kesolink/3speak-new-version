@@ -614,7 +614,7 @@ const VideoShort = () => {
           <iframe
             id="controlled-player"
             key={currentVideo.id}
-            src={`http://localhost:3005/embed?v=${currentVideo.author}/${currentVideo.permlink}&mode=iframe&layout=mobile&controls=0`}
+            src={`https://play.3speak.tv/embed?v=${currentVideo.author}/${currentVideo.permlink}&mode=iframe&controls=0`}
             width="100%"
             height="100%"
             frameBorder="0"
