@@ -52,6 +52,7 @@ import NotFound from "./page/NotFound";
 import ProfileModal from "./components/modal/ProfileModal";
 import HiveImageUploader from "./page/HiveImageUploader";
 import { LegacyUploadProvider } from "./context/LegacyUploadContext";
+import Short from "./page/Short";
 
 function App() {
   const location = useLocation();
@@ -159,6 +160,7 @@ function App() {
             <Route path="/editvideo/:d" element={<EditVideo />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/short" element={<Short />} />
             <Route
               path="/community/:communityName"
               element={<CommunityPage />}

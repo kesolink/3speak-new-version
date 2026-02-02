@@ -89,6 +89,7 @@
     "stream-browserify": "^3.0.0",
     "tus-js-client": "^4.3.1",
     "util": "^0.12.5",
+    "video.js": "^8.23.4",
     "vite-plugin-node-polyfills": "^0.23.0",
     "zustand": "^5.0.3"
   },
