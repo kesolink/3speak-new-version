@@ -24,6 +24,20 @@ export const useAppStore = create(
         isProcessing: state.isProcessing,
         theme: state.theme, // Persist theme preference
       }),
+      onRehydrateStorage: () => (state) => {
+        // Apply the theme to DOM after store is rehydrated from localStorage
+        if (state?.theme) {
+          const effectiveTheme = state.theme === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : state.theme;
+          document.documentElement.setAttribute('data-theme', effectiveTheme);
+          if (effectiveTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        }
+      },
     }
   )
 );

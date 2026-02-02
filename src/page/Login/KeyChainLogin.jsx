@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import './KeyChainLogin.scss';
 import axios from "axios";
 import logo from '../../assets/image/3S_logo.svg';
@@ -15,11 +15,13 @@ import { QRCodeSVG } from 'qrcode.react';
 import   {KeyTypes, Providers } from '@aioha/aioha'
 import QrCode_modal from '../../components/modal/QrCode_modal';
 import aioha from "../../hive-api/aioha";
+import { useTVMode } from '../../context/TVModeContext';
 
 function KeyChainLogin() {
   const client = axios.create({});
 
   const { initializeAuth, setActiveUser, switchAccount, clearAccount, LogOut, user, theme } = useAppStore();
+  const { isTVMode, notifyNavigationState } = useTVMode();
 
 console.log(theme)
   const studioEndPoint = "https://studio.3speak.tv";
@@ -32,6 +34,7 @@ console.log(theme)
   const location = useLocation();
   const [hasKeychain, setHasKeychain] = useState(false);
   const isMobile = window.innerWidth <= 768;
+  const usernameInputRef = useRef(null);
 
   useEffect(() => {
     const getAccountlist = JSON.parse(localStorage.getItem("accountsList")) || [];
@@ -54,7 +57,45 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, []);
 
+  // Notify parent that we're NOT at root (back should navigate, not exit)
+  useEffect(() => {
+    if (isTVMode) {
+      notifyNavigationState(false);
+    }
+  }, [isTVMode, notifyNavigationState]);
 
+  // Auto-focus username input in TV mode
+  useEffect(() => {
+    if (isTVMode && usernameInputRef.current) {
+      setTimeout(() => {
+        usernameInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isTVMode]);
+
+  // Also focus on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (usernameInputRef.current) {
+        usernameInputRef.current.focus();
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Handle TV back button - navigate back
+  useEffect(() => {
+    if (!isTVMode) return;
+
+    const handleBackButton = (event) => {
+      console.log('KeyChainLogin: Back button pressed, navigating back');
+      navigate(-1);
+      event.preventDefault(); // Tell TVModeContext we handled it
+    };
+
+    document.addEventListener('tv-back-button', handleBackButton);
+    return () => document.removeEventListener('tv-back-button', handleBackButton);
+  }, [isTVMode, navigate]);
 
 console.log(hasKeychain)
 
@@ -273,7 +314,10 @@ const handleSwitchAccount = (user) => {
           <span>Login with your username</span>
 
           <input
+            ref={usernameInputRef}
             type="text"
+            inputMode="text"
+            autoComplete="username"
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value.toLowerCase())}

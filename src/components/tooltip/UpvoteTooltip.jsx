@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './UpvoteTooltip.scss';
 import { useAppStore } from '../../lib/store';
 import { IoChevronUpCircleOutline } from 'react-icons/io5';
@@ -9,6 +9,7 @@ import 'ldrs/react/TailChase.css';
 import { Orbit } from 'ldrs/react';
 import 'ldrs/react/Orbit.css';
 import { voteWithAioha, isLoggedIn } from '../../hive-api/aioha';
+import { useTVMode } from '../../context/TVModeContext';
 
 const UpvoteTooltip = ({
   author,
@@ -25,9 +26,109 @@ const UpvoteTooltip = ({
   setOptimisticVoteCount
 }) => {
   const { user, authenticated } = useAppStore();
+  const { isTVMode } = useTVMode();
   const [isLoading, setIsLoading] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   const tooltipRef = useRef(null);
+
+  // TV Mode state for tooltip navigation
+  // -1 = not focused, 0 = slider, 1 = vote button
+  const [tvFocusIndex, setTvFocusIndex] = useState(-1);
+  const sliderRef = useRef(null);
+  const voteBtnRef = useRef(null);
+
+  // Auto-focus slider when tooltip opens in TV mode
+  useEffect(() => {
+    if (isTVMode && showTooltip) {
+      setTvFocusIndex(0); // Focus on slider
+    } else if (!showTooltip) {
+      setTvFocusIndex(-1); // Reset focus when tooltip closes
+    }
+  }, [isTVMode, showTooltip]);
+
+  // Use callback ref to focus slider when it mounts
+  const setSliderRef = useCallback((node) => {
+    sliderRef.current = node;
+    // Focus when the slider element mounts (tooltip just opened) in TV mode
+    if (node && isTVMode && showTooltip) {
+      // Use requestAnimationFrame to ensure the element is fully rendered
+      requestAnimationFrame(() => {
+        node.focus();
+      });
+    }
+  }, [isTVMode, showTooltip]);
+
+  // TV Mode keyboard navigation
+  useEffect(() => {
+    if (!isTVMode || !showTooltip || tvFocusIndex < 0) return;
+
+    const handleKeyDown = (event) => {
+      const WEIGHT_STEP = 5; // Change weight by 5% per keypress
+
+      switch (event.keyCode) {
+        case 37: // Left arrow - decrease weight (when on slider)
+          if (tvFocusIndex === 0) {
+            const newWeight = Math.max(1, parseInt(weight) - WEIGHT_STEP);
+            setWeight(newWeight);
+            event.preventDefault();
+            event.stopPropagation();
+          } else if (tvFocusIndex === 1) {
+            // Move from vote button back to slider
+            setTvFocusIndex(0);
+            sliderRef.current?.focus();
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          break;
+        case 39: // Right arrow - increase weight (when on slider)
+          if (tvFocusIndex === 0) {
+            const newWeight = Math.min(100, parseInt(weight) + WEIGHT_STEP);
+            setWeight(newWeight);
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          break;
+        case 38: // Up arrow - exit tooltip
+          setShowTooltip(false);
+          setTvFocusIndex(-1);
+          event.preventDefault();
+          event.stopPropagation();
+          break;
+        case 40: // Down arrow - exit tooltip
+          setShowTooltip(false);
+          setTvFocusIndex(-1);
+          event.preventDefault();
+          event.stopPropagation();
+          break;
+        case 13: // Enter
+          if (tvFocusIndex === 0) {
+            // Move from slider to vote button
+            setTvFocusIndex(1);
+            event.preventDefault();
+            event.stopPropagation();
+          } else if (tvFocusIndex === 1 && !isLoading) {
+            // Trigger vote
+            handleVote();
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          break;
+        case 10009: // Samsung TV Back
+        case 27: // Escape
+          setShowTooltip(false);
+          setTvFocusIndex(-1);
+          event.preventDefault();
+          event.stopPropagation();
+          break;
+        default:
+          break;
+      }
+    };
+
+    // Use capture phase to intercept events before Watch.jsx
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isTVMode, showTooltip, tvFocusIndex, weight, setWeight, setShowTooltip, isLoading]);
 
   // Handle click outside to close tooltip
   useEffect(() => {
@@ -152,7 +253,7 @@ const UpvoteTooltip = ({
       onClick={(e) => e.preventDefault()}
     >
       {showTooltip && (
-        <div className="tooltip-box">
+        <div className={`tooltip-box${isTVMode && tvFocusIndex >= 0 ? ' tv-active' : ''}`}>
           <p>Vote Weight: {weight}%</p>
           <div className="wrap">
             {isLoading ? (
@@ -165,21 +266,24 @@ const UpvoteTooltip = ({
                 />
               </div>
             ) : (
-              <IoChevronUpCircleOutline 
-                size={30} 
-                onClick={handleVote} 
-                className='circle-vote-btn'
+              <IoChevronUpCircleOutline
+                ref={voteBtnRef}
+                size={30}
+                onClick={handleVote}
+                className={`circle-vote-btn${tvFocusIndex === 1 ? ' tv-element-focused' : ''}`}
                 style={{ cursor: 'pointer' }}
               />
             )}
-            
+
             <input
+              ref={setSliderRef}
               type="range"
               min="1"
               max="100"
               value={weight}
               onChange={(e) => setWeight(Number(e.target.value))}
               disabled={isLoading}
+              className={tvFocusIndex === 0 ? 'tv-element-focused' : ''}
             />
             <p>
               {isCalculating ? (

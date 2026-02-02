@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { getUersContent } from "../../utils/hiveUtils";
 import "./BlogContent.scss";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
-import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
+import { useTVMode } from "../../context/TVModeContext";
 
 // Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
 let rendererPromise = null;
@@ -30,12 +30,90 @@ const getRenderer = async () => {
 const THRESHOLD_HEIGHT = 100;
 
 const BlogContent = ({ author, permlink, description }) => {
+  const { isTVMode } = useTVMode();
   const [content, setContent] = useState("");
   const [renderedContent, setRenderedContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [needsExpansion, setNeedsExpansion] = useState(false);
+  const [isContentFocused, setIsContentFocused] = useState(false);
   const contentRef = useRef(null);
+  const contentWrapperRef = useRef(null);
+
+  // Scroll the content by a given amount (for TV mode navigation)
+  const scrollContent = useCallback((delta) => {
+    if (contentWrapperRef.current) {
+      contentWrapperRef.current.scrollBy({
+        top: delta,
+        behavior: 'smooth'
+      });
+    }
+  }, []);
+
+  // Check if we're at the scroll boundary
+  const isAtScrollTop = useCallback(() => {
+    if (!contentWrapperRef.current) return true;
+    return contentWrapperRef.current.scrollTop <= 0;
+  }, []);
+
+  const isAtScrollBottom = useCallback(() => {
+    if (!contentWrapperRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = contentWrapperRef.current;
+    return scrollTop + clientHeight >= scrollHeight - 5; // 5px tolerance
+  }, []);
+
+  // Handle keyboard navigation within expanded content
+  useEffect(() => {
+    if (!isTVMode || !isExpanded || !isContentFocused) return;
+
+    const handleKeyDown = (event) => {
+      const SCROLL_AMOUNT = 80; // pixels to scroll per keypress
+
+      switch (event.keyCode) {
+        case 38: // Up arrow
+          if (isAtScrollTop()) {
+            // At top of content - exit focus mode, let Watch.jsx handle navigation
+            setIsContentFocused(false);
+            // Don't prevent default or stop propagation - let it bubble to Watch.jsx
+          } else {
+            scrollContent(-SCROLL_AMOUNT);
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          break;
+        case 40: // Down arrow
+          if (isAtScrollBottom()) {
+            // At bottom of content - exit focus mode, let Watch.jsx handle navigation to comments
+            setIsContentFocused(false);
+            // Don't prevent default or stop propagation - let it bubble to Watch.jsx
+          } else {
+            scrollContent(SCROLL_AMOUNT);
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          break;
+        case 13: // Enter - exit content focus mode, collapse description
+          setIsContentFocused(false);
+          setIsExpanded(false);
+          event.preventDefault();
+          event.stopPropagation();
+          break;
+        case 37: // Left arrow - exit content focus mode
+        case 10009: // Samsung TV Back
+        case 27: // Escape
+          setIsContentFocused(false);
+          event.preventDefault();
+          event.stopPropagation();
+          break;
+        default:
+          break;
+      }
+    };
+
+    // Use capture phase to intercept events before Watch.jsx
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isTVMode, isExpanded, isContentFocused, scrollContent, isAtScrollTop, isAtScrollBottom]);
 
   // Function to remove 3Speak video header from post body
   // Posts typically start with: <center>thumbnail + Watch on 3Speak link</center>---
@@ -172,14 +250,28 @@ const BlogContent = ({ author, permlink, description }) => {
   }, [renderedContent]);
 
   const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
+    const newExpanded = !isExpanded;
+    setIsExpanded(newExpanded);
+    // In TV mode, entering expanded mode should focus the content for scrolling
+    if (isTVMode && newExpanded) {
+      setIsContentFocused(true);
+      // Scroll content wrapper to top when opening
+      if (contentWrapperRef.current) {
+        contentWrapperRef.current.scrollTop = 0;
+      }
+    } else {
+      setIsContentFocused(false);
+    }
   };
 
   return (
     <div className="blog-content-container">
       <div
-        className={`content-wrapper ${needsExpansion && !isExpanded ? 'collapsed' : 'expanded'}`}
-        ref={contentRef}
+        className={`content-wrapper ${needsExpansion && !isExpanded ? 'collapsed' : 'expanded'}${isContentFocused ? ' tv-content-focused' : ''}`}
+        ref={(el) => {
+          contentRef.current = el;
+          contentWrapperRef.current = el;
+        }}
       >
         {loading ? (
           <div className="blog-loading">
@@ -197,7 +289,11 @@ const BlogContent = ({ author, permlink, description }) => {
       </div>
 
       {needsExpansion && (
-        <div className="expand-toggle" onClick={toggleExpand}>
+        <div
+          className="expand-toggle"
+          onClick={toggleExpand}
+          data-tv-main-focusable="true"
+        >
           <span>{isExpanded ? "Show less" : "Show more"}</span>
           {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
         </div>

@@ -108,6 +108,8 @@ function Card3({ videos = [], loading = false, error = null, tooltipVariant = "d
             className="card"
             // key={postKey}
             key={`${postKey}-${index}`}
+            data-tv-focusable="true"
+            data-tv-index={index}
           >
             {/* Thumbnail */}
             <div className="img-wrap">

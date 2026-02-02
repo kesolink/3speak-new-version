@@ -19,9 +19,11 @@ import { useEffect, useRef, useState } from "react";
 import SearchList from "./SearchList";
 import SearchList_Sm from "./SearchList_Sm";
 import { TiThMenu } from "react-icons/ti";
+import { useTVMode } from "../../context/TVModeContext";
 
-function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
-  const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
+function Nav({ setSideBar, toggleProfileNav, openLoginModal, tvNavFocusIndex = -1, setTvNavFocusIndex }) {
+  const { authenticated, LogOut, user, initializeTheme, theme, toggleTheme } = useAppStore();
+  const { isTVMode } = useTVMode();
   const [nav, setNav] = useState(false)
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -161,11 +163,22 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
 
       {authenticated ? (
         <div className="nav-right flex-div">
-          <ThemeToggle />
+          <div
+            className={`tv-nav-item${isTVMode && tvNavFocusIndex === 0 ? ' tv-focused' : ''}`}
+            data-tv-nav-focusable="true"
+          >
+            <ThemeToggle />
+          </div>
           <span>{user}</span>
           {/* <IoIosNotifications size={20} /> */}
-          
-          <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" onClick={toggleProfileNav} />
+
+          <img
+            src={`https://images.hive.blog/u/${user}/avatar`}
+            alt=""
+            onClick={toggleProfileNav}
+            className={isTVMode && tvNavFocusIndex === 1 ? 'tv-focused' : ''}
+            data-tv-nav-focusable="true"
+          />
           {/* <div className="dropdown-menu">
             <Link className="list">My Channel</Link>
             <Link className="list">Upload Video</Link>
@@ -176,8 +189,17 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
         </div>
       ) : (
         <div className="nav-right flex-div">
-          <ThemeToggle />
-          <button onClick={openLoginModal}>LOG IN</button>
+          <div
+            className={`tv-nav-item${isTVMode && tvNavFocusIndex === 0 ? ' tv-focused' : ''}`}
+            data-tv-nav-focusable="true"
+          >
+            <ThemeToggle />
+          </div>
+          <button
+            className={isTVMode && tvNavFocusIndex === 1 ? 'tv-focused' : ''}
+            onClick={openLoginModal}
+            data-tv-nav-focusable="true"
+          >LOG IN</button>
         </div>
       )}
     </nav>

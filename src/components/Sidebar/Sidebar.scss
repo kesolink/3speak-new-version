@@ -107,7 +107,171 @@ hr{
             width: fit-content;
             background-color: var(--sidebar-hover-bg);
             box-shadow: var(--shadow-md);
-          } 
+          }
     }
-    
+
+}
+
+// TV Mode styles for sidebar
+.sidebar {
+  &.tv-sidebar-active {
+    outline: 3px solid var(--accent-primary);
+    outline-offset: -3px;
+    box-shadow: 0 0 20px rgba(229, 57, 53, 0.3);
+  }
+
+  .side-link.tv-focused {
+    padding-left: 10px;
+    width: 90%;
+    background-color: var(--accent-light);
+    box-shadow: 0 0 15px rgba(229, 57, 53, 0.3);
+    color: var(--accent-primary);
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    transform: scale(1.02);
+    transition: all 0.15s ease;
+  }
+}
+
+.small-sidebar {
+  .side-link.tv-focused {
+    padding: 8px;
+    width: fit-content;
+    background-color: var(--accent-light);
+    box-shadow: 0 0 15px rgba(229, 57, 53, 0.3);
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+  }
+}
+
+// TV Mode logo section
+.tv-logo-section {
+  padding: 0 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  .tv-logo {
+    height: 50px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .tv-logo-spacer {
+    height: 30px;
+  }
+}
+
+// TV Mode search section
+.tv-search-section {
+  padding: 10px 10px 0 0;
+  margin-bottom: 15px;
+
+  .tv-search-wrapper {
+    display: flex;
+    align-items: center;
+    background: var(--bg-hover);
+    border: 2px solid var(--border-light);
+    border-radius: 8px;
+    padding: 10px 12px;
+    transition: all 0.2s ease;
+
+    &.tv-focused {
+      background: var(--accent-light);
+      border-color: var(--accent-primary);
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
+      box-shadow: 0 0 15px rgba(229, 57, 53, 0.3);
+    }
+
+    .tv-search-icon {
+      color: var(--text-secondary);
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+
+    .tv-search-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 14px;
+      outline: none;
+      width: 100%;
+
+      &::placeholder {
+        color: var(--text-muted);
+      }
+    }
+
+    .tv-search-display {
+      flex: 1;
+      color: var(--text-muted);
+      font-size: 14px;
+      cursor: pointer;
+    }
+  }
+}
+
+// TV Actions section styling
+.tv-actions {
+  .tv-action-item {
+    cursor: pointer;
+  }
+}
+
+// TV Account section at top
+.tv-account-section {
+  padding: 0 10px 10px 0;
+
+  .tv-action-item {
+    cursor: pointer;
+  }
+}
+
+// TV Theme section
+.tv-theme-section {
+  padding: 0 10px 15px 0;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 10px;
+
+  .tv-action-item {
+    cursor: pointer;
+  }
+}
+
+// TV Search at bottom
+.tv-search-bottom {
+  margin-top: auto;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-light);
+}
+
+// TV Mode - Sidebar without nav bar
+body.tv-mode .sidebar {
+  padding-top: 40px;
+  z-index: 1000;
+  transition: transform 0.2s ease;
+  width: 18%; // Wider sidebar for TV mode
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+
+  .shortcut-links {
+    flex: 1;
+  }
+}
+
+// TV Mode - Hidden sidebar (small-sidebar means hidden in TV mode)
+body.tv-mode .sidebar.small-sidebar {
+  transform: translateX(-100%);
+  width: 18%; // Keep full width so animation looks right
+
+  span {
+    display: block; // Override small-sidebar display:none
+  }
+
+  h3 {
+    display: block;
+  }
 }

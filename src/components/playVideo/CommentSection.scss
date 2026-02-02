@@ -21,6 +21,7 @@
     margin-top: 15px;
   }
 }
+
 /* Loader for comments */
 .vid-comment-wrap {
   .comments-loading {
@@ -46,6 +47,69 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+// TV Mode focus styling for comment input (outer container focus from Watch.jsx)
+.add-comment-wrap.tv-focused {
+  outline: 3px solid #e94560;
+  outline-offset: 2px;
+  box-shadow: 0 0 15px rgba(233, 69, 96, 0.4);
+  border-radius: 8px;
+}
+
+// TV Mode active state (when user has entered the comment input)
+.add-comment-wrap.tv-input-active {
+  outline: 3px solid #e94560;
+  outline-offset: 2px;
+  box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+  border-radius: 8px;
+  background-color: rgba(233, 69, 96, 0.05);
+
+  // Focused textarea styling
+  .textarea-box.tv-element-focused {
+    outline: 2px solid #e94560;
+    outline-offset: 1px;
+    box-shadow: 0 0 10px rgba(233, 69, 96, 0.3);
+  }
+
+  // Focused button styling
+  .btn-wrap button.tv-element-focused {
+    outline: 2px solid #e94560;
+    outline-offset: 1px;
+    box-shadow: 0 0 10px rgba(233, 69, 96, 0.4);
+    background-color: #e94560;
+    color: white;
+    transform: scale(1.05);
+  }
+}
+
+// TV Mode focus styling for comment containers (outer focus from Watch.jsx)
+.comment-container.tv-focused {
+  > .comment {
+    outline: 3px solid #e94560;
+    outline-offset: 2px;
+    box-shadow: 0 0 15px rgba(233, 69, 96, 0.4);
+  }
+}
+
+// TV Mode active state (when user has entered the comment)
+.comment-container.tv-comment-active {
+  > .comment {
+    outline: 3px solid #e94560;
+    outline-offset: 2px;
+    box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+  }
+
+  // Focused action button styling (like, reply)
+  .comment-action .tv-action-btn.tv-element-focused {
+    outline: 2px solid #e94560;
+    outline-offset: 2px;
+    border-radius: 4px;
+    background-color: rgba(233, 69, 96, 0.15);
+    padding: 4px 8px;
+    margin: -4px -8px;
+  }
+}
+
 .comment {
   display: flex;
   align-items: flex-start;
@@ -54,7 +118,7 @@
   background-color: var(--card-bg);
   border-radius: 10px;
   box-shadow: var(--card-shadow);
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease, outline 0.2s ease;
   > img {
     // Only apply avatar styles to direct child images (the avatar)
     width: 35px;

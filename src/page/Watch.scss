@@ -8,4 +8,215 @@
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
+    position: relative;
+}
+
+// TV Mode Play Prompt Overlay
+.tv-play-prompt-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    cursor: pointer;
+
+    .tv-play-prompt {
+        text-align: center;
+        color: white;
+        animation: pulse 2s ease-in-out infinite;
+
+        .tv-play-icon {
+            font-size: 120px;
+            color: #e94560;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 20px rgba(233, 69, 96, 0.5));
+        }
+
+        h2 {
+            font-size: 48px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: white;
+        }
+
+        p {
+            font-size: 24px;
+            color: #aaa;
+        }
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.9;
+    }
+}
+
+// TV Mode Watch Page Styles
+.tv-mode-watch {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    height: calc(100vh - 80px);
+    padding: 20px;
+    gap: 20px;
+
+    // Video area takes 66% of the width
+    .tv-mode-video-area {
+        width: calc(66% - 10px) !important;
+        flex: 0 0 calc(66% - 10px) !important;
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        scroll-behavior: smooth;
+        position: relative; // For overlay positioning
+
+        // Hide scrollbar but keep functionality
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        &::-webkit-scrollbar {
+            display: none;
+        }
+
+        // Make the video player 16:9 using aspect-ratio for perfect sizing
+        .play-video {
+            position: relative;
+
+            .top-container {
+                padding: 0; // Remove padding in TV mode for precise video sizing
+            }
+
+            .video-iframe-wrapper {
+                width: 100%;
+                aspect-ratio: 16 / 9;
+                height: auto !important;
+                position: relative;
+                padding-bottom: 0 !important;
+                padding-top: 0 !important;
+            }
+        }
+
+        // Progress bar overlay positioning
+        .tv-progress-bar--overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+    }
+
+    // Sidebar takes 34% of the width
+    & > div:not(.tv-mode-video-area):not(.tv-progress-bar) {
+        width: calc(34% - 10px) !important;
+        flex: 0 0 calc(34% - 10px) !important;
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        &::-webkit-scrollbar {
+            display: none;
+        }
+    }
+
+    // Remove the whole-area focus styling since we now focus on the iframe
+    .tv-area-focused {
+        outline: none;
+        box-shadow: none;
+    }
+}
+
+// CSS Fullscreen mode (for Tizen TV when native fullscreen isn't available)
+.css-fullscreen-mode {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 99999 !important;
+    background: #000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+
+    // Hide everything except the video
+    .video-area {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+    }
+
+    // Hide the play-video container extras
+    .play-video {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: #000 !important;
+
+        // Hide everything except video wrapper
+        .top-container {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            padding: 0 !important;
+            margin: 0 !important;
+
+            h3, .tag-wrapper, .community-title-wrap, .play-video-info {
+                display: none !important;
+            }
+        }
+
+        .video-iframe-wrapper {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            padding-bottom: 0 !important;
+
+            iframe {
+                width: 100vw !important;
+                height: 100vh !important;
+            }
+        }
+
+        // Hide other sections
+        .big-mid-wrap,
+        .publisher,
+        .description-wrap,
+        .comment-section {
+            display: none !important;
+        }
+    }
+
+    // Hide sidebar/recommendations (but not progress bar)
+    & > div:not(.video-area):not(.tv-progress-bar) {
+        display: none !important;
+    }
+
+    // Ensure progress bar is visible above everything
+    .tv-progress-bar {
+        display: flex !important;
+        z-index: 100001 !important;
+    }
 }

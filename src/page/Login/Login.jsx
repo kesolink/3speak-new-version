@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import './Login.scss';
 import logo from '../../assets/image/3S_logo.svg';
 import keychain from '../../assets/image/keychain.png';
@@ -9,6 +9,7 @@ import hive from '@hiveio/hive-js';
 import { useAppStore } from '../../lib/store';
 import { LOCAL_STORAGE_ACCESS_TOKEN_KEY, LOCAL_STORAGE_USER_ID_KEY } from '../../hooks/localStorageKeys';
 import { LuLogOut } from 'react-icons/lu';
+import { useTVMode } from '../../context/TVModeContext';
 // import hive from '@hiveio/hive-js/dist/hivejs.min.js';
 
 // import { Buffer } from 'buffer'
@@ -23,17 +24,47 @@ import { LuLogOut } from 'react-icons/lu';
 
 function Login() {
   const { initializeAuth, setActiveUser, switchAccount, clearAccount } = useAppStore();
+  const { isTVMode, notifyNavigationState } = useTVMode();
   const [username, setUsername] = useState('');
   const [postingKey, setPostingKey] = useState('');
   const studioEndPoint = "https://studio.3speak.tv";
   const client = axios.create({});
   const navigate = useNavigate();
   const [accountList, setAccountList] = useState([]);
-  
+  const usernameInputRef = useRef(null);
+
     useEffect(()=>{
       const getAccountlist = JSON.parse(localStorage.getItem("accountsList")) || [];
       setAccountList(getAccountlist)
     },[])
+
+  // Notify parent that we're NOT at root (back should navigate, not exit)
+  useEffect(() => {
+    if (isTVMode) {
+      notifyNavigationState(false);
+    }
+  }, [isTVMode, notifyNavigationState]);
+
+  // Auto-focus username input in TV mode
+  useEffect(() => {
+    if (isTVMode && usernameInputRef.current) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        usernameInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isTVMode]);
+
+  // Also focus on mount for TV mode
+  useEffect(() => {
+    // Delay to let TV mode detection happen
+    const timer = setTimeout(() => {
+      if (usernameInputRef.current) {
+        usernameInputRef.current.focus();
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   async function logMe() {
       try {
@@ -106,7 +137,10 @@ function Login() {
           <span>Login with your username and private key</span>
 
           <input
+            ref={usernameInputRef}
             type="text"
+            inputMode="text"
+            autoComplete="username"
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}

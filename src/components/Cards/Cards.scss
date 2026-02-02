@@ -424,3 +424,105 @@
   }
 }
 
+// TV Mode: Make cards 1.5x bigger and wider
+body.tv-mode {
+  .card-container {
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    grid-column-gap: 28px;
+    grid-row-gap: 45px;
+
+    .card {
+      border-radius: 18px;
+
+      .img-wrap {
+        img {
+          height: 280px;
+          border-radius: 8px;
+        }
+
+        .wrap .play {
+          font-size: 15px;
+          padding: 5px 11px;
+          border-radius: 18px;
+        }
+
+        .status-badge {
+          padding: 9px 15px;
+          font-size: 18px;
+          gap: 9px;
+          border-radius: 9px;
+        }
+      }
+
+      h2 {
+        font-size: 19.5px;
+        padding: 0 6px;
+        margin: 8px 0;
+      }
+
+      .profile-view-wrap {
+        padding: 0 6px;
+
+        .profile-wrapper {
+          gap: 6px;
+
+          .profile-img {
+            width: 38px;
+            height: 38px;
+          }
+
+          h2 {
+            font-size: 17px;
+          }
+        }
+
+        .view-count {
+          font-size: 16px;
+
+          span {
+            font-size: 15px;
+          }
+        }
+      }
+
+      .bottom-action {
+        padding: 8px 6px;
+
+        p {
+          font-size: 17px;
+        }
+
+        .wrap-left {
+          gap: 18px;
+          font-size: 17px;
+
+          .flex-div {
+            gap: 4px;
+
+            span {
+              font-size: 17px;
+            }
+
+            .icon {
+              font-size: 26px;
+            }
+
+            .icon-heart {
+              font-size: 22px;
+            }
+          }
+        }
+      }
+
+      // TV focus state
+      &.tv-focused {
+        outline: 4px solid var(--accent-primary);
+        outline-offset: 4px;
+        transform: scale(1.02);
+        box-shadow: 0 0 30px rgba(229, 57, 53, 0.4);
+        transition: all 0.2s ease;
+      }
+    }
+  }
+}
+

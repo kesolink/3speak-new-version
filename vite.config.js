@@ -71,8 +71,12 @@ export default defineConfig({
       "quill",
       "qrcode.react",
       "hive-auth-wrapper",
+      "hiveauth-aes",
+      "@aioha/aioha",
       "keychain-sdk",
       "readable-stream",
+      "zustand",
+      "zustand/middleware",
       // ensure these deps are pre-bundled
       "path-browserify",
       "os-browserify",
@@ -92,5 +96,11 @@ export default defineConfig({
     devSourcemap: true,
   },
 
- 
+  server: {
+    allowedHosts: true,
+  },
+
+  preview: {
+    allowedHosts: true,
+  },
 });

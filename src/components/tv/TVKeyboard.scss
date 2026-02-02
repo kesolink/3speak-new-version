@@ -1,0 +1,147 @@
+.tv-keyboard-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 10000 !important;
+  backdrop-filter: blur(4px);
+}
+
+.tv-keyboard-modal {
+  background: var(--bg-elevated, #1a1a1a);
+  border: 3px solid var(--accent-primary, #e53935);
+  border-radius: 20px;
+  padding: 40px 60px;
+  min-width: 875px;
+  max-width: 1125px;
+  box-shadow: 0 0 60px rgba(229, 57, 53, 0.4),
+              0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.tv-keyboard-input {
+  background: var(--bg-primary, #121212);
+  border: 2px solid var(--border-color, #3d3d3d);
+  border-radius: 10px;
+  padding: 20px 25px;
+  margin-bottom: 30px;
+  font-size: 30px;
+  color: var(--text-primary, #fff);
+  min-height: 75px;
+  display: flex;
+  align-items: center;
+}
+
+.tv-keyboard-value {
+  color: var(--text-primary, #fff);
+}
+
+.tv-keyboard-input:not(:has(.tv-keyboard-value:not(:empty))) .tv-keyboard-value {
+  color: var(--text-muted, #666);
+}
+
+.tv-keyboard-cursor {
+  color: var(--accent-primary, #e53935);
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.tv-keyboard-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tv-keyboard-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.tv-keyboard-key {
+  flex: 1;
+  min-width: 63px;
+  height: 70px;
+  background: var(--bg-primary, #121212);
+  border: 2px solid var(--border-color, #3d3d3d);
+  border-radius: 10px;
+  color: var(--text-primary, #fff);
+  font-size: 25px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    border-color: var(--accent-primary, #e53935);
+  }
+
+  &.focused {
+    border-color: var(--accent-primary, #e53935);
+    background: rgba(229, 57, 53, 0.2);
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(229, 57, 53, 0.4);
+  }
+}
+
+.tv-keyboard-separator {
+  width: 25px;
+  min-width: 25px;
+  border-left: 2px solid var(--border-color, #3d3d3d);
+  margin: 0 10px;
+}
+
+.tv-keyboard-empty {
+  flex: 1;
+  min-width: 63px;
+  height: 70px;
+}
+
+.tv-keyboard-key.numpad-key {
+  background: var(--bg-secondary, #2a2a2a);
+}
+
+.tv-keyboard-special {
+  margin-top: 10px;
+}
+
+.tv-keyboard-key-shift,
+.tv-keyboard-key-backspace {
+  background: var(--bg-secondary, #2a2a2a);
+}
+
+.tv-keyboard-key-space {
+  min-width: 250px;
+}
+
+.tv-keyboard-key-done {
+  background: var(--accent-primary, #e53935);
+  border-color: var(--accent-primary, #e53935);
+  color: white;
+  font-weight: 600;
+
+  &.focused {
+    background: #ff4444;
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(229, 57, 53, 0.6);
+  }
+}
+
+.tv-keyboard-hint {
+  text-align: center;
+  color: var(--text-muted, #666);
+  font-size: 18px;
+  margin-top: 25px;
+  margin-bottom: 0;
+}

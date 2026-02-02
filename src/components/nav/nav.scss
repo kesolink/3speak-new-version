@@ -297,3 +297,38 @@
     }
   }
 }
+
+// TV Mode styles for nav
+.nav-right {
+  .tv-nav-item {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 4px;
+    transition: all 0.2s ease;
+
+    &.tv-focused {
+      outline: 3px solid var(--accent-primary);
+      outline-offset: 2px;
+      box-shadow: 0 0 15px rgba(229, 57, 53, 0.4);
+      transform: scale(1.1);
+    }
+  }
+
+  img.tv-focused {
+    outline: 3px solid var(--accent-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 15px rgba(229, 57, 53, 0.4);
+    transform: scale(1.1);
+  }
+
+  button.tv-focused {
+    outline: 3px solid var(--accent-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 15px rgba(229, 57, 53, 0.4);
+    background-color: var(--accent-primary) !important;
+    color: white !important;
+    transform: scale(1.05);
+  }
+}

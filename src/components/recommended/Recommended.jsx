@@ -23,6 +23,8 @@ function Recommended({suggestedVideos}) {
             to={`/watch?v=${author}/${data.permlink ?? "unknown"}`}
             key={`${author}-${data.permlink}-${index}`}
             className="side-video-link"
+            data-tv-focusable="true"
+            data-tv-index={index}
           >
             <div className="side-video-list">
               <div className="wrap-img">

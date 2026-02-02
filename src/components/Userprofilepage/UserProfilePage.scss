@@ -166,6 +166,33 @@
   }
 }
 
+// TV Mode refresh indicator
+.container-video {
+  .tv-refresh-indicator {
+    text-align: center;
+    padding: 10px;
+    color: var(--accent-primary);
+    font-weight: 500;
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+}
+
+// TV Mode button focus styles
+.button-group {
+  .btn.tv-focused {
+    outline: 3px solid var(--accent-primary, #E32933);
+    outline-offset: 2px;
+    box-shadow: 0 0 15px rgba(229, 57, 53, 0.4);
+    transform: scale(1.05);
+    transition: all 0.15s ease;
+  }
+}
+
 .profile-card {
   border: 1px solid #0f172a;
   overflow: hidden;

@@ -16,6 +16,24 @@
       max-height: none;
     }
 
+    // TV Mode: when expanded and focused, make it scrollable with a max height
+    &.tv-content-focused {
+      max-height: 60vh;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+      outline: 3px solid #e94560;
+      outline-offset: -3px;
+      box-shadow: inset 0 0 20px rgba(233, 69, 96, 0.2);
+      border-radius: 4px;
+
+      // Hide scrollbar but keep functionality
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+
     .fade-overlay {
       position: absolute;
       bottom: 0;
@@ -64,11 +82,19 @@
     font-size: 13px;
     color: var(--accent-primary);
     border-top: 1px solid var(--border-light);
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, outline 0.2s ease, box-shadow 0.2s ease;
     user-select: none;
 
     &:hover {
       background-color: var(--hover-bg, rgba(0, 0, 0, 0.03));
+    }
+
+    // TV Mode focus styling
+    &.tv-focused {
+      outline: 3px solid #e94560;
+      outline-offset: 2px;
+      box-shadow: 0 0 15px rgba(233, 69, 96, 0.4);
+      background-color: rgba(233, 69, 96, 0.1);
     }
 
     svg {

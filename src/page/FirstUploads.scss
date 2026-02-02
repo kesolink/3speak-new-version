@@ -36,4 +36,18 @@
             cursor: not-allowed;
         }
     }
+
+    // TV Mode refresh indicator
+    .tv-refresh-indicator {
+        text-align: center;
+        padding: 10px;
+        color: var(--accent-primary);
+        font-weight: 500;
+        animation: pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
 }

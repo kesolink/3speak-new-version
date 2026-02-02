@@ -120,3 +120,26 @@
     font-size: 16px;
   }
 }
+
+// TV Mode styling for upvote tooltip
+.upvote-tooltip-wrap {
+  .tooltip-box.tv-active {
+    outline: 3px solid #e94560;
+    outline-offset: 2px;
+    box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+
+    // Focused slider styling
+    input[type="range"].tv-element-focused {
+      outline: 2px solid #e94560;
+      outline-offset: 3px;
+      border-radius: 4px;
+    }
+
+    // Focused vote button styling
+    .circle-vote-btn.tv-element-focused {
+      color: #e94560;
+      transform: scale(1.2);
+      filter: drop-shadow(0 0 8px rgba(233, 69, 96, 0.6));
+    }
+  }
+}
