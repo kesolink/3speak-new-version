@@ -81,27 +81,23 @@
     iframe {
       position: absolute !important;
       top: 50% !important;
-      left: 50% !important;
-      transform: translate(-50%, -50%) !important;
-      min-width: 100% !important;
-      min-height: 100% !important;
-      width: 177.78vh !important;
-      /* 16:9 width based on height */
-      height: 56.25vw !important;
-      /* 16:9 height based on width */
+      left: 0 !important;
+      transform: translateY(-50%) !important;
+      width: 100% !important;
+      aspect-ratio: 16 / 9;
+      height: auto !important;
       border: none;
       z-index: 1;
       pointer-events: none;
       /* Disable iframe pointer events, let overlay handle clicks */
 
       @media (max-width: 768px) {
-        min-width: 100% !important;
-        min-height: 100% !important;
         width: 100% !important;
-        height: 100% !important;
-        top: 0 !important;
+        height: auto !important;
+        aspect-ratio: 16 / 9;
+        top: 50% !important;
         left: 0 !important;
-        transform: none !important;
+        transform: translateY(-50%) !important;
       }
     }
   }
