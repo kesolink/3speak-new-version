@@ -169,11 +169,34 @@ const NewVideos = () => {
   }, [focusedIndex, navigate]);
 
   // Use TV sidebar navigation hook
-  const { isTVMode } = useTVSidebarNavigation({
+  const { isTVMode, tvSidebarVisible, closeSidebar } = useTVSidebarNavigation({
     onNavigate: handleNavigate,
     onSelect: handleSelect,
     onLeftAtEdge: () => handleNavigate('left')
   });
+
+  // Handle TV back button - navigate back to previous page
+  useEffect(() => {
+    if (!isTVMode) return;
+
+    const handleBackButton = (event) => {
+      if (tvSidebarVisible) {
+        closeSidebar();
+        event.preventDefault();
+        return;
+      }
+
+      if (window.history.length > 1) {
+        navigate(-1);
+      } else {
+        navigate('/');
+      }
+      event.preventDefault();
+    };
+
+    document.addEventListener('tv-back-button', handleBackButton);
+    return () => document.removeEventListener('tv-back-button', handleBackButton);
+  }, [isTVMode, tvSidebarVisible, closeSidebar, navigate]);
 
   // Focus first card when data loads in TV mode
   useEffect(() => {

@@ -10,7 +10,8 @@ import { useTVMode } from '../context/TVModeContext';
 import { useTVSidebarNavigation } from '../hooks/useTVSidebarNavigation';
 import TVContextMenu from '../components/tv/TVContextMenu';
 import TVProgressBar from '../components/tv/TVProgressBar';
-import { followWithAioha } from '../hive-api/aioha';
+import TVTipOverlay from '../components/tv/TVTipOverlay';
+import { followWithAioha, transferWithAioha } from '../hive-api/aioha';
 import { toast } from 'react-toastify';
 import { useAppStore } from '../lib/store';
 
@@ -50,6 +51,8 @@ function Watch() {
   const [sidebarFocusIndex, setSidebarFocusIndex] = useState(0);
   const [mainFocusIndex, setMainFocusIndex] = useState(0); // 0 = player, 1+ = other focusable items
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [showTipOverlay, setShowTipOverlay] = useState(false);
+  const [tipLoading, setTipLoading] = useState(false);
   const [isCssFullscreen, setIsCssFullscreen] = useState(false); // Track CSS fullscreen state from Tizen parent
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
@@ -196,8 +199,16 @@ function Watch() {
 
     const handleTVKeys = (event) => {
       switch (event.keyCode) {
-        // Enter key on video player - trigger fullscreen
+        // Enter key - toggle fullscreen or exit fullscreen
         case 13: // Enter
+          // If in fullscreen mode, exit fullscreen (regardless of focus area)
+          if (isCssFullscreen) {
+            console.log('[Watch.jsx] Enter key in fullscreen - exiting fullscreen');
+            window.parent.postMessage({ type: 'request-exit-fullscreen' }, '*');
+            event.preventDefault();
+            event.stopPropagation();
+            break;
+          }
           // Only handle if video is focused
           if (tvFocusArea === 'video') {
             console.log('[Watch.jsx] Enter key - sending fullscreen command and focusing iframe');
@@ -280,15 +291,32 @@ function Watch() {
   // Listen for TV back button event (from TVModeContext)
   useEffect(() => {
     const handleBackButton = (event) => {
+      // Priority 1: Close context menu if open
       if (showContextMenu) {
         setShowContextMenu(false);
         event.preventDefault();
+        return;
       }
+
+      // Priority 2: Exit fullscreen if in fullscreen
+      if (isCssFullscreen) {
+        window.parent.postMessage({ type: 'request-exit-fullscreen' }, '*');
+        event.preventDefault();
+        return;
+      }
+
+      // Priority 3: Navigate back to previous page
+      if (window.history.length > 1) {
+        navigate(-1);
+      } else {
+        navigate('/');
+      }
+      event.preventDefault();
     };
 
     document.addEventListener('tv-back-button', handleBackButton);
     return () => document.removeEventListener('tv-back-button', handleBackButton);
-  }, [showContextMenu]);
+  }, [showContextMenu, isCssFullscreen, navigate]);
 
   // Listen for messages from parent frame and player iframe
   useEffect(() => {
@@ -483,6 +511,8 @@ function Watch() {
         setTvFocusArea('video');
         const items = recommendedRef.current?.querySelectorAll('[data-tv-focusable="true"]');
         items?.forEach(item => item.classList.remove('tv-focused'));
+        // Focus the video player
+        setTimeout(() => focusMainItem(0), 100);
         return true;
       }
       // In video area, let menu sidebar open
@@ -527,6 +557,11 @@ function Watch() {
 
   // Handle selection for TV sidebar hook
   const handleSelect = useCallback(() => {
+    // Don't handle selection while in fullscreen mode
+    if (isCssFullscreen) {
+      return;
+    }
+
     if (tvFocusArea === 'video') {
       if (mainFocusIndex === 0) {
         // In TV mode, Enter on video player triggers fullscreen
@@ -547,7 +582,7 @@ function Watch() {
         }
       }
     }
-  }, [tvFocusArea, mainFocusIndex, sidebarFocusIndex, triggerFullscreen, focusPlayerIframe, navigate]);
+  }, [tvFocusArea, mainFocusIndex, sidebarFocusIndex, triggerFullscreen, focusPlayerIframe, navigate, isCssFullscreen]);
 
   // Context menu action handlers
   const handleFollow = useCallback(async () => {
@@ -577,6 +612,35 @@ function Watch() {
       voteBtn.click();
     }
   }, []);
+
+  const handleOpenTipOverlay = useCallback(() => {
+    console.log('Watch.jsx: Tip action triggered');
+    if (!authenticated) {
+      toast.error('Login to send tips');
+      return;
+    }
+    setShowContextMenu(false);
+    setShowTipOverlay(true);
+  }, [authenticated]);
+
+  const handleTip = useCallback(async (amount, asset, memo = '') => {
+    console.log('[handleTip] Tip action triggered:', amount, asset, 'to:', author, 'memo:', memo);
+    setTipLoading(true);
+    try {
+      const videoUrl = `https://3speak.tv/watch?v=${author}/${permlink}`;
+      const tipMemo = memo
+        ? `Tip for ${videoUrl}: ${memo}`
+        : `Tip for ${videoUrl}`;
+      await transferWithAioha(author, amount, asset, tipMemo);
+      toast.success(`Successfully sent ${amount} ${asset} to @${author}!`);
+      setShowTipOverlay(false);
+    } catch (error) {
+      console.error('[handleTip] Tip failed:', error);
+      toast.error(`Failed to send tip: ${error.message}`);
+    } finally {
+      setTipLoading(false);
+    }
+  }, [author, permlink]);
 
   const handleJumpToComment = useCallback(() => {
     console.log('Watch.jsx: Jump to comment action triggered');
@@ -621,6 +685,11 @@ function Watch() {
       // When in video area and Left is pressed, return false to open menu sidebar
       if (tvFocusArea === 'video') {
         return false;
+      }
+      // When in recommended section, switch back to video
+      if (tvFocusArea === 'sidebar') {
+        handleNavigate('left');
+        return true;
       }
       return true;
     }
@@ -670,8 +739,21 @@ function Watch() {
           onClose={() => setShowContextMenu(false)}
           onFollow={handleFollow}
           onVote={handleVote}
+          onTip={handleOpenTipOverlay}
           onJumpToComment={handleJumpToComment}
           onExpandDescription={handleExpandDescription}
+          creatorName={author}
+          tags={videoDetails?.tags || []}
+        />
+      )}
+
+      {/* TV Tip Overlay */}
+      {isTVMode && (
+        <TVTipOverlay
+          isOpen={showTipOverlay}
+          onClose={() => setShowTipOverlay(false)}
+          onTip={handleTip}
+          isLoading={tipLoading}
           creatorName={author}
         />
       )}

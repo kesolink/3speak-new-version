@@ -27,6 +27,34 @@ export const HiveAuthProvider = ({ children }) => {
     };
   }, [showWaiting, hideWaiting]);
 
+  // Handle TV back button and keyboard events to close the modal
+  useEffect(() => {
+    if (!isWaiting) return;
+
+    const handleKeyDown = (event) => {
+      // Close on Back (Samsung TV) or Escape
+      if (event.keyCode === 10009 || event.keyCode === 27) {
+        hideWaiting();
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    const handleBackButton = (event) => {
+      hideWaiting();
+      event.preventDefault();
+    };
+
+    // Use capture phase to intercept before other handlers
+    document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('tv-back-button', handleBackButton);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('tv-back-button', handleBackButton);
+    };
+  }, [isWaiting, hideWaiting]);
+
   return (
     <HiveAuthContext.Provider value={{ isWaiting, waitingMessage, showWaiting, hideWaiting }}>
       {children}
@@ -34,10 +62,23 @@ export const HiveAuthProvider = ({ children }) => {
       {isWaiting && (
         <div className="hiveauth-waiting-overlay">
           <div className="hiveauth-waiting-modal">
+            <button
+              className="hiveauth-close-btn"
+              onClick={hideWaiting}
+              aria-label="Close"
+            >
+              ✕
+            </button>
             <div className="hiveauth-spinner"></div>
             <h3>HiveAuth Approval Required</h3>
             <p>{waitingMessage}</p>
             <p className="hiveauth-hint">Please check your HiveAuth app to approve this transaction</p>
+            <button
+              className="hiveauth-cancel-btn"
+              onClick={hideWaiting}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

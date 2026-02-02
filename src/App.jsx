@@ -403,17 +403,36 @@ function AppContent() {
         });
       };
 
-      // Arrow key navigation (up/down/right)
+      // Arrow key navigation (up/down/right/left)
       // Right arrow (39) when on input field moves to proceed button
       if (e.keyCode === 39) {
         const activeEl = document.activeElement;
         if (activeEl && activeEl.tagName === 'INPUT') {
           e.preventDefault();
-          // Find the proceed button (right arrow) by aria-label first
-          const submitBtn = document.querySelector('button[aria-label="Proceed"]') ||
-                           document.querySelector('button[type="submit"]') ||
-                           document.querySelector('button.btn-primary') ||
-                           document.querySelector('button svg')?.closest('button');
+          // Find the proceed button - look for button next to input in the form
+          // The AiohaModal has a button with an arrow icon (>) next to the username input
+          const aiohaModal = document.getElementById('aioha-modal');
+          let submitBtn = null;
+
+          if (aiohaModal) {
+            // Try to find button in the same form/container as the input
+            const inputContainer = activeEl.closest('form') || activeEl.closest('div');
+            if (inputContainer) {
+              submitBtn = inputContainer.querySelector('button[type="submit"]') ||
+                         inputContainer.querySelector('button:not([class*="close"])');
+            }
+
+            // Fallback: find any submit button in the modal
+            if (!submitBtn) {
+              submitBtn = aiohaModal.querySelector('button[type="submit"]') ||
+                         aiohaModal.querySelector('button[aria-label="Proceed"]') ||
+                         // Find button with SVG (arrow icon)
+                         Array.from(aiohaModal.querySelectorAll('button')).find(btn =>
+                           btn.querySelector('svg') && !btn.className.includes('close')
+                         );
+            }
+          }
+
           if (submitBtn) {
             // Remove outline from current
             if (currentFocusedElement) {
@@ -425,6 +444,33 @@ function AppContent() {
             submitBtn.style.outline = '3px solid red';
             submitBtn.style.outlineOffset = '2px';
             currentFocusedElement = submitBtn;
+            console.log('Right arrow: focused submit button', submitBtn);
+          }
+        }
+        return;
+      }
+
+      // Left arrow (37) when on submit button moves back to input
+      if (e.keyCode === 37) {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.tagName === 'BUTTON') {
+          e.preventDefault();
+          // Find the username input
+          const usernameInput = document.querySelector('input#small-input') ||
+                               document.querySelector('input[placeholder="Enter Hive Username"]') ||
+                               document.querySelector('input[placeholder*="Hive Username" i]') ||
+                               document.querySelector('input[type="text"]');
+          if (usernameInput) {
+            // Remove outline from current
+            if (currentFocusedElement) {
+              currentFocusedElement.style.outline = '';
+              currentFocusedElement.style.outlineOffset = '';
+            }
+            usernameInput.focus();
+            usernameInput.style.outline = '3px solid red';
+            usernameInput.style.outlineOffset = '2px';
+            currentFocusedElement = usernameInput;
+            console.log('Left arrow: focused username input', usernameInput);
           }
         }
         return;

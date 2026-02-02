@@ -15,10 +15,10 @@
 .tv-keyboard-modal {
   background: var(--bg-elevated, #1a1a1a);
   border: 3px solid var(--accent-primary, #e53935);
-  border-radius: 16px;
-  padding: 32px 48px;
-  min-width: 700px;
-  max-width: 900px;
+  border-radius: 20px;
+  padding: 40px 60px;
+  min-width: 875px;
+  max-width: 1125px;
   box-shadow: 0 0 60px rgba(229, 57, 53, 0.4),
               0 20px 40px rgba(0, 0, 0, 0.5);
 }
@@ -26,12 +26,12 @@
 .tv-keyboard-input {
   background: var(--bg-primary, #121212);
   border: 2px solid var(--border-color, #3d3d3d);
-  border-radius: 8px;
-  padding: 16px 20px;
-  margin-bottom: 24px;
-  font-size: 24px;
+  border-radius: 10px;
+  padding: 20px 25px;
+  margin-bottom: 30px;
+  font-size: 30px;
   color: var(--text-primary, #fff);
-  min-height: 60px;
+  min-height: 75px;
   display: flex;
   align-items: center;
 }
@@ -58,24 +58,24 @@
 .tv-keyboard-grid {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .tv-keyboard-row {
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .tv-keyboard-key {
   flex: 1;
-  min-width: 50px;
-  height: 56px;
+  min-width: 63px;
+  height: 70px;
   background: var(--bg-primary, #121212);
   border: 2px solid var(--border-color, #3d3d3d);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--text-primary, #fff);
-  font-size: 20px;
+  font-size: 25px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -96,16 +96,16 @@
 }
 
 .tv-keyboard-separator {
-  width: 20px;
-  min-width: 20px;
+  width: 25px;
+  min-width: 25px;
   border-left: 2px solid var(--border-color, #3d3d3d);
-  margin: 0 8px;
+  margin: 0 10px;
 }
 
 .tv-keyboard-empty {
   flex: 1;
-  min-width: 50px;
-  height: 56px;
+  min-width: 63px;
+  height: 70px;
 }
 
 .tv-keyboard-key.numpad-key {
@@ -113,7 +113,7 @@
 }
 
 .tv-keyboard-special {
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .tv-keyboard-key-shift,
@@ -122,7 +122,7 @@
 }
 
 .tv-keyboard-key-space {
-  min-width: 200px;
+  min-width: 250px;
 }
 
 .tv-keyboard-key-done {
@@ -141,7 +141,7 @@
 .tv-keyboard-hint {
   text-align: center;
   color: var(--text-muted, #666);
-  font-size: 14px;
-  margin-top: 20px;
+  font-size: 18px;
+  margin-top: 25px;
   margin-bottom: 0;
 }

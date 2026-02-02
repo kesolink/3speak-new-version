@@ -88,6 +88,7 @@ export function useTVSidebarNavigation({
               // Check if it's an action item (login, theme toggle) - don't close sidebar
               if (focusedEl.classList.contains('tv-action-item')) {
                 focusedEl.click();
+                // Don't close sidebar for action items (login opens modal on top, theme toggles in place)
                 event.preventDefault();
                 return;
               }

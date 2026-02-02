@@ -89,10 +89,30 @@ const VideoRow = ({ title, videos, linkTo, isLoading, rowIndex, isActiveRow, onC
     const targetCard = cards[clampedIndex];
     if (targetCard) {
       targetCard.classList.add('tv-focused');
-      targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       setFocusedCardIndex(clampedIndex);
+
+      // For first row in TV mode: scroll card into view horizontally only, then scroll page up
+      if (rowIndex === 0 && isTVMode) {
+        // First ensure the card is horizontally centered in the scroll container
+        const container = scrollContainerRef.current;
+        const cardRect = targetCard.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const scrollLeft = container.scrollLeft + (cardRect.left - containerRect.left) - (containerRect.width / 2) + (cardRect.width / 2);
+        container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+
+        // Then scroll page to top after a short delay to show the header
+        setTimeout(() => {
+          // Try multiple scroll methods to ensure it works
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+          window.scrollTo(0, 0);
+        }, 150);
+      } else {
+        // For other rows, use normal scrollIntoView
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
     }
-  }, []);
+  }, [rowIndex, isTVMode]);
 
   // Handle navigation within row
   // The grid has 2 rows with column-flow, so DOM order is:
@@ -316,6 +336,17 @@ const HomeGrouped = () => {
     rowHandlersRef.current[rowIndex] = handlers;
   }, []);
 
+  // When first row becomes active, scroll to top to ensure padding is visible
+  useEffect(() => {
+    if (isTVMode && activeRowIndex === 0) {
+      setTimeout(() => {
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        window.scrollTo(0, 0);
+      }, 150);
+    }
+  }, [isTVMode, activeRowIndex]);
+
   // TV Keyboard navigation
   useEffect(() => {
     if (!isTVMode) return;
@@ -352,36 +383,36 @@ const HomeGrouped = () => {
             return;
 
           case 13: // Enter - activate sidebar item
-            // Index 0 is search field - let the input handle it
-            if (tvSidebarFocusIndex === 0) {
-              // Search field handles Enter itself, but we need to close sidebar after
-              const searchInput = document.querySelector('.tv-search-input');
-              if (searchInput && searchInput.value.trim()) {
-                // Navigate to user profile
-                navigate(`/p/${searchInput.value.trim()}`);
+            const focusedEl = document.querySelector(`[data-tv-sidebar-index="${tvSidebarFocusIndex}"]`);
+            if (focusedEl) {
+              // Check if it's the search wrapper - open keyboard, don't close sidebar
+              if (focusedEl.classList.contains('tv-search-wrapper')) {
+                document.dispatchEvent(new CustomEvent('tv-open-keyboard'));
+                event.preventDefault();
+                return;
+              }
+
+              // Check if it's an action item (login, theme toggle) - don't close sidebar
+              if (focusedEl.classList.contains('tv-action-item')) {
+                focusedEl.click();
+                // Don't close sidebar for action items (login opens modal on top, theme toggles in place)
+                event.preventDefault();
+                return;
+              }
+
+              // Navigation link - navigate and close sidebar
+              const href = focusedEl.getAttribute('href');
+              if (href) {
+                navigate(href);
+                setTvSidebarVisible(false);
+                setTvFocusArea('main');
+                setTvSidebarFocusIndex(-1);
+              } else {
+                focusedEl.click();
                 setTvSidebarVisible(false);
                 setTvFocusArea('main');
                 setTvSidebarFocusIndex(-1);
               }
-              event.preventDefault();
-              return;
-            }
-
-            // For other items, find and click the element
-            const focusedEl = document.querySelector(`[data-tv-sidebar-index="${tvSidebarFocusIndex}"]`);
-            if (focusedEl) {
-              // Check if it's a Link (has href) - navigate directly
-              const href = focusedEl.getAttribute('href');
-              if (href) {
-                navigate(href);
-              } else {
-                // For action items (theme toggle, logout), click them
-                focusedEl.click();
-              }
-              // After navigation/action, hide sidebar
-              setTvSidebarVisible(false);
-              setTvFocusArea('main');
-              setTvSidebarFocusIndex(-1);
             }
             event.preventDefault();
             return;
@@ -436,13 +467,21 @@ const HomeGrouped = () => {
             if (!handled && activeRowIndex > 0) {
               setActiveRowIndex(activeRowIndex - 1);
             } else if (!handled && activeRowIndex === 0) {
-              // Already at the top row - refresh all videos
+              // Already at the top row - scroll to top to show padding
+              document.documentElement.scrollTop = 0;
+              document.body.scrollTop = 0;
+              window.scrollTo(0, 0);
+              // Also refresh all videos
               refreshAllVideos();
             }
           } else if (activeRowIndex > 0) {
             setActiveRowIndex(activeRowIndex - 1);
           } else if (activeRowIndex === 0) {
-            // Already at the top row - refresh all videos
+            // Already at the top row - scroll to top to show padding
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+            window.scrollTo(0, 0);
+            // Also refresh all videos
             refreshAllVideos();
           }
           event.preventDefault();
