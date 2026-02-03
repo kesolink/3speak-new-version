@@ -75,11 +75,6 @@
       .btn-close-qr {
         background: rgba(0, 0, 0, 0.05);
         color: inherit;
-        border: 3px solid rgba(0, 0, 0, 0.1);
-
-        &:hover {
-          border-color: #e94560;
-        }
       }
     }
   }
@@ -252,16 +247,12 @@
       .btn-close-qr {
         padding: 12px 32px;
         background: rgba(255, 255, 255, 0.1);
-        border: 3px solid rgba(255, 255, 255, 0.2);
+        border: none;
         border-radius: 8px;
         color: inherit;
         font-size: 14px;
         cursor: pointer;
         transition: all 0.2s;
-
-        &:hover {
-          border-color: #e94560;
-        }
       }
     }
   }
