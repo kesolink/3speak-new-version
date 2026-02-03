@@ -93,9 +93,9 @@
       .btn-close-qr {
         background: rgba(0, 0, 0, 0.05);
         color: #333;
+        border: 3px solid rgba(0, 0, 0, 0.1);
 
         &:hover {
-          background: rgba(233, 69, 96, 0.1);
           border-color: #e94560;
         }
       }
@@ -287,7 +287,7 @@
       .btn-close-qr {
         padding: 12px 32px;
         background: rgba(255, 255, 255, 0.1);
-        border: none;
+        border: 3px solid rgba(255, 255, 255, 0.2);
         border-radius: 8px;
         color: #fff;
         font-size: 14px;
@@ -295,7 +295,7 @@
         transition: all 0.2s;
 
         &:hover {
-          background: #e94560;
+          border-color: #e94560;
         }
       }
     }
