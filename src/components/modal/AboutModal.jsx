@@ -118,10 +118,10 @@ function AboutModal({ onClose }) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isTVMode, focusedIndex, selectedLink, onClose]);
 
-  // Auto-focus first social link in TV mode
+  // Auto-focus close button in TV mode (it's the last item)
   useEffect(() => {
     if (isTVMode) {
-      setFocusedIndex(0);
+      setFocusedIndex(SOCIAL_LINKS.length); // Focus close button by default
     }
   }, [isTVMode]);
 

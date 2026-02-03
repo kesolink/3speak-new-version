@@ -25,6 +25,14 @@
       color: #ccc;
     }
 
+    .social-link {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-close-bottom {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
     .qr-content {
       background: #1a1a2e;
       border-color: rgba(255, 255, 255, 0.2);
@@ -53,20 +61,24 @@
     .social-link {
       background: rgba(0, 0, 0, 0.05);
       color: #333;
+      border-color: rgba(0, 0, 0, 0.1);
 
-      &:hover {
-        background: #e94560;
-        color: #fff;
+      svg {
+        color: #333;
+      }
+
+      &:hover, &.tv-focused {
+        border-color: #e94560;
       }
     }
 
     .btn-close-bottom {
       background: rgba(0, 0, 0, 0.05);
       color: #333;
+      border-color: rgba(0, 0, 0, 0.1);
 
-      &:hover {
-        background: #e94560;
-        color: #fff;
+      &:hover, &.tv-focused {
+        border-color: #e94560;
       }
     }
 
@@ -83,8 +95,8 @@
         color: #333;
 
         &:hover {
-          background: #e94560;
-          color: #fff;
+          background: rgba(233, 69, 96, 0.1);
+          border-color: #e94560;
         }
       }
     }
@@ -181,21 +193,19 @@
           gap: 8px;
           padding: 16px 24px;
           background: rgba(255, 255, 255, 0.1);
-          border: none;
+          border: 3px solid transparent;
           border-radius: 12px;
           color: #fff;
           cursor: pointer;
           transition: all 0.2s;
 
           &:hover {
-            background: #e94560;
-            transform: scale(1.05);
+            border-color: #e94560;
+            transform: scale(1.02);
           }
 
           &.tv-focused {
-            outline: 3px solid #e94560;
-            outline-offset: 2px;
-            background: rgba(233, 69, 96, 0.2);
+            border-color: #e94560;
           }
 
           .social-label {
@@ -215,7 +225,7 @@
         width: 100%;
         padding: 14px 24px;
         background: rgba(255, 255, 255, 0.1);
-        border: none;
+        border: 3px solid transparent;
         border-radius: 8px;
         color: #fff;
         font-size: 16px;
@@ -224,13 +234,11 @@
         transition: all 0.2s;
 
         &:hover {
-          background: #e94560;
+          border-color: #e94560;
         }
 
         &.tv-focused {
-          outline: 3px solid #e94560;
-          outline-offset: 2px;
-          background: rgba(233, 69, 96, 0.2);
+          border-color: #e94560;
         }
       }
     }
