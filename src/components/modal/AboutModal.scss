@@ -107,10 +107,13 @@
 
       .logo-section {
         margin-bottom: 20px;
+        display: flex;
+        justify-content: center;
 
         .about-logo {
           width: 150px;
           height: auto;
+          display: block;
         }
       }
 

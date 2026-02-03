@@ -58,6 +58,7 @@ function Watch() {
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const playerIframeRef = useRef(null);
   const recommendedRef = useRef(null);
   const mainContentRef = useRef(null);
@@ -105,6 +106,20 @@ function Watch() {
   const triggerTogglePlay = useCallback(() => {
     sendPlayerCommand('toggle-play');
   }, [sendPlayerCommand]);
+
+  const triggerSeekBackward = useCallback(() => {
+    const iframe = document.querySelector('.video-iframe-wrapper iframe');
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'seekBackward', seconds: 10 }, '*');
+    }
+  }, []);
+
+  const triggerSeekForward = useCallback(() => {
+    const iframe = document.querySelector('.video-iframe-wrapper iframe');
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({ type: 'seekForward', seconds: 10 }, '*');
+    }
+  }, []);
 
   const triggerFullscreen = useCallback(() => {
     // In TV mode (iframe context), request fullscreen from parent Tizen app
@@ -353,6 +368,11 @@ function Watch() {
       if (event.data && event.data.type === '3speak-timeupdate') {
         setVideoCurrentTime(event.data.currentTime || 0);
         setVideoDuration(event.data.duration || 0);
+      }
+
+      // Handle play state change from player
+      if (event.data && event.data.type === '3speak-playstate') {
+        setIsVideoPlaying(event.data.isPlaying || false);
       }
 
       // Handle duration change from player
@@ -725,6 +745,13 @@ function Watch() {
             currentTime: videoCurrentTime,
             duration: videoDuration,
             isVisible: true,
+            showControls: true,
+            isPlaying: isVideoPlaying,
+            isFullscreen: isCssFullscreen,
+            onSeekBackward: triggerSeekBackward,
+            onTogglePlay: triggerTogglePlay,
+            onSeekForward: triggerSeekForward,
+            onToggleFullscreen: triggerFullscreen,
           } : null}
         />
       </div>
@@ -767,6 +794,13 @@ function Watch() {
           currentTime={videoCurrentTime}
           duration={videoDuration}
           isVisible={true}
+          showControls={true}
+          isPlaying={isVideoPlaying}
+          isFullscreen={isCssFullscreen}
+          onSeekBackward={triggerSeekBackward}
+          onTogglePlay={triggerTogglePlay}
+          onSeekForward={triggerSeekForward}
+          onToggleFullscreen={triggerFullscreen}
         />
       )}
     </div>

@@ -184,13 +184,6 @@ function AboutModal({ onClose }) {
             </p>
           </div>
 
-          <div className="about-features">
-            <div className="feature">
-              <span className="feature-icon">👥</span>
-              <span>Community Owned</span>
-            </div>
-          </div>
-
           {/* Social Links */}
           <div className="social-section">
             <h4>Connect with us</h4>

@@ -409,6 +409,13 @@ const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false, tvPr
                   duration={tvProgressBar.duration}
                   isVisible={tvProgressBar.isVisible}
                   overlay={true}
+                  showControls={tvProgressBar.showControls}
+                  isPlaying={tvProgressBar.isPlaying}
+                  isFullscreen={tvProgressBar.isFullscreen}
+                  onSeekBackward={tvProgressBar.onSeekBackward}
+                  onTogglePlay={tvProgressBar.onTogglePlay}
+                  onSeekForward={tvProgressBar.onSeekForward}
+                  onToggleFullscreen={tvProgressBar.onToggleFullscreen}
                 />
               )}
             </div>
@@ -596,6 +603,13 @@ PlayVideo.propTypes = {
     currentTime: PropTypes.number,
     duration: PropTypes.number,
     isVisible: PropTypes.bool,
+    showControls: PropTypes.bool,
+    isPlaying: PropTypes.bool,
+    isFullscreen: PropTypes.bool,
+    onSeekBackward: PropTypes.func,
+    onTogglePlay: PropTypes.func,
+    onSeekForward: PropTypes.func,
+    onToggleFullscreen: PropTypes.func,
   }),
 };
 
