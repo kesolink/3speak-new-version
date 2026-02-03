@@ -22,16 +22,26 @@ const CommentVoteTooltip = ({
   setVoteValue,
   accountData,
   setAccountData,
-  setActiveTooltipPermlink
+  setActiveTooltipPermlink,
+  onVoteSuccess // Optional callback for when vote succeeds (used by Short.jsx for main post)
 }) => {
   const { user, authenticated } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   const tooltipRef = useRef(null);
+  const isLoadingRef = useRef(false); // Track loading state for click outside handler
 
-  // Close tooltip on outside click
+  // Keep isLoadingRef in sync with isLoading state
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  // Close tooltip on outside click (but not while voting is in progress)
   useEffect(() => {
     const handleClickOutside = (e) => {
+      // Don't close if voting is in progress
+      if (isLoadingRef.current) return;
+
       if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
         setShowTooltip(false);
         setActiveTooltipPermlink?.(null);
@@ -55,7 +65,7 @@ const CommentVoteTooltip = ({
       try {
         setIsCalculating(true);
         const result = await getVotePower(user);
-        
+
         if (result && result.account) {
           setAccountData(result.account);
           // Calculate initial vote value with the fetched account data
@@ -78,7 +88,7 @@ const CommentVoteTooltip = ({
   // Recalculate vote value when weight changes
   useEffect(() => {
     if (!accountData) return;
-    
+
     const debounceTimer = setTimeout(() => {
       calculateVoteValue(accountData, weight);
     }, 100); // Small debounce to avoid too many calculations
@@ -134,6 +144,12 @@ const CommentVoteTooltip = ({
       const isNewVote = !existingVote;
       setCommentList(prev => updateCommentsRecursively(prev, permlink, false, isNewVote));
 
+      // Call onVoteSuccess callback if provided (for main post votes in Short.jsx)
+      if (onVoteSuccess) {
+        onVoteSuccess(author, permlink, isNewVote, voteWeight);
+      }
+
+      // Close tooltip only after successful vote
       setShowTooltip(false);
       setActiveTooltipPermlink?.(null);
     } catch (err) {
@@ -153,9 +169,9 @@ const CommentVoteTooltip = ({
           has_voted: !isRollback, // true for vote, false for rollback
           stats: {
             ...comment.stats,
-            num_likes: isRollback 
+            num_likes: isRollback
               ? Math.max(0, (comment.stats.num_likes || 0) - 1)
-              : isNewVote 
+              : isNewVote
                 ? (comment.stats.num_likes || 0) + 1
                 : comment.stats.num_likes || 0, // Re-vote: don't increment
           },
@@ -174,9 +190,9 @@ const CommentVoteTooltip = ({
   };
 
   return (
-    <div 
-      className="upvote-tooltip-wrap" 
-      ref={tooltipRef} 
+    <div
+      className="upvote-tooltip-wrap"
+      ref={tooltipRef}
       onClick={(e) => e.preventDefault()}
     >
       {showTooltip && (
@@ -185,16 +201,16 @@ const CommentVoteTooltip = ({
           <div className="wrap">
             {isLoading ? (
               <div className='wrap-circle'>
-                <TailChase 
-                  className="loader-circle" 
-                  size="15" 
-                  speed="1.5" 
-                  color="red" 
+                <TailChase
+                  className="loader-circle"
+                  size="15"
+                  speed="1.5"
+                  color="red"
                 />
               </div>
             ) : (
-              <IoChevronUpCircleOutline 
-                size={30} 
+              <IoChevronUpCircleOutline
+                size={30}
                 onClick={handleVote}
                 style={{ cursor: 'pointer' }}
               />
