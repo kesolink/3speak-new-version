@@ -39,6 +39,8 @@ export default defineConfig({
   define: {
     "process.env": {},
     global: "globalThis",
+    // Expose commit hash from Vercel build environment
+    "import.meta.env.VITE_COMMIT_SHA": JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA || "development"),
   },
 
   resolve: {

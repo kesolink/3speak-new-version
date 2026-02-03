@@ -21,6 +21,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
 import { useTVMode } from "../../context/TVModeContext";
 import { useTVKeyboard } from "../../context/TVKeyboardContext";
+import AboutModal from "../modal/AboutModal";
 
 const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, onTvSidebarNavigate, onTvSidebarAction, onTvLogin }) => {
   const { authenticated, theme, toggleTheme, user } = useAppStore();
@@ -28,6 +29,7 @@ const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, on
   const { openKeyboard } = useTVKeyboard();
   const navigate = useNavigate();
   const [tvSearchTerm, setTvSearchTerm] = useState('');
+  const [showAboutModal, setShowAboutModal] = useState(false);
 
   // Build list of sidebar items based on authentication state
   // Note: Upload Video is hidden in TV mode (not practical for TV apps)
@@ -83,7 +85,13 @@ const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, on
     return () => document.removeEventListener('tv-open-keyboard', handleOpenKeyboard);
   }, [isTVMode, openKeyboard, tvSearchTerm, navigate]);
 
-  const handleItemClick = (to) => {
+  const handleItemClick = (to, e) => {
+    // In TV mode, open About modal instead of navigating
+    if (isTVMode && to === "/about") {
+      e?.preventDefault();
+      setShowAboutModal(true);
+      return;
+    }
     if (isTVMode && onTvSidebarNavigate) {
       onTvSidebarNavigate(to);
     }
@@ -168,7 +176,7 @@ const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, on
               className={`side-link${isTVMode && tvSidebarFocusIndex === tvIndex ? ' tv-focused' : ''}`}
               data-tv-sidebar-focusable="true"
               data-tv-sidebar-index={tvIndex}
-              onClick={() => handleItemClick(item.to)}
+              onClick={(e) => handleItemClick(item.to, e)}
             >
               {item.icon} <span>{item.label}</span>
             </Link>
@@ -218,6 +226,11 @@ const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, on
             <span>Play Store</span>
           </a>
         </div>
+      )}
+
+      {/* About Modal for TV Mode */}
+      {showAboutModal && (
+        <AboutModal onClose={() => setShowAboutModal(false)} />
       )}
     </div>
   );
