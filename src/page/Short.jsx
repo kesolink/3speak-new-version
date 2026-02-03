@@ -37,6 +37,7 @@ import { useAppStore } from '../lib/store';
 import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
+import { PLAYER_URL } from '../utils/config';
 
 
 /* ================= COMPONENT ================= */
@@ -108,6 +109,8 @@ const VideoShort = () => {
       console.log(`[VideoShort] No iframe found for video ${video.id}`);
     }
   }, []);
+
+  console.log("PLAYER_URL " , PLAYER_URL )
 
   // Send command to current video
   const sendCommand = useCallback((command, data = {}) => {
@@ -910,7 +913,7 @@ const VideoShort = () => {
                 key={video.id}
                 id={getPlayerId(video)}
                 ref={(el) => setIframeRef(video.id, el)}
-                src={`https://play.3speak.tv/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0`}
+                src={`${PLAYER_URL}/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0`}
                 width="100%"
                 height="100%"
                 frameBorder="0"

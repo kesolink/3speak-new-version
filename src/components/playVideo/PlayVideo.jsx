@@ -30,6 +30,7 @@ import UpvoteTooltip from "../tooltip/UpvoteTooltip";
 import axios from "axios";
 import { FEED_URL } from '../../utils/config';
 import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
+import { PLAYER_URL } from "../../utils/config";
 
 dayjs.extend(relativeTime);
 
@@ -271,7 +272,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
           {(author && permlink) ? (
             <div className="video-iframe-wrapper">
               <iframe
-                src={`https://play.3speak.tv/watch?v=${author}/${permlink}&layout=desktop&mode=iframe`}
+                src={`${PLAYER_URL}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe`}
                 style={{
                   position: "absolute",
                   top: 0,
