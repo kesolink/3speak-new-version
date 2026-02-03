@@ -14,6 +14,7 @@ import { FaFire, FaRegSmile } from "react-icons/fa";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { Link } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
+import { SiYoutubeshorts } from "react-icons/si";
 
 const Sidebar = ({ sidebar }) => {
   const {  authenticated } = useAppStore();
@@ -36,6 +37,9 @@ const Sidebar = ({ sidebar }) => {
         </Link>
         <Link to="/new" className="side-link">
           <LuNewspaper className="icon" /> <span>New Content</span>
+        </Link>
+        <Link to="/shorts" className="side-link">
+          <SiYoutubeshorts className="icon" /> <span>Shorts</span>
         </Link>
         <Link to="/communities" className="side-link">
           <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>

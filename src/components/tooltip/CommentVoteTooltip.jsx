@@ -24,17 +24,27 @@ const CommentVoteTooltip = ({
   setVoteValue, 
   accountData, 
   setAccountData, 
-  setActiveTooltipPermlink 
+  setActiveTooltipPermlink,
+  onVoteSuccess // Optional callback for when vote succeeds (used by Short.jsx for main post)
 }) => {
   const { user, authenticated } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   const tooltipRef = useRef(null);
+  const isLoadingRef = useRef(false); // Track loading state for click outside handler
   const accessToken = localStorage.getItem("access_token");
 
-  // Close tooltip on outside click
+  // Keep isLoadingRef in sync with isLoading state
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  // Close tooltip on outside click (but not while voting is in progress)
   useEffect(() => {
     const handleClickOutside = (e) => {
+      // Don't close if voting is in progress
+      if (isLoadingRef.current) return;
+      
       if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
         setShowTooltip(false);
         setActiveTooltipPermlink?.(null);
@@ -143,8 +153,6 @@ const CommentVoteTooltip = ({
         }
       );
 
-      
-
       if (response.data.success) {
         toast.success(`Vote successful! Value: $${voteValue}`);
         
@@ -152,6 +160,12 @@ const CommentVoteTooltip = ({
         const isNewVote = !existingVote;
         setCommentList(prev => updateCommentsRecursively(prev, permlink, false, isNewVote));
         
+        // Call onVoteSuccess callback if provided (for main post votes in Short.jsx)
+        if (onVoteSuccess) {
+          onVoteSuccess(author, permlink, isNewVote, voteWeight);
+        }
+        
+        // Close tooltip only after successful vote
         setShowTooltip(false);
         setActiveTooltipPermlink?.(null);
       } else {

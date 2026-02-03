@@ -17,9 +17,23 @@ import {
   Send
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
+
+// Custom Hive Icon Component
+const HiveIcon = ({ size = 24, className = '' }) => (
+  <svg
+    role="img"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    className={className}
+    fill="currentColor"
+  >
+    <path d="M6.076 1.637a.103.103 0 00-.09.05L.014 11.95a.102.102 0 000 .104l6.039 10.26c.04.068.14.068.18 0l5.972-10.262a.102.102 0 00-.002-.104L6.166 1.687a.103.103 0 00-.09-.05zm2.863 0c-.079 0-.13.085-.09.154l5.186 8.967a.105.105 0 00.09.053h3.117c.08 0 .13-.088.09-.157l-5.186-8.966a.104.104 0 00-.09-.051H8.94zm5.891 0a.102.102 0 00-.088.154L20.656 12l-5.914 10.209a.102.102 0 00.088.154h3.123a.1.1 0 00.088-.05l5.945-10.262a.1.1 0 000-.102L18.041 1.688a.1.1 0 00-.088-.051H14.83zm-.79 11.7a.1.1 0 00-.089.052l-5.101 8.82c-.04.069.01.154.09.154h3.117a.104.104 0 00.09-.05l5.1-8.82a.103.103 0 00-.09-.155h-3.118z" />
+  </svg>
+);
 import hiveApi from '../hive-api/hiveApi';
 import { useAppStore } from '../lib/store';
-// import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
@@ -27,7 +41,7 @@ import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 
 /* ================= COMPONENT ================= */
 const VideoShort = () => {
-  const { user } = useAppStore();
+  const { user, authenticated } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [videos, setVideos] = useState([]);
   const [showComments, setShowComments] = useState(false);
@@ -67,6 +81,11 @@ const VideoShort = () => {
   const playPauseTimeoutRef = useRef(null);
   const commentsFetchedRef = useRef(new Set());
   const videoContainerRef = useRef(null);
+  const iframeRefs = useRef({}); // Store refs to all iframes by video id
+  const keyboardRef = useRef(null); // capture keyboard events on mobile when focused
+  const prevIndexRef = useRef(0); // Track previous index
+  const readyPlayers = useRef(new Set()); // Track which players have sent 3speak-player-ready
+  const pendingPlayRef = useRef(null); // Track video waiting to be played
 
   const accessToken = localStorage.getItem("access_token");
 
@@ -78,14 +97,23 @@ const VideoShort = () => {
   // Get stable iframe id for a video
   const getPlayerId = useCallback((video) => `player-${video?.id}`, []);
 
+  // Send command to a specific video's iframe
+  const sendCommandToVideo = useCallback((video, command, data = {}) => {
+    if (!video) return;
+    const iframe = iframeRefs.current[video.id];
+    if (iframe?.contentWindow) {
+      console.log(`[VideoShort] Sending "${command}" to video ${video.id}`);
+      iframe.contentWindow.postMessage({ type: command, ...data }, '*');
+    } else {
+      console.log(`[VideoShort] No iframe found for video ${video.id}`);
+    }
+  }, []);
+
+  // Send command to current video
   const sendCommand = useCallback((command, data = {}) => {
     const currentVid = videos[currentIndex];
-    if (!currentVid) return;
-    const iframe = document.getElementById(getPlayerId(currentVid));
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: command, ...data }, '*');
-    }
-  }, [videos, currentIndex, getPlayerId]);
+    sendCommandToVideo(currentVid, command, data);
+  }, [videos, currentIndex, sendCommandToVideo]);
 
   const togglePlayPause = useCallback((e) => {
     e.stopPropagation();
@@ -149,49 +177,62 @@ const VideoShort = () => {
       const data = event.data;
       if (!data || !data.type) return;
 
+      // Find which iframe sent this message
+      let sourceVideoId = null;
+      for (const [videoId, iframe] of Object.entries(iframeRefs.current)) {
+        if (iframe?.contentWindow === event.source) {
+          sourceVideoId = videoId;
+          break;
+        }
+      }
+
       const currentVid = videos[currentIndex];
-      if (!currentVid) return;
+      const isFromCurrentVideo = currentVid && sourceVideoId === currentVid.id;
 
       switch (data.type) {
         case '3speak-player-ready':
-          // Apply styles to all preloaded iframes that report ready
-          // Only autoplay the current one
-          const currentIframe = document.getElementById(getPlayerId(currentVid));
-          if (currentIframe && data.isVertical !== undefined) {
-            // Apply orientation styles to the iframe that sent the message
-            const sourceIframe = event.source ?
-              Array.from(document.querySelectorAll('iframe')).find(f => f.contentWindow === event.source) :
-              currentIframe;
-
-            if (sourceIframe && data.isVertical !== undefined) {
-              if (data.isVertical) {
-                sourceIframe.style.position = 'absolute';
-                sourceIframe.style.top = '0';
-                sourceIframe.style.left = '50%';
-                sourceIframe.style.transform = 'translateX(-50%)';
-                sourceIframe.style.width = 'auto';
-                sourceIframe.style.height = '100%';
-                sourceIframe.style.aspectRatio = '9 / 16';
-              } else {
-                sourceIframe.style.position = 'absolute';
-                sourceIframe.style.top = '50%';
-                sourceIframe.style.left = '0';
-                sourceIframe.style.transform = 'translateY(-50%)';
-                sourceIframe.style.width = '100%';
-                sourceIframe.style.height = 'auto';
-                sourceIframe.style.aspectRatio = '16 / 9';
-              }
+          console.log(`[VideoShort] Player ready for video: ${sourceVideoId}, current: ${currentVid?.id}`);
+          
+          // Mark this player as ready
+          if (sourceVideoId) {
+            readyPlayers.current.add(sourceVideoId);
+          }
+          
+          // Apply orientation styles to the source iframe
+          const sourceIframe = sourceVideoId ? iframeRefs.current[sourceVideoId] : null;
+          if (sourceIframe && data.isVertical !== undefined) {
+            if (data.isVertical) {
+              sourceIframe.style.position = 'absolute';
+              sourceIframe.style.top = '0';
+              sourceIframe.style.left = '50%';
+              sourceIframe.style.transform = 'translateX(-50%)';
+              sourceIframe.style.width = 'auto';
+              sourceIframe.style.height = '100%';
+              sourceIframe.style.aspectRatio = '9 / 16';
+            } else {
+              sourceIframe.style.position = 'absolute';
+              sourceIframe.style.top = '50%';
+              sourceIframe.style.left = '0';
+              sourceIframe.style.transform = 'translateY(-50%)';
+              sourceIframe.style.width = '100%';
+              sourceIframe.style.height = 'auto';
+              sourceIframe.style.aspectRatio = '16 / 9';
             }
+          }
 
-            // Only autoplay if this is the current video's iframe
-            if (sourceIframe === currentIframe) {
-              setTimeout(() => sendCommand('play'), 100);
-            }
+          // If this video is waiting to be played (is current and was pending), play it now
+          if (isFromCurrentVideo || pendingPlayRef.current === sourceVideoId) {
+            console.log(`[VideoShort] Player ready - now playing: ${sourceVideoId}`);
+            pendingPlayRef.current = null;
+            setTimeout(() => {
+              sourceIframe?.contentWindow?.postMessage({ type: 'play' }, '*');
+            }, 50);
           }
           break;
 
         case '3speak-timeupdate':
-          if (!isScrubbing && data.duration > 0) {
+          // Only update state if from current video
+          if (isFromCurrentVideo && !isScrubbing && data.duration > 0) {
             setCurrentTime(data.currentTime || 0);
             setDuration(data.duration);
             if (data.paused !== undefined) {
@@ -201,57 +242,112 @@ const VideoShort = () => {
           break;
 
         case '3speak-durationchange':
-          setDuration(data.duration || 0);
+          if (isFromCurrentVideo) {
+            setDuration(data.duration || 0);
+          }
           break;
 
         case '3speak-play':
-          setIsPlaying(true);
+          if (isFromCurrentVideo) {
+            setIsPlaying(true);
+          }
           break;
 
         case '3speak-pause':
-          setIsPlaying(false);
+          if (isFromCurrentVideo) {
+            setIsPlaying(false);
+          }
           break;
 
         case '3speak-ended':
-          setIsPlaying(false);
+          if (isFromCurrentVideo) {
+            setIsPlaying(false);
+          }
           break;
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [sendCommand, isScrubbing, videos, currentIndex, getPlayerId]);
+  }, [isScrubbing, videos, currentIndex]);
 
-  // Track previous video to pause it
-  const prevVideoRef = useRef(null);
-
-  // Reset player state and control playback when video changes
+  // Handle video change - pause previous, play current
   useEffect(() => {
     const currentVid = videos[currentIndex];
+    const prevIndex = prevIndexRef.current;
+    const prevVid = videos[prevIndex];
+
     if (!currentVid) return;
 
+    console.log(`[VideoShort] Index changed: ${prevIndex} -> ${currentIndex}, video: ${currentVid.id}`);
+
+    // Reset player state
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
 
-    // Pause the previous video
-    if (prevVideoRef.current && prevVideoRef.current.id !== currentVid.id) {
-      const prevIframe = document.getElementById(getPlayerId(prevVideoRef.current));
-      if (prevIframe?.contentWindow) {
-        prevIframe.contentWindow.postMessage({ type: 'pause' }, '*');
-      }
+    // Pause the previous video if different
+    if (prevVid && prevVid.id !== currentVid.id) {
+      console.log(`[VideoShort] Pausing previous video: ${prevVid.id}`);
+      sendCommandToVideo(prevVid, 'pause');
     }
 
-    // Play the current video after a short delay
-    setTimeout(() => {
-      const currentIframe = document.getElementById(getPlayerId(currentVid));
-      if (currentIframe?.contentWindow) {
-        currentIframe.contentWindow.postMessage({ type: 'play' }, '*');
-      }
-    }, 100);
+    // Check if the player is already ready
+    const isPlayerReady = readyPlayers.current.has(currentVid.id);
+    console.log(`[VideoShort] Player ready status for ${currentVid.id}: ${isPlayerReady}`);
 
-    prevVideoRef.current = currentVid;
-  }, [currentIndex, videos, getPlayerId]);
+    if (isPlayerReady) {
+      // Player is ready, play immediately
+      const iframe = iframeRefs.current[currentVid.id];
+      if (iframe?.contentWindow) {
+        console.log(`[VideoShort] Playing immediately (player ready): ${currentVid.id}`);
+        iframe.contentWindow.postMessage({ type: 'play' }, '*');
+      }
+    } else {
+      // Player not ready yet, set as pending and wait for 3speak-player-ready
+      console.log(`[VideoShort] Player not ready, setting pending play: ${currentVid.id}`);
+      pendingPlayRef.current = currentVid.id;
+      
+      // Also set up a fallback with retries in case the ready event was missed
+      const timeouts = [];
+      const playIfReady = (attempt) => {
+        // Check if still the current video and still pending
+        if (pendingPlayRef.current !== currentVid.id) {
+          console.log(`[VideoShort] Skipping retry - no longer pending: ${currentVid.id}`);
+          return;
+        }
+        
+        // Check if player became ready
+        if (readyPlayers.current.has(currentVid.id)) {
+          const iframe = iframeRefs.current[currentVid.id];
+          if (iframe?.contentWindow) {
+            console.log(`[VideoShort] Playing on retry ${attempt} (player now ready): ${currentVid.id}`);
+            pendingPlayRef.current = null;
+            iframe.contentWindow.postMessage({ type: 'play' }, '*');
+          }
+        } else {
+          console.log(`[VideoShort] Retry ${attempt}: Player still not ready: ${currentVid.id}`);
+        }
+      };
+      
+      // Retry at longer intervals to catch late ready events
+      [500, 1000, 1500, 2000, 3000, 4000, 5000].forEach((delay, idx) => {
+        const timeout = setTimeout(() => playIfReady(idx + 1), delay);
+        timeouts.push(timeout);
+      });
+
+      // Update previous index
+      prevIndexRef.current = currentIndex;
+
+      // Cleanup
+      return () => {
+        timeouts.forEach(t => clearTimeout(t));
+      };
+    }
+
+    // Update previous index
+    prevIndexRef.current = currentIndex;
+  }, [currentIndex, videos, sendCommandToVideo]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -269,7 +365,7 @@ const VideoShort = () => {
         setLoading(true);
         setError(null);
 
-        const data = await hiveApi.fetchShortsWithDetails(1, 10);
+        const data = await hiveApi.fetchShortsWithDetails(1, 10, user);
 
         if (data.success) {
           console.log(data.shorts);
@@ -295,8 +391,8 @@ const VideoShort = () => {
               views: short.views,
               payout: short.stats.payout
             },
-            isLiked: false,
-            isDisliked: false,
+            isLiked: short.isLiked || false,
+            isDisliked: short.isDisliked || false,
             comments: [],
             commentsLoaded: false,
             timeAgo: short.timeAgo,
@@ -315,7 +411,7 @@ const VideoShort = () => {
     };
 
     fetchShorts();
-  }, []);
+  }, [user]);
 
   /* ---------- LOAD MORE VIDEOS ---------- */
   const loadMoreVideos = useCallback(async () => {
@@ -325,7 +421,8 @@ const VideoShort = () => {
     setPage(nextPage);
 
     try {
-      const data = await hiveApi.fetchShortsWithDetails(nextPage, 10);
+
+      const data = await hiveApi.fetchShortsWithDetails(nextPage, 10, user);
 
       if (data.success) {
         const formattedVideos = data.shorts.map(short => ({
@@ -350,8 +447,8 @@ const VideoShort = () => {
             views: short.views,
             payout: short.stats.payout
           },
-          isLiked: false,
-          isDisliked: false,
+          isLiked: short.isLiked || false,
+          isDisliked: short.isDisliked || false,
           comments: [],
           commentsLoaded: false,
           timeAgo: short.timeAgo,
@@ -377,7 +474,7 @@ const VideoShort = () => {
     commentsFetchedRef.current.add(video.id);
 
     try {
-      const comments = await hiveApi.fetchPostComments(video.author, video.hivePermlink);
+      const comments = await hiveApi.fetchPostComments(video.author, video.hivePermlink, user);
 
       setVideos(prev =>
         prev.map((v, idx) =>
@@ -404,6 +501,12 @@ const VideoShort = () => {
 
   /* ---------- VOTE TOOLTIP ---------- */
   const toggleVoteTooltip = (author, permlink) => {
+    // Require authentication before opening the vote tooltip
+    if (!authenticated) {
+      toast.error('Login to complete this operation');
+      return;
+    }
+
     setSelectedComment({ author, permlink });
     setShowTooltip(prev => !prev || activeTooltipPermlink !== permlink);
     setActiveTooltipPermlink(prev => (prev === permlink ? null : permlink));
@@ -532,6 +635,60 @@ const VideoShort = () => {
     );
   };
 
+  // Update post (video) state after a vote on the main post
+  const handlePostVoteSuccess = (author, permlink, isNewVote, voteWeight) => {
+    setVideos(prev => prev.map(v => {
+      if (v.author === author && v.hivePermlink === permlink) {
+        // Only increment likes count if it's a new vote (not a re-vote with different weight)
+        const newLikes = isNewVote 
+          ? (v.stats?.likes || 0) + 1 
+          : v.stats?.likes || 0;
+        return {
+          ...v,
+          isLiked: true, // Always set to true on successful vote
+          stats: { ...v.stats, likes: newLikes }
+        };
+      }
+      return v;
+    }));
+  };
+
+  /* ---------- SHARE FUNCTIONALITY ---------- */
+  const handleShare = async () => {
+    if (!currentVideo) return;
+
+    const shareUrl = `${window.location.origin}/watch?v=${currentVideo.author}/${currentVideo.permlink}`;
+    const shareData = {
+      title: currentVideo.caption || '3Speak Video',
+      text: `Check out this video by ${currentVideo.user.username} on 3Speak!`,
+      url: shareUrl
+    };
+
+    try {
+      // Check if Web Share API is supported (mainly mobile)
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        toast.success('Shared successfully!');
+      } else {
+        // Fallback: Copy to clipboard
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard!');
+      }
+    } catch (err) {
+      // User cancelled share or error occurred
+      if (err.name !== 'AbortError') {
+        // Try clipboard as fallback
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          toast.success('Link copied to clipboard!');
+        } catch (clipboardErr) {
+          console.error('Share failed:', err);
+          toast.error('Failed to share');
+        }
+      }
+    }
+  };
+
   /* ---------- INTERACTIONS ---------- */
 
   const handleSubscribe = () => {
@@ -567,6 +724,46 @@ const VideoShort = () => {
     }
   };
 
+  // Keyboard navigation: ArrowUp = previous, ArrowDown = next
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore when typing in inputs or when comments panel is open or transitioning
+      const active = document.activeElement;
+      const tag = active?.tagName;
+      const isEditable = active?.isContentEditable;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || isEditable) return;
+      if (showComments || isTransitioning) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        handlePrevious();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleNext, handlePrevious, showComments, isTransitioning]);
+
+  // Local handler for the hidden focusable element (helps capture on mobile)
+  const handleKeyDownCapture = (e) => {
+    const active = document.activeElement;
+    const tag = active?.tagName;
+    const isEditable = active?.isContentEditable;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || isEditable) return;
+    if (showComments || isTransitioning) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      handleNext();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      handlePrevious();
+    }
+  };
+
   /* ---------- TOUCH/SWIPE HANDLERS FOR MOBILE ---------- */
 
   const onTouchStart = (e) => {
@@ -574,6 +771,12 @@ const VideoShort = () => {
     if (showComments) return;
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientY);
+    // attempt to focus the hidden keyboard capture so mobile hardware keyboards send events
+    try {
+      keyboardRef.current?.focus?.();
+    } catch (err) {
+      // ignore
+    }
   };
 
   const onTouchMove = (e) => {
@@ -608,17 +811,41 @@ const VideoShort = () => {
   const formatNumber = (num) =>
     num >= 1000 ? (num / 1000).toFixed(1) + 'K' : num?.toString() || '0';
 
+  const formatPayout = (payout) => {
+    if (payout === null || payout === undefined) return '$0.00';
+    const num = parseFloat(payout);
+    if (isNaN(num)) return '$0.00';
+    if (num >= 1000) return `$${(num / 1000).toFixed(1)}K`;
+    return `$${num.toFixed(2)}`;
+  };
+
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Dynamic preload range based on device
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const preloadRange = isMobile
-    ? { before: 2, after: 4 }  // 7 iframes on mobile
-    : { before: 3, after: 5 }; // 9 iframes on desktop
+  // Calculate which videos to preload - keep more in memory
+  const preloadRange = { before: 3, after: 6 };
   const preloadedIndices = [];
   for (let i = Math.max(0, currentIndex - preloadRange.before); i <= Math.min(videos.length - 1, currentIndex + preloadRange.after); i++) {
     preloadedIndices.push(i);
   }
+
+  // Store iframe ref
+  const setIframeRef = useCallback((videoId, element) => {
+    if (element) {
+      iframeRefs.current[videoId] = element;
+    }
+  }, []);
+
+  // Clean up old iframe refs that are no longer in preload range
+  useEffect(() => {
+    const preloadedIds = new Set(preloadedIndices.map(idx => videos[idx]?.id).filter(Boolean));
+    Object.keys(iframeRefs.current).forEach(id => {
+      if (!preloadedIds.has(id)) {
+        delete iframeRefs.current[id];
+        // Also remove from ready players since the iframe is gone
+        readyPlayers.current.delete(id);
+      }
+    });
+  }, [preloadedIndices, videos]);
 
   /* ---------- RENDER ---------- */
 
@@ -656,6 +883,13 @@ const VideoShort = () => {
 
   return (
     <main className="short-main">
+      <div
+        tabIndex={0}
+        ref={keyboardRef}
+        onKeyDown={handleKeyDownCapture}
+        className="keyboard-capture"
+        aria-hidden="true"
+      />
       <div className={`videoWrapper ${showComments ? 'with-comments' : ''}`}>
 
         {/* VIDEO */}
@@ -669,17 +903,27 @@ const VideoShort = () => {
           {/* Preloaded iframes for smooth playback */}
           {preloadedIndices.map((idx) => {
             const video = videos[idx];
+            if (!video) return null;
             const isCurrent = idx === currentIndex;
             return (
               <iframe
                 key={video.id}
                 id={getPlayerId(video)}
+                ref={(el) => setIframeRef(video.id, el)}
                 src={`https://play.3speak.tv/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0`}
                 width="100%"
                 height="100%"
                 frameBorder="0"
                 allow="autoplay; fullscreen"
                 allowFullScreen
+                onLoad={(e) => {
+                  console.log(`[VideoShort] Iframe loaded for video: ${video.id}, isCurrent: ${isCurrent}`);
+                  // Store ref again on load in case it wasn't set
+                  iframeRefs.current[video.id] = e.target;
+                  
+                  // Don't send play here - wait for 3speak-player-ready message
+                  // The player inside the iframe needs time to initialize Video.js
+                }}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -743,8 +987,8 @@ const VideoShort = () => {
         {/* SIDEBAR */}
         <div className="actionSidebar" onClick={(e) => e.stopPropagation()}>
           <div className="actionItem" onClick={(e) => { e.stopPropagation(); toggleVoteTooltip(currentVideo.author, currentVideo.hivePermlink); }}>
-            <div className="actionButton">
-              <ThumbsUp size={24} fill={currentVideo.isLiked ? "white" : "none"} />
+            <div className={`actionButton ${currentVideo.isLiked ? 'liked' : ''}`}>
+              <ThumbsUp size={24} />
             </div>
             <span className="actionLabel">{formatNumber(currentVideo.stats.likes)}</span>
             <CommentVoteTooltip
@@ -760,6 +1004,7 @@ const VideoShort = () => {
               setVoteValue={setVoteValue}
               accountData={accountData}
               setAccountData={setAccountData}
+              onVoteSuccess={handlePostVoteSuccess}
             />
           </div>
 
@@ -770,7 +1015,15 @@ const VideoShort = () => {
             <span className="actionLabel">{currentVideo.stats.comments}</span>
           </div>
 
+          {/* Reward/Payout Display */}
           <div className="actionItem" onClick={(e) => e.stopPropagation()}>
+            <div className="actionButton reward">
+              <HiveIcon size={24} />
+            </div>
+            <span className="actionLabel">{formatPayout(currentVideo.stats.payout)}</span>
+          </div>
+
+          <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleShare(); }}>
             <div className="actionButton">
               <Share2 size={24} />
             </div>
@@ -819,9 +1072,9 @@ const VideoShort = () => {
           <span className="commentsTitle">Comments</span>
           <span className="commentsCount">{currentVideo.stats.comments}</span>
           <div className="commentsHeaderActions">
-            <button className="headerBtn">
+            {/* <button className="headerBtn">
               <SlidersHorizontal size={20} />
-            </button>
+            </button> */}
             <button className="headerBtn" onClick={handleToggleComments}>
               <X size={20} />
             </button>
@@ -946,7 +1199,7 @@ const CommentItem = ({
             className={`commentActionBtn ${comment.has_voted ? 'liked' : ''}`}
             onClick={() => toggleVoteTooltip(comment.author, comment.permlink)}
           >
-            <ThumbsUp size={14} fill={comment.has_voted ? "white" : "none"} />
+            <ThumbsUp size={14} />
             <span>{comment.stats?.num_likes ?? 0}</span>
           </button>
           <div className="commentReward">

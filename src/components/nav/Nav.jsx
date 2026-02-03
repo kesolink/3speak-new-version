@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import SearchList from "./SearchList";
 import SearchList_Sm from "./SearchList_Sm";
 import { TiThMenu } from "react-icons/ti";
+import { SiYoutubeshorts } from "react-icons/si";
 
 function Nav({ setSideBar, toggleProfileNav }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
@@ -124,6 +125,9 @@ function Nav({ setSideBar, toggleProfileNav }) {
               <Link to="/new" className="side-link-n" onClick={handleNav}>
                 <LuNewspaper className="icon" /> <span>New Content</span>
               </Link>
+            <Link to="/shorts" className="side-link-n">
+              <SiYoutubeshorts className="icon" /> <span>Shorts</span>
+            </Link>
               <Link to="/communities" className="side-link-n" onClick={handleNav}>
                 <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>
               </Link>

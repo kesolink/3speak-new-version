@@ -160,7 +160,7 @@ function App() {
             <Route path="/editvideo/:d" element={<EditVideo />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route path="/about" element={<AboutPage />} />
-            <Route path="/short" element={<Short />} />
+            <Route path="/shorts" element={<Short />} />
             <Route
               path="/community/:communityName"
               element={<CommunityPage />}

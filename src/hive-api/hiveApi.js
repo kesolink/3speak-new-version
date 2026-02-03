@@ -75,7 +75,25 @@ export async function getAccounts(accounts) {
 export function parseEmbedUrl(embedUrl) {
   if (!embedUrl) return { author: null, permlink: null };
 
-  const cleaned = embedUrl.startsWith('@') ? embedUrl.slice(1) : embedUrl;
+  let cleaned = embedUrl;
+
+  // Handle full URLs like https://3speak.tv/watch?v=author/permlink 
+  // or https://play.3speak.tv/embed?v=author/permlink
+  if (embedUrl.includes('?v=')) {
+    cleaned = embedUrl.split('?v=')[1].split('&')[0];
+  } else if (embedUrl.includes('3speak.tv/')) {
+    // Handle formats like https://3speak.tv/author/permlink
+    const urlParts = embedUrl.split('3speak.tv/')[1].split('/');
+    if (urlParts.length >= 2) {
+      cleaned = `${urlParts[0]}/${urlParts[1]}`;
+    }
+  }
+
+  // Remove leading @ if present
+  if (cleaned.startsWith('@')) {
+    cleaned = cleaned.slice(1);
+  }
+
   const parts = cleaned.split('/');
 
   if (parts.length >= 2) {
@@ -143,7 +161,7 @@ export function timeAgo(dateString) {
    Short aggregation
 ------------------------------ */
 
-export async function fetchCompleteShortData(shortItem) {
+export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
   const {
     owner,
     permlink: playerPermlink,
@@ -200,6 +218,20 @@ export async function fetchCompleteShortData(shortItem) {
         base.stats.likes = post.stats?.total_votes || post.active_votes?.length || 0;
         base.stats.payout = post.payout || post.pending_payout_value || "0.00";
 
+        // Determine if the logged-in user has voted on the post
+        if (loggedInUser) {
+          try {
+            const userVoted = post.active_votes?.some(v => v.voter === loggedInUser) ?? false;
+            base.isLiked = userVoted;
+            // Check for negative percent to mark as disliked
+            const userVote = post.active_votes?.find(v => v.voter === loggedInUser);
+            base.isDisliked = userVote ? (userVote.percent < 0) : false;
+          } catch (_) {
+            base.isLiked = false;
+            base.isDisliked = false;
+          }
+        }
+
         if (post.author_reputation) {
           base.user.reputation = post.author_reputation;
         }
@@ -216,7 +248,7 @@ export async function fetchCompleteShortData(shortItem) {
    Fetch comments for a post
 ------------------------------ */
 
-export async function fetchPostComments(author, hivePermlink) {
+export async function fetchPostComments(author, hivePermlink, loggedInUser = null) {
   try {
     // Use condenser_api.get_content_replies like the CommentSection component
     const replies = await hiveRpc("condenser_api.get_content_replies", [author, hivePermlink]);
@@ -224,7 +256,7 @@ export async function fetchPostComments(author, hivePermlink) {
     if (!replies || replies.length === 0) return [];
 
     // Load nested comments recursively
-    const commentsWithChildren = await loadNestedComments(replies);
+    const commentsWithChildren = await loadNestedComments(replies, loggedInUser);
 
     return commentsWithChildren;
   } catch (err) {
@@ -285,7 +317,7 @@ async function loadNestedComments(comments, loggedInUser = null) {
    Bulk shorts fetch
 ------------------------------ */
 
-export async function fetchShortsWithDetails(page = 1, limit = 10) {
+export async function fetchShortsWithDetails(page = 1, limit = 10, loggedInUser = null) {
   const shortsList = await fetchShortsList(page, limit);
 
   if (!shortsList?.shorts) {
@@ -294,7 +326,7 @@ export async function fetchShortsWithDetails(page = 1, limit = 10) {
 
   const shorts = await Promise.all(
     shortsList.shorts.map((s) =>
-      fetchCompleteShortData(s).catch((err) => {
+      fetchCompleteShortData(s, loggedInUser).catch((err) => {
         console.warn(`Error fetching short data for ${s.embed_url}:`, err);
 
         const { author, permlink: hivePermlink } = parseEmbedUrl(s.embed_url);
