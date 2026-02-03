@@ -42,6 +42,7 @@ import Thumbnail from "./components/legacy-studio/Thumbnail";
 import Details from "./components/legacy-studio/Details";
 import Preview from "./components/legacy-studio/Preview";
 import Test from "./page/Test";
+import Short from "./page/Short";
 // import Email from "./page/Login/Email"
 // import AuthCallback from "./page/Login/AuthCallback";
 // import {AUTH_JWT_SECRET} from "../src/utils/config";
