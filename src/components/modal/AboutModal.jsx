@@ -159,7 +159,7 @@ function AboutModal({ onClose }) {
                 />
               </div>
               <p className="qr-url">{selectedLink.url}</p>
-              <button className="btn-close-qr" onClick={() => setSelectedLink(null)}>
+              <button className={`btn-close-qr${isTVMode ? ' tv-focused' : ''}`} onClick={() => setSelectedLink(null)}>
                 Close
               </button>
             </div>
