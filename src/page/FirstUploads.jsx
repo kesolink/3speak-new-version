@@ -10,6 +10,7 @@ import { FEED_URL } from '../utils/config';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTVSidebarNavigation } from '../hooks/useTVSidebarNavigation';
+import TVScrollIndicator from '../components/tv/TVScrollIndicator';
 
 const fetchVideos = async ({ pageParam = 1 }) => {
   const LIMIT = 300;
@@ -189,6 +190,9 @@ const FirstUploads = () => {
 
   return (
     <div className='firstupload-container' ref={containerRef}>
+        {/* TV Mode: Vertical scroll indicator */}
+        <TVScrollIndicator />
+
         <div className='headers'>FIRST TIME UPLOADS</div>
         {isRefreshing && (
           <div className="tv-refresh-indicator">Refreshing...</div>

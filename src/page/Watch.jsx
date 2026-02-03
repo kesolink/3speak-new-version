@@ -11,6 +11,7 @@ import { useTVSidebarNavigation } from '../hooks/useTVSidebarNavigation';
 import TVContextMenu from '../components/tv/TVContextMenu';
 import TVProgressBar from '../components/tv/TVProgressBar';
 import TVTipOverlay from '../components/tv/TVTipOverlay';
+import TVScrollIndicator from '../components/tv/TVScrollIndicator';
 import { followWithAioha, transferWithAioha } from '../hive-api/aioha';
 import { toast } from 'react-toastify';
 import { useAppStore } from '../lib/store';
@@ -709,6 +710,8 @@ function Watch() {
 
   return (
     <div className={`play-container ${isTVMode ? 'tv-mode-watch' : ''} ${isCssFullscreen ? 'css-fullscreen-mode' : ''}`}>
+      {/* TV Mode: Vertical scroll indicator (hidden in fullscreen) */}
+      {!isCssFullscreen && <TVScrollIndicator />}
 
       <div
         ref={mainContentRef}

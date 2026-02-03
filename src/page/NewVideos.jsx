@@ -6,6 +6,7 @@ import CardSkeleton from '../components/Cards/CardSkeleton'
 import Card3 from "../components/Cards/Card3";
 import { useNavigate } from 'react-router-dom';
 import { useTVSidebarNavigation } from '../hooks/useTVSidebarNavigation';
+import TVScrollIndicator from '../components/tv/TVScrollIndicator';
 
 const VIDEOS_PER_PAGE = 50;
 
@@ -207,6 +208,9 @@ const NewVideos = () => {
 
   return (
     <div className='firstupload-container' ref={containerRef}>
+      {/* TV Mode: Vertical scroll indicator */}
+      <TVScrollIndicator />
+
       <div className='headers'>New VIDEOS</div>
       {isRefreshing && (
         <div className="tv-refresh-indicator">Refreshing...</div>

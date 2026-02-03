@@ -7,6 +7,7 @@ import Card3 from "../components/Cards/Card3";
 import { FEED_URL } from '../utils/config';
 import { useNavigate } from 'react-router-dom';
 import { useTVSidebarNavigation } from '../hooks/useTVSidebarNavigation';
+import TVScrollIndicator from '../components/tv/TVScrollIndicator';
 
 const LIMIT = 500;
 
@@ -215,6 +216,9 @@ const Trend = () => {
 
   return (
     <div className="firstupload-container" ref={containerRef}>
+      {/* TV Mode: Vertical scroll indicator */}
+      <TVScrollIndicator />
+
       <div className="headers">TRENDING</div>
       {isRefreshing && (
         <div className="tv-refresh-indicator">Refreshing...</div>

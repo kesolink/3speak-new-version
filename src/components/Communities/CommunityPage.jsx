@@ -8,6 +8,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import Card3 from "../Cards/Card3";
 import CardSkeleton from "../Cards/CardSkeleton";
 import Com_PageSke_Loader from "./Com_PageSke_Loader";
+import TVScrollIndicator from "../tv/TVScrollIndicator";
 
 // Hive client
 const client = new Client(["https://api.hive.blog", "https://api.openhive.network"]);
@@ -100,6 +101,9 @@ function CommunityPage() {
 
   return (
     <div className="community-page-wrap">
+      {/* TV Mode: Vertical scroll indicator */}
+      <TVScrollIndicator />
+
       <div className="com-profile-img-wrap">
         <img src={`https://images.hive.blog/u/${id}/cover`} alt="" />
         <div className="wrap">

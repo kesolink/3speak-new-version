@@ -4,6 +4,7 @@ import SkeletonLoader from './SkeletonLoader';
 import './CommunitiesRender.scss';
 import { Link, useNavigate } from 'react-router-dom';
 import CreateCommunity from '../modal/CreateCommunity';
+import TVScrollIndicator from '../tv/TVScrollIndicator';
 
 const client = new Client([
   'https://api.hive.blog',
@@ -64,6 +65,9 @@ function CommunitiesRender() {
 
   return (
     <>
+    {/* TV Mode: Vertical scroll indicator */}
+    <TVScrollIndicator />
+
     <div className="communities-render">
       <div className="create-communitie-wrap">
         <h1 >Communities – Best online, decentralized, immutable, rewarding communities</h1>

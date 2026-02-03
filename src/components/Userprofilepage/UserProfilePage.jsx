@@ -17,6 +17,7 @@ import { IoMdShare } from 'react-icons/io';
 import { IoLogoRss } from 'react-icons/io5';
 import Follower from './Follower';
 import { useTVSidebarNavigation } from '../../hooks/useTVSidebarNavigation';
+import TVScrollIndicator from '../tv/TVScrollIndicator';
 
 
 
@@ -326,6 +327,9 @@ const {
 
   return (
     <div className="profile-page-container">
+      {/* TV Mode: Vertical scroll indicator */}
+      <TVScrollIndicator />
+
       <div className="profile-card">
         <div className="profile-header">
           <img className="gradient-bg" src={`https://images.hive.blog/u/${user}/cover`} alt="" />

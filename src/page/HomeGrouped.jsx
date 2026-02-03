@@ -10,6 +10,7 @@ import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
 import { FEED_URL } from "../utils/config";
 import { useTVMode } from "../context/TVModeContext";
+import TVScrollIndicator, { TVHorizontalScrollIndicator } from "../components/tv/TVScrollIndicator";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
@@ -269,6 +270,9 @@ const VideoRow = ({ title, videos, linkTo, isLoading, rowIndex, isActiveRow, onC
             <FaChevronRight />
           </button>
         )}
+
+        {/* TV Mode: Horizontal scroll indicator */}
+        <TVHorizontalScrollIndicator containerRef={scrollContainerRef} />
       </div>
     </div>
   );
@@ -528,6 +532,9 @@ const HomeGrouped = () => {
 
   return (
     <div className="home-grouped-container">
+      {/* TV Mode: Vertical scroll indicator */}
+      <TVScrollIndicator />
+
       {isRefreshing && isTVMode && (
         <div className="tv-refresh-indicator">
           <span>Refreshing...</span>

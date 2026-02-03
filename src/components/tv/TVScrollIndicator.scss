@@ -1,0 +1,94 @@
+// TV Scroll Indicator Styles
+// For Samsung TV UX compliance - Requirement 1.2
+
+.tv-scroll-indicator {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 8px;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+
+  .tv-scroll-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .tv-scroll-thumb {
+    position: absolute;
+    width: 100%;
+    background: linear-gradient(180deg, #e94560 0%, #ff6b6b 100%);
+    border-radius: 4px;
+    min-height: 30px;
+    transition: top 0.15s ease-out;
+    box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.tv-horizontal-scroll-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  max-width: 400px;
+  height: 6px;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+
+  .tv-horizontal-scroll-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .tv-horizontal-scroll-thumb {
+    position: absolute;
+    height: 100%;
+    background: linear-gradient(90deg, #e94560 0%, #ff6b6b 100%);
+    border-radius: 3px;
+    min-width: 40px;
+    transition: left 0.15s ease-out;
+    box-shadow: 0 2px 6px rgba(233, 69, 96, 0.3);
+  }
+}
+
+// Light theme adjustments
+[data-theme="light"] {
+  .tv-scroll-indicator {
+    .tv-scroll-track {
+      background: rgba(0, 0, 0, 0.1);
+    }
+  }
+
+  .tv-horizontal-scroll-indicator {
+    .tv-horizontal-scroll-track {
+      background: rgba(0, 0, 0, 0.1);
+    }
+  }
+}
+
+// Only show in TV mode
+body:not(.tv-mode) {
+  .tv-scroll-indicator,
+  .tv-horizontal-scroll-indicator {
+    display: none;
+  }
+}

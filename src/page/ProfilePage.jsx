@@ -10,6 +10,7 @@ import { getFollowers } from "../hive-api/api";
 import Card3 from "../components/Cards/Card3";
 import Follower from "../components/Userprofilepage/Follower";
 import BarLoader from "../components/Loader/BarLoader";
+import TVScrollIndicator from "../components/tv/TVScrollIndicator";
 
 import { FaVideo } from "react-icons/fa";
 import { IoLogoRss } from "react-icons/io5";
@@ -222,6 +223,9 @@ function ProfilePage() {
 
   return (
     <div className="profile-page-container">
+      {/* TV Mode: Vertical scroll indicator */}
+      <TVScrollIndicator />
+
       {/* ================= PROFILE HEADER ================= */}
       <div className="profile-card">
         <div className="profile-header">
