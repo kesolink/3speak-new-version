@@ -7,7 +7,88 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 10000;
+
+  // Theme backgrounds
+  &.dark-theme {
+    .about-modal-container {
+      background: #1a1a2e;
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .about-tagline,
+    .about-description p,
+    .feature span,
+    .social-section h4,
+    .social-label,
+    .version-info {
+      color: #ccc;
+    }
+
+    .qr-content {
+      background: #1a1a2e;
+      border-color: rgba(255, 255, 255, 0.2);
+
+      h3, p {
+        color: #fff;
+      }
+    }
+  }
+
+  &.light-theme {
+    .about-modal-container {
+      background: #ffffff;
+      border-color: rgba(0, 0, 0, 0.1);
+    }
+
+    .about-tagline,
+    .about-description p,
+    .feature span,
+    .social-section h4,
+    .social-label,
+    .version-info {
+      color: #333;
+    }
+
+    .social-link {
+      background: rgba(0, 0, 0, 0.05);
+      color: #333;
+
+      &:hover {
+        background: #e94560;
+        color: #fff;
+      }
+    }
+
+    .btn-close-bottom {
+      background: rgba(0, 0, 0, 0.05);
+      color: #333;
+
+      &:hover {
+        background: #e94560;
+        color: #fff;
+      }
+    }
+
+    .qr-content {
+      background: #ffffff;
+      border-color: rgba(0, 0, 0, 0.1);
+
+      h3, p {
+        color: #333;
+      }
+
+      .btn-close-qr {
+        background: rgba(0, 0, 0, 0.05);
+        color: #333;
+
+        &:hover {
+          background: #e94560;
+          color: #fff;
+        }
+      }
+    }
+  }
 
   .modal-backdrop {
     position: absolute;
@@ -15,44 +96,19 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.85);
   }
 
   .about-modal-container {
     position: relative;
-    background: var(--bg-color, #1a1a2e);
     border-radius: 16px;
     padding: 40px;
-    max-width: 600px;
+    max-width: 500px;
     width: 90%;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-
-    .btn-close {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: background 0.2s;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.2);
-      }
-
-      .icon {
-        color: var(--text-color, #fff);
-      }
-    }
+    border: 1px solid;
 
     .about-content {
       text-align: center;
@@ -61,21 +117,13 @@
         margin-bottom: 20px;
 
         .about-logo {
-          width: 120px;
+          width: 150px;
           height: auto;
         }
       }
 
-      .about-title {
-        font-size: 32px;
-        font-weight: 700;
-        color: var(--text-color, #fff);
-        margin: 0 0 8px 0;
-      }
-
       .about-tagline {
-        font-size: 16px;
-        color: #e94560;
+        font-size: 18px;
         margin: 0 0 24px 0;
         font-weight: 500;
       }
@@ -84,7 +132,6 @@
         margin-bottom: 24px;
 
         p {
-          color: var(--text-secondary, #aaa);
           font-size: 14px;
           line-height: 1.6;
           margin: 0;
@@ -94,15 +141,14 @@
       .about-features {
         display: flex;
         justify-content: center;
-        gap: 24px;
-        margin-bottom: 24px;
+        gap: 32px;
+        margin-bottom: 32px;
         flex-wrap: wrap;
 
         .feature {
           display: flex;
           align-items: center;
           gap: 8px;
-          color: var(--text-color, #fff);
           font-size: 14px;
 
           .feature-icon {
@@ -111,34 +157,138 @@
         }
       }
 
+      .social-section {
+        margin-bottom: 24px;
+
+        h4 {
+          font-size: 14px;
+          margin: 0 0 16px 0;
+          font-weight: 500;
+        }
+      }
+
       .social-links {
         display: flex;
         justify-content: center;
         gap: 16px;
-        margin-bottom: 24px;
+        flex-wrap: wrap;
 
         .social-link {
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
-          width: 48px;
-          height: 48px;
+          gap: 8px;
+          padding: 16px 24px;
           background: rgba(255, 255, 255, 0.1);
-          border-radius: 50%;
-          color: var(--text-color, #fff);
+          border: none;
+          border-radius: 12px;
+          color: #fff;
+          cursor: pointer;
           transition: all 0.2s;
 
           &:hover {
             background: #e94560;
-            transform: scale(1.1);
+            transform: scale(1.05);
+          }
+
+          &.tv-focused {
+            outline: 3px solid #e94560;
+            outline-offset: 2px;
+            background: rgba(233, 69, 96, 0.2);
+          }
+
+          .social-label {
+            font-size: 12px;
+            font-weight: 500;
           }
         }
       }
 
       .version-info {
-        color: var(--text-secondary, #666);
         font-size: 12px;
         font-family: monospace;
+        margin-bottom: 24px;
+      }
+
+      .btn-close-bottom {
+        width: 100%;
+        padding: 14px 24px;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        border-radius: 8px;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover {
+          background: #e94560;
+        }
+
+        &.tv-focused {
+          outline: 3px solid #e94560;
+          outline-offset: 2px;
+          background: rgba(233, 69, 96, 0.2);
+        }
+      }
+    }
+  }
+
+  // QR Code Overlay
+  .qr-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: 16px;
+
+    .qr-content {
+      text-align: center;
+      padding: 32px;
+      border-radius: 16px;
+      border: 1px solid;
+
+      h3 {
+        margin: 0 0 24px 0;
+        font-size: 20px;
+      }
+
+      .qr-code-wrapper {
+        padding: 20px;
+        background: #fff;
+        border-radius: 12px;
+        display: inline-block;
+        margin-bottom: 16px;
+      }
+
+      .qr-url {
+        font-size: 12px;
+        font-family: monospace;
+        margin: 0 0 24px 0;
+        word-break: break-all;
+      }
+
+      .btn-close-qr {
+        padding: 12px 32px;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        border-radius: 8px;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover {
+          background: #e94560;
+        }
       }
     }
   }
@@ -147,15 +297,15 @@
 // TV mode specific styles
 .tv-mode {
   .about-modal-container {
-    padding: 60px;
-    max-width: 800px;
+    padding: 48px;
+    max-width: 700px;
 
-    .about-title {
-      font-size: 48px;
+    .about-logo {
+      width: 200px !important;
     }
 
     .about-tagline {
-      font-size: 20px;
+      font-size: 24px;
     }
 
     .about-description p {
@@ -170,18 +320,55 @@
       }
     }
 
+    .social-section h4 {
+      font-size: 18px;
+    }
+
     .social-links .social-link {
-      width: 64px;
-      height: 64px;
+      padding: 20px 32px;
+      gap: 12px;
 
       svg {
         width: 32px;
         height: 32px;
       }
+
+      .social-label {
+        font-size: 16px;
+      }
     }
 
     .version-info {
       font-size: 16px;
+    }
+
+    .btn-close-bottom {
+      padding: 18px 32px;
+      font-size: 20px;
+    }
+
+    .qr-content {
+      h3 {
+        font-size: 28px;
+      }
+
+      .qr-code-wrapper {
+        padding: 24px;
+
+        svg {
+          width: 280px !important;
+          height: 280px !important;
+        }
+      }
+
+      .qr-url {
+        font-size: 16px;
+      }
+
+      .btn-close-qr {
+        padding: 16px 48px;
+        font-size: 18px;
+      }
     }
   }
 }

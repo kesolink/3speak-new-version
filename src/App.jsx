@@ -62,6 +62,7 @@ import axios from "axios";
 import { TVModeProvider, useTVMode } from "./context/TVModeContext";
 import { TVKeyboardProvider } from "./context/TVKeyboardContext";
 import ExitDialog from "./components/tv/ExitDialog";
+import AboutModal from "./components/modal/AboutModal";
 
 // Inner component that uses TV mode context
 function AppContent() {
@@ -79,6 +80,7 @@ function AppContent() {
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
   const userWhenModalOpened = useRef(null); // Track user when modal opens
   const loginInProgress = useRef(false); // Track if handleAiohaLogin is in progress
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
   
 
 
@@ -664,6 +666,7 @@ function AppContent() {
             }
           }}
           onTvLogin={openLoginModal}
+          onOpenAbout={() => setAboutModalOpen(true)}
         />
         <div className={`container ${sidebar ? "" : "large-container"}${isTVMode && tvSidebarVisible ? ' tv-sidebar-open' : ''}`}>
           <ScrollToTop />
@@ -721,6 +724,10 @@ function AppContent() {
           forceShowProviders={isTVMode ? [Providers.HiveAuth] : undefined}
         />
       </div>
+      {/* About Modal - rendered at top level for proper z-index */}
+      {aboutModalOpen && (
+        <AboutModal onClose={() => setAboutModalOpen(false)} />
+      )}
       {/* Exit confirmation dialog for TV mode */}
       {isTVMode && <ExitDialog />}
     </div>

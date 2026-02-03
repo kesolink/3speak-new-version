@@ -21,15 +21,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
 import { useTVMode } from "../../context/TVModeContext";
 import { useTVKeyboard } from "../../context/TVKeyboardContext";
-import AboutModal from "../modal/AboutModal";
 
-const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, onTvSidebarNavigate, onTvSidebarAction, onTvLogin }) => {
+const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, onTvSidebarNavigate, onTvSidebarAction, onTvLogin, onOpenAbout }) => {
   const { authenticated, theme, toggleTheme, user } = useAppStore();
   const { isTVMode, setSidebarItemCount } = useTVMode();
   const { openKeyboard } = useTVKeyboard();
   const navigate = useNavigate();
   const [tvSearchTerm, setTvSearchTerm] = useState('');
-  const [showAboutModal, setShowAboutModal] = useState(false);
 
   // Build list of sidebar items based on authentication state
   // Note: Upload Video is hidden in TV mode (not practical for TV apps)
@@ -178,7 +176,7 @@ const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, on
                 className={`side-link${tvSidebarFocusIndex === tvIndex ? ' tv-focused' : ''}`}
                 data-tv-sidebar-focusable="true"
                 data-tv-sidebar-index={tvIndex}
-                onClick={() => setShowAboutModal(true)}
+                onClick={() => onOpenAbout && onOpenAbout()}
                 style={{ cursor: 'pointer' }}
               >
                 {item.icon} <span>{item.label}</span>
@@ -243,11 +241,6 @@ const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, on
             <span>Play Store</span>
           </a>
         </div>
-      )}
-
-      {/* About Modal for TV Mode */}
-      {showAboutModal && (
-        <AboutModal onClose={() => setShowAboutModal(false)} />
       )}
     </div>
   );
