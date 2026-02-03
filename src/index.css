@@ -886,13 +886,6 @@ body.tv-mode .sidebar-item.tv-focused {
   border-left: 4px solid var(--accent-primary);
 }
 
-/* Button focus */
-body.tv-mode button.tv-focused,
-body.tv-mode .btn.tv-focused {
-  border: 3px solid var(--accent-primary) !important;
-  transform: scale(1.02);
-}
-
 /* Navigation focus indicator */
 body.tv-mode .nav-item.tv-focused {
   border-bottom: 3px solid var(--accent-primary);
