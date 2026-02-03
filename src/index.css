@@ -889,9 +889,8 @@ body.tv-mode .sidebar-item.tv-focused {
 /* Button focus */
 body.tv-mode button.tv-focused,
 body.tv-mode .btn.tv-focused {
-  background: var(--accent-primary) !important;
-  color: white !important;
-  transform: scale(1.1);
+  border: 3px solid var(--accent-primary) !important;
+  transform: scale(1.02);
 }
 
 /* Navigation focus indicator */
