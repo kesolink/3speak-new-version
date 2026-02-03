@@ -182,15 +182,11 @@ function AboutModal({ onClose }) {
             <p>
               3Speak is a decentralized video platform built on the Hive blockchain.
               Content creators directly own their content and communities through
-              blockchain technology, ensuring censorship resistance and true ownership.
+              blockchain technology.
             </p>
           </div>
 
           <div className="about-features">
-            <div className="feature">
-              <span className="feature-icon">🔒</span>
-              <span>Censorship Resistant</span>
-            </div>
             <div className="feature">
               <span className="feature-icon">👥</span>
               <span>Community Owned</span>
