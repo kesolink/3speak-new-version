@@ -176,8 +176,6 @@ function AboutModal({ onClose }) {
             />
           </div>
 
-          <p className="about-tagline">Decentralized Video Platform</p>
-
           <div className="about-description">
             <p>
               3Speak is a decentralized video platform built on the Hive blockchain.
