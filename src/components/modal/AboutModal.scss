@@ -52,7 +52,7 @@
 
     .social-link {
       background: rgba(0, 0, 0, 0.05);
-      border-color: rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(0, 0, 0, 0.15);
       color: #333;
 
       svg {
@@ -62,7 +62,7 @@
 
     .btn-close-bottom {
       background: rgba(0, 0, 0, 0.05);
-      border-color: rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(0, 0, 0, 0.15);
       color: #333;
     }
 
@@ -76,7 +76,7 @@
 
       .btn-close-qr {
         background: rgba(0, 0, 0, 0.05);
-        border-color: rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(0, 0, 0, 0.15);
         color: inherit;
       }
     }
