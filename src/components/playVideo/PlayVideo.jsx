@@ -29,6 +29,7 @@ import { getFollowers } from "../../hive-api/api";
 import UpvoteTooltip from "../tooltip/UpvoteTooltip";
 import axios from "axios";
 import { FEED_URL } from '../../utils/config';
+import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
 
 dayjs.extend(relativeTime);
 
@@ -37,7 +38,6 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   const navigate = useNavigate();
   
   // State
-  const [hasKeychain, setHasKeychain] = useState(false);
   const [openTooltip, setOpenToolTip] = useState(false);
   const [tooltipVoters, setTooltipVoters] = useState([]);
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
@@ -185,17 +185,6 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
     }
   }, []);
 
-  // Effect: Detect Hive Keychain
-  useEffect(() => {
-    const check = () => setHasKeychain(typeof window !== 'undefined' && !!window.hive_keychain);
-    check();
-    const id = setInterval(check, 1000);
-    const stopId = setTimeout(() => clearInterval(id), 10000);
-    return () => {
-      clearInterval(id);
-      clearTimeout(stopId);
-    };
-  }, []);
 
   // Effect: Fetch account data (only once when user changes)
   useEffect(() => {
@@ -241,32 +230,6 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
     navigate(`/t/${tag}`);
   }, [navigate]);
 
-  const followUserWithKeychain = useCallback((follower, following) => {
-    const json = JSON.stringify([
-      'follow',
-      {
-        follower,
-        following,
-        what: ['blog'],
-      },
-    ]);
-
-    window.hive_keychain.requestCustomJson(
-      follower,
-      'follow',
-      'Posting',
-      json,
-      'Follow User',
-      (response) => {
-        if (response.success) {
-          toast.success("Followed successfully!");
-        } else {
-          console.error('Failed to follow user:', response.message);
-          toast.error("Failed to follow user");
-        }
-      }
-    );
-  }, []);
 
   const handleProfileNavigate = useCallback((userName) => {
     navigate(`/p/${userName}`);
@@ -284,6 +247,22 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   if (videoLoading) {
     return <BarLoader />;
   }
+
+  // Follow user using aioha (supports multiple providers)
+  const followUser = async (following) => {
+    if (!isLoggedIn()) {
+      toast.error("Please login to follow users");
+      return;
+    }
+
+    try {
+      await followWithAioha(following, true);
+      toast.success(`Successfully followed @${following}`);
+    } catch (error) {
+      console.error('Failed to follow user:', error);
+      toast.error(`Failed to follow: ${error.message}`);
+    }
+  };
 
   return (
     <>
@@ -364,13 +343,13 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
                 <GiTwoCoins className="icon" />
                 <span>${videoDetails?.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span>
               </span>
-              
-              {authenticated && hasKeychain && (
+
+              {authenticated && isLoggedIn() && (
                 <button className="tip-btn" onClick={() => setIsTipModalOpen(true)}>
                   Tip
                 </button>
               )}
-              
+
               <UpvoteTooltip
                 showTooltip={showTooltip}
                 setShowTooltip={setShowTooltip}
@@ -399,7 +378,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
             <span>{followData?.follower_count} Followers</span>
           </div>
           {author !== user && (
-            <button onClick={() => followUserWithKeychain(user, author)}>
+            <button onClick={() => followUser(author)}>
               Follow
             </button>
           )}

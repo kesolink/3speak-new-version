@@ -21,7 +21,7 @@ import SearchList_Sm from "./SearchList_Sm";
 import { TiThMenu } from "react-icons/ti";
 import { SiYoutubeshorts } from "react-icons/si";
 
-function Nav({ setSideBar, toggleProfileNav }) {
+function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
   const [nav, setNav] = useState(false)
   const [searchTerm, setSearchTerm] = useState('');
@@ -181,9 +181,7 @@ function Nav({ setSideBar, toggleProfileNav }) {
       ) : (
         <div className="nav-right flex-div">
           <ThemeToggle />
-          <Link to="/login">
-            <button>LOG IN</button>
-          </Link>
+          <button onClick={openLoginModal}>LOG IN</button>
         </div>
       )}
     </nav>

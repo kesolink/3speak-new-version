@@ -13,17 +13,18 @@ import { FEED_URL } from "../utils/config";
 // Fetch functions for each feed
 const fetchHome = async () => {
   const res = await axios.get(`${FEED_URL}/apiv2/feeds/home?page=0`);
-  return res.data.trends || res.data;
+  const data = res.data.trends || res.data;
+  return Array.isArray(data) ? data : [];
 };
 
 const fetchFirstUploads = async () => {
   const res = await axios.get(`${FEED_URL}/apiv2/feeds/firstUploads?page=1`);
-  return res.data;
+  return Array.isArray(res.data) ? res.data : [];
 };
 
 const fetchTrending = async () => {
   const res = await axios.get(`${FEED_URL}/apiv2/feeds/trending?limit=50`);
-  return res.data;
+  return Array.isArray(res.data) ? res.data : [];
 };
 
 // Horizontal scrollable video row component

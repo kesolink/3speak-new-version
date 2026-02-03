@@ -8,7 +8,7 @@ import { LineSpinner } from 'ldrs/react';
 import TextEditor from '../studio/TextEditor';
 import { IoIosArrowDropdownCircle } from 'react-icons/io';
 import { MdPeopleAlt } from 'react-icons/md';
-import Communitie_modal from "../modal/Communitie_modal";
+import CommunityModal from "../modal/Community_modal";
 import Beneficiary_modal from '../modal/Beneficiary_modal';
 import axios from 'axios';
 import VideoPreview from '../studio/VideoPreview';
@@ -335,7 +335,7 @@ function Details() {
       
         </div>
     </div>
-          {isOpen && <Communitie_modal isOpen={isOpen} data={communitiesData} close={closeCommunityModal} setCommunity={setCommunity} />}
+          {isOpen && <CommunityModal isOpen={isOpen} data={communitiesData} close={closeCommunityModal} setCommunity={setCommunity} />}
           {benficaryOpen && <Beneficiary_modal
               close={toggleBeneficiaryModal}
               isOpen={benficaryOpen}

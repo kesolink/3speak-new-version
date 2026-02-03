@@ -19,13 +19,20 @@ export const createThemeSlice = (set, get) => ({
   // Set theme and apply to DOM
   setTheme: (newTheme) => {
     set({ theme: newTheme });
-    
+
     // Apply theme to document
     const effectiveTheme = newTheme === 'system'
       ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
       : newTheme;
-    
+
     document.documentElement.setAttribute('data-theme', effectiveTheme);
+
+    // Also toggle 'dark' class for Tailwind-based libraries (like aioha)
+    if (effectiveTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   },
 
   // Toggle between light and dark
@@ -40,13 +47,20 @@ export const createThemeSlice = (set, get) => ({
     const { theme, setTheme } = get();
     // Re-apply the persisted theme to the DOM
     setTheme(theme);
-    
+
     // Listen for system theme changes if using system preference
     if (theme === 'system') {
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
         const { theme: currentTheme } = get();
         if (currentTheme === 'system') {
-          document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+          const effectiveTheme = e.matches ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', effectiveTheme);
+          // Also toggle 'dark' class for Tailwind-based libraries
+          if (effectiveTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
         }
       });
     }

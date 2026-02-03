@@ -11,9 +11,9 @@ import { Client } from '@hiveio/dhive';
 import UpvoteTooltip from '../tooltip/UpvoteTooltip';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import {  toast } from 'sonner'
-import axios from 'axios';
 import { estimate, getVotePower } from '../../utils/hiveUtils';
 import { filterByReputation } from '../../utils/reputation';
+import { commentWithAioha } from '../../hive-api/aioha';
 
 const client = new Client(['https://api.hive.blog']);
 
@@ -161,126 +161,83 @@ function CommentSection({ videoDetails, author, permlink }) {
   };
 
   const handlePostComment = async () => {
-
     const textToPost = replyToComment ? replyText : commentInfo;
 
-  if (!textToPost.trim()) return;
-
-  // 
+    if (!textToPost.trim()) return;
 
     // Determine if we're replying to the main post or a comment
     const isReplyingToMainPost = !replyToComment;
-    
+
     const parent_author = isReplyingToMainPost ? author : replyToComment.author.username;
     const parent_permlink = isReplyingToMainPost ? permlink : replyToComment.permlink;
     const new_permlink = `re-${parent_permlink}-${Date.now()}`;
 
-    // if (window.hive_keychain) {
-    //   window.hive_keychain.requestBroadcast(
-    //     user,
-    //     [
-    //       [
-    //         'comment',
-    //         {
-    //           parent_author,
-    //           parent_permlink,
-    //           author: user,
-    //           permlink: new_permlink,
-    //           title: '',
-    //           body: commentInfo,
-    //           json_metadata: '{"app":"3speak/new-version"}',
-    //         },
-    //       ],
-    //     ],
-    //     'Posting',
+    try {
+      // Use aioha for comment broadcasting (works with all providers: Keychain, HiveAuth, etc.)
+      const result = await commentWithAioha(
+        parent_author,
+        parent_permlink,
+        new_permlink,
+        '', // title (empty for comments)
+        textToPost,
+        { app: '3speak/new-version' } // json_metadata
+      );
 
-    const data  = {
-      // parent_author,
-      // parent_permlink,
-      author: parent_author,
-      permlink: isReplyingToMainPost ? permlink : replyToComment.permlink,
-      comment: textToPost,
-      
-    }
-    
-
-try {
-  const response = await axios.post(
-    'https://studio.3speak.tv/mobile/comment',
-    {
-      // parent_author,
-      // parent_permlink,
-      author: parent_author,
-      permlink: isReplyingToMainPost ? permlink : replyToComment.permlink,
-      comment: textToPost,
-      
-    },
-    {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    }
-  );
-
-
-
-  if (response.data.success) {
-    toast.success('Comment Successful!')
-    const newComment = {
-      author: {
-        username: user,
-        profile: {
-          images: {
-            avatar: `https://images.hive.blog/u/${user}/avatar`,
+      if (result.success) {
+        toast.success('Comment posted successfully!');
+        const newComment = {
+          author: {
+            username: user,
+            profile: {
+              images: {
+                avatar: `https://images.hive.blog/u/${user}/avatar`,
+              },
+            },
           },
-        },
-      },
-      permlink: new_permlink,
-      created_at: new Date().toISOString(),
-      body: textToPost,
-      stats: {
-        num_likes: 0,
-        num_dislikes: 0,
-        total_hive_reward: 0,
-      },
-      children: [],
-    };
+          permlink: new_permlink,
+          created_at: new Date().toISOString(),
+          body: textToPost,
+          stats: {
+            num_likes: 0,
+            num_dislikes: 0,
+            total_hive_reward: 0,
+          },
+          children: [],
+        };
 
-    if (isReplyingToMainPost) {
-      setCommentList(prev => [newComment, ...prev]);
-    } else {
-      const addReply = (comments) =>
-        comments.map((comment) => {
-          if (comment.permlink === parent_permlink) {
-            return {
-              ...comment,
-              children: [...(comment.children || []), newComment],
-            };
-          } else if (comment.children) {
-            return {
-              ...comment,
-              children: addReply(comment.children),
-            };
-          }
-          return comment;
-        });
+        if (isReplyingToMainPost) {
+          setCommentList(prev => [newComment, ...prev]);
+        } else {
+          const addReply = (comments) =>
+            comments.map((comment) => {
+              if (comment.permlink === parent_permlink) {
+                return {
+                  ...comment,
+                  children: [...(comment.children || []), newComment],
+                };
+              } else if (comment.children) {
+                return {
+                  ...comment,
+                  children: addReply(comment.children),
+                };
+              }
+              return comment;
+            });
 
-      setCommentList(prev => addReply(prev));
+          setCommentList(prev => addReply(prev));
+        }
+
+        setCommentInfo('');
+        setReplyText('');
+        setActiveReply(null);
+        setReplyToComment(null);
+      } else {
+        toast.error('Comment failed, please try again');
+      }
+    } catch (err) {
+      console.error('Comment failed:', err);
+      toast.error(err.message || 'Comment failed, please try again');
     }
-
-    setCommentInfo('');
-    setReplyText('')
-    setActiveReply(null);
-    setReplyToComment(null);
-  } else {
-    toast.error(`Comment failed: ${response.data.message}`);
-  }
-} catch (err) {
-  console.error('Comment failed:', err);
-  toast.error('Comment failed, please try again');
-}
-
   };
 
   // const handleVote = (username, permlink, weight = 10000) => {

@@ -1,0 +1,131 @@
+@use "../../mixins.scss" as mix;
+
+// Base modal styles shared across all modals
+.modal, .overlay {
+  width: 100vw;
+  height: 100vh;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  position: fixed;
+  z-index: 1000;
+}
+
+.overlay {
+  background: rgba(49, 49, 49, 0.8);
+}
+
+.modal-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 1.4;
+  background: #f1f1f1;
+  padding: 14px 28px;
+  max-width: 600px;
+  min-width: 600px;
+  overflow: hidden;
+  border-radius: 12px;
+  text-align: center;
+  z-index: 1001;
+
+  [data-theme="dark"] & {
+    background-color: #1a1a1a;
+    color: #fff;
+  }
+
+  @include mix.respond(phone) {
+    min-width: 90%;
+    padding: 14px 10px;
+  }
+
+  &.auth-bg {
+    background-color: green;
+    background-image: linear-gradient(to right, rgb(55, 65, 81), rgb(31, 41, 55), rgb(17, 24, 39));
+  }
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 5px 7px;
+  cursor: pointer;
+
+  &.auth-bg {
+    color: #fff;
+    font-size: 24px;
+  }
+}
+
+.modal-header {
+  h2 {
+    text-align: center;
+    font-size: 20px;
+  }
+
+  &.auth-bg {
+    h2 {
+      color: #fff;
+      font-size: 22px;
+      margin-bottom: 5px;
+    }
+  }
+}
+
+.modal-body {
+  button {
+    margin-top: 10px;
+    padding: 7px 20px;
+    border: none;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 16px;
+    background-image: linear-gradient(90deg, rgb(141, 11, 33) 15%, rgb(227, 19, 55) 97%);
+
+    @include mix.respond(phone) {
+      font-size: 14.5px;
+    }
+  }
+
+  &.auth-bg {
+    p {
+      color: #fff;
+      font-size: 16.5px;
+      line-height: 24.5px;
+
+      @include mix.respond(phone) {
+        font-size: 12.5px;
+      }
+    }
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+  75% {
+    transform: translateX(-5px);
+  }
+}
+
+.error-message {
+  color: red;
+  font-size: 14px;
+  margin: 10px 0px;
+  text-align: center;
+  display: inline-block;
+  animation: shake 0.5s ease-in-out;
+}

@@ -3,27 +3,25 @@ import './UpvoteTooltip.scss';
 import { useAppStore } from '../../lib/store';
 import { IoChevronUpCircleOutline } from 'react-icons/io5';
 import { toast } from 'sonner';
-import 'react-toastify/dist/ReactToastify.css';
 import { estimate, getUersContent, getVotePower } from '../../utils/hiveUtils';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
-import axios from 'axios';
-import { Orbit } from 'ldrs/react'
-import 'ldrs/react/Orbit.css'
+import { Orbit } from 'ldrs/react';
+import 'ldrs/react/Orbit.css';
+import { voteWithAioha, isLoggedIn } from '../../hive-api/aioha';
 
-
-const CommentVoteTooltip = ({ 
-  author, 
-  permlink, 
-  showTooltip, 
-  setShowTooltip, 
-  weight, 
-  setWeight, 
-  setCommentList, 
-  voteValue, 
-  setVoteValue, 
-  accountData, 
-  setAccountData, 
+const CommentVoteTooltip = ({
+  author,
+  permlink,
+  showTooltip,
+  setShowTooltip,
+  weight,
+  setWeight,
+  setCommentList,
+  voteValue,
+  setVoteValue,
+  accountData,
+  setAccountData,
   setActiveTooltipPermlink,
   onVoteSuccess // Optional callback for when vote succeeds (used by Short.jsx for main post)
 }) => {
@@ -32,7 +30,6 @@ const CommentVoteTooltip = ({
   const [isCalculating, setIsCalculating] = useState(false);
   const tooltipRef = useRef(null);
   const isLoadingRef = useRef(false); // Track loading state for click outside handler
-  const accessToken = localStorage.getItem("access_token");
 
   // Keep isLoadingRef in sync with isLoading state
   useEffect(() => {
@@ -44,7 +41,7 @@ const CommentVoteTooltip = ({
     const handleClickOutside = (e) => {
       // Don't close if voting is in progress
       if (isLoadingRef.current) return;
-      
+
       if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
         setShowTooltip(false);
         setActiveTooltipPermlink?.(null);
@@ -68,7 +65,7 @@ const CommentVoteTooltip = ({
       try {
         setIsCalculating(true);
         const result = await getVotePower(user);
-        
+
         if (result && result.account) {
           setAccountData(result.account);
           // Calculate initial vote value with the fetched account data
@@ -91,7 +88,7 @@ const CommentVoteTooltip = ({
   // Recalculate vote value when weight changes
   useEffect(() => {
     if (!accountData) return;
-    
+
     const debounceTimer = setTimeout(() => {
       calculateVoteValue(accountData, weight);
     }, 100); // Small debounce to avoid too many calculations
@@ -113,7 +110,7 @@ const CommentVoteTooltip = ({
   };
 
   const handleVote = async () => {
-    if (!authenticated) {
+    if (!authenticated || !isLoggedIn()) {
       toast.error('Login to complete this operation');
       return;
     }
@@ -123,7 +120,7 @@ const CommentVoteTooltip = ({
 
     try {
       const data = await getUersContent(author, permlink);
-      
+
       if (!data) {
         toast.error('Could not fetch post data');
         setIsLoading(false);
@@ -138,49 +135,26 @@ const CommentVoteTooltip = ({
         return;
       }
 
-      const response = await axios.post(
-        'https://studio.3speak.tv/mobile/vote',
-        {
-          author,
-          permlink,
-          weight: voteWeight
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+      // Use aioha for client-side voting
+      await voteWithAioha(author, permlink, voteWeight);
 
-      if (response.data.success) {
-        toast.success(`Vote successful! Value: $${voteValue}`);
-        
-        // Update comment list optimistically
-        const isNewVote = !existingVote;
-        setCommentList(prev => updateCommentsRecursively(prev, permlink, false, isNewVote));
-        
-        // Call onVoteSuccess callback if provided (for main post votes in Short.jsx)
-        if (onVoteSuccess) {
-          onVoteSuccess(author, permlink, isNewVote, voteWeight);
-        }
-        
-        // Close tooltip only after successful vote
-        setShowTooltip(false);
-        setActiveTooltipPermlink?.(null);
-      } else {
-        toast.error('Vote failed, please try again');
+      toast.success(`Vote successful! Value: $${voteValue}`);
+
+      // Update comment list optimistically
+      const isNewVote = !existingVote;
+      setCommentList(prev => updateCommentsRecursively(prev, permlink, false, isNewVote));
+
+      // Call onVoteSuccess callback if provided (for main post votes in Short.jsx)
+      if (onVoteSuccess) {
+        onVoteSuccess(author, permlink, isNewVote, voteWeight);
       }
+
+      // Close tooltip only after successful vote
+      setShowTooltip(false);
+      setActiveTooltipPermlink?.(null);
     } catch (err) {
       console.error('Vote failed:', err);
-      
-      if (err.response?.data?.message) {
-        toast.error(`Vote failed: ${err.response.data.message}`);
-      } else if (err.message === 'Network Error') {
-        toast.error('Network error. Please check your connection.');
-      } else {
-        toast.error('Vote failed, please try again');
-      }
+      toast.error('Vote failed: ' + (err.message || 'please try again'));
     } finally {
       setIsLoading(false);
     }
@@ -195,9 +169,9 @@ const CommentVoteTooltip = ({
           has_voted: !isRollback, // true for vote, false for rollback
           stats: {
             ...comment.stats,
-            num_likes: isRollback 
+            num_likes: isRollback
               ? Math.max(0, (comment.stats.num_likes || 0) - 1)
-              : isNewVote 
+              : isNewVote
                 ? (comment.stats.num_likes || 0) + 1
                 : comment.stats.num_likes || 0, // Re-vote: don't increment
           },
@@ -216,9 +190,9 @@ const CommentVoteTooltip = ({
   };
 
   return (
-    <div 
-      className="upvote-tooltip-wrap" 
-      ref={tooltipRef} 
+    <div
+      className="upvote-tooltip-wrap"
+      ref={tooltipRef}
       onClick={(e) => e.preventDefault()}
     >
       {showTooltip && (
@@ -227,16 +201,16 @@ const CommentVoteTooltip = ({
           <div className="wrap">
             {isLoading ? (
               <div className='wrap-circle'>
-                <TailChase 
-                  className="loader-circle" 
-                  size="15" 
-                  speed="1.5" 
-                  color="red" 
+                <TailChase
+                  className="loader-circle"
+                  size="15"
+                  speed="1.5"
+                  color="red"
                 />
               </div>
             ) : (
-              <IoChevronUpCircleOutline 
-                size={30} 
+              <IoChevronUpCircleOutline
+                size={30}
                 onClick={handleVote}
                 style={{ cursor: 'pointer' }}
               />

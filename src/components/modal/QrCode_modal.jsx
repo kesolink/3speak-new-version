@@ -13,7 +13,9 @@ function QrCode_modal({qrCode, openKeychainApp}) {
               <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
                   <p>Scan this QR in Hive Keychain:</p>
                   <div onClick={openKeychainApp} style={{ cursor: 'pointer', display: 'inline-block' }}>
-                      <QRCodeSVG value={qrCode} size={180} />
+                      <div style={{ background: '#ffffff', padding: '16px', borderRadius: '8px', display: 'inline-block' }}>
+                        <QRCodeSVG value={qrCode} size={180} bgColor="#ffffff" fgColor="#000000" includeMargin={true} />
+                      </div>
                       <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#007bff' }}>
                           Click QR to open in Keychain app
                       </p>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import "./Communitie_modal.scss";
+import "./Community_modal.scss";
 import { useQuery } from "@tanstack/react-query";
 import { hiveBridgeCall } from "../../hive-api/api";
 

@@ -1,0 +1,74 @@
+@use "./modal-base";
+@use "../../mixins.scss" as mix;
+
+// Community modal specific styles
+.modal-content {
+  &.video-upload-moadal-size {
+    max-width: 450px;
+    min-width: 450px;
+
+    @include mix.respond(phone) {
+      max-width: 99%;
+      padding: 14px 10px;
+      min-width: 90%;
+      top: 50%;
+    }
+  }
+
+  &.create-com {
+    text-align: start;
+  }
+}
+
+.search-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0px;
+
+  input {
+    width: 60%;
+    padding: 10px;
+    outline: none;
+    border-radius: 5px;
+    border: none;
+  }
+}
+
+.community-list-wrap {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  max-height: 300px;
+  overflow-y: auto;
+
+  .wrap-flow {
+    display: flex;
+    align-items: center;
+    flex: wrap;
+    gap: 7px;
+    width: fit-content;
+    background-color: #c1c8e4;
+    margin-right: 10px;
+    border-radius: 6px;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+
+    img {
+      width: 20px;
+      border-radius: 50%;
+      background: #ccc;
+      background-position: 50% 50%;
+      background-repeat: no-repeat;
+      background-size: cover;
+      display: block;
+    }
+
+    span {
+      color: black;
+      font-size: 14px;
+      display: flex;
+      word-wrap: normal;
+    }
+  }
+}

@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { StepProgress } from './StepProgress';
 import { IoIosArrowDropdownCircle } from 'react-icons/io';
 import { MdPeopleAlt } from 'react-icons/md';
-import Communitie_modal from "../modal/Communitie_modal";
+import CommunityModal from "../modal/Community_modal";
 import Beneficiary_modal from '../modal/Beneficiary_modal';
 import { Navigate } from 'react-router-dom';
 import { useLegacyUpload } from '../../context/LegacyUploadContext';
@@ -271,7 +271,7 @@ const handleTagChange = (e) => {
       
         </div>
     </div>
-          {isOpen && <Communitie_modal isOpen={isOpen} data={communitiesData} close={closeCommunityModal} setCommunity={setCommunity} />}
+          {isOpen && <CommunityModal isOpen={isOpen} data={communitiesData} close={closeCommunityModal} setCommunity={setCommunity} />}
           {benficaryOpen && <Beneficiary_modal
               close={toggleBeneficiaryModal}
               isOpen={benficaryOpen}
