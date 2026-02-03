@@ -22,7 +22,7 @@ function detectTVMode() {
   const urlParams = new URLSearchParams(window.location.search);
   const forceTVMode = urlParams.get('tv') === 'true';
 
-  return isTizen || forceTVMode;
+  return isTizen || isInIframe || forceTVMode;
 }
 
 export function TVModeProvider({ children }) {

@@ -169,6 +169,23 @@ const Sidebar = ({ sidebar, tvSidebarFocusIndex = -1, setTvSidebarFocusIndex, on
         {sidebarItems.map((item, index) => {
           // In TV mode, index is offset by 2 (login + theme)
           const tvIndex = isTVMode ? TV_NAV_START_INDEX + index : index;
+
+          // In TV mode, render About as a div (not Link) to show modal
+          if (isTVMode && item.to === "/about") {
+            return (
+              <div
+                key={item.to}
+                className={`side-link${tvSidebarFocusIndex === tvIndex ? ' tv-focused' : ''}`}
+                data-tv-sidebar-focusable="true"
+                data-tv-sidebar-index={tvIndex}
+                onClick={() => setShowAboutModal(true)}
+                style={{ cursor: 'pointer' }}
+              >
+                {item.icon} <span>{item.label}</span>
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.to}
