@@ -50,7 +50,7 @@
       color: #333;
     }
 
-    .social-link {
+    .about-modal-container .about-content .social-links .social-link {
       background: rgba(0, 0, 0, 0.05);
       border: 1px solid rgba(0, 0, 0, 0.15);
       color: #333;
@@ -60,13 +60,13 @@
       }
     }
 
-    .btn-close-bottom {
+    .about-modal-container .about-content .btn-close-bottom {
       background: rgba(0, 0, 0, 0.05);
       border: 1px solid rgba(0, 0, 0, 0.15);
       color: #333;
     }
 
-    .qr-content {
+    .about-modal-container .qr-overlay .qr-content {
       background: #ffffff;
       border-color: rgba(0, 0, 0, 0.1);
 
