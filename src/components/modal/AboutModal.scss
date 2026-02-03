@@ -25,14 +25,6 @@
       color: #ccc;
     }
 
-    .social-link {
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-
-    .btn-close-bottom {
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-
     .qr-content {
       background: #1a1a2e;
       border-color: rgba(255, 255, 255, 0.2);
@@ -61,25 +53,15 @@
     .social-link {
       background: rgba(0, 0, 0, 0.05);
       color: #333;
-      border-color: rgba(0, 0, 0, 0.1);
 
       svg {
         color: #333;
-      }
-
-      &:hover, &.tv-focused {
-        border-color: #e94560;
       }
     }
 
     .btn-close-bottom {
       background: rgba(0, 0, 0, 0.05);
       color: #333;
-      border-color: rgba(0, 0, 0, 0.1);
-
-      &:hover, &.tv-focused {
-        border-color: #e94560;
-      }
     }
 
     .qr-content {
@@ -193,20 +175,11 @@
           gap: 8px;
           padding: 16px 24px;
           background: rgba(255, 255, 255, 0.1);
-          border: 3px solid transparent;
+          border: none;
           border-radius: 12px;
-          color: #fff;
+          color: inherit;
           cursor: pointer;
           transition: all 0.2s;
-
-          &:hover {
-            border-color: #e94560;
-            transform: scale(1.02);
-          }
-
-          &.tv-focused {
-            border-color: #e94560;
-          }
 
           .social-label {
             font-size: 12px;
@@ -225,21 +198,13 @@
         width: 100%;
         padding: 14px 24px;
         background: rgba(255, 255, 255, 0.1);
-        border: 3px solid transparent;
+        border: none;
         border-radius: 8px;
-        color: #fff;
+        color: inherit;
         font-size: 16px;
         font-weight: 500;
         cursor: pointer;
         transition: all 0.2s;
-
-        &:hover {
-          border-color: #e94560;
-        }
-
-        &.tv-focused {
-          border-color: #e94560;
-        }
       }
     }
   }
