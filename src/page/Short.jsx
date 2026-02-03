@@ -38,6 +38,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { PLAYER_URL } from '../utils/config';
+import { useNavigate } from 'react-router-dom';
 
 
 /* ================= COMPONENT ================= */
@@ -89,9 +90,30 @@ const VideoShort = () => {
   const pendingPlayRef = useRef(null); // Track video waiting to be played
 
   const accessToken = localStorage.getItem("access_token");
+  const navigate = useNavigate();
 
   // Minimum swipe distance to trigger navigation (in pixels)
   const minSwipeDistance = 50;
+
+  // Get shared video from URL parameter
+  const getSharedVideoFromUrl = useCallback(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const videoParam = urlParams.get('v');
+    if (videoParam) {
+      const [author, permlink] = videoParam.split('/');
+      if (author && permlink) {
+        return { author, permlink };
+      }
+    }
+    return null;
+  }, []);
+
+  // Update URL when current video changes (without page reload)
+  const updateUrlWithCurrentVideo = useCallback((video) => {
+    if (!video) return;
+    const newUrl = `${window.location.pathname}?v=${video.author}/${video.permlink}`;
+    window.history.replaceState({}, '', newUrl);
+  }, []);
 
   /* ---------- 3SPEAK POSTMESSAGE API ---------- */
 
@@ -109,8 +131,6 @@ const VideoShort = () => {
       console.log(`[VideoShort] No iframe found for video ${video.id}`);
     }
   }, []);
-
-  console.log("PLAYER_URL " , PLAYER_URL )
 
   // Send command to current video
   const sendCommand = useCallback((command, data = {}) => {
@@ -284,6 +304,9 @@ const VideoShort = () => {
 
     console.log(`[VideoShort] Index changed: ${prevIndex} -> ${currentIndex}, video: ${currentVid.id}`);
 
+    // Update URL with current video (without page reload)
+    updateUrlWithCurrentVideo(currentVid);
+
     // Reset player state
     setIsPlaying(false);
     setCurrentTime(0);
@@ -402,7 +425,73 @@ const VideoShort = () => {
             createdAt: short.createdAt
           }));
 
-          setVideos(formattedVideos);
+          // Check if there's a shared video in the URL
+          const sharedVideo = getSharedVideoFromUrl();
+          
+          if (sharedVideo) {
+            // Find the index of the shared video in the feed
+            const sharedIndex = formattedVideos.findIndex(
+              v => v.author === sharedVideo.author && v.permlink === sharedVideo.permlink
+            );
+
+            if (sharedIndex !== -1) {
+              // Video found in feed, start from that index
+              setVideos(formattedVideos);
+              setCurrentIndex(sharedIndex);
+            } else {
+              // Video not in current feed, fetch it separately and prepend
+              try {
+                const sharedVideoData = await hiveApi.fetchCompleteShortData(
+                  { 
+                    owner: sharedVideo.author, 
+                    permlink: sharedVideo.permlink,
+                    embed_url: `@${sharedVideo.author}/${sharedVideo.permlink}`,
+                    thumbnail_url: '',
+                    views: 0,
+                    createdAt: new Date().toISOString(),
+                    embed_title: ''
+                  }, 
+                  user
+                );
+                
+                const formattedSharedVideo = {
+                  id: sharedVideoData.id,
+                  author: sharedVideoData.author,
+                  permlink: sharedVideoData.permlink,
+                  hivePermlink: sharedVideoData.hivePermlink,
+                  user: sharedVideoData.user,
+                  caption: sharedVideoData.caption || sharedVideoData.title || '',
+                  audio: `${sharedVideoData.user.username} - Original Audio`,
+                  albumArt: sharedVideoData.user.avatar,
+                  stats: sharedVideoData.stats,
+                  isLiked: sharedVideoData.isLiked || false,
+                  isDisliked: sharedVideoData.isDisliked || false,
+                  comments: [],
+                  commentsLoaded: false,
+                  timeAgo: sharedVideoData.timeAgo,
+                  createdAt: sharedVideoData.createdAt
+                };
+
+                // Prepend shared video to the feed
+                setVideos([formattedSharedVideo, ...formattedVideos]);
+                setCurrentIndex(0);
+              } catch (err) {
+                console.warn('Could not fetch shared video, showing feed from start:', err);
+                setVideos(formattedVideos);
+                // Update URL to first video since shared video couldn't be loaded
+                if (formattedVideos.length > 0) {
+                  updateUrlWithCurrentVideo(formattedVideos[0]);
+                }
+              }
+            }
+          } else {
+            setVideos(formattedVideos);
+            // Update URL with first video
+            if (formattedVideos.length > 0) {
+              updateUrlWithCurrentVideo(formattedVideos[0]);
+            }
+          }
+
           setHasMore(1 < data.totalPages);
         }
       } catch (err) {
@@ -414,7 +503,7 @@ const VideoShort = () => {
     };
 
     fetchShorts();
-  }, [user]);
+  }, [user, getSharedVideoFromUrl, updateUrlWithCurrentVideo]);
 
   /* ---------- LOAD MORE VIDEOS ---------- */
   const loadMoreVideos = useCallback(async () => {
@@ -660,10 +749,11 @@ const VideoShort = () => {
   const handleShare = async () => {
     if (!currentVideo) return;
 
-    const shareUrl = `${window.location.origin}/watch?v=${currentVideo.author}/${currentVideo.permlink}`;
+    // Use shorts route with video parameter
+    const shareUrl = `${window.location.origin}/shorts?v=${currentVideo.author}/${currentVideo.permlink}`;
     const shareData = {
-      title: currentVideo.caption || '3Speak Video',
-      text: `Check out this video by ${currentVideo.user.username} on 3Speak!`,
+      title: currentVideo.caption || '3Speak Short',
+      text: `Check out this short by ${currentVideo.user.username} on 3Speak!`,
       url: shareUrl
     };
 
@@ -850,6 +940,10 @@ const VideoShort = () => {
     });
   }, [preloadedIndices, videos]);
 
+  const handleProfileNavigation = (username) => {
+    navigate(`/p/${username}`);
+  };
+
   /* ---------- RENDER ---------- */
 
   if (loading && videos.length === 0) {
@@ -966,7 +1060,11 @@ const VideoShort = () => {
           {/* Bottom overlay */}
           <div className="bottomOverlay">
             <div className="userRow">
-              <div className="avatar">
+              <div className="avatar" onClick={(e) => {
+                    // e.preventDefault();
+                    e.stopPropagation();
+                    handleProfileNavigation(currentVideo.user.username);
+                  }}>
                 <img src={currentVideo.user.avatar} alt="" />
               </div>
               <span className="username">{currentVideo.user.username}</span>
@@ -1040,7 +1138,11 @@ const VideoShort = () => {
             <span className="actionLabel">{currentVideo.stats.remixes || 0}</span>
           </div>
 
-          <div className="albumArt" onClick={(e) => e.stopPropagation()}>
+          <div className="albumArt"  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleProfileNavigation(currentVideo.user.username);
+                  }}>
             <img src={currentVideo.albumArt} alt="" />
           </div>
         </div>
