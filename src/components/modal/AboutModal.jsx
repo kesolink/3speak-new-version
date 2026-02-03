@@ -59,11 +59,14 @@ function AboutModal({ onClose }) {
     };
   }, []);
 
-  // TV mode keyboard navigation
+  // TV mode keyboard navigation - use capture phase to intercept before background handlers
   useEffect(() => {
     if (!isTVMode) return;
 
     const handleKeyDown = (e) => {
+      // Stop propagation to prevent background from receiving events
+      e.stopPropagation();
+
       // If QR code is showing, any key closes it
       if (selectedLink) {
         if (e.keyCode === 13 || e.keyCode === 27 || e.keyCode === 10009) {
@@ -114,8 +117,9 @@ function AboutModal({ onClose }) {
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    // Use capture phase to intercept events before they reach other handlers
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, [isTVMode, focusedIndex, selectedLink, onClose]);
 
   // Auto-focus close button in TV mode (it's the last item)
