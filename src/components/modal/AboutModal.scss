@@ -74,7 +74,7 @@
 
       .btn-close-qr {
         background: rgba(0, 0, 0, 0.05);
-        color: #333;
+        color: inherit;
         border: 3px solid rgba(0, 0, 0, 0.1);
 
         &:hover {
@@ -220,7 +220,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10;
+    z-index: 100;
     border-radius: 16px;
 
     .qr-content {
@@ -254,7 +254,7 @@
         background: rgba(255, 255, 255, 0.1);
         border: 3px solid rgba(255, 255, 255, 0.2);
         border-radius: 8px;
-        color: #fff;
+        color: inherit;
         font-size: 14px;
         cursor: pointer;
         transition: all 0.2s;
