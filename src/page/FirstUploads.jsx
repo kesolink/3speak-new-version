@@ -2,12 +2,13 @@ import React, { useEffect } from 'react'
 import "./FirstUploads.scss"
 import { useQuery } from '@apollo/client';
 import { FIRST_UPLOAD_FEED } from '../graphql/queries'
-import Cards from "../components/Cards/Cards"
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import axios from 'axios'
 import Card3 from '../components/Cards/Card3';
 import { FEED_URL } from '../utils/config';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { useContentBatch } from '../hooks/useContentBatch';
+import { useWatchHistory } from '../hooks/useWatchHistory';
 
 const fetchVideos = async ({ pageParam = 1 }) => {
   const LIMIT = 300;
@@ -57,13 +58,16 @@ const FirstUploads = () => {
     // Flatten all pages into a single array
     const videos = data?.pages.flat() || [];
 
- 
+    // Batch fetch content data
+    const { getContentForVideo } = useContentBatch(videos);
 
-  console.log(videos)
+    // Batch check watch history
+    const { isWatched } = useWatchHistory(videos);
+
   return (
     <div className='firstupload-container'>
         <div className='headers'>FIRST TIME UPLOADS</div>
-        {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} />}
+        {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />}
     {isError && <p>Error fetching videos</p>}
       {isFetchingNextPage && (
         <p style={{ textAlign: "center" }}>Loading more...</p>

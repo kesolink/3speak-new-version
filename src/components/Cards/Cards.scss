@@ -61,6 +61,38 @@
         }
       }
 
+      // Add to Playlist button (appears on hover)
+      .add-to-playlist-btn {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(4px);
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        opacity: 0;
+        transform: translateY(-5px);
+        transition: all 0.2s ease;
+        z-index: 3;
+
+        &:hover {
+          background: var(--accent-primary, #e53935);
+          transform: translateY(0);
+        }
+      }
+
+      &:hover .add-to-playlist-btn {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
       .scheduled-badge {
         position: absolute;
         top: 8px;
@@ -258,9 +290,18 @@
         gap: 4px;
         color: var(--text-secondary);
         font-size: 12px;
-        
+
         span {
           font-size: 11px;
+        }
+
+        // Watched indicator - red eye icon for videos already watched
+        &.watched {
+          color: var(--accent-primary, #e53935);
+
+          svg {
+            color: var(--accent-primary, #e53935);
+          }
         }
       }
   

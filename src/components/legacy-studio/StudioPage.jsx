@@ -8,6 +8,7 @@ import { has3SpeakPostAuth } from "../../utils/hiveUtils";
 import 'ldrs/react/LineSpinner.css'
 import { useLegacyUpload} from "../../context/LegacyUploadContext";
 import BackgroundJobModal from "../modal/BackgroundJobModal";
+import { HIVE_API_URL } from "../../utils/config";
 
 function StudioPage() {
 
@@ -67,7 +68,7 @@ function StudioPage() {
     useEffect(() => {
     const fetchCommunities = async () => {
       try {
-        const response = await axios.post("https://api.hive.blog", {
+        const response = await axios.post(HIVE_API_URL, {
           jsonrpc: "2.0",
           method: "bridge.list_communities",
           params: { last: "", limit: 100 },

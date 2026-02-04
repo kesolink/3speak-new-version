@@ -3,14 +3,16 @@ import { useParams } from "react-router-dom";
 import { Client } from "@hiveio/dhive";
 import "./CommunityPage.scss";
 import axios from "axios";
-import { FEED_URL } from '../../utils/config'
+import { FEED_URL, HIVE_API_NODES } from '../../utils/config'
 import { useInfiniteQuery } from "@tanstack/react-query";
 import Card3 from "../Cards/Card3";
 import CardSkeleton from "../Cards/CardSkeleton";
 import Com_PageSke_Loader from "./Com_PageSke_Loader";
+import { useContentBatch } from "../../hooks/useContentBatch";
+import { useWatchHistory } from "../../hooks/useWatchHistory";
 
 // Hive client
-const client = new Client(["https://api.hive.blog", "https://api.openhive.network"]);
+const client = new Client(HIVE_API_NODES);
 
 function CommunityPage() {
   const { communityName: id } = useParams();
@@ -98,6 +100,12 @@ function CommunityPage() {
 
   const videos = data?.pages.flat() || [];
 
+  // Batch fetch content data
+  const { getContentForVideo } = useContentBatch(videos);
+
+  // Batch check watch history
+  const { isWatched } = useWatchHistory(videos);
+
   return (
     <div className="community-page-wrap">
       <div className="com-profile-img-wrap">
@@ -142,7 +150,7 @@ function CommunityPage() {
       ) : isError ? (
         <p>Error fetching videos</p>
       ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} />
+        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
       )}
 
       {isFetchingNextPage && <p style={{ textAlign: "center" }}>Loading more...</p>}

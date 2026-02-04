@@ -7,16 +7,13 @@ import "./AuthorProfile.scss";
  * @param {string} author - The author's username
  * @param {string} className - Additional CSS classes
  * @param {boolean} showAvatar - Whether to show the avatar image (default: true)
+ * @param {boolean} noLink - Whether to render without a link (useful when nested inside another link)
  */
-function AuthorProfile({ author, className = "", showAvatar = true }) {
+function AuthorProfile({ author, className = "", showAvatar = true, noLink = false }) {
   if (!author) return null;
 
-  return (
-    <Link
-      to={`/p/${author}`}
-      className={`author-profile ${className}`}
-      onClick={(e) => e.stopPropagation()}
-    >
+  const content = (
+    <>
       {showAvatar && (
         <img
           className="author-avatar"
@@ -25,6 +22,24 @@ function AuthorProfile({ author, className = "", showAvatar = true }) {
         />
       )}
       <span className="author-name">{author}</span>
+    </>
+  );
+
+  if (noLink) {
+    return (
+      <span className={`author-profile ${className}`}>
+        {content}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      to={`/p/${author}`}
+      className={`author-profile ${className}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {content}
     </Link>
   );
 }
@@ -33,6 +48,7 @@ AuthorProfile.propTypes = {
   author: PropTypes.string.isRequired,
   className: PropTypes.string,
   showAvatar: PropTypes.bool,
+  noLink: PropTypes.bool,
 };
 
 export default AuthorProfile;

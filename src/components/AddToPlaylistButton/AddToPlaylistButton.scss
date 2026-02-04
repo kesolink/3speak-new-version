@@ -1,0 +1,33 @@
+.add-to-playlist-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: all 0.2s ease;
+  z-index: 3;
+
+  &:hover {
+    background: var(--accent-primary, #e53935);
+    transform: translateY(0);
+  }
+
+  // Compact variant for smaller thumbnails
+  &.compact {
+    top: 4px;
+    left: 4px;
+    width: 28px;
+    height: 28px;
+  }
+}

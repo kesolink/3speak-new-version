@@ -3,13 +3,17 @@ import PropTypes from "prop-types";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { LuTimer } from "react-icons/lu";
+import { IoEyeOutline } from "react-icons/io5";
 import { Link } from "react-router-dom";
 import AuthorProfile from "../AuthorProfile/AuthorProfile";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
+import AddToPlaylistButton from "../AddToPlaylistButton/AddToPlaylistButton";
+import { useWatchHistory } from "../../hooks/useWatchHistory";
 
 dayjs.extend(relativeTime);
 
 function Recommended({suggestedVideos}) {
+  const { isWatched } = useWatchHistory(suggestedVideos);
   const titleTextTruncate = (text, maxLength) =>
     text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 
@@ -30,14 +34,24 @@ function Recommended({suggestedVideos}) {
                   src={fixVideoThumbnail(data)}
                   alt={data.title}
                 />
+                <AddToPlaylistButton
+                  author={author}
+                  permlink={data.permlink}
+                  title={data.title}
+                  size={18}
+                  className="compact"
+                />
               </div>
               <div className="vid-info">
                 <h4>{titleTextTruncate(data.title, 56)}</h4>
 
-                <AuthorProfile author={author} className="recommended-author" />
+                <AuthorProfile author={author} className="recommended-author" noLink />
 
                 <div className="bottom-info">
                   <div className="info-left">
+                    {isWatched(author, data.permlink) === true && (
+                      <IoEyeOutline className="watched-icon" title="Watched" />
+                    )}
                     <LuTimer />
                     <span>{dayjs(data.created_at).fromNow()}</span>
                   </div>

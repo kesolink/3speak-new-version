@@ -5,6 +5,8 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
 import { FEED_URL } from '../utils/config';
+import { useContentBatch } from "../hooks/useContentBatch";
+import { useWatchHistory } from "../hooks/useWatchHistory";
 
 const LIMIT = 500;
 
@@ -65,7 +67,12 @@ const Trend = () => {
 
   // Flatten all pages into one list
   const videos = data?.pages.flat() || [];
-  console.log(videos)
+
+  // Batch fetch content data
+  const { getContentForVideo } = useContentBatch(videos);
+
+  // Batch check watch history
+  const { isWatched } = useWatchHistory(videos);
 
   return (
     <div className="firstupload-container">
@@ -74,7 +81,7 @@ const Trend = () => {
       {isLoading ? (
         <CardSkeleton />
       ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} />
+        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
       )}
 
       {isError && <p>Error fetching videos</p>}

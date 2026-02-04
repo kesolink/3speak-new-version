@@ -5,13 +5,13 @@ import "./EditVideo.scss";
 import {  toast } from 'sonner'
 import { convert } from 'html-to-text';
 import axios from 'axios';
-import { API_URL_FROM_WEST } from '../utils/config';
+import { API_URL_FROM_WEST, HIVE_API_NODES } from '../utils/config';
 import TextEditor from '../components/studio/TextEditor';
 import { useAppStore } from '../lib/store';
 import * as dhive from '@hiveio/dhive';
 import MarkdownComposer from '../components/studio/MarkdownComposer';
 import { broadcastWithAioha, isLoggedIn, KeyTypes } from '../hive-api/aioha';
-const client = new dhive.Client(['https://api.hive.blog']);
+const client = new dhive.Client(HIVE_API_NODES);
 
 // Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
 let rendererPromise = null;

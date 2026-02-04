@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useQuery as useApolloQuery } from "@apollo/client";
 import axios from "axios";
@@ -9,6 +9,8 @@ import { NEW_CONTENT } from "../graphql/queries";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
 import { FEED_URL } from "../utils/config";
+import { useContentBatch } from "../hooks/useContentBatch";
+import { useWatchHistory } from "../hooks/useWatchHistory";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
@@ -27,8 +29,20 @@ const fetchTrending = async () => {
   return Array.isArray(res.data) ? res.data : [];
 };
 
+// Helper to deduplicate videos by author+permlink
+const deduplicateVideos = (videos) => {
+  const seen = new Set();
+  return videos.filter(video => {
+    const author = video.author?.username || video.author || video.owner;
+    const key = `${author}-${video.permlink}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 // Horizontal scrollable video row component
-const VideoRow = ({ title, videos, linkTo, isLoading }) => {
+const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatched }) => {
   const scrollContainerRef = useRef(null);
   const [showLeftBtn, setShowLeftBtn] = useState(false);
   const [showRightBtn, setShowRightBtn] = useState(true);
@@ -125,17 +139,24 @@ const VideoRow = ({ title, videos, linkTo, isLoading }) => {
         <div className="video-scroll-container-horizontal" ref={scrollContainerRef}>
           {isLoading || videos.length === 0 ? (
             <div className="skeleton-horizontal-container">
-              {Array.from({ length: 8 }).map((_, index) => (
+              {Array.from({ length: 12 }).map((_, index) => (
                 <div key={`skeleton-${index}`} className="skeleton-card-horizontal">
                   <div className="skeleton video-thumbnail-skeleton"></div>
-                  <div className="skeleton line-skeleton"></div>
-                  <div className="skeleton line-skeleton" style={{width: '60%'}}></div>
+                  <div className="skeleton line-skeleton title-skeleton"></div>
+                  <div className="skeleton-profile-row">
+                    <div className="skeleton profile-avatar-skeleton"></div>
+                    <div className="skeleton profile-name-skeleton"></div>
+                  </div>
+                  <div className="skeleton-bottom-row">
+                    <div className="skeleton bottom-skeleton"></div>
+                    <div className="skeleton bottom-skeleton"></div>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
             <div className="card-container-horizontal">
-              <Card3 videos={videos.slice(0, 16)} loading={false} tooltipVariant="group" />
+              <Card3 videos={videos.slice(0, 16)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} />
             </div>
           )}
         </div>
@@ -176,6 +197,19 @@ const HomeGrouped = () => {
     variables: { limit: 50, skip: 0 },
   });
 
+  // Combine all videos for batch content loading
+  const allVideos = useMemo(() => [
+    ...(homeData || []).slice(0, 16),
+    ...deduplicateVideos(newContentData?.socialFeed?.items || []).slice(0, 16),
+    ...(trendingData || []).slice(0, 16),
+    ...(firstUploadsData || []).slice(0, 16),
+  ], [homeData, newContentData, trendingData, firstUploadsData]);
+
+  const { getContentForVideo } = useContentBatch(allVideos);
+
+  // Batch check watch history for all videos
+  const { isWatched } = useWatchHistory(allVideos);
+
   return (
     <div className="home-grouped-container">
       <VideoRow
@@ -183,13 +217,17 @@ const HomeGrouped = () => {
         videos={homeData || []}
         linkTo="/home-feed"
         isLoading={homeLoading}
+        getContentForVideo={getContentForVideo}
+        isWatched={isWatched}
       />
 
       <VideoRow
         title="New Content"
-        videos={newContentData?.socialFeed?.items || []}
+        videos={deduplicateVideos(newContentData?.socialFeed?.items || [])}
         linkTo="/new"
         isLoading={newContentLoading}
+        getContentForVideo={getContentForVideo}
+        isWatched={isWatched}
       />
 
       <VideoRow
@@ -197,6 +235,8 @@ const HomeGrouped = () => {
         videos={trendingData || []}
         linkTo="/trend"
         isLoading={trendingLoading}
+        getContentForVideo={getContentForVideo}
+        isWatched={isWatched}
       />
 
       <VideoRow
@@ -204,6 +244,8 @@ const HomeGrouped = () => {
         videos={firstUploadsData || []}
         linkTo="/firstupload"
         isLoading={firstUploadsLoading}
+        getContentForVideo={getContentForVideo}
+        isWatched={isWatched}
       />
     </div>
   );

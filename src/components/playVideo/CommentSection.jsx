@@ -14,8 +14,9 @@ import {  toast } from 'sonner'
 import { estimate, getVotePower } from '../../utils/hiveUtils';
 import { filterByReputation } from '../../utils/reputation';
 import { commentWithAioha } from '../../hive-api/aioha';
+import { HIVE_API_NODES } from '../../utils/config';
 
-const client = new Client(['https://api.hive.blog']);
+const client = new Client(HIVE_API_NODES);
 
 // Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
 let rendererPromise = null;

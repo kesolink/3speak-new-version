@@ -92,5 +92,29 @@ export default defineConfig({
     devSourcemap: true,
   },
 
- 
+  server: {
+    proxy: {
+      // Proxy Hive RPC API calls
+      '/api/hive': {
+        target: 'https://techcoderx.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/hive/, ''),
+        secure: true,
+      },
+      // Proxy 3Speak feed API calls
+      '/api/feed': {
+        target: 'https://legacy.3speak.tv',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/feed/, ''),
+        secure: true,
+      },
+      // Proxy views API calls
+      '/api/views': {
+        target: 'https://views.3speak.tv',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/views/, ''),
+        secure: true,
+      },
+    },
+  },
 });

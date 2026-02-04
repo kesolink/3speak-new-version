@@ -4,9 +4,9 @@ import { MdDeleteForever } from 'react-icons/md';
 
 import { Client } from '@hiveio/dhive';
 import { useAppStore } from '../../lib/store';
+import { HIVE_API_NODES } from '../../utils/config';
 
-
-const client = new Client('https://api.hive.blog');
+const client = new Client(HIVE_API_NODES);
 
 function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList, setList, list, remaingPercent, setRemaingPercent }) {
   const {user} = useAppStore();

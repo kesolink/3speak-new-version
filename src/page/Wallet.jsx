@@ -8,13 +8,9 @@ import { Client } from '@hiveio/dhive';
 import TransferModal from '../components/Wallet/TransferModal';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { HIVE_API_NODES } from '../utils/config';
 
-const client = new Client([
-  'https://api.hive.blog',
-  'https://api.hivekings.com',
-  'https://anyx.io',
-  'https://api.openhive.network'
-]);
+const client = new Client(HIVE_API_NODES);
 
 function Wallet() {
   const { user: currentUser } = useAppStore();

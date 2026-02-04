@@ -8,15 +8,17 @@ import {
   MdOutlineDashboard,
   MdOutlineDynamicFeed,
   MdOutlineLeaderboard,
+  MdPlaylistPlay,
 } from "react-icons/md";
 import { LuNewspaper } from "react-icons/lu";
 import { FaFire, FaRegSmile } from "react-icons/fa";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { Link } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
+import { SiYoutubeshorts } from "react-icons/si";
 
 const Sidebar = ({ sidebar }) => {
-  const {  authenticated } = useAppStore();
+  const { authenticated, user } = useAppStore();
   // console.log(sidebar);
   return (
     <div className={`sidebar ${sidebar ? "" : "small-sidebar"}`}>
@@ -27,6 +29,9 @@ const Sidebar = ({ sidebar }) => {
        {authenticated && <Link to="/studio" className="side-link">
           <IoCloudUploadSharp className="icon" /> <span>Upload Video</span>
         </Link>}
+        {authenticated && <Link to="/profile?tab=playlists" className="side-link">
+          <MdPlaylistPlay className="icon" /> <span>My Playlists</span>
+        </Link>}
         <Link to="/firstupload" className="side-link">
           <FaRegSmile className="icon" /> <span>First Uploads</span>
         </Link>
@@ -36,6 +41,9 @@ const Sidebar = ({ sidebar }) => {
         </Link>
         <Link to="/new" className="side-link">
           <LuNewspaper className="icon" /> <span>New Content</span>
+        </Link>
+        <Link to="/shorts" className="side-link">
+          <SiYoutubeshorts className="icon" /> <span>Shorts</span>
         </Link>
         <Link to="/communities" className="side-link">
           <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>

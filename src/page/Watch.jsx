@@ -1,11 +1,13 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Recommended from '../components/recommended/Recommended';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { GET_RELATED, GET_VIDEO_DETAILS, TRENDING_FEED, GET_AUTHOR_VIDEOS } from '../graphql/queries';
 import { useQuery } from '@apollo/client';
 import BarLoader from '../components/Loader/BarLoader';
+import { useAppStore } from '../lib/store';
+import { recordWatch } from '../utils/watchHistory';
 
 // Number of author videos to show at the top of recommendations
 const AUTHOR_VIDEOS_COUNT = 4;
@@ -32,8 +34,45 @@ function filterValidVideos(videos) {
 
 function Watch() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAppStore();
   const v = searchParams.get('v'); // Extract the "v" query parameter
+  const playlistId = searchParams.get('playlist');
+  const posParam = searchParams.get('pos');
   const [author, permlink] = (v ?? 'unknown/unknown').split('/');
+
+  // Track which videos we've recorded to avoid duplicate API calls
+  const recordedWatchRef = useRef(new Set());
+
+  // Get playlist data from location state (passed from PlaylistView)
+  const [playlistData, setPlaylistData] = useState(null);
+  const [showPlaylist, setShowPlaylist] = useState(true);
+
+  // Initialize playlist data from location state
+  useEffect(() => {
+    if (location.state?.playlist && location.state?.videos) {
+      setPlaylistData({
+        playlist: location.state.playlist,
+        videos: location.state.videos,
+        currentIndex: location.state.currentIndex ?? parseInt(posParam) ?? 0,
+      });
+      setShowPlaylist(true);
+    } else if (!playlistId) {
+      // Clear playlist data if not in playlist mode
+      setPlaylistData(null);
+    }
+  }, [location.state, playlistId, posParam]);
+
+  // Update current index when video changes
+  useEffect(() => {
+    if (playlistData && posParam !== null) {
+      const newIndex = parseInt(posParam);
+      if (!isNaN(newIndex) && newIndex !== playlistData.currentIndex) {
+        setPlaylistData(prev => prev ? { ...prev, currentIndex: newIndex } : null);
+      }
+    }
+  }, [posParam]);
 
   // Send command to the player iframe
   const sendPlayerCommand = useCallback((command) => {
@@ -47,7 +86,25 @@ function Watch() {
     sendPlayerCommand('play');
   }, [sendPlayerCommand]);
 
-  // Listen for player ready message and auto-play
+  // Navigate to next video in playlist
+  const navigateToNextVideo = useCallback(() => {
+    if (!playlistData || !playlistData.videos || playlistData.videos.length === 0) {
+      return;
+    }
+
+    const { playlist, videos, currentIndex } = playlistData;
+    const nextIndex = currentIndex + 1;
+
+    // Check if there's a next video
+    if (nextIndex < videos.length) {
+      const nextVideo = videos[nextIndex];
+      navigate(`/watch?v=${nextVideo.author}/${nextVideo.permlink}&playlist=${playlist.id}&pos=${nextIndex}`, {
+        state: { playlist, videos, currentIndex: nextIndex },
+      });
+    }
+  }, [playlistData, navigate]);
+
+  // Listen for player ready message and auto-play, and video ended for playlist auto-advance
   useEffect(() => {
     const handleMessage = (event) => {
       // Handle player-ready for auto-play
@@ -57,17 +114,40 @@ function Watch() {
           triggerPlay();
         }, 100);
       }
+
+      // Handle video ended - auto-advance to next video in playlist
+      if (event.data && event.data.type === '3speak-ended') {
+        if (playlistData && showPlaylist) {
+          navigateToNextVideo();
+        }
+      }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [triggerPlay]);
+  }, [triggerPlay, playlistData, showPlaylist, navigateToNextVideo]);
 
   const { data: videoData, loading: videoLoading, error: videoError } = useQuery(GET_VIDEO_DETAILS, {
     variables: { author, permlink },
   });
 
   const videoDetails = videoData?.socialPost;
+
+  // Record watch history when video loads
+  useEffect(() => {
+    if (!user || !author || !permlink || author === 'unknown') {
+      return;
+    }
+
+    const watchKey = `${author}/${permlink}`;
+    if (recordedWatchRef.current.has(watchKey)) {
+      return; // Already recorded this video in this session
+    }
+
+    // Mark as recorded and send to API
+    recordedWatchRef.current.add(watchKey);
+    recordWatch(user, author, permlink);
+  }, [user, author, permlink]);
 
   // Fetch related videos
   const { data: suggestionsData, loading: suggestionsLoading } = useQuery(GET_RELATED, {
@@ -146,7 +226,13 @@ function Watch() {
 
   return (
     <div className="play-container">
-      <PlayVideo videoDetails={videoDetails} author={author} permlink={permlink} />
+      <PlayVideo
+        videoDetails={videoDetails}
+        author={author}
+        permlink={permlink}
+        playlistData={showPlaylist ? playlistData : null}
+        onClosePlaylist={() => setShowPlaylist(false)}
+      />
 
       {suggestedVideos.length > 0 && (
         <Recommended suggestedVideos={suggestedVideos} />

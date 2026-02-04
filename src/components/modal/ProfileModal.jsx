@@ -163,7 +163,15 @@ function ProfileModal({ username = "kesolink", onClose }) {
             ></div>
 
             <div className="profile-content">
-              <div className="avatar-wrap">
+              <div
+                className="avatar-wrap"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleProfileNavigation(username);
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 <div className="avatar">
                   <img
                     src={profile?.metadata?.profile?.profile_image || "/default.png"}
@@ -184,7 +192,9 @@ function ProfileModal({ username = "kesolink", onClose }) {
                   <h2 className="username">{profile?.name}</h2>
                   <span>({Math.floor(profile?.reputation || 0)})</span>
                 </div>
-                <button className="btn-follow" onClick={handleFollow}>{isFollowing ? "Unfollow" : "Follow"}</button>
+                {activeUser && activeUser.toLowerCase() !== username?.toLowerCase() && (
+                  <button className="btn-follow" onClick={handleFollow}>{isFollowing ? "Unfollow" : "Follow"}</button>
+                )}
               </div>
 
               <div className="stats-grid">
