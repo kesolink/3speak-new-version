@@ -38,6 +38,12 @@
         object-fit: cover;
         object-position: center;
       }
+
+      // Show add-to-playlist button on hover
+      &:hover .add-to-playlist-btn {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .vid-info {
@@ -85,6 +91,11 @@
 
           svg {
             flex-shrink: 0;
+          }
+
+          // Watched indicator - red eye icon
+          .watched-icon {
+            color: var(--accent-primary, #e53935);
           }
         }
 

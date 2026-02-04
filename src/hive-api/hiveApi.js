@@ -1,16 +1,15 @@
 /**
  * Hive Blockchain API Service for Shorts
- * 
+ *
  * Uses axios for API calls
  */
 
 import axios from "axios";
+import { HIVE_API_URL } from "../utils/config";
 
 /* -----------------------------
    Hive RPC setup
 ------------------------------ */
-
-const HIVE_API_URL = "https://api.hive.blog";
 const SHORTS_API = "https://tags.3speak.tv/shorts";
 
 /* -----------------------------

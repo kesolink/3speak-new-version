@@ -1,0 +1,80 @@
+// Global styles to inject email button into aioha modal
+#aioha-modal {
+  // Add padding at the bottom only when email button is shown
+  > div > div.has-email-btn {
+    padding-bottom: 80px !important;
+    position: relative;
+  }
+
+  // Hide the "Popular" badge next to Keychain
+  ul li a span.bg-gray-200,
+  ul li a span.bg-gray-200.dark\:bg-gray-700 {
+    display: none !important;
+  }
+
+  // Style the injected email button container - matches modal's internal padding
+  .email-login-btn-container {
+    position: absolute;
+    bottom: 16px;
+    left: 32px;
+    right: 32px;
+    display: flex;
+    justify-content: center;
+
+    @media (min-width: 768px) {
+      left: 36px;
+      right: 36px;
+    }
+
+    // Email login button styles - higher specificity
+    .email-login-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 12px;
+      background: transparent !important;
+      color: var(--text-primary) !important;
+      border: 1px solid var(--border-color) !important;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: #f3f4f6 !important;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      }
+
+      svg {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        color: #6b7280;
+      }
+
+      span {
+        flex: 1;
+        color: var(--text-primary) !important;
+      }
+    }
+  }
+}
+
+// Dark mode support - separate for clarity
+@media (prefers-color-scheme: dark) {
+  #aioha-modal .email-login-btn-container .email-login-btn {
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+    background: transparent !important;
+
+    &:hover {
+      background: rgba(75, 85, 99, 0.3) !important;
+    }
+
+    svg {
+      color: #9ca3af;
+    }
+  }
+}

@@ -1,0 +1,85 @@
+import { useState, useEffect, useRef } from 'react';
+import { batchGetContent } from '../utils/hiveUtils';
+import { useAppStore } from '../lib/store';
+
+/**
+ * Hook to batch fetch content data (payout, voters, vote status) for multiple videos
+ * @param {Array} videos - Array of video objects with author and permlink
+ * @returns {Object} - { contentData: Map, loading: boolean, error: Error|null }
+ */
+export function useContentBatch(videos) {
+  const { user } = useAppStore();
+  const [contentData, setContentData] = useState(new Map());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Track which posts we've already fetched to avoid refetching
+  const fetchedRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!videos || videos.length === 0) return;
+
+    // Extract author/permlink pairs, filtering out already fetched ones
+    const postsToFetch = videos
+      .map((video) => ({
+        author: video.author?.username || video.author?.id || video.author || video.owner,
+        permlink: video.permlink,
+      }))
+      .filter((post) => {
+        const key = `${post.author}/${post.permlink}`;
+        return post.author && post.permlink && !fetchedRef.current.has(key);
+      });
+
+    if (postsToFetch.length === 0) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const results = await batchGetContent(postsToFetch, user);
+
+        // Mark these as fetched
+        for (const post of postsToFetch) {
+          fetchedRef.current.add(`${post.author}/${post.permlink}`);
+        }
+
+        // Merge with existing data
+        setContentData((prev) => {
+          const merged = new Map(prev);
+          for (const [key, value] of results) {
+            merged.set(key, value);
+          }
+          return merged;
+        });
+      } catch (err) {
+        console.error('useContentBatch error:', err);
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [videos, user]);
+
+  /**
+   * Get content data for a specific video
+   * @param {string} author
+   * @param {string} permlink
+   * @returns {Object|null} - { payout, voters, isVoted } or null if not loaded
+   */
+  const getContentForVideo = (author, permlink) => {
+    const key = `${author}/${permlink}`;
+    return contentData.get(key) || null;
+  };
+
+  return {
+    contentData,
+    getContentForVideo,
+    loading,
+    error,
+  };
+}
+
+export default useContentBatch;

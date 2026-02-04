@@ -1,13 +1,66 @@
 import { Client, SMTAsset } from '@hiveio/dhive';
 import moment from 'moment';
-
-
+import axios from 'axios';
+import { HIVE_API_NODES, HIVE_API_URL } from './config';
 
 // Connect to a Hive node
-const client = new Client([
-    "https://api.hive.blog",
-    "https://api.openhive.network"
-]);
+const client = new Client(HIVE_API_NODES);
+
+/**
+ * Batch fetch content data for multiple posts in a single API call
+ * @param {Array<{author: string, permlink: string}>} posts - Array of post identifiers
+ * @param {string} activeUser - Current logged-in user (to check if voted)
+ * @returns {Promise<Map<string, {payout: string, voters: number, isVoted: boolean}>>}
+ */
+export async function batchGetContent(posts, activeUser = null) {
+  if (!posts || posts.length === 0) {
+    return new Map();
+  }
+
+  // Build batch request - array of JSON-RPC calls
+  const batchRequest = posts.map((post, index) => ({
+    jsonrpc: '2.0',
+    id: index,
+    method: 'condenser_api.get_content',
+    params: [post.author, post.permlink],
+  }));
+
+  try {
+    const response = await axios.post(HIVE_API_URL, batchRequest);
+    const results = new Map();
+
+    // Process each response
+    const responses = Array.isArray(response.data) ? response.data : [response.data];
+
+    for (const res of responses) {
+      if (res.error || !res.result) continue;
+
+      const post = res.result;
+      const key = `${post.author}/${post.permlink}`;
+
+      // Calculate payout
+      let payout = post.last_payout <= '1970-01-01T00:00:00'
+        ? parseFloat(post.pending_payout_value)
+        : parseFloat(post.total_payout_value) + parseFloat(post.curator_payout_value);
+
+      // Check if user voted
+      const isVoted = activeUser
+        ? post.active_votes?.some((vote) => vote.voter === activeUser) || false
+        : false;
+
+      results.set(key, {
+        payout: payout.toFixed(2),
+        voters: post.active_votes?.length || 0,
+        isVoted,
+      });
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Batch content fetch failed:', error);
+    return new Map();
+  }
+}
 
 export async function has3SpeakPostAuth(username) {
     try {

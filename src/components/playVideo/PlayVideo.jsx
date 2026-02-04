@@ -6,10 +6,7 @@ import { BiLike } from "react-icons/bi";
 import { GiTwoCoins } from "react-icons/gi";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@apollo/client";
-import {
-  GET_PROFILE,
-  GET_VIDEO,
-} from "../../graphql/queries";
+import { GET_PROFILE } from "../../graphql/queries";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
@@ -31,10 +28,14 @@ import axios from "axios";
 import { FEED_URL } from '../../utils/config';
 import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
 import { PLAYER_URL } from "../../utils/config";
+import { MdPlaylistAdd } from "react-icons/md";
+import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
+import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
+import PlaylistBar from "../PlaylistBar/PlaylistBar";
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   
@@ -52,6 +53,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   const [weight, setWeight] = useState(100);
   const [view, setView] = useState(0);
   const [speakData, setSpeakData] = useState(null);
+  const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
 
   // Memoized format function
   const formatRelativeTime = useCallback((date) => {
@@ -69,23 +71,13 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   }, []);
 
   // Queries with proper skip conditions
-  const {
-    data: getVideo,
-    loading: videoLoading,
-  } = useQuery(GET_VIDEO, { 
-    variables: { author, permlink },
-    skip: !author || !permlink,
-    ssr: true 
-  });
-
   const getUserProfile = useQuery(GET_PROFILE, {
     variables: { id: videoDetails?.author?.id },
     skip: !videoDetails?.author?.id,
   });
 
-  console.log("Video Data:", getVideo);
-
-  const spkvideo = getVideo?.socialPost?.spkvideo;
+  // Use spkvideo from videoDetails (already fetched by Watch.jsx)
+  const spkvideo = videoDetails?.spkvideo;
   const profile = getUserProfile.data?.profile;
   
   // Memoized values
@@ -96,7 +88,6 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
   return raw ? raw.split('/').pop() : null;
 }, [videoDetails?.community?._id]);
 
-  console.log("Community ID:", videoDetails);
   // Memoized video URL
   const videoUrlSelected = useMemo(() => {
     if (!spkvideo?.play_url) return null;
@@ -244,8 +235,8 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
     navigate(`/community/${community}`);
   }, [navigate]);
 
-  // Loading state
-  if (videoLoading) {
+  // Loading state - show loader if essential data is missing
+  if (!videoDetails) {
     return <BarLoader />;
   }
 
@@ -346,9 +337,14 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
               </span>
 
               {authenticated && isLoggedIn() && (
-                <button className="tip-btn" onClick={() => setIsTipModalOpen(true)}>
-                  Tip
-                </button>
+                <>
+                  <button className="playlist-btn" onClick={() => setIsPlaylistModalOpen(true)} title="Add to playlist">
+                    <MdPlaylistAdd />
+                  </button>
+                  <button className="tip-btn" onClick={() => setIsTipModalOpen(true)}>
+                    Tip
+                  </button>
+                </>
               )}
 
               <UpvoteTooltip
@@ -361,6 +357,7 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
                 weight={weight}
                 setWeight={setWeight}
                 voteValue={voteValue}
+                setVoteValue={setVoteValue}
                 setAccountData={setAccountData}
                 accountData={accountData}
               />
@@ -385,6 +382,18 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
           )}
         </div>
 
+        {/* Show PlaylistBar when watching from a playlist, otherwise show VideoPlaylists */}
+        {playlistData ? (
+          <PlaylistBar
+            playlist={playlistData.playlist}
+            videos={playlistData.videos}
+            currentIndex={playlistData.currentIndex}
+            onClose={onClosePlaylist}
+          />
+        ) : (
+          <VideoPlaylists author={author} permlink={permlink} />
+        )}
+
         <div className="description-wrap">
           <div className="blog-content">
             <BlogContent author={author} permlink={permlink} />
@@ -406,6 +415,14 @@ const PlayVideo = ({ videoDetails, author, permlink }) => {
           onClose={() => setIsTipModalOpen(false)}
         />
       )}
+
+      <AddToPlaylistModal
+        isOpen={isPlaylistModalOpen}
+        onClose={() => setIsPlaylistModalOpen(false)}
+        author={author}
+        permlink={permlink}
+        videoTitle={videoDetails?.title}
+      />
     </>
   );
 };
@@ -434,6 +451,12 @@ PlayVideo.propTypes = {
   }),
   author: PropTypes.string.isRequired,
   permlink: PropTypes.string.isRequired,
+  playlistData: PropTypes.shape({
+    playlist: PropTypes.object,
+    videos: PropTypes.array,
+    currentIndex: PropTypes.number,
+  }),
+  onClosePlaylist: PropTypes.func,
 };
 
 export default PlayVideo;

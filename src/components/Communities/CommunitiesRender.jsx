@@ -4,11 +4,9 @@ import SkeletonLoader from './SkeletonLoader';
 import './CommunitiesRender.scss';
 import { Link, useNavigate } from 'react-router-dom';
 import CreateCommunity from '../modal/CreateCommunity';
+import { HIVE_API_NODES } from '../../utils/config';
 
-const client = new Client([
-  'https://api.hive.blog',
-  'https://api.openhive.network'
-]);
+const client = new Client(HIVE_API_NODES);
 
 function CommunitiesRender() {
   const [data, setData] = useState([]); // All communities data

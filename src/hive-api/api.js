@@ -2,13 +2,9 @@
 import { Client, PrivateKey } from "@hiveio/dhive";
 import axios from "axios";
 import { broadcastWithAioha, isLoggedIn, KeyTypes } from "./aioha";
- const SERVERS = [
-    // "https://rpc.ecency.com",
-    "https://api.deathwing.me",
-    "https://api.hive.blog",
-    "https://api.openhive.network"
-  ];
-const client = new Client(SERVERS, {
+import { HIVE_API_URL, HIVE_API_NODES } from "../utils/config";
+
+const client = new Client(HIVE_API_NODES, {
     timeout: 3000,
     failoverThreshold: 3,
     consoleOnFailover: true
@@ -16,12 +12,9 @@ const client = new Client(SERVERS, {
   const bridgeApiCall = (endpoint, params) =>
     client.call("bridge", endpoint, params);
 
-
-
-
   // Hive Bridge API helper
   export const hiveBridgeCall = async (method, params = {}) => {
-    const { data } = await axios.post("https://api.hive.blog", {
+    const { data } = await axios.post(HIVE_API_URL, {
       jsonrpc: "2.0",
       id: 1,
       method: "bridge." + method,

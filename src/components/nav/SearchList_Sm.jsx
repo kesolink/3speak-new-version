@@ -4,14 +4,9 @@ import { Client } from "@hiveio/dhive";
 import { useNavigate } from 'react-router-dom';
 import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
-const HIVE_NODES = [
-  'https://api.hive.blog',
-  'https://api.openhive.network',
-  'https://rpc.ausbit.dev',
-  'https://hive-api.arcange.eu',
-];
+import { HIVE_API_NODES } from '../../utils/config';
 
-const client = new Client(HIVE_NODES);
+const client = new Client(HIVE_API_NODES);
 
 
 function SearchList_Sm({searchTerm, setSearchTerm, handleNav, setIsDropdownOpensm, isDropdownOpensm, searchBoxRefsm}) {

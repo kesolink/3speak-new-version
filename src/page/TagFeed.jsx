@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import CardSkeleton from '../components/Cards/CardSkeleton';
-import { useQuery } from '@apollo/client';
-import { GET_TRENDING_TAGS } from '../graphql/queries';
-import Cards from '../components/Cards/Cards';
 import { useLocation, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import Card3 from '../components/Cards/Card3';
 import { TAG_FEED_URL } from '../utils/config';
-// import './App.css';
+import { useContentBatch } from '../hooks/useContentBatch';
+import { useWatchHistory } from '../hooks/useWatchHistory';
 
 function TagFeed() {
   const { tag } = useParams(); 
@@ -68,7 +66,12 @@ function TagFeed() {
   }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
 
   const videos = data?.pages.flatMap(page => page.videos) || [];
-  console.log(videos);
+
+  // Batch fetch content data
+  const { getContentForVideo } = useContentBatch(videos);
+
+  // Batch check watch history
+  const { isWatched } = useWatchHistory(videos);
 
   return (
     <div className="firstupload-container">
@@ -81,7 +84,8 @@ function TagFeed() {
           videos={videos}
           error={isError ? 'Failed to load videos' : ''}
           loading={isFetchingNextPage}
-          className="custom-video-feed"
+          getContentForVideo={getContentForVideo}
+          isWatched={isWatched}
         />
       )}
     </div>

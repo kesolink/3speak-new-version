@@ -4,6 +4,8 @@ import { useQuery } from '@apollo/client'
 import { NEW_CONTENT } from '../graphql/queries'
 import CardSkeleton from '../components/Cards/CardSkeleton'
 import Card3 from "../components/Cards/Card3";
+import { useContentBatch } from "../hooks/useContentBatch";
+import { useWatchHistory } from "../hooks/useWatchHistory";
 
 const VIDEOS_PER_PAGE = 50;
 
@@ -59,6 +61,12 @@ const NewVideos = () => {
 
   const hasMore = data?.socialFeed?.items?.length === VIDEOS_PER_PAGE;
 
+  // Batch fetch content data
+  const { getContentForVideo } = useContentBatch(videos);
+
+  // Batch check watch history
+  const { isWatched } = useWatchHistory(videos);
+
   return (
     <div className='firstupload-container'>
       <div className='headers'>New VIDEOS</div>
@@ -66,7 +74,7 @@ const NewVideos = () => {
         <CardSkeleton />
       ) : (
         <>
-          <Card3 videos={videos} loading={false} />
+          <Card3 videos={videos} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} />
           {hasMore && (
             <button 
               className="load-more-btn" 

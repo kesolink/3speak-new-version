@@ -2,13 +2,9 @@ import React, { useEffect, useState } from "react";
 import "./TrxHistory.scss";
 import { Client } from "@hiveio/dhive";
 import Skeleton from "./Skeleton";
+import { HIVE_API_NODES } from "../../utils/config";
 
-const client = new Client([
-  "https://api.hive.blog",
-  "https://api.hivekings.com",
-  "https://anyx.io",
-  "https://api.openhive.network",
-]);
+const client = new Client(HIVE_API_NODES);
 
 const BATCH_SIZE = 100;
 const MAX_TRANSACTIONS = 100;
