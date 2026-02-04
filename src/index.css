@@ -848,8 +848,8 @@ body.tv-mode .upload-button {
   display: none !important;
 }
 
-/* TV Focus States */
-body.tv-mode .tv-focused {
+/* TV Focus States - generic elements (NOT cards or sidebar items - they have their own focus styles) */
+body.tv-mode .tv-focused:not(.card):not([data-tv-focusable="true"]):not(.side-link):not(.tv-search-wrapper) {
   outline: 4px solid var(--accent-primary) !important;
   outline-offset: 4px;
   transform: scale(1.02);
@@ -858,12 +858,14 @@ body.tv-mode .tv-focused {
   position: relative;
 }
 
-/* Card focus styling */
+/* Card focus styling - single focus effect (no outline, just box-shadow) */
 body.tv-mode .card.tv-focused,
 body.tv-mode [data-tv-focusable="true"].tv-focused {
+  outline: none !important;
   box-shadow: 0 0 0 4px var(--accent-primary),
               0 8px 25px rgba(229, 57, 53, 0.4) !important;
-  transform: scale(1.05);
+  transform: scale(1.02);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 /* Thumbnail focus overlay */

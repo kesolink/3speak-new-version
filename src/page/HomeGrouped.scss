@@ -62,7 +62,7 @@
     h2 {
       font-size: 16px;
       font-weight: 600;
-      color: red;
+      color: var(--text-primary);
       margin: 0;
 
       @include respond(phone) {
@@ -313,7 +313,7 @@
   }
 }
 
-// TV Mode: Make cards bigger and wider on homepage
+// TV Mode: Cards sized for TV viewing (25% smaller dimensions, same font sizes for readability)
 body.tv-mode {
   .video-row {
     margin-bottom: 20px;
@@ -340,17 +340,18 @@ body.tv-mode {
       padding: 10px 15px;
 
       .card-container-horizontal .card-container {
-        gap: 30px !important;
-        grid-column-gap: 30px !important;
-        grid-row-gap: 30px !important;
+        gap: 22px !important;
+        grid-column-gap: 22px !important;
+        grid-row-gap: 22px !important;
 
         .card {
-          width: 420px;
+          width: 315px; // 25% smaller than 420px
 
           .img-wrap img {
-            height: 280px;
+            height: 210px; // 25% smaller than 280px
           }
 
+          // Keep font sizes large for TV readability (10ft viewing distance)
           h2 {
             font-size: 19px;
             margin: 8px 0;
@@ -410,23 +411,14 @@ body.tv-mode {
               }
             }
           }
-
-          // TV focus state
-          &.tv-focused {
-            outline: 4px solid var(--accent-primary);
-            outline-offset: 4px;
-            transform: scale(1.02);
-            box-shadow: 0 0 30px rgba(229, 57, 53, 0.4);
-            transition: all 0.2s ease;
-          }
         }
       }
 
       .skeleton-horizontal-container .skeleton-card-horizontal {
-        width: 420px;
+        width: 315px;
 
         .video-thumbnail-skeleton {
-          height: 280px;
+          height: 210px;
         }
       }
     }

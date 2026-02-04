@@ -10,10 +10,12 @@ import { useAppStore } from '../../lib/store';
 import { Client } from '@hiveio/dhive';
 import UpvoteTooltip from '../tooltip/UpvoteTooltip';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
+import TVCommentContextMenu from '../tv/TVCommentContextMenu';
+import TVUpvoteOverlay from '../tv/TVUpvoteOverlay';
 import {  toast } from 'sonner'
 import { estimate, getVotePower } from '../../utils/hiveUtils';
 import { filterByReputation } from '../../utils/reputation';
-import { commentWithAioha } from '../../hive-api/aioha';
+import { commentWithAioha, voteWithAioha } from '../../hive-api/aioha';
 import { useTVMode } from '../../context/TVModeContext';
 import { useTVKeyboard } from '../../context/TVKeyboardContext';
 
@@ -35,10 +37,10 @@ const getRenderer = async () => {
   return rendererPromise;
 };
 
-function CommentSection({ videoDetails, author, permlink }) {
-  const { user } = useAppStore();
+function CommentSection({ videoDetails, author, permlink, tvFocusedIndex = -1, tvCommentInputFocused = false, onModalStateChange }) {
+  const { user, authenticated } = useAppStore();
   const { isTVMode } = useTVMode();
-  const { openKeyboard } = useTVKeyboard();
+  const { openKeyboard, isOpen: isKeyboardOpen } = useTVKeyboard();
   const [commentInfo, setCommentInfo] = useState('');
   const [replyText, setReplyText] = useState("");
   const [activeReply, setActiveReply] = useState(null);
@@ -54,6 +56,15 @@ function CommentSection({ videoDetails, author, permlink }) {
       const [accountData, setAccountData] = useState(null);
   // Cache for rendered comment bodies
   const [renderedBodies, setRenderedBodies] = useState({});
+
+  // TV Mode state for comment context menu and vote overlay
+  const [showTvContextMenu, setShowTvContextMenu] = useState(false);
+  const [tvContextMenuComment, setTvContextMenuComment] = useState(null);
+  const [showTvVoteOverlay, setShowTvVoteOverlay] = useState(false);
+  const [tvVoteComment, setTvVoteComment] = useState(null);
+  const [tvVoteWeight, setTvVoteWeight] = useState(100);
+  const [tvVoteValue, setTvVoteValue] = useState(0.0);
+  const [tvVoteLoading, setTvVoteLoading] = useState(false);
 
   // TV Mode state for comment input navigation
   const [tvInputFocusIndex, setTvInputFocusIndex] = useState(-1); // -1 = not focused, 0 = textarea, 1 = cancel, 2 = comment button
@@ -135,9 +146,27 @@ function CommentSection({ videoDetails, author, permlink }) {
     }
   }, [isTVMode, openKeyboard, commentInfo, author, permlink, user]);
 
+  // Handle Enter key when comment input is focused from parent (WatchTV)
+  useEffect(() => {
+    // Don't handle if keyboard is open
+    if (!isTVMode || !tvCommentInputFocused || isKeyboardOpen) return;
+
+    const handleEnterKey = (event) => {
+      if (event.keyCode === 13) { // Enter
+        enterTvInputMode();
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    document.addEventListener('keydown', handleEnterKey, true);
+    return () => document.removeEventListener('keydown', handleEnterKey, true);
+  }, [isTVMode, tvCommentInputFocused, isKeyboardOpen, enterTvInputMode]);
+
   // Handle TV mode keyboard navigation within comment input
   useEffect(() => {
-    if (!isTVMode || tvInputFocusIndex < 0) return;
+    // Don't handle if keyboard is open
+    if (!isTVMode || tvInputFocusIndex < 0 || isKeyboardOpen) return;
 
     const handleKeyDown = (event) => {
       switch (event.keyCode) {
@@ -221,7 +250,7 @@ function CommentSection({ videoDetails, author, permlink }) {
     // Use capture phase to intercept events before Watch.jsx
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isTVMode, tvInputFocusIndex, enterTvInputMode]);
+  }, [isTVMode, tvInputFocusIndex, isKeyboardOpen, enterTvInputMode]);
 
 
       
@@ -448,11 +477,202 @@ function CommentSection({ videoDetails, author, permlink }) {
     setActiveTooltipPermlink((prev) => (prev === permlink ? null : permlink));
   };
 
+  // TV Mode: Open context menu for a comment
+  const openTvCommentContextMenu = useCallback((comment) => {
+    if (!isTVMode) return;
+    setTvContextMenuComment(comment);
+    setShowTvContextMenu(true);
+  }, [isTVMode]);
+
+  // TV Mode: Handle vote option from context menu
+  const handleTvVoteOption = useCallback(() => {
+    setShowTvContextMenu(false);
+    if (!authenticated) {
+      toast.error('Please login to vote');
+      return;
+    }
+    if (tvContextMenuComment) {
+      setTvVoteComment(tvContextMenuComment);
+      setTvVoteWeight(100);
+      // Calculate vote value
+      if (accountData) {
+        estimate(accountData, 100).then(val => setTvVoteValue(val)).catch(() => setTvVoteValue(0));
+      }
+      setShowTvVoteOverlay(true);
+    }
+  }, [tvContextMenuComment, accountData, authenticated]);
+
+  // TV Mode: Execute vote on comment
+  const handleTvCommentVote = useCallback(async () => {
+    if (!tvVoteComment || !user) return;
+
+    setTvVoteLoading(true);
+    try {
+      const voteWeight = Math.round(tvVoteWeight * 100); // Convert 1-100 to 100-10000
+      const result = await voteWithAioha(
+        tvVoteComment.author?.username || tvVoteComment.author,
+        tvVoteComment.permlink,
+        voteWeight
+      );
+
+      if (result.success) {
+        toast.success('Vote successful!');
+        // Update the comment's vote status in the list
+        const updateCommentVote = (comments) => {
+          return comments.map(c => {
+            if (c.permlink === tvVoteComment.permlink) {
+              return {
+                ...c,
+                has_voted: true,
+                stats: {
+                  ...c.stats,
+                  num_likes: (c.stats?.num_likes || 0) + (c.has_voted ? 0 : 1)
+                }
+              };
+            }
+            if (c.children) {
+              return { ...c, children: updateCommentVote(c.children) };
+            }
+            return c;
+          });
+        };
+        setCommentList(prev => updateCommentVote(prev));
+        setShowTvVoteOverlay(false);
+        setTvVoteComment(null);
+      } else {
+        toast.error('Vote failed');
+      }
+    } catch (err) {
+      console.error('Vote error:', err);
+      toast.error(err.message || 'Vote failed');
+    } finally {
+      setTvVoteLoading(false);
+    }
+  }, [tvVoteComment, tvVoteWeight, user]);
+
+  // TV Mode: Handle reply option from context menu
+  const handleTvReplyOption = useCallback(() => {
+    setShowTvContextMenu(false);
+    if (!authenticated) {
+      toast.error('Please login to reply');
+      return;
+    }
+    if (tvContextMenuComment && isTVMode) {
+      // Open reply form for this comment
+      setActiveReply(tvContextMenuComment.permlink);
+      setReplyToComment(tvContextMenuComment);
+      setReplyText('');
+
+      // Open TV keyboard for reply
+      openKeyboard({
+        initialValue: '',
+        placeholder: `Reply to @${tvContextMenuComment.author?.username || tvContextMenuComment.author}...`,
+        onChange: (val) => setReplyText(val),
+        onSubmit: async (value) => {
+          if (value.trim()) {
+            const parent_author = tvContextMenuComment.author?.username || tvContextMenuComment.author;
+            const parent_permlink = tvContextMenuComment.permlink;
+            const new_permlink = `re-${parent_permlink}-${Date.now()}`;
+
+            try {
+              const result = await commentWithAioha(
+                parent_author,
+                parent_permlink,
+                new_permlink,
+                '',
+                value,
+                { app: '3speak/new-version' }
+              );
+
+              if (result.success) {
+                toast.success('Reply posted successfully!');
+                const newComment = {
+                  author: {
+                    username: user,
+                    profile: {
+                      images: {
+                        avatar: `https://images.hive.blog/u/${user}/avatar`,
+                      },
+                    },
+                  },
+                  permlink: new_permlink,
+                  created_at: new Date().toISOString(),
+                  body: value,
+                  stats: {
+                    num_likes: 0,
+                    num_dislikes: 0,
+                    total_hive_reward: 0,
+                  },
+                  children: [],
+                };
+
+                // Add reply to the comment's children
+                const addReply = (comments) =>
+                  comments.map((comment) => {
+                    if (comment.permlink === parent_permlink) {
+                      return {
+                        ...comment,
+                        children: [...(comment.children || []), newComment],
+                      };
+                    } else if (comment.children) {
+                      return {
+                        ...comment,
+                        children: addReply(comment.children),
+                      };
+                    }
+                    return comment;
+                  });
+
+                setCommentList(prev => addReply(prev));
+                setReplyText('');
+                setActiveReply(null);
+                setReplyToComment(null);
+              } else {
+                toast.error('Reply failed, please try again');
+              }
+            } catch (err) {
+              console.error('Reply failed:', err);
+              toast.error(err.message || 'Reply failed, please try again');
+            }
+          }
+        },
+      });
+    }
+  }, [tvContextMenuComment, isTVMode, openKeyboard, user, authenticated]);
+
+  // Update vote value when weight changes
+  useEffect(() => {
+    if (showTvVoteOverlay && accountData) {
+      estimate(accountData, tvVoteWeight).then(val => setTvVoteValue(val)).catch(() => setTvVoteValue(0));
+    }
+  }, [tvVoteWeight, showTvVoteOverlay, accountData]);
+
+  // Notify parent when modal state changes
+  useEffect(() => {
+    if (onModalStateChange) {
+      onModalStateChange(showTvContextMenu || showTvVoteOverlay);
+    }
+  }, [showTvContextMenu, showTvVoteOverlay, onModalStateChange]);
+
   // Count total comments including nested children
   const countComments = (comments) => {
     if (!comments || comments.length === 0) return 0;
     return comments.reduce((sum, c) => sum + 1 + countComments(c.children || []), 0);
   };
+
+  // Flatten comments into a single array for TV navigation
+  const flattenComments = (comments, depth = 0) => {
+    if (!comments || comments.length === 0) return [];
+    return comments.reduce((acc, comment) => {
+      acc.push({ comment, depth });
+      if (comment.children && comment.children.length > 0) {
+        acc.push(...flattenComments(comment.children, depth + 1));
+      }
+      return acc;
+    }, []);
+  };
+
+  const flatComments = flattenComments(commentList);
 
   return (
     <div className="vid-comment-wrap">
@@ -460,12 +680,13 @@ function CommentSection({ videoDetails, author, permlink }) {
       
       {/* Main comment form */}
       <div
-        className={`add-comment-wrap${tvInputFocusIndex >= 0 ? ' tv-input-active' : ''}`}
+        className={`add-comment-wrap${tvInputFocusIndex >= 0 ? ' tv-input-active' : ''}${tvCommentInputFocused ? ' tv-comment-input-focused' : ''}`}
         data-tv-main-focusable="true"
         data-tv-focusable-type="comment-input"
         data-tv-enter-handler="true"
         data-tv-custom-keyboard="true"
         onClick={enterTvInputMode}
+        tabIndex={tvCommentInputFocused ? 0 : -1}
       >
         <span>Add a comment:</span>
         <textarea
@@ -501,15 +722,15 @@ function CommentSection({ videoDetails, author, permlink }) {
 
       {loadingComments ? (
         <div className="comments-loading">
-          <div className="loader-center"> 
+          <div className="loader-center">
             <TailChase size={16} speed={1.5} color="var(--accent-primary)" />
           </div>
         </div>
       ) : (
-        commentList.map((comment, index) => (
+        flatComments.map(({ comment, depth }, flatIndex) => (
         <Comment
-        key={`${comment.author?.username}-${comment.permlink || index}`}
-          commentIndex={index}
+        key={`${comment.author?.username}-${comment.permlink || flatIndex}`}
+          commentIndex={flatIndex}
           comment={comment}
           setCommentList={setCommentList}
           activeReply={activeReply}
@@ -520,8 +741,7 @@ function CommentSection({ videoDetails, author, permlink }) {
           replyText={replyText}
           commentInfo={commentInfo}
           handlePostComment={handlePostComment}
-          depth={0}
-          // handleVote={handleVote}
+          depth={depth}
           processedBody={processedBody}
           toggleTooltip={toggleTooltip}
           selectedPost={selectedPost}
@@ -535,9 +755,40 @@ function CommentSection({ videoDetails, author, permlink }) {
       setVoteValue={setVoteValue}
       accountData={accountData}
       setAccountData={setAccountData}
-          
+      isTvFocused={tvFocusedIndex === flatIndex}
+      openTvCommentContextMenu={openTvCommentContextMenu}
         />
       )) )}
+
+      {/* TV Comment Context Menu */}
+      <TVCommentContextMenu
+        isOpen={showTvContextMenu}
+        onClose={() => {
+          setShowTvContextMenu(false);
+          setTvContextMenuComment(null);
+        }}
+        onViewProfile={() => {
+          // Navigation is handled inside the component
+          setShowTvContextMenu(false);
+        }}
+        onVote={handleTvVoteOption}
+        onReply={handleTvReplyOption}
+        commentAuthor={tvContextMenuComment?.author?.username || tvContextMenuComment?.author || ''}
+      />
+
+      {/* TV Vote Overlay for Comments */}
+      <TVUpvoteOverlay
+        isOpen={showTvVoteOverlay}
+        onClose={() => {
+          setShowTvVoteOverlay(false);
+          setTvVoteComment(null);
+        }}
+        weight={tvVoteWeight}
+        setWeight={setTvVoteWeight}
+        voteValue={tvVoteValue}
+        onVote={handleTvCommentVote}
+        isLoading={tvVoteLoading}
+      />
     </div>
   );
 }
@@ -570,8 +821,11 @@ function Comment({
       setVoteValue,
       accountData,
       setAccountData,
+  isTvFocused = false,
+  openTvCommentContextMenu,
 }) {
   const { isTVMode } = useTVMode();
+  const { isOpen: isKeyboardOpen } = useTVKeyboard();
   const isReplying = activeReply === comment.permlink;
 
   // TV Mode focus state for comment actions
@@ -585,14 +839,38 @@ function Comment({
 
   // Enter TV comment mode
   const enterTvCommentMode = useCallback(() => {
-    if (isTVMode && depth === 0) {
+    if (isTVMode) {
       setTvCommentFocusIndex(0); // Start at like button
     }
-  }, [isTVMode, depth]);
+  }, [isTVMode]);
+
+  // Handle Enter/Options key when comment is focused to open context menu
+  useEffect(() => {
+    // Don't handle if keyboard is open
+    if (!isTVMode || !isTvFocused || tvCommentFocusIndex >= 0 || isKeyboardOpen) return;
+
+    const handleKeyDown = (event) => {
+      // Enter key or Options/Menu key opens context menu
+      if (event.keyCode === 13 || // Enter
+          event.keyCode === 10135 || // Samsung Tools/More
+          event.keyCode === 457 || // Info key
+          event.keyCode === 93) { // Context menu key
+        if (openTvCommentContextMenu) {
+          openTvCommentContextMenu(comment);
+        }
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isTVMode, isTvFocused, tvCommentFocusIndex, isKeyboardOpen, comment, openTvCommentContextMenu]);
 
   // Handle keyboard navigation within comment
   useEffect(() => {
-    if (!isTVMode || tvCommentFocusIndex < 0) return;
+    // Don't handle if keyboard is open
+    if (!isTVMode || tvCommentFocusIndex < 0 || isKeyboardOpen) return;
 
     const handleKeyDown = (event) => {
       switch (event.keyCode) {
@@ -717,14 +995,15 @@ function Comment({
     // Use capture phase to intercept events before Watch.jsx
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isTVMode, tvCommentFocusIndex, isReplying, comment, commentIndex, toggleTooltip, setCommentInfo, setReplyText, setActiveReply, setReplyToComment, handlePostComment]);
+  }, [isTVMode, tvCommentFocusIndex, isReplying, isKeyboardOpen, comment, commentIndex, toggleTooltip, setCommentInfo, setReplyText, setActiveReply, setReplyToComment, handlePostComment]);
 
   return (
     <div
-      className={`comment-container${tvCommentFocusIndex >= 0 ? ' tv-comment-active' : ''}`}
-      style={{ marginLeft: depth > 0 ? '40px' : '0px' }}
-      data-tv-main-focusable={depth === 0 ? "true" : undefined}
-      data-tv-focusable-type={depth === 0 ? "comment" : undefined}
+      className={`comment-container${tvCommentFocusIndex >= 0 ? ' tv-comment-active' : ''}${isTvFocused ? ' tv-comment-focused' : ''}`}
+      style={{ marginLeft: depth > 0 ? `${depth * 40}px` : '0px' }}
+      data-tv-main-focusable="true"
+      data-tv-focusable-type="comment"
+      data-comment-depth={depth}
       onClick={enterTvCommentMode}
     >
       <div className="comment">
@@ -810,40 +1089,7 @@ function Comment({
         </div>
       )}
 
-      {comment.children && comment.children.length > 0 && (
-        <div className="nested-comments">
-          {comment.children.map((child, index) => (
-            <Comment
-              key={`${child.permlink}-${index}`}
-              commentIndex={index}
-              comment={child}
-              setCommentList={setCommentList}
-              activeReply={activeReply}
-              setActiveReply={setActiveReply}
-              setReplyToComment={setReplyToComment}
-              setCommentInfo={setCommentInfo}
-              setReplyText={setReplyText}
-              commentInfo={commentInfo}
-              handlePostComment={handlePostComment}
-              depth={depth + 1}
-              handleVote={handleVote}
-              processedBody={processedBody}
-              toggleTooltip={toggleTooltip}
-              selectedPost={selectedPost}
-              showTooltip={showTooltip}
-              setShowTooltip={setShowTooltip}
-              activeTooltipPermlink={activeTooltipPermlink}
-              setActiveTooltipPermlink={setActiveTooltipPermlink}
-              weight={weight}
-             setWeight={setWeight}      
-      voteValue={voteValue}
-      setVoteValue={setVoteValue}
-      accountData={accountData}
-      setAccountData={setAccountData}
-            />
-          ))}
-        </div>
-      )}
+      {/* Nested comments are now rendered in flat list above */}
     </div>
   );
 }

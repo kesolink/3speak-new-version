@@ -37,6 +37,8 @@ import { followWithAioha, voteWithAioha, isLoggedIn, isHiveAuthProvider } from "
 dayjs.extend(relativeTime);
 
 const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false, tvProgressBar }) => {
+  console.log('[PlayVideo] tvProgressBar received:', tvProgressBar ? 'object with showControls=' + tvProgressBar.showControls : 'null/undefined');
+
   const { user, authenticated } = useAppStore();
   const { isTVMode } = useTVMode();
   const navigate = useNavigate();
@@ -416,6 +418,9 @@ const PlayVideo = ({ videoDetails, author, permlink, forceAutoplay = false, tvPr
                   onTogglePlay={tvProgressBar.onTogglePlay}
                   onSeekForward={tvProgressBar.onSeekForward}
                   onToggleFullscreen={tvProgressBar.onToggleFullscreen}
+                  onNavigateRight={tvProgressBar.onNavigateRight}
+                  onNavigateDown={tvProgressBar.onNavigateDown}
+                  hasFocus={tvProgressBar.hasFocus}
                 />
               )}
             </div>
@@ -610,6 +615,7 @@ PlayVideo.propTypes = {
     onTogglePlay: PropTypes.func,
     onSeekForward: PropTypes.func,
     onToggleFullscreen: PropTypes.func,
+    hasFocus: PropTypes.bool,
   }),
 };
 

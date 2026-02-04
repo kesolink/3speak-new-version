@@ -6,6 +6,7 @@ import "./App.css";
 import Nav from "./components/nav/Nav";
 import { useState } from "react";
 import Watch from "./page/Watch";
+import WatchTV from "./page/WatchTV";
 import Sidebar from "./components/Sidebar/Sidebar";
 import Feed from "./components/Feed/Feed";
 import FirstUploads from "./page/FirstUploads";
@@ -674,7 +675,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<HomeGrouped />} />
             <Route path="/home-feed" element={<Feed />} />
-            <Route path="/watch" element={<Watch />} />
+            <Route path="/watch" element={isTVMode ? <WatchTV /> : <Watch />} />
             <Route path="/upload" element={<UploadVideo />} />
             <Route path="/firstupload" element={<FirstUploads />} />
             <Route path="/trend" element={<Trend />} />

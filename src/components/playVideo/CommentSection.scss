@@ -49,11 +49,15 @@
 }
 
 // TV Mode focus styling for comment input (outer container focus from Watch.jsx)
-.add-comment-wrap.tv-focused {
+.add-comment-wrap.tv-focused,
+.add-comment-wrap.tv-comment-input-focused {
   outline: 3px solid #e94560;
   outline-offset: 2px;
   box-shadow: 0 0 15px rgba(233, 69, 96, 0.4);
   border-radius: 8px;
+  background: rgba(233, 69, 96, 0.08);
+  transform: scale(1.01);
+  transition: all 0.15s ease;
 }
 
 // TV Mode active state (when user has entered the comment input)
@@ -181,6 +185,158 @@
       cursor: pointer;
       &:hover {
         color: var(--accent-primary);
+      }
+    }
+  }
+}
+
+// TV Mode: Focused comment from WatchTV navigation
+.comment-container.tv-comment-focused {
+  > .comment {
+    outline: 3px solid #e94560;
+    outline-offset: 2px;
+    box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+    background: rgba(233, 69, 96, 0.08);
+    transform: scale(1.01);
+    transition: all 0.15s ease;
+  }
+}
+
+// TV Mode: Comment section styling for 10ft UI
+body.tv-mode {
+  .vid-comment-wrap {
+    padding-left: 0;
+
+    // Narrower comments for TV layout
+    .comment-container {
+      max-width: 100%;
+    }
+
+    .comment {
+      padding: 16px;
+      border-radius: 12px;
+
+      > img {
+        width: 48px;
+        height: 48px;
+        margin-right: 16px;
+      }
+
+      h3 {
+        font-size: 16px;
+        margin-bottom: 6px;
+
+        span {
+          font-size: 14px;
+        }
+      }
+
+      .comment-content {
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .comment-action {
+        font-size: 16px;
+        margin-top: 12px;
+        gap: 16px;
+
+        span {
+          margin-right: 16px;
+        }
+
+        .wrap {
+          gap: 6px;
+
+          svg {
+            font-size: 20px;
+          }
+        }
+
+        .main-reply {
+          font-size: 16px;
+          padding: 6px 12px;
+          border-radius: 6px;
+
+          &:hover {
+            background: rgba(233, 69, 96, 0.1);
+          }
+        }
+      }
+    }
+
+    h4 {
+      font-size: 18px;
+      margin: 20px 0 16px;
+    }
+
+    // Better add comment styling for TV
+    .add-comment-wrap {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      border: 2px solid var(--border-light);
+
+      span {
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--text-primary);
+        display: block;
+        margin-bottom: 12px;
+      }
+
+      .textarea-box {
+        width: 100%;
+        min-height: 80px;
+        padding: 12px;
+        font-size: 16px;
+        border-radius: 8px;
+        border: 2px solid var(--border-light);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        resize: vertical;
+
+        &::placeholder {
+          color: var(--text-muted);
+        }
+
+        &:focus {
+          border-color: #e94560;
+          outline: none;
+        }
+      }
+
+      .btn-wrap {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+        justify-content: flex-end;
+
+        button {
+          padding: 12px 24px;
+          font-size: 16px;
+          font-weight: 500;
+          border-radius: 8px;
+          border: 2px solid var(--border-light);
+          background: var(--card-bg);
+          color: var(--text-primary);
+          cursor: pointer;
+          transition: all 0.2s ease;
+
+          &:hover {
+            background: var(--bg-hover);
+          }
+
+          &:last-child {
+            background: #e94560;
+            border-color: #e94560;
+            color: white;
+
+            &:hover {
+              background: #d63d56;
+            }
+          }
+        }
       }
     }
   }

@@ -195,7 +195,7 @@
       overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
     color: var(--text-primary);
     }
     .profile-view-wrap{
@@ -424,38 +424,41 @@
   }
 }
 
-// TV Mode: Make cards 1.5x bigger and wider
+// TV Mode: Cards sized for TV viewing (25% smaller dimensions, same font sizes for readability)
 body.tv-mode {
   .card-container {
-    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-    grid-column-gap: 28px;
-    grid-row-gap: 45px;
+    grid-template-columns: repeat(auto-fill, minmax(315px, 1fr));
+    grid-column-gap: 22px;
+    grid-row-gap: 34px;
 
     .card {
-      border-radius: 18px;
+      border-radius: 14px;
 
       .img-wrap {
         img {
-          height: 280px;
-          border-radius: 8px;
+          height: 210px; // 25% smaller than 280px
+          border-radius: 6px;
         }
 
         .wrap .play {
-          font-size: 15px;
+          font-size: 15px; // Keep readable
           padding: 5px 11px;
           border-radius: 18px;
+          color: #000;
+          background: rgba(255, 255, 255, 0.75);
         }
 
         .status-badge {
           padding: 9px 15px;
-          font-size: 18px;
+          font-size: 18px; // Keep readable
           gap: 9px;
           border-radius: 9px;
         }
       }
 
+      // Keep font sizes large for TV readability (10ft viewing distance)
       h2 {
-        font-size: 19.5px;
+        font-size: 19px;
         padding: 0 6px;
         margin: 8px 0;
       }
@@ -467,20 +470,20 @@ body.tv-mode {
           gap: 6px;
 
           .profile-img {
-            width: 38px;
-            height: 38px;
+            width: 36px;
+            height: 36px;
           }
 
           h2 {
-            font-size: 17px;
+            font-size: 16px;
           }
         }
 
         .view-count {
-          font-size: 16px;
+          font-size: 15px;
 
           span {
-            font-size: 15px;
+            font-size: 14px;
           }
         }
       }
@@ -489,38 +492,29 @@ body.tv-mode {
         padding: 8px 6px;
 
         p {
-          font-size: 17px;
+          font-size: 16px;
         }
 
         .wrap-left {
-          gap: 18px;
-          font-size: 17px;
+          gap: 16px;
+          font-size: 16px;
 
           .flex-div {
             gap: 4px;
 
             span {
-              font-size: 17px;
+              font-size: 16px;
             }
 
             .icon {
-              font-size: 26px;
+              font-size: 24px;
             }
 
             .icon-heart {
-              font-size: 22px;
+              font-size: 20px;
             }
           }
         }
-      }
-
-      // TV focus state
-      &.tv-focused {
-        outline: 4px solid var(--accent-primary);
-        outline-offset: 4px;
-        transform: scale(1.02);
-        box-shadow: 0 0 30px rgba(229, 57, 53, 0.4);
-        transition: all 0.2s ease;
       }
     }
   }

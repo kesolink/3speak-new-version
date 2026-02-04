@@ -1,0 +1,461 @@
+// WatchTV.scss - Clean 10ft TV UI layout
+// No CSS hacks or !important overrides needed
+
+.watch-tv {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  overflow: hidden;
+
+  // Main layout container
+  &__layout {
+    display: flex;
+    flex: 1;
+    gap: 20px;
+    padding: 20px;
+    height: calc(100vh - 40px);
+  }
+
+  // Video area - 70% width
+  &__main {
+    flex: 0 0 70%;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  // Video player container
+  &__video {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+
+    iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    // Progress bar overlay positioning
+    .tv-progress-bar--overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+    }
+  }
+
+  // Info section: 2-column layout
+  &__info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    margin-top: 16px;
+    padding: 0 4px;
+  }
+
+  // Left column: title, stats
+  &__info-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 12px 0;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  &__stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 16px;
+    color: var(--text-secondary);
+
+    svg {
+      font-size: 18px;
+    }
+  }
+
+  // Right column: author info
+  &__info-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--card-bg);
+    border-radius: 12px;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+
+    &--focused {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 15px rgba(233, 69, 96, 0.3);
+    }
+  }
+
+  &__avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  &__author-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__author-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  &__followers {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  &__follow-btn {
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: 500;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+    &:hover {
+      opacity: 0.9;
+    }
+
+    &:focus {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  // Tabs section
+  &__tabs {
+    margin-top: 20px;
+    border-top: 1px solid var(--border-light);
+    padding-top: 16px;
+  }
+
+  &__tab-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  &__tab-btn {
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: 500;
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    border: 2px solid var(--border-light);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    &--active {
+      background: var(--accent-primary);
+      color: white;
+      border-color: var(--accent-primary);
+    }
+
+    &--focused {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 15px rgba(233, 69, 96, 0.4);
+      transform: scale(1.05);
+    }
+
+    &:focus {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  &__tab-content {
+    min-height: 400px;
+    max-height: calc(100vh - 450px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+
+    // No outer border - only individual comments get focus styling
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--text-muted);
+      border-radius: 3px;
+    }
+  }
+
+  &__description {
+    color: var(--text-primary);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100%;
+    max-height: none;
+    overflow-y: visible;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--text-muted);
+      border-radius: 3px;
+    }
+
+    // Style the blog content
+    .blog-content {
+      p {
+        margin-bottom: 12px;
+      }
+
+      a {
+        color: var(--accent-primary);
+      }
+
+      img {
+        max-width: 100%;
+        border-radius: 8px;
+      }
+    }
+  }
+
+  // Fullscreen mode
+  &--fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 99999;
+    background: #000;
+    padding: 0;
+
+    .watch-tv__layout {
+      padding: 0;
+      height: 100vh;
+    }
+
+    .watch-tv__main {
+      flex: 0 0 100%;
+    }
+
+    .watch-tv__video {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+      aspect-ratio: unset;
+
+      iframe {
+        width: 100vw;
+        height: 100vh;
+      }
+    }
+
+    .watch-tv__info,
+    .watch-tv__tabs {
+      display: none;
+    }
+
+    // Fullscreen progress bar positioning
+    .tv-progress-bar {
+      position: fixed;
+      bottom: 30px;
+      left: 40px;
+      right: 40px;
+      z-index: 100001;
+    }
+  }
+
+  // Error state
+  &--error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+    padding: 40px;
+
+    h2 {
+      font-size: 32px;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+
+    p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+
+    button {
+      padding: 16px 32px;
+      font-size: 18px;
+      background: var(--accent-primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+
+      &:focus {
+        outline: 3px solid var(--accent-primary);
+        outline-offset: 3px;
+      }
+    }
+  }
+}
+
+// TV Recommended Sidebar styles (co-located for simplicity)
+.tv-recommended-sidebar {
+  flex: 0 0 30%;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  overflow: hidden;
+  padding: 0 8px; // Add horizontal padding to prevent cropping
+
+  &__header {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 16px 0;
+    padding: 0 4px;
+  }
+
+  &__list {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 4px; // Small padding for focus outline visibility
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  &__item {
+    display: flex;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.15s ease;
+    background: var(--card-bg);
+
+    &:hover {
+      background: var(--bg-hover);
+    }
+
+    &--focused {
+      border-color: var(--accent-primary);
+      background: var(--accent-light);
+      box-shadow: 0 0 15px rgba(233, 69, 96, 0.3);
+      transform: scale(1.02);
+    }
+  }
+
+  &__thumbnail {
+    width: 180px;
+    height: 100px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  &__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
+  }
+
+  &__author {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+}

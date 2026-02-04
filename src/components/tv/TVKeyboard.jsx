@@ -109,6 +109,7 @@ function TVKeyboard({ isOpen, onClose, value, onChange, onSubmit, placeholder = 
     if (!isOpen) return;
 
     const handleKeyDown = (event) => {
+      console.log('[TVKeyboard] handleKeyDown received, keyCode:', event.keyCode, 'focusRow:', focusRow, 'focusCol:', focusCol);
       const focusableIndices = getFocusableIndices(focusRow);
       const currentPosition = getFocusablePosition(focusRow, focusCol);
       const focusableCount = focusableIndices.length;
@@ -126,7 +127,7 @@ function TVKeyboard({ isOpen, onClose, value, onChange, onSubmit, placeholder = 
             setFocusCol(getColFromPosition(focusRow, newPosition));
           }
           event.preventDefault();
-          event.stopPropagation();
+          event.stopImmediatePropagation();
           break;
 
         case 39: // Right - wrap to left side
@@ -141,7 +142,7 @@ function TVKeyboard({ isOpen, onClose, value, onChange, onSubmit, placeholder = 
             setFocusCol(getColFromPosition(focusRow, newPosition));
           }
           event.preventDefault();
-          event.stopPropagation();
+          event.stopImmediatePropagation();
           break;
 
         case 38: // Up - wrap around: first row goes to special keys (space)
@@ -162,7 +163,7 @@ function TVKeyboard({ isOpen, onClose, value, onChange, onSubmit, placeholder = 
             }
           }
           event.preventDefault();
-          event.stopPropagation();
+          event.stopImmediatePropagation();
           break;
 
         case 40: // Down - wrap around: special keys goes to first row
@@ -184,24 +185,27 @@ function TVKeyboard({ isOpen, onClose, value, onChange, onSubmit, placeholder = 
             }
           }
           event.preventDefault();
-          event.stopPropagation();
+          event.stopImmediatePropagation();
           break;
 
         case 13: // Enter
+          console.log('[TVKeyboard] Enter pressed! focusRow:', focusRow, 'SPECIAL_ROW_INDEX:', SPECIAL_ROW_INDEX);
           if (focusRow === SPECIAL_ROW_INDEX) {
+            console.log('[TVKeyboard] Pressing special key:', SPECIAL_KEYS[focusCol].key);
             handleKeyPress(SPECIAL_KEYS[focusCol].key);
           } else {
+            console.log('[TVKeyboard] Pressing letter:', layout[focusRow][focusCol]);
             handleKeyPress(layout[focusRow][focusCol]);
           }
           event.preventDefault();
-          event.stopPropagation();
+          event.stopImmediatePropagation();
           break;
 
         case 10009: // Samsung Back
         case 27: // Escape
           onClose();
           event.preventDefault();
-          event.stopPropagation();
+          event.stopImmediatePropagation();
           break;
 
         default:

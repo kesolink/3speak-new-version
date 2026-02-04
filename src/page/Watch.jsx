@@ -48,7 +48,8 @@ function Watch() {
   const [author, permlink] = (v ?? 'unknown/unknown').split('/');
 
   // TV Mode state
-  const [tvFocusArea, setTvFocusArea] = useState('video'); // 'video' or 'sidebar'
+  // Focus areas: 'video' (player/main content), 'sidebar' (recommendations), 'progressbar' (controls)
+  const [tvFocusArea, setTvFocusArea] = useState('progressbar'); // Start with progress bar focused in TV mode
   const [sidebarFocusIndex, setSidebarFocusIndex] = useState(0);
   const [mainFocusIndex, setMainFocusIndex] = useState(0); // 0 = player, 1+ = other focusable items
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -97,15 +98,22 @@ function Watch() {
 
   const triggerPlay = useCallback(() => {
     sendPlayerCommand('play');
+    setIsVideoPlaying(true);
   }, [sendPlayerCommand]);
 
   const triggerPause = useCallback(() => {
     sendPlayerCommand('pause');
+    setIsVideoPlaying(false);
   }, [sendPlayerCommand]);
 
   const triggerTogglePlay = useCallback(() => {
+    console.log('[Watch.jsx] triggerTogglePlay called, current isVideoPlaying:', isVideoPlaying);
     sendPlayerCommand('toggle-play');
-  }, [sendPlayerCommand]);
+    setIsVideoPlaying(prev => {
+      console.log('[Watch.jsx] Setting isVideoPlaying from', prev, 'to', !prev);
+      return !prev;
+    });
+  }, [sendPlayerCommand, isVideoPlaying]);
 
   const triggerSeekBackward = useCallback(() => {
     const iframe = document.querySelector('.video-iframe-wrapper iframe');
@@ -121,11 +129,63 @@ function Watch() {
     }
   }, []);
 
+  // Navigate right from progress bar controls to recommendations sidebar
+  const handleProgressBarNavigateRight = useCallback(() => {
+    console.log('[Watch.jsx] handleProgressBarNavigateRight called');
+    // Check if there are recommendation items via the ref
+    if (recommendedRef.current) {
+      const items = recommendedRef.current.querySelectorAll('[data-tv-focusable="true"]');
+      console.log('[Watch.jsx] Found sidebar items:', items.length);
+      if (items.length > 0) {
+        // Switch focus from progress bar to sidebar
+        setTvFocusArea('sidebar');
+        setTimeout(() => {
+          items.forEach(item => item.classList.remove('tv-focused'));
+          items[0].classList.add('tv-focused');
+          items[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          setSidebarFocusIndex(0);
+        }, 100);
+      }
+    }
+  }, []);
+
+  // Navigate down from progress bar timeline to author container / description
+  const handleProgressBarNavigateDown = useCallback(() => {
+    console.log('[Watch.jsx] handleProgressBarNavigateDown called, isCssFullscreen:', isCssFullscreen);
+    // Exit fullscreen if in fullscreen mode
+    if (isCssFullscreen) {
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'request-exit-fullscreen' }, '*');
+      } else {
+        setIsCssFullscreen(false);
+        // Clear fullscreen styles
+        const wrapper = document.querySelector('.video-iframe-wrapper');
+        const iframe = document.querySelector('.video-iframe-wrapper iframe');
+        if (wrapper) wrapper.style.cssText = '';
+        if (iframe) {
+          iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; overflow: hidden;';
+          iframe.contentWindow?.postMessage({ type: 'fullscreen-exited' }, '*');
+          iframe.contentWindow?.postMessage({ type: 'exitFullscreen' }, '*');
+        }
+      }
+    }
+    // Switch focus from progress bar to video area
+    setTvFocusArea('video');
+    // Focus on the first main focusable item below the video (author section)
+    setTimeout(() => {
+      const focusableItems = mainContentRef.current?.querySelectorAll('[data-tv-main-focusable="true"]');
+      if (focusableItems && focusableItems.length > 0) {
+        focusableItems[0].classList.add('tv-focused');
+        focusableItems[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setMainFocusIndex(1); // Index 1 because 0 is the player itself
+      }
+    }, 150);
+  }, [isCssFullscreen]);
+
   const triggerFullscreen = useCallback(() => {
     // In TV mode (iframe context), request fullscreen from parent Tizen app
-    // The parent will handle CSS fullscreen and send back fullscreen-entered/exited
     if (isTVMode && window.parent !== window) {
-      console.log('[Watch.jsx] TV Mode: Requesting fullscreen from parent, current state:', isCssFullscreen);
+      console.log('[Watch.jsx] TV Mode (iframe): Requesting fullscreen from parent, current state:', isCssFullscreen);
       if (isCssFullscreen) {
         window.parent.postMessage({ type: 'request-exit-fullscreen' }, '*');
       } else {
@@ -134,39 +194,81 @@ function Watch() {
       return;
     }
 
-    // Non-TV mode: use browser fullscreen API
-    // First try to send command to player
-    sendPlayerCommand('fullscreen');
+    // TV mode without iframe: use CSS fullscreen mode (keeps our controls visible)
+    if (isTVMode) {
+      console.log('[Watch.jsx] TV Mode: Toggling CSS fullscreen, current state:', isCssFullscreen);
+      const newFullscreenState = !isCssFullscreen;
+      setIsCssFullscreen(newFullscreenState);
 
-    // Also use browser fullscreen API on the iframe/wrapper
+      // Apply or remove fullscreen styles via JavaScript
+      setTimeout(() => {
+        const wrapper = document.querySelector('.video-iframe-wrapper');
+        const iframe = document.querySelector('.video-iframe-wrapper iframe');
+        const topContainer = document.querySelector('.top-container');
+        const playVideo = document.querySelector('.play-video');
+
+        if (newFullscreenState) {
+          // Entering fullscreen
+          if (wrapper) {
+            wrapper.style.cssText = 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; padding: 0 !important; margin: 0 !important; z-index: 99998 !important;';
+          }
+          if (iframe) {
+            iframe.style.cssText = 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; border: 0 !important;';
+            // Tell the player to enter fullscreen mode and resize
+            iframe.contentWindow?.postMessage({ type: 'fullscreen-entered' }, '*');
+            iframe.contentWindow?.postMessage({ type: 'enterFullscreen' }, '*');
+          }
+        } else {
+          // Exiting fullscreen - clear inline styles
+          if (wrapper) wrapper.style.cssText = '';
+          if (iframe) {
+            iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; overflow: hidden;';
+            // Tell the player to exit fullscreen mode
+            iframe.contentWindow?.postMessage({ type: 'fullscreen-exited' }, '*');
+            iframe.contentWindow?.postMessage({ type: 'exitFullscreen' }, '*');
+          }
+          if (topContainer) topContainer.style.cssText = '';
+          if (playVideo) playVideo.style.cssText = '';
+        }
+        console.log('[Watch.jsx] Applied fullscreen styles via JS, state:', newFullscreenState);
+      }, 50);
+      return;
+    }
+
+    // Non-TV mode: use browser fullscreen API
     const iframe = document.querySelector('.video-iframe-wrapper iframe');
     const wrapper = document.querySelector('.video-iframe-wrapper');
     const target = iframe || wrapper;
 
+    const isCurrentlyFullscreen = !!(document.fullscreenElement ||
+                                     document.webkitFullscreenElement ||
+                                     document.mozFullScreenElement ||
+                                     document.msFullscreenElement);
+
     if (target) {
-      if (document.fullscreenElement) {
-        // Already in fullscreen, exit
-        console.log('[Watch.jsx] Exiting fullscreen');
-        document.exitFullscreen?.().catch(err => console.error('[Watch.jsx] Exit fullscreen error:', err));
+      if (isCurrentlyFullscreen) {
+        console.log('[Watch.jsx] Exiting browser fullscreen');
+        const exitFullscreen = document.exitFullscreen ||
+                               document.webkitExitFullscreen ||
+                               document.mozCancelFullScreen ||
+                               document.msExitFullscreen;
+        if (exitFullscreen) {
+          exitFullscreen.call(document).catch(err => console.error('[Watch.jsx] Exit fullscreen error:', err));
+        }
       } else {
-        // Enter fullscreen
-        console.log('[Watch.jsx] Requesting fullscreen on:', target.tagName);
+        console.log('[Watch.jsx] Requesting browser fullscreen on:', target.tagName);
         const requestFullscreen = target.requestFullscreen ||
                                    target.webkitRequestFullscreen ||
                                    target.mozRequestFullScreen ||
                                    target.msRequestFullscreen;
         if (requestFullscreen) {
           requestFullscreen.call(target)
-            .then(() => console.log('[Watch.jsx] Fullscreen activated'))
+            .then(() => console.log('[Watch.jsx] Browser fullscreen activated'))
             .catch(err => console.error('[Watch.jsx] Fullscreen error:', err));
-        } else {
-          console.log('[Watch.jsx] No fullscreen API available');
         }
       }
-    } else {
-      console.log('[Watch.jsx] No target element found for fullscreen');
     }
-  }, [sendPlayerCommand, isTVMode, isCssFullscreen]);
+  }, [isTVMode, isCssFullscreen]);
 
   // Listen for media control events from parent Tizen wrapper
   useEffect(() => {
@@ -214,50 +316,28 @@ function Watch() {
     }
 
     const handleTVKeys = (event) => {
+      // When overlay progress bar is visible (TV mode, not fullscreen), let TVProgressBar handle
+      // Enter and arrow keys for control navigation
+      const overlayProgressBarVisible = isTVMode && !isCssFullscreen;
+
       switch (event.keyCode) {
-        // Enter key - toggle fullscreen or exit fullscreen
+        // Enter key - handled by TVProgressBar when progress bar is visible
         case 13: // Enter
-          // If in fullscreen mode, exit fullscreen (regardless of focus area)
-          if (isCssFullscreen) {
-            console.log('[Watch.jsx] Enter key in fullscreen - exiting fullscreen');
-            window.parent.postMessage({ type: 'request-exit-fullscreen' }, '*');
-            event.preventDefault();
-            event.stopPropagation();
-            break;
-          }
-          // Only handle if video is focused
-          if (tvFocusArea === 'video') {
-            console.log('[Watch.jsx] Enter key - sending fullscreen command and focusing iframe');
-            // Send fullscreen command to player
-            sendPlayerCommand('fullscreen');
-            // Focus the iframe so it receives the Enter key for user gesture
-            focusPlayerIframe();
-            // Don't preventDefault - let the Enter key reach the player for user gesture context
+          // Let TVProgressBar handle Enter key when it's visible (both overlay and fullscreen modes)
+          if (overlayProgressBarVisible || isCssFullscreen) {
+            // Don't handle here - let TVProgressBar handle it
+            return;
           }
           break;
 
-        // Left/Right arrow keys - seek in fullscreen mode
-        case 37: // Left arrow - seek backward
-          if (isCssFullscreen) {
-            console.log('[Watch.jsx] Seeking backward 10s');
-            const iframe = document.querySelector('.video-iframe-wrapper iframe');
-            if (iframe && iframe.contentWindow) {
-              iframe.contentWindow.postMessage({ type: 'seekBackward', seconds: 10 }, '*');
-            }
-            event.preventDefault();
-            event.stopPropagation();
-          }
-          break;
-
-        case 39: // Right arrow - seek forward
-          if (isCssFullscreen) {
-            console.log('[Watch.jsx] Seeking forward 10s');
-            const iframe = document.querySelector('.video-iframe-wrapper iframe');
-            if (iframe && iframe.contentWindow) {
-              iframe.contentWindow.postMessage({ type: 'seekForward', seconds: 10 }, '*');
-            }
-            event.preventDefault();
-            event.stopPropagation();
+        // Arrow keys - let TVProgressBar handle when progress bar is visible
+        case 37: // Left
+        case 38: // Up
+        case 39: // Right
+        case 40: // Down
+          if (overlayProgressBarVisible || isCssFullscreen) {
+            // Don't handle here - let TVProgressBar handle it
+            return;
           }
           break;
 
@@ -355,12 +435,43 @@ function Watch() {
         setTimeout(() => {
           triggerPlay();
         }, 100);
-        // In TV mode, enter fullscreen after player is ready
-        if (isTVMode && window.parent !== window) {
+        // In TV mode, enter CSS fullscreen after player is ready
+        if (isTVMode) {
           setTimeout(() => {
-            console.log('[Watch.jsx] Auto-requesting fullscreen after player ready');
-            window.parent.postMessage({ type: 'request-fullscreen' }, '*');
-          }, 300);
+            console.log('[Watch.jsx] Auto-entering CSS fullscreen after player ready');
+            if (window.parent !== window) {
+              // In iframe context (Tizen), request fullscreen from parent
+              window.parent.postMessage({ type: 'request-fullscreen' }, '*');
+            } else {
+              // Not in iframe, use CSS fullscreen mode directly
+              // This keeps our custom controls visible
+              setIsCssFullscreen(true);
+              // Force apply fullscreen styles via JavaScript
+              setTimeout(() => {
+                const wrapper = document.querySelector('.video-iframe-wrapper');
+                const iframe = document.querySelector('.video-iframe-wrapper iframe');
+                const topContainer = document.querySelector('.top-container');
+                const playVideo = document.querySelector('.play-video');
+
+                if (wrapper) {
+                  wrapper.style.cssText = 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; padding: 0 !important; margin: 0 !important; z-index: 99998 !important;';
+                }
+                if (iframe) {
+                  iframe.style.cssText = 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; border: 0 !important;';
+                  // Tell the player to enter fullscreen mode
+                  iframe.contentWindow?.postMessage({ type: 'fullscreen-entered' }, '*');
+                  iframe.contentWindow?.postMessage({ type: 'enterFullscreen' }, '*');
+                }
+                if (topContainer) {
+                  topContainer.style.cssText = 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; padding: 0 !important; margin: 0 !important;';
+                }
+                if (playVideo) {
+                  playVideo.style.cssText = 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; padding: 0 !important; margin: 0 !important;';
+                }
+                console.log('[Watch.jsx] Applied fullscreen styles via JS');
+              }, 100);
+            }
+          }, 500);
         }
       }
 
@@ -399,6 +510,32 @@ function Watch() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [triggerPlay, navigate, sendPlayerCommand, isTVMode]);
+
+  // Listen for browser fullscreen change events (when not in iframe)
+  useEffect(() => {
+    if (!isTVMode) return;
+
+    const handleFullscreenChange = () => {
+      const isFullscreen = !!(document.fullscreenElement ||
+                              document.webkitFullscreenElement ||
+                              document.mozFullScreenElement ||
+                              document.msFullscreenElement);
+      console.log('[Watch.jsx] Browser fullscreen changed:', isFullscreen);
+      setIsCssFullscreen(isFullscreen);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, [isTVMode]);
 
   const { data: videoData, loading: videoLoading, error: videoError } = useQuery(GET_VIDEO_DETAILS, {
     variables: { author, permlink },
@@ -526,14 +663,17 @@ function Watch() {
 
   // Handle navigation for TV sidebar hook
   const handleNavigate = useCallback((direction) => {
+    // Skip if progress bar has focus - TVProgressBar handles its own navigation
+    if (tvFocusArea === 'progressbar') {
+      return true; // Handled by TVProgressBar
+    }
+
     if (direction === 'left') {
       if (tvFocusArea === 'sidebar') {
-        // Currently in recommendations sidebar, switch to video area
-        setTvFocusArea('video');
+        // Currently in recommendations sidebar, switch to progress bar
+        setTvFocusArea('progressbar');
         const items = recommendedRef.current?.querySelectorAll('[data-tv-focusable="true"]');
         items?.forEach(item => item.classList.remove('tv-focused'));
-        // Focus the video player
-        setTimeout(() => focusMainItem(0), 100);
         return true;
       }
       // In video area, let menu sidebar open
@@ -551,8 +691,16 @@ function Watch() {
     if (direction === 'up') {
       if (tvFocusArea === 'sidebar' && sidebarFocusIndex > 0) {
         focusSidebarItem(sidebarFocusIndex - 1);
+      } else if (tvFocusArea === 'sidebar' && sidebarFocusIndex === 0) {
+        // At top of sidebar, go back to progress bar
+        setTvFocusArea('progressbar');
+        const items = recommendedRef.current?.querySelectorAll('[data-tv-focusable="true"]');
+        items?.forEach(item => item.classList.remove('tv-focused'));
       } else if (tvFocusArea === 'video' && mainFocusIndex > 0) {
         focusMainItem(mainFocusIndex - 1);
+      } else if (tvFocusArea === 'video' && mainFocusIndex === 0) {
+        // At top of video area, go back to progress bar
+        setTvFocusArea('progressbar');
       }
       return true;
     }
@@ -698,7 +846,7 @@ function Watch() {
     }
   }, []);
 
-  // Use TV sidebar navigation hook
+  // Use TV sidebar navigation hook - disabled when progress bar has focus
   useTVSidebarNavigation({
     onNavigate: handleNavigate,
     onSelect: handleSelect,
@@ -713,7 +861,9 @@ function Watch() {
         return true;
       }
       return true;
-    }
+    },
+    // Disable when progress bar has focus - let TVProgressBar handle its own keys
+    enabled: tvFocusArea !== 'progressbar'
   });
 
   if (isLoading) {
@@ -728,6 +878,25 @@ function Watch() {
     return <div>network error</div>;
   }
 
+  // Debug logging for TV mode progress bar
+  const tvProgressBarValue = isTVMode && !isCssFullscreen ? {
+    currentTime: videoCurrentTime,
+    duration: videoDuration,
+    isVisible: true,
+    showControls: true,
+    isPlaying: isVideoPlaying,
+    isFullscreen: isCssFullscreen,
+    onSeekBackward: triggerSeekBackward,
+    onTogglePlay: triggerTogglePlay,
+    onSeekForward: triggerSeekForward,
+    onToggleFullscreen: triggerFullscreen,
+    onNavigateRight: handleProgressBarNavigateRight,
+    onNavigateDown: handleProgressBarNavigateDown,
+    hasFocus: tvFocusArea === 'progressbar', // Only handle keys when progress bar has focus
+  } : null;
+
+  console.log('[Watch.jsx] Render - isTVMode:', isTVMode, 'isCssFullscreen:', isCssFullscreen, 'tvProgressBar:', tvProgressBarValue ? 'object' : 'null');
+
   return (
     <div className={`play-container ${isTVMode ? 'tv-mode-watch' : ''} ${isCssFullscreen ? 'css-fullscreen-mode' : ''}`}>
       {/* TV Mode: Vertical scroll indicator (hidden in fullscreen) */}
@@ -741,18 +910,7 @@ function Watch() {
           videoDetails={videoDetails}
           author={author}
           permlink={permlink}
-          tvProgressBar={isTVMode && !isCssFullscreen ? {
-            currentTime: videoCurrentTime,
-            duration: videoDuration,
-            isVisible: true,
-            showControls: true,
-            isPlaying: isVideoPlaying,
-            isFullscreen: isCssFullscreen,
-            onSeekBackward: triggerSeekBackward,
-            onTogglePlay: triggerTogglePlay,
-            onSeekForward: triggerSeekForward,
-            onToggleFullscreen: triggerFullscreen,
-          } : null}
+          tvProgressBar={tvProgressBarValue}
         />
       </div>
 
@@ -801,6 +959,9 @@ function Watch() {
           onTogglePlay={triggerTogglePlay}
           onSeekForward={triggerSeekForward}
           onToggleFullscreen={triggerFullscreen}
+          onNavigateRight={handleProgressBarNavigateRight}
+          onNavigateDown={handleProgressBarNavigateDown}
+          hasFocus={true} // Always has focus in fullscreen mode
         />
       )}
     </div>

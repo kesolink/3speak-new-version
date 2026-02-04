@@ -29,7 +29,7 @@ const getRenderer = async () => {
 
 const THRESHOLD_HEIGHT = 100;
 
-const BlogContent = ({ author, permlink, description }) => {
+const BlogContent = ({ author, permlink, description, disableCollapse = false }) => {
   const { isTVMode } = useTVMode();
   const [content, setContent] = useState("");
   const [renderedContent, setRenderedContent] = useState("");
@@ -264,10 +264,14 @@ const BlogContent = ({ author, permlink, description }) => {
     }
   };
 
+  // When disableCollapse is true, always show full content without collapse UI
+  const showCollapsed = !disableCollapse && needsExpansion && !isExpanded;
+  const showToggle = !disableCollapse && needsExpansion;
+
   return (
     <div className="blog-content-container">
       <div
-        className={`content-wrapper ${needsExpansion && !isExpanded ? 'collapsed' : 'expanded'}${isContentFocused ? ' tv-content-focused' : ''}`}
+        className={`content-wrapper ${showCollapsed ? 'collapsed' : 'expanded'}${isContentFocused ? ' tv-content-focused' : ''}`}
         ref={(el) => {
           contentRef.current = el;
           contentWrapperRef.current = el;
@@ -285,10 +289,10 @@ const BlogContent = ({ author, permlink, description }) => {
             dangerouslySetInnerHTML={{ __html: renderedContent }}
           />
         )}
-        {needsExpansion && !isExpanded && <div className="fade-overlay" />}
+        {showCollapsed && <div className="fade-overlay" />}
       </div>
 
-      {needsExpansion && (
+      {showToggle && (
         <div
           className="expand-toggle"
           onClick={toggleExpand}
