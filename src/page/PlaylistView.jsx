@@ -16,11 +16,9 @@ import {
 } from '../utils/playlistOperations';
 import { toast } from 'sonner';
 import './PlaylistView.scss';
-import { HIVE_API_URL } from '../utils/config';
+import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
 
 dayjs.extend(relativeTime);
-
-const PLAYLISTS_API_URL = 'https://3speak-playlists.okinoko.io';
 
 /**
  * Fetch video data from Hive for a list of playlist items
@@ -101,7 +99,7 @@ function PlaylistView() {
   const { data: playlist, isLoading: playlistLoading, error: playlistError } = useQuery({
     queryKey: ['playlist', playlistId],
     queryFn: async () => {
-      const response = await axios.get(`${PLAYLISTS_API_URL}/api/playlists/${playlistId}`);
+      const response = await axios.get(`${PLAYLISTS_API_URL}/playlists/${playlistId}`);
       return response.data;
     },
     enabled: !!playlistId,

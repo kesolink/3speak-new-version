@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-
-const PLAYLISTS_API_URL = 'https://3speak-playlists.okinoko.io';
+import { PLAYLISTS_API_URL } from '../utils/config';
 
 /**
  * Fetch public playlists that contain a specific video
@@ -16,7 +15,7 @@ export function useVideoPlaylists(author, permlink) {
       if (!author || !permlink) return [];
 
       const response = await axios.get(
-        `${PLAYLISTS_API_URL}/api/video/${author}/${permlink}/playlists/public`
+        `${PLAYLISTS_API_URL}/video/${author}/${permlink}/playlists/public`
       );
 
       // API returns { count, playlists: [...] }

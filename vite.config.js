@@ -93,7 +93,6 @@ export default defineConfig({
   },
 
   server: {
-    allowedHosts: ["3speak.okinoko.io"],
     proxy: {
       // Proxy Hive RPC API calls
       '/api/hive': {
@@ -114,13 +113,6 @@ export default defineConfig({
         target: 'https://views.3speak.tv',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/views/, ''),
-        secure: true,
-      },
-      // Proxy playlists API calls
-      '/api/playlists': {
-        target: 'https://3speak-playlists.okinoko.io',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/playlists/, '/api'),
         secure: true,
       },
     },

@@ -25,9 +25,7 @@ const TAG_FEED_URL = isDev
   ? '/api/feed'
   : import.meta.env.VITE_THREESPEAK_TAG_FEED_URL;
 
-const PLAYLISTS_API_URL = isDev
-  ? '/api/playlists'
-  : (import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api');
+const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 
 // Watch history threshold - number of days to show unwatched indicator
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);

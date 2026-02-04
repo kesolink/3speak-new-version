@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { HIVE_API_URL } from '../utils/config';
-
-const PLAYLISTS_API_URL = 'https://3speak-playlists.okinoko.io';
+import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
 
 /**
  * Fetch thumbnail URL from Hive post metadata
@@ -48,7 +46,7 @@ export function useUserPlaylists(owner, options = {}) {
     queryFn: async () => {
       if (!owner) return [];
 
-      const response = await axios.get(`${PLAYLISTS_API_URL}/api/playlists`, {
+      const response = await axios.get(`${PLAYLISTS_API_URL}/playlists`, {
         params: {
           owner,
           limit: options.limit || 50,
