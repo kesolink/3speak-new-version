@@ -75,6 +75,19 @@ function App() {
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
   const userWhenModalOpened = useRef(null); // Track user when modal opens
   
+  // Check if we should hide nav (on /shorts route on mobile)
+  const isShorts = location.pathname === '/shorts';
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 767);
+  
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 767);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  const hideNavOnMobile = isShorts && isMobile;
 
 
 
@@ -351,10 +364,12 @@ function App() {
     <LegacyUploadProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
       <Toaster richColors position="top-right" />
-      <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
+      {!hideNavOnMobile && (
+        <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
+      )}
       <div>
-        <Sidebar sidebar={sidebar} />
-        <div className={`container ${sidebar ? "" : "large-container"}`}>
+        {!hideNavOnMobile && <Sidebar sidebar={sidebar} />}
+        <div className={`container ${sidebar ? "" : "large-container"} ${hideNavOnMobile ? "shorts-mobile-container" : ""}`}>
           <ScrollToTop />
           {/* <Toaster richColors position="top-right" /> */}
           <Routes>
@@ -393,7 +408,9 @@ function App() {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
-        <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} toggleAddAccount={toggleAddAccount} openLoginModal={openLoginModal} />
+        {!hideNavOnMobile && (
+          <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} toggleAddAccount={toggleAddAccount} openLoginModal={openLoginModal} />
+        )}
         {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} /> }
         <AiohaModal
           displayed={loginModalOpen}

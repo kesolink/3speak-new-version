@@ -14,7 +14,8 @@ import {
   Loader2,
   Play,
   Pause,
-  Send
+  Send,
+  ArrowLeft
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 
@@ -79,6 +80,9 @@ const VideoShort = () => {
   const [touchEnd, setTouchEnd] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
+  // Mobile detection for back button
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 767);
+
   const progressBarRef = useRef(null);
   const playPauseTimeoutRef = useRef(null);
   const commentsFetchedRef = useRef(new Set());
@@ -92,8 +96,46 @@ const VideoShort = () => {
   const accessToken = localStorage.getItem("access_token");
   const navigate = useNavigate();
 
+  // Fast scroll detection refs
+  const lastIndexChangeRef = useRef({ idx: 0, ts: Date.now() });
+  const [dynamicAfter, setDynamicAfter] = useState(1);
+
   // Minimum swipe distance to trigger navigation (in pixels)
   const minSwipeDistance = 50;
+
+  // Track window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 767);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Fast scroll detection - adjust preload range based on scroll speed
+  useEffect(() => {
+    const now = Date.now();
+    const { idx, ts } = lastIndexChangeRef.current;
+    const deltaIdx = Math.abs(currentIndex - idx);
+    const deltaTime = now - ts;
+    // user scrolling very fast
+    if (deltaIdx >= 2 && deltaTime < 300) {
+      setDynamicAfter(2); // temporarily preload 2 ahead
+    } else {
+      setDynamicAfter(1); // default: preload only next
+    }
+    lastIndexChangeRef.current = { idx: currentIndex, ts: now };
+  }, [currentIndex]);
+
+  // Handle back navigation
+  const handleBack = () => {
+    // If there's history, go back; otherwise go to home
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
 
   // Get shared video from URL parameter
   const getSharedVideoFromUrl = useCallback(() => {
@@ -284,7 +326,12 @@ const VideoShort = () => {
 
         case '3speak-ended':
           if (isFromCurrentVideo) {
-            setIsPlaying(false);
+            // Loop the video by seeking to start and playing again
+            const currentIframe = iframeRefs.current[currentVid.id];
+            if (currentIframe?.contentWindow) {
+              currentIframe.contentWindow.postMessage({ type: 'seek', time: 0 }, '*');
+              currentIframe.contentWindow.postMessage({ type: 'play' }, '*');
+            }
           }
           break;
       }
@@ -914,27 +961,24 @@ const VideoShort = () => {
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Calculate which videos to preload - keep more in memory
-  const preloadRange = { before: 3, after: 6 };
+  // Calculate which videos to preload - optimized for fast scrolling
+  const preloadRange = {
+    before: 0,
+    after: dynamicAfter
+  };
   const preloadedIndices = [];
   for (let i = Math.max(0, currentIndex - preloadRange.before); i <= Math.min(videos.length - 1, currentIndex + preloadRange.after); i++) {
     preloadedIndices.push(i);
   }
 
-  // Store iframe ref
-  const setIframeRef = useCallback((videoId, element) => {
-    if (element) {
-      iframeRefs.current[videoId] = element;
-    }
-  }, []);
-
   // Clean up old iframe refs that are no longer in preload range
   useEffect(() => {
-    const preloadedIds = new Set(preloadedIndices.map(idx => videos[idx]?.id).filter(Boolean));
+    const keep = new Set(
+      preloadedIndices.map(i => videos[i]?.id).filter(Boolean)
+    );
     Object.keys(iframeRefs.current).forEach(id => {
-      if (!preloadedIds.has(id)) {
+      if (!keep.has(id)) {
         delete iframeRefs.current[id];
-        // Also remove from ready players since the iframe is gone
         readyPlayers.current.delete(id);
       }
     });
@@ -980,6 +1024,13 @@ const VideoShort = () => {
 
   return (
     <main className="short-main">
+      {/* Mobile Back Button */}
+      {isMobile && (
+        <button className="mobileBackButton" onClick={handleBack}>
+          <ArrowLeft size={24} />
+        </button>
+      )}
+
       <div
         tabIndex={0}
         ref={keyboardRef}
@@ -1006,7 +1057,9 @@ const VideoShort = () => {
               <iframe
                 key={video.id}
                 id={getPlayerId(video)}
-                ref={(el) => setIframeRef(video.id, el)}
+                ref={(el) => {
+                  if (el) iframeRefs.current[video.id] = el;
+                }}
                 src={`${PLAYER_URL}/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0`}
                 width="100%"
                 height="100%"

@@ -1,5 +1,3 @@
-
-
 .container {
   background: var(--bg-primary);
   padding-left: 15%;
@@ -12,6 +10,13 @@
   padding-left: 7%;
 
 }
+
+/* Shorts mobile container - full screen with no padding */
+.shorts-mobile-container {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 @media (max-width: 767px) {
   .container {
     padding-left: 2%;
@@ -19,6 +24,10 @@
   }
   .large-container {
     padding-left: 2%;
+  }
+  .shorts-mobile-container {
+    padding: 0 !important;
+    padding-top: 0 !important;
   }
 }
 
