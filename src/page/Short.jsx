@@ -92,13 +92,20 @@ const VideoShort = () => {
   const prevIndexRef = useRef(0); // Track previous index
   const readyPlayers = useRef(new Set()); // Track which players have sent 3speak-player-ready
   const pendingPlayRef = useRef(null); // Track video waiting to be played
+  const [readyPlayerCount, setReadyPlayerCount] = useState(0); // Force re-render when player ready
 
   const accessToken = localStorage.getItem("access_token");
   const navigate = useNavigate();
 
   // Fast scroll detection refs
   const lastIndexChangeRef = useRef({ idx: 0, ts: Date.now() });
-  const [dynamicAfter, setDynamicAfter] = useState(1);
+  const [dynamicAfter, setDynamicAfter] = useState(5);
+
+  // Scroll direction for predictive preloading
+  const [scrollDirection, setScrollDirection] = useState('down');
+  
+  // Loading more videos state
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Minimum swipe distance to trigger navigation (in pixels)
   const minSwipeDistance = 50;
@@ -116,13 +123,21 @@ const VideoShort = () => {
   useEffect(() => {
     const now = Date.now();
     const { idx, ts } = lastIndexChangeRef.current;
-    const deltaIdx = Math.abs(currentIndex - idx);
+    const deltaIdx = currentIndex - idx;
     const deltaTime = now - ts;
-    // user scrolling very fast
-    if (deltaIdx >= 2 && deltaTime < 300) {
-      setDynamicAfter(2); // temporarily preload 2 ahead
+    
+    // Track scroll direction
+    if (deltaIdx > 0) {
+      setScrollDirection('down');
+    } else if (deltaIdx < 0) {
+      setScrollDirection('up');
+    }
+    
+    // user scrolling very fast - preload even more
+    if (Math.abs(deltaIdx) >= 2 && deltaTime < 300) {
+      setDynamicAfter(7); // preload 7 ahead when scrolling fast
     } else {
-      setDynamicAfter(1); // default: preload only next
+      setDynamicAfter(5); // default: preload 5 ahead
     }
     lastIndexChangeRef.current = { idx: currentIndex, ts: now };
   }, [currentIndex]);
@@ -261,6 +276,8 @@ const VideoShort = () => {
           // Mark this player as ready
           if (sourceVideoId) {
             readyPlayers.current.add(sourceVideoId);
+            // Trigger re-render to hide thumbnail
+            setReadyPlayerCount(prev => prev + 1);
           }
           
           // Apply orientation styles to the source iframe
@@ -438,7 +455,7 @@ const VideoShort = () => {
         setLoading(true);
         setError(null);
 
-        const data = await hiveApi.fetchShortsWithDetails(1, 10, user);
+        const data = await hiveApi.fetchShortsWithDetails(1, 20, user);
 
         if (data.success) {
           console.log(data.shorts);
@@ -554,14 +571,14 @@ const VideoShort = () => {
 
   /* ---------- LOAD MORE VIDEOS ---------- */
   const loadMoreVideos = useCallback(async () => {
-    if (!hasMore || loading) return;
+    if (!hasMore || loadingMore) return;
 
     const nextPage = page + 1;
     setPage(nextPage);
+    setLoadingMore(true);
 
     try {
-
-      const data = await hiveApi.fetchShortsWithDetails(nextPage, 10, user);
+      const data = await hiveApi.fetchShortsWithDetails(nextPage, 20, user);
 
       if (data.success) {
         const formattedVideos = data.shorts.map(short => ({
@@ -599,8 +616,10 @@ const VideoShort = () => {
       }
     } catch (err) {
       console.error('Error loading more shorts:', err);
+    } finally {
+      setLoadingMore(false);
     }
-  }, [hasMore, loading, page]);
+  }, [hasMore, loadingMore, page, user]);
 
   /* ---------- FETCH COMMENTS ---------- */
   const fetchComments = useCallback(async () => {
@@ -635,6 +654,16 @@ const VideoShort = () => {
       fetchComments();
     }
   }, [showComments, currentIndex, videos, fetchComments]);
+
+  // Proactively load more videos when approaching the end
+  useEffect(() => {
+    const videosRemaining = videos.length - currentIndex - 1;
+    // Load more when 8 or fewer videos remaining
+    if (videosRemaining <= 8 && hasMore && !loadingMore && videos.length > 0) {
+      console.log(`[VideoShort] Proactively loading more - ${videosRemaining} videos remaining`);
+      loadMoreVideos();
+    }
+  }, [currentIndex, videos.length, hasMore, loadingMore, loadMoreVideos]);
 
   const currentVideo = videos[currentIndex];
 
@@ -852,14 +881,15 @@ const VideoShort = () => {
 
   const handleNext = async () => {
     if (currentIndex === videos.length - 1) {
-      if (hasMore) {
+      if (hasMore && !loadingMore) {
         await loadMoreVideos();
       }
       return;
     }
     setCurrentIndex(prev => prev + 1);
 
-    if (currentIndex >= videos.length - 3 && hasMore) {
+    // Proactively load more when 8 videos away from end
+    if (currentIndex >= videos.length - 8 && hasMore && !loadingMore) {
       loadMoreVideos();
     }
   };
@@ -921,7 +951,17 @@ const VideoShort = () => {
 
   const onTouchMove = (e) => {
     if (showComments) return;
-    setTouchEnd(e.targetTouches[0].clientY);
+    const currentY = e.targetTouches[0].clientY;
+    setTouchEnd(currentY);
+    
+    // Detect direction while swiping for predictive preloading
+    if (touchStart !== null) {
+      if (currentY < touchStart - 10) {
+        setScrollDirection('down');
+      } else if (currentY > touchStart + 10) {
+        setScrollDirection('up');
+      }
+    }
   };
 
   const onTouchEnd = async () => {
@@ -961,10 +1001,10 @@ const VideoShort = () => {
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Calculate which videos to preload - optimized for fast scrolling
+  // Calculate which videos to preload - optimized with scroll direction prediction
   const preloadRange = {
-    before: 0,
-    after: dynamicAfter
+    before: scrollDirection === 'up' ? dynamicAfter : 2, // Keep 2 behind for back navigation
+    after: scrollDirection === 'down' ? dynamicAfter : 2
   };
   const preloadedIndices = [];
   for (let i = Math.max(0, currentIndex - preloadRange.before); i <= Math.min(videos.length - 1, currentIndex + preloadRange.after); i++) {
@@ -1053,36 +1093,52 @@ const VideoShort = () => {
             const video = videos[idx];
             if (!video) return null;
             const isCurrent = idx === currentIndex;
+            // Use readyPlayerCount to ensure reactivity when players become ready
+            const isReady = readyPlayerCount >= 0 && readyPlayers.current.has(video.id);
             return (
-              <iframe
-                key={video.id}
-                id={getPlayerId(video)}
-                ref={(el) => {
-                  if (el) iframeRefs.current[video.id] = el;
-                }}
-                src={`${PLAYER_URL}/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0`}
-                width="100%"
-                height="100%"
-                frameBorder="0"
-                allow="autoplay; fullscreen"
-                allowFullScreen
-                onLoad={(e) => {
-                  console.log(`[VideoShort] Iframe loaded for video: ${video.id}, isCurrent: ${isCurrent}`);
-                  // Store ref again on load in case it wasn't set
-                  iframeRefs.current[video.id] = e.target;
-                  
-                  // Don't send play here - wait for 3speak-player-ready message
-                  // The player inside the iframe needs time to initialize Video.js
-                }}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  opacity: isCurrent ? 1 : 0,
-                  pointerEvents: 'none',
-                  zIndex: isCurrent ? 1 : 0,
-                }}
-              />
+              <React.Fragment key={video.id}>
+                {/* Thumbnail preload - shows while video loads */}
+                {isCurrent && !isReady && (
+                  <div className="videoThumbnailPreload">
+                    <img 
+                      src={video.albumArt || `https://images.hive.blog/u/${video.author}/avatar`} 
+                      alt=""
+                    />
+                    <div className="thumbnailOverlay">
+                      <Loader2 className="spinner" size={32} />
+                    </div>
+                  </div>
+                )}
+                <iframe
+                  id={getPlayerId(video)}
+                  ref={(el) => {
+                    if (el) iframeRefs.current[video.id] = el;
+                  }}
+                  src={`${PLAYER_URL}/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0`}
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  allow="autoplay; fullscreen"
+                  allowFullScreen
+                  loading={isCurrent ? "eager" : "lazy"}
+                  onLoad={(e) => {
+                    console.log(`[VideoShort] Iframe loaded for video: ${video.id}, isCurrent: ${isCurrent}`);
+                    // Store ref again on load in case it wasn't set
+                    iframeRefs.current[video.id] = e.target;
+                    
+                    // Don't send play here - wait for 3speak-player-ready message
+                    // The player inside the iframe needs time to initialize Video.js
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    opacity: isCurrent ? 1 : 0,
+                    pointerEvents: 'none',
+                    zIndex: isCurrent ? 1 : 0,
+                  }}
+                />
+              </React.Fragment>
             );
           })}
 
@@ -1129,12 +1185,12 @@ const VideoShort = () => {
               </button>
             </div>
             <p className="caption">{currentVideo.caption}</p>
-            <div className="audioMarquee">
+            {/* <div className="audioMarquee">
               <Music2 size={16} />
               <div className="audioText">
                 <p>{currentVideo.audio}</p>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -1206,7 +1262,7 @@ const VideoShort = () => {
             <ArrowUp size={24} />
           </button>
           <button className="navButton" onClick={handleNext} disabled={currentIndex === videos.length - 1 && !hasMore}>
-            {loading && currentIndex === videos.length - 1 ? (
+            {loadingMore && currentIndex >= videos.length - 3 ? (
               <Loader2 size={24} className="spinner" />
             ) : (
               <ArrowDown size={24} />
@@ -1214,6 +1270,14 @@ const VideoShort = () => {
           </button>
         </div>
       </div>
+
+      {/* Loading more indicator - shows when loading and near end */}
+      {loadingMore && currentIndex >= videos.length - 3 && (
+        <div className="loadingMoreIndicator">
+          <Loader2 className="spinner" size={20} />
+          <span>Loading more shorts...</span>
+        </div>
+      )}
 
       {/* Mobile Comments Overlay */}
       <div
