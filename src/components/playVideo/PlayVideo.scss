@@ -72,16 +72,39 @@
             }
         }
         .community-title-wrap{
-            display: flex;
+            display: inline-flex;
             align-items: center;
             margin-top: 8px;
             gap: 5px;
             width: fit-content;
-            
+            padding: 2px 10px;
+            background-color: rgba(128, 128, 128, 0.15);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+            &:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            }
+
+            svg {
+                font-size: 14px;
+                color: var(--text-secondary);
+            }
+
             span{
                 font-size: 13px;
                 font-weight: 500;
                 color: var(--text-secondary);
+            }
+
+            @include mix.respond(phone) {
+                padding: 3px 10px;
+
+                span {
+                    font-size: 12px;
+                }
             }
         }
 
@@ -142,6 +165,58 @@
                     }
                     
                 
+            }
+            .watch-later-remove-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 4px 8px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: var(--text-secondary);
+                border: none;
+                border-radius: 5px;
+                font-size: 20px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+
+                .watch-later-icon-wrap {
+                  position: relative;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+
+                  .x-badge {
+                    position: absolute;
+                    top: -6px;
+                    right: -8px;
+                    font-size: 12px;
+                    font-weight: 700;
+                    line-height: 1;
+                    background: rgba(255, 255, 255, 0.15);
+                    color: var(--text-secondary);
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                  }
+                }
+
+                &:hover {
+                  background-color: var(--accent-primary);
+                  color: var(--text-inverse);
+
+                  .x-badge {
+                    background: rgba(0, 0, 0, 0.3);
+                    color: var(--text-inverse);
+                  }
+                }
+
+                &.loading {
+                  opacity: 0.5;
+                  cursor: not-allowed;
+                }
             }
             .playlist-btn {
                 display: flex;

@@ -68,7 +68,8 @@ function App() {
   const location = useLocation();
   const { initializeAuth, authenticated, LogOut, switchAccount, setUser, user: appUser } = useAppStore();
   const { aioha, user: aiohaUser } = useAioha();
-  const [sidebar, setSideBar] = useState(true);
+  const sidebar = useAppStore((s) => s.sidebarOpen);
+  const setSideBar = useAppStore((s) => s.setSidebarOpen);
   const [profileNavVisible, setProfileNavVisible] = useState(false);
 
   const [globalCloseRender, setGlobalCloseRender] = useState(false)

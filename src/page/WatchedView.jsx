@@ -1,13 +1,15 @@
+import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { MdHistory } from 'react-icons/md';
+import { MdHistory, MdDelete } from 'react-icons/md';
 import { IoArrowBack } from 'react-icons/io5';
 import BarLoader from '../components/Loader/BarLoader';
 import icon from '../../public/images/stack.png';
 import { useAppStore } from '../lib/store';
-import { getWatchHistory } from '../utils/watchHistory';
+import { getWatchHistory, deleteWatchHistoryEntry } from '../utils/watchHistory';
 import { HIVE_API_URL } from '../utils/config';
+import { toast } from 'sonner';
 import './WatchedView.scss';
 
 /**
@@ -71,7 +73,9 @@ async function fetchVideosFromHistory(items) {
 function WatchedView() {
   const { username } = useParams();
   const navigate = useNavigate();
-  const { user: authenticatedUser } = useAppStore();
+  const queryClient = useQueryClient();
+  const { user: authenticatedUser, watchHistoryEnabled, setWatchHistoryEnabled } = useAppStore();
+  const [deletedKeys, setDeletedKeys] = useState(new Set());
 
   // Check if viewing own watch history
   const isOwner = authenticatedUser && username?.toLowerCase() === authenticatedUser.toLowerCase();
@@ -96,7 +100,22 @@ function WatchedView() {
     enabled: !!username,
   });
 
-  const videos = data?.pages.flatMap(page => page.videos) || [];
+  const allVideos = data?.pages.flatMap(page => page.videos) || [];
+  const videos = allVideos.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
+
+  const handleDelete = useCallback(async (e, author, permlink) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const success = await deleteWatchHistoryEntry(username, author, permlink);
+    if (success) {
+      setDeletedKeys(prev => new Set(prev).add(`${author}/${permlink}`));
+      queryClient.invalidateQueries({ queryKey: ['watchedVideosCount'] });
+      toast.success('Removed from watch history');
+    } else {
+      toast.error('Failed to remove from watch history');
+    }
+  }, [username, queryClient]);
 
   // Handle scroll for infinite loading
   const handleScroll = (e) => {
@@ -147,9 +166,21 @@ function WatchedView() {
           </div>
         </div>
 
-        <button className="back-btn" onClick={() => navigate(-1)}>
-          <IoArrowBack /> Back
-        </button>
+        <div className="header-actions">
+          {isOwner && (
+            <label className="tracking-toggle">
+              <input
+                type="checkbox"
+                checked={watchHistoryEnabled}
+                onChange={(e) => setWatchHistoryEnabled(e.target.checked)}
+              />
+              <span>Track history</span>
+            </label>
+          )}
+          <button className="back-btn" onClick={() => navigate(-1)}>
+            <IoArrowBack /> Back
+          </button>
+        </div>
       </div>
 
       {/* Videos List */}
@@ -183,6 +214,15 @@ function WatchedView() {
                     <p className="watch-count">Watched {video.watch_count} times</p>
                   )}
                 </div>
+                {isOwner && (
+                  <button
+                    className="delete-btn"
+                    onClick={(e) => handleDelete(e, video.author, video.permlink)}
+                    title="Remove from watch history"
+                  >
+                    <MdDelete />
+                  </button>
+                )}
               </Link>
             ))}
 

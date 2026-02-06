@@ -15,7 +15,11 @@ export const useAppStore = create(
       ...createUserDetailsSlice(...a),
       ...createVideoSlice(...a),
       ...createPostProcessingSlice(...a),
-      ...createThemeSlice(...a)
+      ...createThemeSlice(...a),
+      watchHistoryEnabled: true,
+      setWatchHistoryEnabled: (enabled) => a[0]({ watchHistoryEnabled: enabled }),
+      sidebarOpen: false,
+      setSidebarOpen: (open) => a[0]({ sidebarOpen: typeof open === 'function' ? open(a[1]().sidebarOpen) : open }),
     }),
     {
       name: 'user-store', // The storage key for persisting user data
@@ -23,6 +27,8 @@ export const useAppStore = create(
         user: state.user, // Persist only the `user` slice
         isProcessing: state.isProcessing,
         theme: state.theme, // Persist theme preference
+        watchHistoryEnabled: state.watchHistoryEnabled,
+        sidebarOpen: state.sidebarOpen,
       }),
     }
   )

@@ -28,16 +28,20 @@ import axios from "axios";
 import { FEED_URL } from '../../utils/config';
 import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
 import { PLAYER_URL } from "../../utils/config";
-import { MdPlaylistAdd } from "react-icons/md";
+import { MdPlaylistAdd, MdWatchLater } from "react-icons/md";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
 import PlaylistBar from "../PlaylistBar/PlaylistBar";
+import { useMyPlaylists, isVideoInPlaylist } from "../../hooks/useMyPlaylists";
+import { removeFromPlaylist } from "../../utils/playlistOperations";
+import { useQueryClient } from "@tanstack/react-query";
 
 dayjs.extend(relativeTime);
 
 const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   // State
   const [openTooltip, setOpenToolTip] = useState(false);
@@ -54,6 +58,30 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [view, setView] = useState(0);
   const [speakData, setSpeakData] = useState(null);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+  const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
+
+  // Watch Later detection
+  const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
+  const watchLaterPlaylist = useMemo(() => myPlaylists.find(p => p.name === 'Watch Later'), [myPlaylists]);
+  const isInWatchLater = useMemo(() => watchLaterPlaylist ? isVideoInPlaylist(watchLaterPlaylist, author, permlink) : false, [watchLaterPlaylist, author, permlink]);
+
+  const handleRemoveFromWatchLater = useCallback(async () => {
+    if (!watchLaterPlaylist || isRemovingWatchLater) return;
+    setIsRemovingWatchLater(true);
+    try {
+      await removeFromPlaylist(watchLaterPlaylist.id, author, permlink);
+      toast.success('Removed from Watch Later');
+      setTimeout(() => {
+        refetchPlaylists();
+        queryClient.invalidateQueries({ queryKey: ['myPlaylists'] });
+        queryClient.invalidateQueries({ queryKey: ['userPlaylists'] });
+      }, 2000);
+    } catch (error) {
+      toast.error('Failed to remove: ' + error.message);
+    } finally {
+      setIsRemovingWatchLater(false);
+    }
+  }, [watchLaterPlaylist, author, permlink, isRemovingWatchLater, refetchPlaylists, queryClient]);
 
   // Memoized format function
   const formatRelativeTime = useCallback((date) => {
@@ -316,9 +344,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     <TailChase className="loader-circle" size="15" speed="1.5" color="red" />
                   </div>
                 ) : (
-                  <BiLike 
-                    className={isVoted ? "icon-red" : "icon"} 
-                    onClick={toggleTooltip} 
+                  <BiLike
+                    className={isVoted ? "icon-red" : "icon"}
+                    onClick={toggleTooltip}
                   />
                 )}
                 <div 
@@ -335,6 +363,20 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 <GiTwoCoins className="icon" />
                 <span>${videoDetails?.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span>
               </span>
+
+              {isInWatchLater && (
+                <button
+                  className={`watch-later-remove-btn ${isRemovingWatchLater ? 'loading' : ''}`}
+                  onClick={handleRemoveFromWatchLater}
+                  disabled={isRemovingWatchLater}
+                  title="Remove from Watch Later"
+                >
+                  <span className="watch-later-icon-wrap">
+                    <MdWatchLater />
+                    <span className="x-badge">&times;</span>
+                  </span>
+                </button>
+              )}
 
               {authenticated && isLoggedIn() && (
                 <>
