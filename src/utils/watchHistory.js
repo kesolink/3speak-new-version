@@ -88,6 +88,29 @@ export async function getWatchHistory(username, limit = 50, offset = 0) {
  * @param {string} username - The user
  * @returns {Promise<number>} The count of watched videos
  */
+/**
+ * Delete a single video from a user's watch history
+ * @param {string} username - The user
+ * @param {string} author - Video author
+ * @param {string} permlink - Video permlink
+ * @returns {Promise<boolean>} True if deleted successfully
+ */
+export async function deleteWatchHistoryEntry(username, author, permlink) {
+  if (!username || !author || !permlink) {
+    return false;
+  }
+
+  try {
+    await axios.delete(
+      `${PLAYLISTS_API_URL}/watch-history/${username}/${author}/${permlink}`
+    );
+    return true;
+  } catch (error) {
+    console.error('Failed to delete watch history entry:', error);
+    return false;
+  }
+}
+
 export async function getWatchHistoryCount(username) {
   if (!username) {
     return 0;

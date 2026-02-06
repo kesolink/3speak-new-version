@@ -51,7 +51,7 @@
       align-items: center;
       gap: 6px;
       svg{
-        fill: var(--accent-primary);
+        color: var(--text-primary);
         @include respond(phone) {
           width: 14px;
           height: 14px;
@@ -62,7 +62,7 @@
     h2 {
       font-size: 16px;
       font-weight: 600;
-      color: red;
+      color: var(--text-primary);
       margin: 0;
 
       @include respond(phone) {

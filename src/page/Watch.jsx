@@ -36,7 +36,7 @@ function Watch() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAppStore();
+  const { user, watchHistoryEnabled } = useAppStore();
   const v = searchParams.get('v'); // Extract the "v" query parameter
   const playlistId = searchParams.get('playlist');
   const posParam = searchParams.get('pos');
@@ -133,9 +133,9 @@ function Watch() {
 
   const videoDetails = videoData?.socialPost;
 
-  // Record watch history when video loads
+  // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
-    if (!user || !author || !permlink || author === 'unknown') {
+    if (!user || !author || !permlink || author === 'unknown' || watchHistoryEnabled === false) {
       return;
     }
 
@@ -147,7 +147,7 @@ function Watch() {
     // Mark as recorded and send to API
     recordedWatchRef.current.add(watchKey);
     recordWatch(user, author, permlink);
-  }, [user, author, permlink]);
+  }, [user, author, permlink, watchHistoryEnabled]);
 
   // Fetch related videos
   const { data: suggestionsData, loading: suggestionsLoading } = useQuery(GET_RELATED, {
