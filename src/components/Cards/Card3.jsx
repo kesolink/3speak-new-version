@@ -1,22 +1,21 @@
-import { IoChevronUpCircleOutline } from "react-icons/io5";
-import { IoEyeOutline } from "react-icons/io5";
+import PayoutAmount from "../PayoutAmount/PayoutAmount";
+import UpvoteCount from "../UpvoteCount/UpvoteCount";
+import ViewCount from "../ViewCount/ViewCount";
 import { IoCalendarOutline } from "react-icons/io5";
 import { MdDelete, MdError, MdPhoneIphone } from "react-icons/md";
 import { FaCog, FaFileAlt } from "react-icons/fa";
 import AddToPlaylistButton from "../AddToPlaylistButton/AddToPlaylistButton";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import TimeAgo from "../TimeAgo/TimeAgo";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHeart } from "react-icons/fa";
 import PropTypes from "prop-types";
 import "./Cards.scss";
 import { useEffect, useState } from "react";
 import img from "../../assets/image/speak.jpg";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
+import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ProfileModal from "../modal/ProfileModal";
 import useViewCounts from "../../hooks/useViewCounts";
 
-dayjs.extend(relativeTime);
 
 function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null }) {
   const navigate = useNavigate();
@@ -154,75 +153,40 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
 
             {/* Author */}
             <div className="profile-view-wrap">
-                <div
-                  className="profile-wrapper"
-                  role="link"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    navigate(`/p/${video.author?.username || video.author || video.owner}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/p/${video.author?.username || video.author || video.owner}`);
-                    }
-                  }}
-                >
-                  <img
-                    className="profile-img"
-                    src={`https://images.hive.blog/u/${
-                      video.author?.username || video.author || video.owner
-                    }/avatar`}
-                    alt=""
-                  />
-                  <h2
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setModalUser(video.author?.username || video.author || video.owner);
-                    }}
-                  >
-                    {video.author?.username || video.author || video.owner}
-                  </h2>
-
-                </div>
+              <AuthorBadge
+                author={video.author?.username || video.author || video.owner}
+                noLink
+                compact
+              />
               {getViewCount(video.author?.username || video.author || video.owner, video.permlink) !== null && (
-                <div className={`view-count${isWatched?.(video.author?.username || video.author || video.owner, video.permlink) === true ? ' watched' : ''}`}>
-                  <IoEyeOutline size={14} />
-                  <span>{formatViewCount(getViewCount(video.author?.username || video.author || video.owner, video.permlink))}</span>
-                </div>
+                <ViewCount
+                  views={getViewCount(video.author?.username || video.author || video.owner, video.permlink)}
+                  watched={isWatched?.(video.author?.username || video.author || video.owner, video.permlink) === true}
+                  formatViews={formatViewCount}
+                />
               )}
             </div>
 
             {/* Bottom actions */}
             <div className="bottom-action">
               <div className="wrap-left">
-                <div className="wrap flex-div">
-                  <IoChevronUpCircleOutline className="icon" />
-                  <span>
-                    ${(() => {
-                      const author = video.author?.username || video.author || video.owner;
-                      const content = getContentForVideo?.(author, video.permlink);
-                      return content?.payout ?? video.stats?.total_hive_reward?.toFixed(2) ?? "…";
-                    })()}
-                  </span>
-                </div>
-
-                <div className="wrap flex-div">
-                  <FaHeart className="icon-heart" />
-                  <span>
-                    {(() => {
-                      const author = video.author?.username || video.author || video.owner;
-                      const content = getContentForVideo?.(author, video.permlink);
-                      return content?.voters ?? video.stats?.num_votes ?? "…";
-                    })()}
-                  </span>
-                </div>
+                <PayoutAmount
+                  amount={(() => {
+                    const author = video.author?.username || video.author || video.owner;
+                    const content = getContentForVideo?.(author, video.permlink);
+                    const val = content?.payout ?? video.stats?.total_hive_reward;
+                    return val != null ? Number(val) : null;
+                  })()}
+                />
+                <UpvoteCount
+                  count={(() => {
+                    const author = video.author?.username || video.author || video.owner;
+                    const content = getContentForVideo?.(author, video.permlink);
+                    return content?.voters ?? video.stats?.num_votes ?? null;
+                  })()}
+                />
               </div>
-              <p>{dayjs(video.created_at || video.created).fromNow()}</p>
+              <p><TimeAgo date={video.created_at || video.created} /></p>
             </div>
           </Link>
         );

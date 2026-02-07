@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Recommended from '../components/recommended/Recommended';
+import Card3 from '../components/Cards/Card3';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { GET_RELATED, GET_VIDEO_DETAILS, TRENDING_FEED, GET_AUTHOR_VIDEOS } from '../graphql/queries';
 import { useQuery } from '@apollo/client';
@@ -236,6 +237,13 @@ function Watch() {
 
       {suggestedVideos.length > 0 && (
         <Recommended suggestedVideos={suggestedVideos} />
+      )}
+
+      {suggestedVideos.length > 0 && (
+        <div className="mobile-recommended">
+          <h4>More videos</h4>
+          <Card3 videos={suggestedVideos.slice(0, 12)} loading={false} />
+        </div>
       )}
     </div>
   );

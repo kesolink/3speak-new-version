@@ -17,6 +17,8 @@ import {
 import { toast } from 'sonner';
 import './PlaylistView.scss';
 import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
+import { fixVideoThumbnail } from '../utils/fixThumbnails';
+import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 
 dayjs.extend(relativeTime);
 
@@ -395,7 +397,11 @@ function PlaylistView() {
                   className="video-link"
                 >
                   <div className="video-thumbnail">
-                    <img src={video.images?.thumbnail} alt={video.title} />
+                    <img
+                      src={fixVideoThumbnail(video)}
+                      alt={video.title}
+                      onError={(e) => (e.currentTarget.src = 'https://media.3speak.tv/defaults/default_thumbnail.png')}
+                    />
                     {video.duration > 0 && (
                       <span className="duration">
                         {Math.floor(video.duration / 60)}:{String(Math.floor(video.duration % 60)).padStart(2, '0')}
@@ -404,7 +410,7 @@ function PlaylistView() {
                   </div>
                   <div className="video-info">
                     <h3>{video.title}</h3>
-                    <p className="video-author">@{video.author}</p>
+                    <AuthorBadge author={video.author} noLink />
                   </div>
                 </Link>
                 {isOwner && (

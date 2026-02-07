@@ -86,7 +86,7 @@ hr{
 
 }
 .small-sidebar{
-    width: 4%;
+    width: 3%;
     span{
         display: none;
     }
@@ -103,11 +103,11 @@ hr{
 
     .side-link{
         &:hover {
-            padding-top: 10px;
+            padding-left: 0;
             width: fit-content;
             background-color: var(--sidebar-hover-bg);
-            box-shadow: var(--shadow-md);
-          } 
+            color: var(--accent-primary);
+          }
     }
     
 }
