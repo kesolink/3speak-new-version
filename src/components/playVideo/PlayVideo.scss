@@ -38,73 +38,104 @@
         h3{
             margin-top: 10px;
             font-weight: 600;
-            font-size: 18.5px;
+            font-size: 16px;
             color: var(--text-primary);
             @include mix.respond(phone) {
-                font-size: 14.5px;
+                font-size: 14px;
               }
         }
-        .tag-wrapper{
+        .community-tags-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
             margin-top: 10px;
+
+            .mobile-only {
+                display: none;
+            }
+
+            .tag-wrapper {
+                display: contents;
+            }
+
+            @include mix.respond(phone) {
+                .mobile-only {
+                    display: inline-flex;
+                }
+            }
+        }
+
+        .tag-wrapper{
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
 
             span{
                 cursor: pointer;
-                transition: transform 0.2s ease, box-shadow 0.2s ease;
+                transition: all 0.2s ease;
                 padding: 2px 10px;
-                background-color: var(--accent-light);
+                background: transparent;
+                border: 1px solid var(--border-light);
                 border-radius: 8px;
                 margin-right: 3px;
-                font-size: 14.35px;
-                color: var(--text-primary);
+                font-size: 13px;
+                color: var(--text-secondary);
 
                 &:hover {
-                    transform: translateY(-4px);
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    background: var(--bg-tertiary);
+                    border-color: var(--border-color);
+                    color: var(--text-primary);
                 }
 
                 @include mix.respond(phone) {
                     padding: 3px 10px;
-                    font-size: 12.35px;
+                    font-size: 12px;
                 }
             }
         }
         .community-title-wrap{
             display: inline-flex;
             align-items: center;
-            margin-top: 8px;
-            gap: 5px;
+            gap: 6px;
             width: fit-content;
-            padding: 2px 10px;
-            background-color: rgba(128, 128, 128, 0.15);
-            border-radius: 8px;
+            padding: 3px 10px 3px 3px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
             cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: all 0.2s ease;
 
             &:hover {
-                transform: translateY(-4px);
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                background: var(--bg-hover);
+                border-color: var(--border-color);
             }
 
-            svg {
-                font-size: 14px;
-                color: var(--text-secondary);
+            img {
+                width: 26px;
+                height: 26px;
+                border-radius: 50%;
+                object-fit: cover;
             }
 
-            span{
+            .community-text {
+                display: flex;
+                flex-direction: column;
+                line-height: 1.2;
+            }
+
+            .community-name {
                 font-size: 13px;
-                font-weight: 500;
-                color: var(--text-secondary);
+                font-weight: 600;
+                color: var(--text-primary);
+                white-space: nowrap;
             }
 
-            @include mix.respond(phone) {
-                padding: 3px 10px;
-
-                span {
-                    font-size: 12px;
-                }
+            .community-members {
+                font-size: 12px;
+                font-weight: 400;
+                color: var(--text-secondary);
+                white-space: nowrap;
             }
         }
 
@@ -114,7 +145,7 @@
             justify-content: space-between;
             flex-wrap: wrap;
             margin-top: 10px;
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-secondary);
             .wrap-left{
                 display: flex;
@@ -236,14 +267,6 @@
                   color: var(--text-inverse);
                 }
             }
-            .tip-btn{
-                padding: 2px 12px;
-                background-color: var(--accent-primary);
-                color: var(--text-inverse);
-                border: none;
-                border-radius: 5px;
-                font-size: 13.35px;
-            }
             } 
         }
         
@@ -277,44 +300,17 @@
     //     margin: 10px 0;
     // }
 
-    .publisher{
+    .badges-row {
         display: flex;
         align-items: center;
-        margin-top: 20px;
-        padding: 10px;
-        background-color: var(--card-bg);
-        border-radius: 10px;
-        box-shadow: var(--card-shadow);
-        transition: background-color 0.3s ease;
-        div{
-            flex: 1;
-            line-height: 18px;
-            p{
-                color: var(--text-primary);
-                font-weight: 600;
-                font-size: 18px;
+        gap: 10px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+
+        .community-title-wrap {
+            @include mix.respond(phone) {
+                display: none;
             }
-            span{
-                font-size: 13px;
-                color: var(--text-secondary);
-            }
-        }
-        img{
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            margin-right: 15px;
-            object-fit: cover;
-        }
-        button{
-            background: var(--text-secondary);
-            color: var(--text-inverse);
-            padding: 4px 30px;
-            border: 0;
-            outline: 0;
-            border-radius: 7px;
-            font-size: 14px;
-            cursor: pointer;
         }
     }
 
@@ -406,21 +402,10 @@
               }
         }
         .btn-wrap{
-            // margin-top: 6px;
             padding: 12px;
             display: flex;
             justify-content: flex-end;
             gap: 10px;
-
-            button{
-                padding: 5px 12px;
-                border: none;
-                border-radius: 5px;
-                background-color: #4ba1d3;
-                color: var(--text-inverse);
-
-
-            }
         }
 
 

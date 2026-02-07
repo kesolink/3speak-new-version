@@ -1,0 +1,106 @@
+@use "../../mixins.scss" as *;
+
+.author-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 3px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  transition: all 0.2s ease;
+  max-width: 100%;
+
+  &:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-color);
+  }
+
+  &.compact {
+    background: transparent;
+    border-color: transparent;
+
+    &:hover {
+      background: var(--bg-tertiary);
+      border-color: var(--border-light);
+    }
+
+    .author-name {
+      font-weight: 400;
+    }
+  }
+
+  .author-badge-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    cursor: pointer;
+    min-width: 0;
+  }
+
+  img {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    @include respond(phone) {
+      width: 22px;
+      height: 22px;
+    }
+  }
+
+  .author-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    min-width: 0;
+  }
+
+  .author-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .followers-count {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .follow-btn {
+    margin-left: 4px;
+    padding: 4px 14px;
+    background: var(--text-secondary);
+    color: var(--text-inverse);
+    border: none;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+    &:hover {
+      opacity: 0.85;
+    }
+
+    &.following {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+
+      &:hover {
+        border-color: #ef4444;
+        color: #ef4444;
+        opacity: 1;
+      }
+    }
+  }
+}

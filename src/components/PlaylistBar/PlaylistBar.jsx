@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MdPlaylistPlay, MdSkipPrevious, MdSkipNext } from 'react-icons/md';
 import { IoClose } from 'react-icons/io5';
+import { fixVideoThumbnail } from '../../utils/fixThumbnails';
 import './PlaylistBar.scss';
 
 function PlaylistBar({ playlist, videos, currentIndex, onClose }) {
@@ -97,7 +98,11 @@ function PlaylistBar({ playlist, videos, currentIndex, onClose }) {
             ref={index === currentIndex ? currentItemRef : null}
           >
             <div className="thumbnail-wrap">
-              <img src={video.images?.thumbnail} alt={video.title} />
+              <img
+                src={fixVideoThumbnail(video)}
+                alt={video.title}
+                onError={(e) => (e.currentTarget.src = 'https://media.3speak.tv/defaults/default_thumbnail.png')}
+              />
               <span className="position">{index + 1}</span>
               {video.duration > 0 && (
                 <span className="duration">

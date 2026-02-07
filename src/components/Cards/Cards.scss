@@ -225,10 +225,21 @@
     h2{
       padding: 0px 4px;
       overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    color: var(--text-primary);
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+      min-height: 2.8em;
+      margin: 5px 0;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+      @include respond(phone) {
+        -webkit-line-clamp: 1;
+        min-height: 1.4em;
+      }
     }
     .profile-view-wrap{
       display: flex;
@@ -284,25 +295,8 @@
 
       }
 
-      .view-count {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        color: var(--text-secondary);
-        font-size: 12px;
-
-        span {
-          font-size: 11px;
-        }
-
-        // Watched indicator - red eye icon for videos already watched
-        &.watched {
-          color: var(--accent-primary, #e53935);
-
-          svg {
-            color: var(--accent-primary, #e53935);
-          }
-        }
+      .view-count-badge {
+        flex-shrink: 0;
       }
   
     }
@@ -340,12 +334,6 @@
       }
     }
 
-    h2 {
-      font-size: 12.95px;
-      font-weight: 500;
-      color: var(--text-primary);
-      margin: 5px 0;
-    }
     h3 {
       font-size: 14px;
       font-weight: 600;

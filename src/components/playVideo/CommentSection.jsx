@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import './CommentSection.scss';
 import './BlogContent.scss';
-import { GiTwoCoins } from 'react-icons/gi';
-import { BiDislike, BiLike } from 'react-icons/bi';
+import { BiDislike } from 'react-icons/bi';
 import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
 import dayjs from 'dayjs';
@@ -13,8 +12,13 @@ import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import {  toast } from 'sonner'
 import { estimate, getVotePower } from '../../utils/hiveUtils';
 import { filterByReputation } from '../../utils/reputation';
+import Button from '../Button/Button';
+import AuthorBadge from '../AuthorBadge/AuthorBadge';
+import UpvoteCount from '../UpvoteCount/UpvoteCount';
+import PayoutAmount from '../PayoutAmount/PayoutAmount';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { HIVE_API_NODES } from '../../utils/config';
+import TimeAgo from '../TimeAgo/TimeAgo';
 
 const client = new Client(HIVE_API_NODES);
 
@@ -297,14 +301,14 @@ function CommentSection({ videoDetails, author, permlink }) {
           onChange={(e) => setCommentInfo(e.target.value)}
         />
         <div className="btn-wrap">
-          <button onClick={() => {
+          <Button text="Cancel" onClick={() => {
             setCommentInfo('');
             setReplyToComment(null);
-          }}>Cancel</button>
-          <button onClick={() => {
+          }} />
+          <Button text="Comment" prominent onClick={() => {
             setReplyToComment(null);
             handlePostComment();
-          }}>Comment</button>
+          }} />
         </div>
       </div>
 
@@ -387,39 +391,25 @@ function Comment({
   return (
     <div className="comment-container" style={{ marginLeft: depth > 0 ? '40px' : '0px' }} >
       <div className="comment">
-        <img src={comment?.author?.profile?.images?.avatar || 'https://via.placeholder.com/40'} alt="Author Avatar" />
         <div className="comment-content">
-          <h3>
-            {comment?.author?.username}
-            <span>{dayjs(comment?.created_at).fromNow()}</span>
-          </h3>
+          <div className="comment-header">
+            <AuthorBadge author={comment?.author?.username} noLink />
+            <span className="comment-date"><TimeAgo date={comment?.created_at} /></span>
+          </div>
           <div className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '', comment?.permlink) }} />
           <div className="comment-action">
-            <div className="wrap">
-              <BiLike style={{ color: comment.has_voted ? 'red' : '' }}
+            <UpvoteCount
+              count={comment?.stats?.num_likes ?? 0}
+              voted={comment.has_voted}
               onClick={() => toggleTooltip(comment?.author?.username, comment.permlink, commentIndex)}
-               />
-              <span>{comment?.stats?.num_likes ?? 0}</span>
-            </div>
-            {/* <div className="wrap">
-              <BiDislike />
-              <span>{comment?.stats?.num_dislikes ?? 0}</span>
-            </div> */}
-            <div className="wrap">
-              <GiTwoCoins />
-              <span>${comment?.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span>
-            </div>
-            <span
-              className="main-reply"
-              onClick={() => {
+            />
+            <PayoutAmount amount={comment?.stats?.total_hive_reward} />
+            <Button text="Reply" onClick={() => {
                 setCommentInfo("");
                 setReplyText("")
                 setActiveReply(comment.permlink);
                 setReplyToComment(comment);
-              }}
-            >
-              Reply
-            </span>
+              }} />
             <CommentVoteTooltip
              author={comment?.author?.username}
              permlink={comment.permlink}
@@ -450,8 +440,8 @@ function Comment({
             onChange={(e) => setReplyText(e.target.value)}
           />
           <div className="btn-wrap">
-            <button onClick={() => {setReplyText(""); setActiveReply(null)} }>Cancel</button>
-            <button onClick={handlePostComment}>Comment</button>
+            <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />
+            <Button text="Comment" prominent onClick={handlePostComment} />
           </div>
         </div>
       )}

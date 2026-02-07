@@ -153,21 +153,21 @@
     position: fixed;
     left: 0px;
     top: 0px;
-    width: 50%;
+    width: fit-content;
+    max-width: 80%;
     height: 100%;
     background-color: var(--bg-tertiary);
     border-radius: 0px 12px 30px 0px;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     transition: background-color 0.3s ease,
       transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 0px 20px;
-    border-right: 5px solid var(--accent-primary);
+    border-right: none;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
 
     @include mix.respond(desktop) {
       display: none;
-    }
-    @include mix.respond(tab) {
-      width: 30%;
     }
 
     .shortcut-links {

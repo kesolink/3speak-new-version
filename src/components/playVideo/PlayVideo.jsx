@@ -1,9 +1,9 @@
 import PropTypes from "prop-types";
 import "./PlayVideo.scss";
-import { FaEye } from "react-icons/fa";
+import ViewCount from "../ViewCount/ViewCount";
 import { LuTimer } from "react-icons/lu";
-import { BiLike } from "react-icons/bi";
-import { GiTwoCoins } from "react-icons/gi";
+import UpvoteCount from "../UpvoteCount/UpvoteCount";
+import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@apollo/client";
 import { GET_PROFILE } from "../../graphql/queries";
@@ -12,7 +12,6 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
 import CommentSection from "./CommentSection";
 import { useAppStore } from '../../lib/store';
-import { MdPeople } from "react-icons/md";
 import { estimate, getUersContent, getVotePower } from "../../utils/hiveUtils";
 import ToolTip from "../tooltip/ToolTip";
 import { ImSpinner9 } from "react-icons/im";
@@ -22,12 +21,11 @@ import TipModal from "../../components/tip-reward/TipModal";
 import { toast } from 'sonner';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
-import { getFollowers } from "../../hive-api/api";
+import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import UpvoteTooltip from "../tooltip/UpvoteTooltip";
 import axios from "axios";
-import { FEED_URL } from '../../utils/config';
+import { FEED_URL, PLAYER_URL, HIVE_API_URL } from '../../utils/config';
 import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
-import { PLAYER_URL } from "../../utils/config";
 import { MdPlaylistAdd, MdWatchLater } from "react-icons/md";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
@@ -35,6 +33,8 @@ import PlaylistBar from "../PlaylistBar/PlaylistBar";
 import { useMyPlaylists, isVideoInPlaylist } from "../../hooks/useMyPlaylists";
 import { removeFromPlaylist } from "../../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
+import AuthorBadge from "../AuthorBadge/AuthorBadge";
+import Button from "../Button/Button";
 
 dayjs.extend(relativeTime);
 
@@ -59,6 +59,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [speakData, setSpeakData] = useState(null);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
+  const [communityData, setCommunityData] = useState(null);
+  const [isFollowing, setIsFollowing] = useState(false);
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -233,11 +235,53 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     getFollowersCount(author);
   }, [author, permlink, speakWatchData, getFollowersCount]);
 
+  // Effect: Check if current user follows the author
+  useEffect(() => {
+    if (!user || !author || user === author) {
+      setIsFollowing(false);
+      return;
+    }
+    const checkRelationship = async () => {
+      try {
+        const relation = await getRelationshipBetweenAccounts(user, author);
+        setIsFollowing(relation?.follows === true);
+      } catch (err) {
+        console.error('Error checking follow relationship:', err);
+      }
+    };
+    checkRelationship();
+  }, [user, author]);
+
   // Effect: Get tooltip voters (only when author/permlink/user changes)
   useEffect(() => {
     if (!author || !permlink) return;
     getTooltipVoters();
   }, [author, permlink, getTooltipVoters]);
+
+  // Effect: Fetch community data (subscribers count)
+  useEffect(() => {
+    if (!community_id) {
+      setCommunityData(null);
+      return;
+    }
+    const fetchCommunity = async () => {
+      try {
+        const response = await axios.post(HIVE_API_URL, {
+          jsonrpc: '2.0',
+          method: 'bridge.get_community',
+          params: { name: community_id },
+          id: 1,
+        });
+        const data = response.data?.result;
+        if (data) {
+          setCommunityData({ subscribers: data.subscribers });
+        }
+      } catch (err) {
+        console.error('Error fetching community data:', err);
+      }
+    };
+    fetchCommunity();
+  }, [community_id]);
 
   // Effect: Recalculate vote value when weight changes
   useEffect(() => {
@@ -268,19 +312,21 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     return <BarLoader />;
   }
 
-  // Follow user using aioha (supports multiple providers)
-  const followUser = async (following) => {
+  // Follow/unfollow user using aioha (supports multiple providers)
+  const toggleFollowUser = async (following) => {
     if (!isLoggedIn()) {
       toast.error("Please login to follow users");
       return;
     }
 
+    const willFollow = !isFollowing;
     try {
-      await followWithAioha(following, true);
-      toast.success(`Successfully followed @${following}`);
+      await followWithAioha(following, willFollow);
+      setIsFollowing(willFollow);
+      toast.success(willFollow ? `Successfully followed @${following}` : `Unfollowed @${following}`);
     } catch (error) {
-      console.error('Failed to follow user:', error);
-      toast.error(`Failed to follow: ${error.message}`);
+      console.error('Failed to follow/unfollow user:', error);
+      toast.error(`Failed: ${error.message}`);
     }
   };
 
@@ -314,23 +360,42 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
           <h3>{videoDetails?.title}</h3>
           
-          <div className="tag-wrapper">
-            {tags.map((tag, index) => (
-              <span key={index} onClick={() => handleSelectTag(tag)}>{tag}</span>
-            ))}
+          <div className="badges-row">
+            <AuthorBadge
+              author={videoDetails?.author?.id}
+              followersCount={followData?.follower_count}
+              showFollow={author !== user}
+              isFollowing={isFollowing}
+              onFollow={() => toggleFollowUser(author)}
+            />
+            {community_id && (<div className="community-title-wrap" onClick={() => handleCommunityNavigate(community_id)}>
+              <img src={`https://images.hive.blog/u/${community_id}/avatar/small`} alt="" />
+              <div className="community-text">
+                <span className="community-name">{comunity_name}</span>
+                {communityData?.subscribers != null && (
+                  <span className="community-members">{communityData.subscribers} Members</span>
+                )}
+              </div>
+            </div>)}
           </div>
-          
-          {community_id && (<div className="community-title-wrap" onClick={() => handleCommunityNavigate(community_id)}>
-            <MdPeople />
-            <span>{comunity_name}</span>
-          </div>)}
+
+          <div className="community-tags-row">
+            {community_id && (<div className="community-title-wrap mobile-only" onClick={() => handleCommunityNavigate(community_id)}>
+              <img src={`https://images.hive.blog/u/${community_id}/avatar/small`} alt="" />
+              <div className="community-text">
+                <span className="community-name">{comunity_name}</span>
+              </div>
+            </div>)}
+            <div className="tag-wrapper">
+              {tags.map((tag, index) => (
+                <span key={index} onClick={() => handleSelectTag(tag)}>{tag}</span>
+              ))}
+            </div>
+          </div>
           
           <div className="play-video-info">
             <div className="wrap-left">
-              <div className="wrap">
-                <FaEye />
-                <span>{view}</span>
-              </div>
+              <ViewCount views={view} author={author} permlink={permlink} size={13} />
               <div className="wrap">
                 <LuTimer />
                 <span>{formatRelativeTime(videoDetails?.created_at)}</span>
@@ -338,30 +403,23 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
             
             <div className="wrap-right">
+              <PayoutAmount amount={videoDetails?.stats?.total_hive_reward ?? 0} size={13} onClick={toggleTooltip} />
+
               <span className="wrap">
-                {isLoading ? (
+                <UpvoteCount
+                  count={optimisticVoteCount}
+                  voted={isVoted}
+                  onClick={toggleTooltip}
+                  loading={isLoading}
+                  onCountEnter={() => setOpenToolTip(true)}
+                  onCountLeave={() => setOpenToolTip(false)}
+                  size={13}
+                >
                   <div className="loader-circle">
                     <TailChase className="loader-circle" size="15" speed="1.5" color="red" />
                   </div>
-                ) : (
-                  <BiLike
-                    className={isVoted ? "icon-red" : "icon"}
-                    onClick={toggleTooltip}
-                  />
-                )}
-                <div 
-                  className="amount" 
-                  onMouseEnter={() => setOpenToolTip(true)} 
-                  onMouseLeave={() => setOpenToolTip(false)}
-                >
-                  {optimisticVoteCount}
-                </div>
+                </UpvoteCount>
                 {openTooltip && <ToolTip tooltipVoters={tooltipVoters} />}
-              </span>
-
-              <span className="wrap">
-                <GiTwoCoins className="icon" />
-                <span>${videoDetails?.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span>
               </span>
 
               {isInWatchLater && (
@@ -383,9 +441,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   <button className="playlist-btn" onClick={() => setIsPlaylistModalOpen(true)} title="Add to playlist">
                     <MdPlaylistAdd />
                   </button>
-                  <button className="tip-btn" onClick={() => setIsTipModalOpen(true)}>
-                    Tip
-                  </button>
+                  <Button text="Tip" prominent onClick={() => setIsTipModalOpen(true)} />
                 </>
               )}
 
@@ -405,23 +461,6 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               />
             </div>
           </div>
-        </div>
-
-        <div className="big-mid-wrap"></div>
-        
-        <div className="publisher">
-          <img src={profile?.images?.avatar} alt="" />
-          <div>
-            <p onClick={() => handleProfileNavigate(videoDetails?.author?.id)}>
-              {videoDetails?.author?.id}
-            </p>
-            <span>{followData?.follower_count} Followers</span>
-          </div>
-          {author !== user && (
-            <button onClick={() => followUser(author)}>
-              Follow
-            </button>
-          )}
         </div>
 
         {/* Show PlaylistBar when watching from a playlist, otherwise show VideoPlaylists */}
