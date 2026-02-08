@@ -1120,7 +1120,6 @@ const VideoShort = () => {
                   frameBorder="0"
                   allow="autoplay; fullscreen"
                   allowFullScreen
-                  loading={isCurrent ? "eager" : "lazy"}
                   onLoad={(e) => {
                     console.log(`[VideoShort] Iframe loaded for video: ${video.id}, isCurrent: ${isCurrent}`);
                     // Store ref again on load in case it wasn't set
