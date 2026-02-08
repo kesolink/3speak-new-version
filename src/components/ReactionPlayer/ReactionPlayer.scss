@@ -7,7 +7,12 @@
   margin-bottom: 12px;
   overflow: hidden;
 
-  // 16:9 video container (first, above header)
+  // Scrollable area containing video + comment-below
+  .rct-scroll-area {
+    // Desktop: no scroll, comment panel handles its own overflow
+  }
+
+  // 16:9 video container (player handles vertical internally)
   .reaction-video-wrap {
     position: relative;
     width: 100%;
@@ -46,6 +51,20 @@
     background: var(--card-bg, #1a1a2e);
     overflow-y: auto;
     z-index: 1;
+
+    // Below-video variant: flows in document, not absolute
+    &--below {
+      position: relative;
+      top: auto;
+      left: auto;
+      height: auto;
+      max-height: 300px;
+      border-top: 1px solid var(--border-light, #333);
+
+      .rct-comment-thread {
+        padding-top: 4px;
+      }
+    }
   }
 
   .rct-comment-thread {
@@ -114,12 +133,37 @@
     cursor: pointer;
   }
 
-  // Size overlay button on the video
-  .size-overlay-btn {
+  // Overlay buttons container (top-right of video)
+  .overlay-buttons {
     position: absolute;
     top: 8px;
     right: 8px;
-    z-index: 12;
+    z-index: 8;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .reaction-video-wrap:hover .overlay-buttons {
+    opacity: 1;
+  }
+
+  // Mobile nav controls inside overlay — hidden on desktop
+  .mobile-overlay-nav {
+    display: none;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .overlay-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  .size-overlay-btn {
     display: flex;
     align-items: center;
     gap: 4px;
@@ -132,7 +176,6 @@
     font-size: 11px;
     font-weight: 600;
     transition: all 0.2s ease;
-    opacity: 0;
 
     &:hover {
       background: rgba(0, 0, 0, 0.85);
@@ -141,11 +184,63 @@
     svg {
       font-size: 16px;
     }
-  }
 
-  // Show overlay on hover
-  .reaction-video-wrap:hover .size-overlay-btn {
-    opacity: 1;
+    // Mobile-only nav arrows (prev/next) in overlay
+    &--nav {
+      display: none;
+
+      @include mix.respond(phone) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+
+        svg {
+          font-size: 20px;
+        }
+
+        &:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        &:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+      }
+    }
+
+    // Hide overlay close button on desktop (header has its own close)
+    &--close {
+      display: none;
+
+      @include mix.respond(phone) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+
+        svg {
+          font-size: 20px;
+        }
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+      }
+    }
   }
 
   // Custom player controls (overlay at bottom of video)
@@ -160,7 +255,7 @@
     padding: 16px 8px 4px;
     opacity: 0;
     transition: opacity 0.3s ease;
-    z-index: 11;
+    z-index: 7;
     pointer-events: none;
 
     &.visible {
@@ -337,8 +432,17 @@
       }
     }
 
-    .close-btn:hover {
-      background: #ef4444;
+    .close-btn {
+      border-radius: 50%;
+      display: none;
+
+      @media (max-width: 767px) {
+        display: flex;
+      }
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
     }
   }
 
@@ -445,9 +549,82 @@
     border-radius: 7px;
   }
 
+  // Divider between timestamped and non-timestamped reactions
+  .reaction-list-divider {
+    width: 1px;
+    align-self: stretch;
+    flex-shrink: 0;
+    background: var(--border-light, rgba(255, 255, 255, 0.15));
+    margin: 4px 2px;
+  }
+
+  // Collapse/hide toggle button
+  .mobile-rct-toggle {
+    // Visible on all screen sizes (nav-btn styles apply)
+  }
+
+  // Collapsible wrapper for content + list
+  .rct-collapsible {
+    // Desktop: always visible (collapse = hide entire panel via onClose)
+  }
+
   // Mobile variant
   &--mobile {
     border-radius: 10px;
     margin: 8px 0;
+
+    // Hide the full header on mobile
+    .reaction-player-header {
+      display: none;
+    }
+
+    // Scroll area: video + comments scroll together
+    .rct-scroll-area {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent-primary, #e53935) transparent;
+    }
+
+    // Comment panel inside scroll area: no own scroll
+    .rct-comment-panel--below {
+      max-height: none;
+      overflow-y: visible;
+    }
+
+    // Always show overlay buttons on mobile (no hover needed)
+    .overlay-buttons {
+      opacity: 1;
+    }
+
+    // Show mobile nav controls in overlay
+    .mobile-overlay-nav {
+      display: flex;
+    }
+
+    // Hide resize button on mobile
+    .size-overlay-btn--resize {
+      display: none;
+    }
+
+    // Smaller avatars in reaction list
+    .reaction-item {
+      min-width: 48px;
+      padding: 4px;
+    }
+
+    .reaction-item-avatar {
+      width: 28px;
+      height: 28px;
+    }
+
+    .reaction-item-name {
+      max-width: 44px;
+    }
+
+    .reaction-list {
+      padding: 6px 8px;
+      gap: 6px;
+    }
   }
 }

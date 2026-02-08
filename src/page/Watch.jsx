@@ -118,6 +118,8 @@ function Watch() {
 
   // Comment-based timeline markers
   const [commentMarkers, setCommentMarkers] = useState(null);
+  const [markersRefreshKey, setMarkersRefreshKey] = useState(0);
+  const refreshMarkers = useCallback(() => setMarkersRefreshKey(k => k + 1), []);
 
   useEffect(() => {
     if (!author || !permlink || author === 'unknown') return;
@@ -128,19 +130,17 @@ function Watch() {
         const replies = await hiveClient.call('condenser_api', 'get_content_replies', [author, permlink]);
         if (cancelled || !replies || replies.length === 0) return;
 
-        // Pick 3 random indices to simulate video reactions, rest are comments
-        const videoIndices = new Set();
-        const shuffled = [...Array(replies.length).keys()].sort(() => Math.random() - 0.5);
-        for (let i = 0; i < Math.min(3, shuffled.length); i++) {
-          videoIndices.add(shuffled[i]);
-        }
-
         // Pre-render comment bodies as HTML
         let render;
         try { render = await getRenderer(); } catch (e) { render = null; }
 
-        // Build markers from top-level comments, placed randomly on the timeline
-        const markers = replies.map((comment, i) => {
+        // Only include comments that have parentTimestamp in their metadata
+        const markers = [];
+        for (const comment of replies) {
+          let meta = {};
+          try { meta = typeof comment.json_metadata === 'string' ? JSON.parse(comment.json_metadata) : (comment.json_metadata || {}); } catch (_) {}
+          const parentTimestamp = typeof meta.parentTimestamp === 'number' ? meta.parentTimestamp : null;
+
           const replyCount = comment.children || 0;
           let bodyHtml = '';
           if (render && comment.body) {
@@ -148,19 +148,39 @@ function Watch() {
           } else {
             bodyHtml = comment.body || '';
           }
-          return {
-            pct: Math.random(),
+
+          // Detect video reactions by checking for video metadata
+          // Ensure the URL points to play.3speak.tv for proper iframe embedding
+          let videoUrl = meta.video?.url || null;
+          if (videoUrl && !videoUrl.includes('play.3speak.tv')) {
+            // Try to extract video ID from embed.3speak.tv or other URL formats
+            // and convert to play.3speak.tv/embed?v=user/videoId
+            const match = videoUrl.match(/embed\.3speak\.tv\/(?:watch|embed|uploads)\/(.+)/);
+            if (match) {
+              videoUrl = `https://play.3speak.tv/embed?v=${comment.author}/${match[1]}`;
+            }
+          }
+
+          markers.push({
+            pct: parentTimestamp,
+            pctIsSeconds: true,
             avatar: `https://images.hive.blog/u/${comment.author}/avatar`,
             label: comment.author,
             permlink: comment.permlink,
             replyCount,
             body: bodyHtml,
-            isVideo: videoIndices.has(i),
-          };
-        });
+            isVideo: !!videoUrl,
+            videoUrl,
+          });
+        }
 
-        // Sort by position so they render left-to-right
-        markers.sort((a, b) => a.pct - b.pct);
+        // Sort by timestamp: timestamped first (ascending), then no-timestamp at end
+        markers.sort((a, b) => {
+          if (a.pct === null && b.pct === null) return 0;
+          if (a.pct === null) return 1;
+          if (b.pct === null) return -1;
+          return a.pct - b.pct;
+        });
 
         if (!cancelled) setCommentMarkers(markers);
       } catch (err) {
@@ -169,26 +189,43 @@ function Watch() {
     })();
 
     return () => { cancelled = true; };
-  }, [author, permlink]);
+  }, [author, permlink, markersRefreshKey]);
 
   // Resolve markers with actual time values when duration is known
   const resolvedMarkers = useMemo(() => {
     if (!commentMarkers || videoDuration <= 0) return undefined;
-    return commentMarkers.map(m => ({
-      time: Math.round(m.pct * videoDuration),
-      avatar: m.avatar,
-      label: m.label,
-      replyCount: m.replyCount,
-      isVideo: m.isVideo,
-    }));
+    return commentMarkers
+      .filter(m => m.pct !== null)
+      .map(m => ({
+        time: Math.round(m.pct),
+        avatar: m.avatar,
+        label: m.label,
+        replyCount: m.replyCount,
+        isVideo: m.isVideo,
+      }));
   }, [commentMarkers, videoDuration]);
 
   // Reaction player state
   const [selectedReactionIndex, setSelectedReactionIndex] = useState(0);
-  const [isReactionPlayerVisible, setIsReactionPlayerVisible] = useState(true);
+  const [isReactionPlayerVisible, setIsReactionPlayerVisible] = useState(() => {
+    return localStorage.getItem('3speak-reactions-visible') !== 'false';
+  });
   const [reactionSize, setReactionSize] = useState(() => {
     return localStorage.getItem('3speak-reaction-size') || 'small';
   });
+
+  const setReactionsVisible = useCallback((visible) => {
+    setIsReactionPlayerVisible(visible);
+    localStorage.setItem('3speak-reactions-visible', String(visible));
+  }, []);
+
+  const handleAddReaction = useCallback(() => {
+    const textarea = document.querySelector('.add-comment-wrap .textarea-box');
+    if (textarea) {
+      textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => textarea.focus(), 400);
+    }
+  }, []);
 
   const cycleReactionSize = useCallback(() => {
     setReactionSize(prev => {
@@ -198,10 +235,21 @@ function Watch() {
     });
   }, []);
 
+  // Desktop: show controls on mouse movement, auto-hide after 3s
   const showControlsTemporarily = useCallback(() => {
     setControlsVisible(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+  }, []);
+
+  // Mobile: tap toggles controls on/off (with auto-hide when showing)
+  const toggleControlsVisibility = useCallback(() => {
+    setControlsVisible(prev => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (prev) return false;
+      hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+      return true;
+    });
   }, []);
 
   const pauseMainPlayer = useCallback(() => {
@@ -397,27 +445,25 @@ function Watch() {
     return [...authorVideos, ...recommendations];
   }, [authorVideosData, suggestionsData, trendingData, author, permlink]);
 
-  // Build reactions from comment markers: 3 video reactions + rest are comments
-  // Note: no dependency on videoDuration to keep the array reference stable
+  // Build reactions from comment markers: video reactions use the embed URL from metadata
   const reactions = useMemo(() => {
     if (!commentMarkers) return [];
-    let videoIdx = 0;
-    return commentMarkers.slice(0, 10).map((m, i) => {
+    return commentMarkers.map((m, i) => {
       const base = {
         id: `reaction-${i}`,
         author: m.label,
         avatar: m.avatar,
         replyCount: m.replyCount,
         pct: m.pct,
+        pctIsSeconds: m.pctIsSeconds,
       };
-      if (m.isVideo && suggestedVideos.length > 0) {
-        const video = suggestedVideos[videoIdx % suggestedVideos.length];
-        const videoAuthor = video?.author?.username || video?.author?.id || video?.author || video?.owner;
-        videoIdx++;
+      if (m.isVideo && m.videoUrl) {
         return {
           ...base,
           type: 'video',
-          videoUrl: `${PLAYER_URL}/watch?v=${videoAuthor}/${video.permlink}&layout=desktop&mode=iframe`,
+          videoUrl: m.videoUrl,
+          permlink: m.permlink,
+          body: m.body,
         };
       }
       return {
@@ -427,16 +473,25 @@ function Watch() {
         permlink: m.permlink,
       };
     });
-  }, [commentMarkers, suggestedVideos]);
+  }, [commentMarkers]);
+
+  const reactionCountLabel = useMemo(() => {
+    const videoCount = reactions.filter(r => r.type === 'video').length;
+    const commentCount = reactions.length - videoCount;
+    if (videoCount > 0 && commentCount > 0) {
+      return `${videoCount} video, ${commentCount} comment`;
+    }
+    return String(reactions.length);
+  }, [reactions]);
 
   const handleSelectReaction = useCallback((index) => {
     if (index < 0 || index >= (reactions?.length ?? 0)) return;
     setSelectedReactionIndex(index);
-    setIsReactionPlayerVisible(true);
+    setReactionsVisible(true);
     // Seek main video to this reaction's timeline position
     const reaction = reactions[index];
     if (reaction && videoDuration > 0) {
-      handleSeek(reaction.pct * videoDuration);
+      handleSeek(reaction.pct);
     }
   }, [reactions, videoDuration, handleSeek]);
 
@@ -475,11 +530,42 @@ function Watch() {
           onSeekBackward: handleSeekBackward,
           onSeekForward: handleSeekForward,
           onSeek: handleSeek,
+          onRefreshReactions: refreshMarkers,
           onToggleFullscreen: handleToggleFullscreen,
           onMouseMove: showControlsTemporarily,
+          onToggleControls: toggleControlsVisibility,
           markers: resolvedMarkers,
           onMarkerSelect: handleSelectReaction,
         }}
+        mobileReactionPanel={
+          <>
+            {isReactionPlayerVisible && reactions.length > 0 && (
+              <ReactionPlayer
+                reactions={reactions}
+                selectedIndex={selectedReactionIndex}
+                onSelectReaction={handleSelectReaction}
+                onClose={() => setReactionsVisible(false)}
+                size={reactionSize}
+                onCycleSize={cycleReactionSize}
+                currentTime={currentTime}
+                duration={videoDuration}
+                mainIsPlaying={isPlaying}
+                onReactionPlay={pauseMainPlayer}
+                mobile
+              />
+            )}
+            {!isReactionPlayerVisible && reactions.length > 0 && (
+              <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
+                Show Reactions ({reactionCountLabel})
+              </button>
+            )}
+            {reactions.length === 0 && (
+              <button className="show-reactions-btn" onClick={handleAddReaction}>
+                Add Reaction
+              </button>
+            )}
+          </>
+        }
       />
 
       {/* Right column: Reaction Player + Recommended */}
@@ -489,7 +575,7 @@ function Watch() {
             reactions={reactions}
             selectedIndex={selectedReactionIndex}
             onSelectReaction={handleSelectReaction}
-            onClose={() => setIsReactionPlayerVisible(false)}
+            onClose={() => setReactionsVisible(false)}
             size={reactionSize}
             onCycleSize={cycleReactionSize}
             currentTime={currentTime}
@@ -497,6 +583,16 @@ function Watch() {
             mainIsPlaying={isPlaying}
             onReactionPlay={pauseMainPlayer}
           />
+        )}
+        {!isReactionPlayerVisible && reactions.length > 0 && (
+          <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
+            Show Reactions ({reactionCountLabel})
+          </button>
+        )}
+        {reactions.length === 0 && (
+          <button className="show-reactions-btn" onClick={handleAddReaction}>
+            Add Reaction
+          </button>
         )}
 
         {suggestedVideos.length > 0 && (
@@ -509,21 +605,6 @@ function Watch() {
 
       {suggestedVideos.length > 0 && (
         <div className="mobile-recommended">
-          {isReactionPlayerVisible && reactions.length > 0 && (
-            <ReactionPlayer
-              reactions={reactions}
-              selectedIndex={selectedReactionIndex}
-              onSelectReaction={handleSelectReaction}
-              onClose={() => setIsReactionPlayerVisible(false)}
-              size={reactionSize}
-              onCycleSize={cycleReactionSize}
-              currentTime={currentTime}
-              duration={videoDuration}
-              mainIsPlaying={isPlaying}
-              onReactionPlay={pauseMainPlayer}
-              mobile
-            />
-          )}
           <h4>More videos</h4>
           <Card3 videos={suggestedVideos.slice(0, 12)} loading={false} />
         </div>

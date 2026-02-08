@@ -93,4 +93,24 @@
         }
       }
     }
+
+    .show-reactions-btn {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border-light, #333);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text-secondary, #aaa);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: var(--bg-tertiary, rgba(255, 255, 255, 0.05));
+        color: var(--text-primary, #fff);
+        border-color: var(--border-color, #555);
+      }
+    }
 }

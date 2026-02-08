@@ -199,3 +199,128 @@
     user-select: none;
   }
 }
+
+// Mobile controls layout
+@media (max-width: 767px) {
+  // Container always visible (for progress bar) but non-interactive
+  .video-controls,
+  .video-controls.visible {
+    top: 0;
+    padding: 0;
+    opacity: 1;
+    background: none;
+    pointer-events: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .video-controls {
+    // Gradient overlay — fades in/out with controls
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        rgba(0, 0, 0, 0.3) 0%,
+        rgba(0, 0, 0, 0.12) 30%,
+        rgba(0, 0, 0, 0.12) 60%,
+        rgba(0, 0, 0, 0.55) 100%
+      );
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    // Progress bar — always visible at very bottom
+    .vc-progress-row {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      margin-bottom: 0;
+      padding: 0 8px 3px;
+      pointer-events: auto;
+      z-index: 1;
+    }
+
+    // Playback buttons — fade in/out, centered
+    .vc-controls-row {
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 1;
+    }
+
+    .vc-controls-left {
+      gap: 20px;
+    }
+
+    .vc-btn {
+      width: 44px;
+      height: 44px;
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .vc-btn--play {
+      width: 52px;
+      height: 52px;
+      background: rgba(0, 0, 0, 0.45);
+    }
+
+    // Time display — fade in/out, bottom-left
+    .vc-time {
+      position: absolute;
+      bottom: 12px;
+      left: 8px;
+      margin-left: 0;
+      font-size: 11px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 2px 6px;
+      border-radius: 4px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 1;
+    }
+
+    // Mute + fullscreen — fade in/out, bottom-right
+    .vc-controls-right {
+      position: absolute;
+      bottom: 10px;
+      right: 8px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 1;
+    }
+
+    // When visible: show gradient + controls (not progress bar — already visible)
+    &.visible {
+      &::before { opacity: 1; }
+
+      .vc-controls-row {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .vc-time {
+        opacity: 1;
+      }
+
+      .vc-controls-right {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+
+    // Simplify markers on mobile — hide avatars, keep colored lines
+    .vc-marker {
+      .vc-marker-avatar-wrap { display: none; }
+      .vc-marker-tooltip { display: none; }
+      .vc-marker-line { height: 10px; }
+
+      &--active .vc-marker-line,
+      &:hover .vc-marker-line {
+        height: 14px;
+      }
+    }
+  }
+}

@@ -34,6 +34,7 @@ function VideoControls({
   const resolvedMarkers = markers || [];
 
   const [hovering, setHovering] = useState(false);
+  const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const trackRef = useRef(null);
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -56,8 +57,8 @@ function VideoControls({
   return (
     <div
       className={`video-controls${show ? ' visible' : ''}`}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
+      onMouseEnter={() => { if (!isTouchDevice) setHovering(true); }}
+      onMouseLeave={() => { if (!isTouchDevice) setHovering(false); }}
     >
       {/* Progress bar */}
       <div className="vc-progress-row">

@@ -71,6 +71,18 @@
       color: var(--text-secondary);
       font-weight: 500;
     }
+    .comment-timestamp-badge {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-muted);
+      white-space: nowrap;
+      cursor: pointer;
+
+      &:hover {
+        color: var(--text-secondary);
+      }
+    }
   }
   .comment-action {
     display: flex;
@@ -90,77 +102,90 @@
   gap: 8px;
 }
 
-// Header row: "Add a comment:" on left, React button on right
-.comment-header-row {
+// Give the tab content some breathing room
+.comment-tabs-bar + .add-comment-wrap {
+  padding-top: 10px;
+}
+
+// Tab bar: tabs on left, timestamp on right
+.comment-tabs-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-bottom: 2px solid var(--border-light, rgba(255, 255, 255, 0.1));
 }
 
-// Row below textarea: timestamp input on left, buttons on right
-.comment-form-row {
+.comment-tabs {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 8px;
-  flex-wrap: wrap;
+  gap: 0;
 }
 
-.comment-timeline-input {
+.comment-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-secondary, #aaa);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--text-primary, #fff);
+  }
+
+  &.active {
+    color: var(--accent-primary, #e53935);
+    border-bottom-color: var(--accent-primary, #e53935);
+  }
+}
+
+// Prominent timestamp — right side of tab bar
+.comment-timestamp {
   display: flex;
   align-items: center;
   gap: 6px;
-
-  label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    white-space: nowrap;
-  }
-
-  .timeline-input {
-    width: 64px;
-    padding: 4px 8px;
-    font-size: 12px;
-    font-weight: 500;
-    font-family: inherit;
-    color: var(--text-primary);
-    background: var(--card-bg, #1a1a2e);
-    border: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
-    border-radius: 6px;
-    text-align: center;
-    outline: none;
-    transition: border-color 0.15s ease;
-
-    &:focus {
-      border-color: var(--accent-primary, #e53935);
-    }
-  }
+  padding: 0 4px 2px 0;
 }
 
-.add-reaction-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  font-size: 12px;
+.comment-timestamp-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #aaa);
+}
+
+.comment-timestamp-input {
+  width: 72px;
+  padding: 5px 8px;
+  font-size: 14px;
   font-weight: 600;
   font-family: inherit;
-  color: #fff;
-  background: var(--accent-primary, #e53935);
-  border: none;
+  color: var(--text-primary, #fff);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid var(--border-light, #333);
   border-radius: 6px;
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  text-align: center;
+  outline: none;
+  transition: all 0.15s ease;
 
-  &:hover {
-    opacity: 0.9;
-  }
-
-  &:active {
-    transform: scale(0.97);
+  &:focus {
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
   }
 }
+
+// Row below textarea: buttons on right
+.comment-form-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+

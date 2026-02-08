@@ -4,7 +4,8 @@ import './BlogContent.scss';
 import { BiDislike } from 'react-icons/bi';
 import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
-import { MdVideocam } from 'react-icons/md';
+import { MdVideocam, MdComment } from 'react-icons/md';
+import ReactVideoTab from '../ReactVideoModal/ReactVideoModal';
 import dayjs from 'dayjs';
 import { useAppStore } from '../../lib/store';
 import { Client } from '@hiveio/dhive';
@@ -60,9 +61,10 @@ function parseTimeInput(str) {
   return null;
 }
 
-function CommentSection({ videoDetails, author, permlink, currentTime, duration }) {
+function CommentSection({ videoDetails, author, permlink, currentTime, duration, onSeek, onRefreshReactions }) {
   const { user } = useAppStore();
   const [commentInfo, setCommentInfo] = useState('');
+  const [activeTab, setActiveTab] = useState('comment'); // 'comment' | 'react'
   const [replyText, setReplyText] = useState("");
   const [activeReply, setActiveReply] = useState(null);
   const [replyToComment, setReplyToComment] = useState(null);
@@ -115,8 +117,28 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration 
     setTimelineOverride(false);
   }, []);
 
+  // Listen for 3speak player ready messages to detect vertical videos in comments
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (!event.data || event.data.type !== '3speak-player-ready') return;
+      if (!event.data.isVertical) return;
 
-      
+      // Find the iframe in comment containers that sent this message
+      const wrap = document.querySelector('.vid-comment-wrap');
+      if (!wrap) return;
+
+      const iframes = wrap.querySelectorAll('.video-container iframe');
+      for (const iframe of iframes) {
+        if (iframe.contentWindow === event.source) {
+          iframe.parentElement.classList.add('vertical');
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   useEffect(() => {
     const fetchComments = async () => {
@@ -189,6 +211,11 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration 
       comments.map(async (comment) => {
         const children = await client.call('condenser_api', 'get_content_replies', [comment.author, comment.permlink]);
         const has_voted = comment.active_votes?.some(v => v.voter === user) ?? false;
+        let parentTimestamp = null;
+        try {
+          const meta = typeof comment.json_metadata === 'string' ? JSON.parse(comment.json_metadata) : comment.json_metadata;
+          if (meta?.parentTimestamp != null) parentTimestamp = meta.parentTimestamp;
+        } catch (_) {}
         return {
           author: {
             username: comment.author,
@@ -201,6 +228,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration 
           permlink: comment.permlink,
           created_at: comment.created,
           body: comment.body,
+          parentTimestamp,
           stats: {
             num_likes: comment.active_votes?.filter((v) => v.percent > 0).length || 0,
             num_dislikes: comment.active_votes?.filter((v) => v.percent < 0).length || 0,
@@ -237,6 +265,15 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration 
     const new_permlink = `re-${parent_permlink}-${Date.now()}`;
 
     try {
+      // Build json_metadata with optional timestamp
+      const metadata = { app: '3speak/new-version' };
+      if (isReplyingToMainPost) {
+        const timestampSec = parseTimeInput(timelineInput);
+        if (timestampSec !== null && timestampSec > 0) {
+          metadata.parentTimestamp = timestampSec;
+        }
+      }
+
       // Use aioha for comment broadcasting (works with all providers: Keychain, HiveAuth, etc.)
       const result = await commentWithAioha(
         parent_author,
@@ -244,7 +281,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration 
         new_permlink,
         '', // title (empty for comments)
         textToPost,
-        { app: '3speak/new-version' } // json_metadata
+        metadata
       );
 
       if (result.success) {
@@ -295,6 +332,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration 
         setReplyText('');
         setActiveReply(null);
         setReplyToComment(null);
+        onRefreshReactions?.();
       } else {
         toast.error('Comment failed, please try again');
       }
@@ -350,47 +388,74 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration 
     <div className="vid-comment-wrap">
       
       
-      {/* Main comment form */}
-      <div className="add-comment-wrap">
-        <div className="comment-header-row">
-          Add a comment:
-          <button className="add-reaction-btn" type="button" title="Add Video Reaction">
+      {/* Tab headers + shared timestamp */}
+      <div className="comment-tabs-bar">
+        <div className="comment-tabs">
+          <button
+            className={`comment-tab${activeTab === 'comment' ? ' active' : ''}`}
+            onClick={() => setActiveTab('comment')}
+          >
+            <MdComment size={14} />
+            Comment
+          </button>
+          <button
+            className={`comment-tab${activeTab === 'react' ? ' active' : ''}`}
+            onClick={() => setActiveTab('react')}
+          >
             <MdVideocam size={14} />
             React
           </button>
         </div>
-        <textarea
-          placeholder="Write your comment here..."
-          className="textarea-box"
-          value={commentInfo}
-          onChange={(e) => setCommentInfo(e.target.value)}
-          onFocus={handleTextareaFocus}
-        />
-        <div className="comment-form-row">
-          <div className="comment-timeline-input">
-            <label htmlFor="comment-timestamp">Timestamp:</label>
-            <input
-              id="comment-timestamp"
-              type="text"
-              className="timeline-input"
-              value={timelineInput}
-              onChange={handleTimelineInputChange}
-              onBlur={handleTimelineInputBlur}
-              placeholder="0:00"
-            />
-          </div>
-          <div className="btn-wrap">
-            <Button text="Cancel" onClick={() => {
-              setCommentInfo('');
-              setReplyToComment(null);
-            }} />
-            <Button text="Comment" prominent onClick={() => {
-              setReplyToComment(null);
-              handlePostComment();
-            }} />
-          </div>
+        <div className="comment-timestamp">
+          <span className="comment-timestamp-label">at</span>
+          <input
+            type="text"
+            className="comment-timestamp-input"
+            value={timelineInput}
+            onChange={handleTimelineInputChange}
+            onBlur={handleTimelineInputBlur}
+            placeholder="0:00"
+          />
         </div>
       </div>
+
+      {/* Comment tab */}
+      {activeTab === 'comment' && (
+        <div className="add-comment-wrap">
+          <textarea
+            placeholder="Write your comment here..."
+            className="textarea-box"
+            value={commentInfo}
+            onChange={(e) => setCommentInfo(e.target.value)}
+            onFocus={handleTextareaFocus}
+          />
+          <div className="comment-form-row">
+            <div className="btn-wrap">
+              <Button text="Cancel" onClick={() => {
+                setCommentInfo('');
+                setReplyToComment(null);
+              }} />
+              <Button text="Comment" prominent onClick={() => {
+                setReplyToComment(null);
+                handlePostComment();
+              }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* React tab */}
+      {activeTab === 'react' && (
+        <div className="add-comment-wrap">
+          <ReactVideoTab
+            author={author}
+            permlink={permlink}
+            currentTime={currentTime}
+            formatTime={formatTimeInput}
+            onPosted={() => { setActiveTab('comment'); onRefreshReactions?.(); }}
+          />
+        </div>
+      )}
 
       <h4>{countComments(commentList)} Comments</h4>
 
@@ -430,7 +495,8 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration 
       setVoteValue={setVoteValue}
       accountData={accountData}
       setAccountData={setAccountData}
-          
+      onSeek={onSeek}
+
         />
       )) )}
     </div>
@@ -465,6 +531,7 @@ function Comment({
       setVoteValue,
       accountData,
       setAccountData,
+      onSeek,
 }) {
   const isReplying = activeReply === comment.permlink;
 
@@ -475,6 +542,9 @@ function Comment({
           <div className="comment-header">
             <AuthorBadge author={comment?.author?.username} noLink />
             <span className="comment-date"><TimeAgo date={comment?.created_at} /></span>
+            {comment?.parentTimestamp != null && (
+              <span className="comment-timestamp-badge" onClick={() => onSeek?.(comment.parentTimestamp)}>at {formatTimeInput(comment.parentTimestamp)}</span>
+            )}
           </div>
           <div className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '', comment?.permlink) }} />
           <div className="comment-action">
@@ -551,11 +621,12 @@ function Comment({
               activeTooltipPermlink={activeTooltipPermlink}
               setActiveTooltipPermlink={setActiveTooltipPermlink}
               weight={weight}
-             setWeight={setWeight}      
+             setWeight={setWeight}
       voteValue={voteValue}
       setVoteValue={setVoteValue}
       accountData={accountData}
       setAccountData={setAccountData}
+      onSeek={onSeek}
             />
           ))}
         </div>

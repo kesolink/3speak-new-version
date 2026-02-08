@@ -5,7 +5,7 @@ import ViewCount from "../ViewCount/ViewCount";
 import { LuTimer } from "react-icons/lu";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@apollo/client";
 import { GET_PROFILE } from "../../graphql/queries";
 import dayjs from "dayjs";
@@ -27,7 +27,7 @@ import UpvoteTooltip from "../tooltip/UpvoteTooltip";
 import axios from "axios";
 import { FEED_URL, PLAYER_URL, HIVE_API_URL } from '../../utils/config';
 import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
-import { MdPlaylistAdd, MdWatchLater } from "react-icons/md";
+import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp } from "react-icons/md";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
 import PlaylistBar from "../PlaylistBar/PlaylistBar";
@@ -39,11 +39,17 @@ import Button from "../Button/Button";
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  
+
+  const lastTouchRef = useRef(0); // prevent touch+mouse double-fire
+
+  // Mobile collapsible details
+  const [mobileDetailsExpanded, setMobileDetailsExpanded] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+
   // State
   const [openTooltip, setOpenToolTip] = useState(false);
   const [tooltipVoters, setTooltipVoters] = useState([]);
@@ -356,8 +362,19 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 <>
                   <div
                     className="video-interact-overlay"
-                    onMouseMove={videoControls.onMouseMove}
-                    onClick={videoControls.onTogglePlay}
+                    onMouseMove={() => {
+                      if (window.innerWidth > 767) videoControls.onMouseMove();
+                    }}
+                    onMouseDown={() => {
+                      if (Date.now() - lastTouchRef.current < 500) return;
+                      if (window.innerWidth <= 767) videoControls.onToggleControls();
+                      else videoControls.onTogglePlay();
+                    }}
+                    onTouchStart={(e) => {
+                      lastTouchRef.current = Date.now();
+                      e.preventDefault();
+                      videoControls.onToggleControls();
+                    }}
                   />
                   <VideoControls
                     currentTime={videoControls.currentTime}
@@ -384,8 +401,17 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
           )}
 
-          <h3>{videoDetails?.title}</h3>
-          
+          <div className="video-title-row">
+            <h3>{videoDetails?.title}</h3>
+            <button
+              className="mobile-title-toggle"
+              onClick={() => setMobileDetailsExpanded(prev => !prev)}
+            >
+              {mobileDetailsExpanded ? <MdKeyboardArrowUp size={20} /> : <MdKeyboardArrowDown size={20} />}
+            </button>
+          </div>
+
+          <div className={`video-details-collapsible${mobileDetailsExpanded ? '' : ' collapsed'}`}>
           <div className="badges-row">
             <AuthorBadge
               author={videoDetails?.author?.id}
@@ -418,7 +444,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               ))}
             </div>
           </div>
-          
+
           <div className="play-video-info">
             <div className="wrap-left">
               <ViewCount views={view} author={author} permlink={permlink} size={13} />
@@ -487,7 +513,6 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               />
             </div>
           </div>
-        </div>
 
         {/* Show PlaylistBar when watching from a playlist, otherwise show VideoPlaylists */}
         {playlistData ? (
@@ -502,10 +527,27 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         )}
 
         <div className="description-wrap">
-          <div className="blog-content">
-            <BlogContent author={author} permlink={permlink} />
+          <div className={`description-collapsible${descriptionExpanded ? '' : ' collapsed'}`}>
+            <div className="blog-content">
+              <BlogContent author={author} permlink={permlink} />
+            </div>
           </div>
+          <button
+            className="description-toggle-btn"
+            onClick={() => setDescriptionExpanded(prev => !prev)}
+          >
+            {descriptionExpanded ? 'Show less' : 'Show more'}
+          </button>
         </div>
+        </div>{/* end video-details-collapsible */}
+        </div>{/* end top-container */}
+
+        {/* Mobile reactions slot — between description and comments */}
+        {mobileReactionPanel && (
+          <div className="mobile-reactions-slot">
+            {mobileReactionPanel}
+          </div>
+        )}
 
         <CommentSection
           videoDetails={videoDetails}
@@ -514,6 +556,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           setIsVoted={setIsVoted}
           currentTime={videoControls?.currentTime}
           duration={videoControls?.duration}
+          onSeek={videoControls?.onSeek}
+          onRefreshReactions={videoControls?.onRefreshReactions}
         />
       </div>
       
@@ -566,6 +610,7 @@ PlayVideo.propTypes = {
     currentIndex: PropTypes.number,
   }),
   onClosePlaylist: PropTypes.func,
+  mobileReactionPanel: PropTypes.node,
 };
 
 export default PlayVideo;

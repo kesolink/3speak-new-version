@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
-import { MdChevronLeft, MdChevronRight, MdClose, MdAspectRatio, MdVideocam, MdComment } from 'react-icons/md';
+import { Fragment, useRef, useState, useEffect, useCallback } from 'react';
+import { MdChevronLeft, MdChevronRight, MdClose, MdAspectRatio, MdVideocam, MdComment, MdKeyboardArrowDown, MdKeyboardArrowUp } from 'react-icons/md';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
 import { Client } from '@hiveio/dhive';
@@ -26,6 +26,14 @@ const getRenderer = async () => {
 
 const SIZE_LABELS = { small: 'S', medium: 'M', big: 'L' };
 
+function strip3SpeakEmbeds(html) {
+  if (!html) return '';
+  return html
+    .replace(/<div[^>]*class="[^"]*video-container[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
+    .replace(/<iframe[^>]*src="[^"]*3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<iframe[^>]*src="[^"]*embed\.3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi, '');
+}
+
 function CommentNode({ comment, depth }) {
   return (
     <div className="rct-thread-comment" style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 16}px` } : undefined}>
@@ -33,7 +41,7 @@ function CommentNode({ comment, depth }) {
         <img className="rct-thread-avatar" src={comment.avatar} alt="" />
         <span className="rct-thread-author">@{comment.author}</span>
       </div>
-      <div className="rct-thread-body markdown-view" dangerouslySetInnerHTML={{ __html: comment.body }} />
+      <div className="rct-thread-body markdown-view" dangerouslySetInnerHTML={{ __html: strip3SpeakEmbeds(comment.body) }} />
       {comment.children?.map((child, i) => (
         <CommentNode key={i} comment={child} depth={depth + 1} />
       ))}
@@ -72,6 +80,7 @@ function ReactionPlayer({
   const iframeRefs = useRef([]);
   const activeIdxRef = useRef(selectedIndex ?? 0);
   const trackRef = useRef(null);
+  const playerRef = useRef(null);
 
   // Reaction player's own playback state
   const [rctTime, setRctTime] = useState(0);
@@ -83,12 +92,65 @@ function ReactionPlayer({
   const [controlsVisible, setControlsVisible] = useState(false);
   const hideTimerRef = useRef(null);
 
-  // Nested comment tree for comment-type reactions
-  const [nestedComments, setNestedComments] = useState([]);
-  const [loadingComments, setLoadingComments] = useState(false);
+  // Mobile collapse — respect manual override from localStorage
+  const [mobileCollapsed, setMobileCollapsed] = useState(() => {
+    const stored = localStorage.getItem('rct-collapsed');
+    if (stored !== null) return stored === '1';
+    // Auto-collapse if only comments without timestamps
+    if (!reactions || reactions.length === 0) return true;
+    const hasVideo = reactions.some(r => r.type === 'video');
+    const hasTimestamped = reactions.some(r => r.pct !== null);
+    return !hasVideo && !hasTimestamped;
+  });
+  const userToggledRef = useRef(false);
+
+  // Dynamic height for scroll area on mobile
+  const [belowMaxHeight, setBelowMaxHeight] = useState(null);
 
   const idx = (selectedIndex ?? 0);
   activeIdxRef.current = idx;
+
+  // Determine sizing mode: 'full' (has videos), 'half' (comments-only with timestamps)
+  const hasVideoReactions = reactions?.some(r => r.type === 'video');
+
+  // Calculate available vertical space once on mount (mobile only)
+  useEffect(() => {
+    if (!mobile || mobileCollapsed) {
+      setBelowMaxHeight(null);
+      return;
+    }
+
+    const rafId = requestAnimationFrame(() => {
+      const player = playerRef.current;
+      if (!player) return;
+
+      const playerTop = player.getBoundingClientRect().top;
+      const viewportH = window.innerHeight;
+      const available = viewportH - playerTop;
+
+      const header = player.querySelector('.reaction-player-header');
+      const list = player.querySelector('.reaction-list');
+
+      const headerH = header?.getBoundingClientRect().height || 0;
+      const listH = list?.getBoundingClientRect().height || 0;
+
+      const buffer = 16; // borders + padding
+      let remaining = available - headerH - listH - buffer;
+
+      // Comments-only with timestamps: half the space
+      if (!hasVideoReactions) {
+        remaining = Math.floor(remaining / 2);
+      }
+
+      setBelowMaxHeight(Math.max(50, Math.floor(remaining)));
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [mobile, mobileCollapsed, hasVideoReactions]);
+
+  // Nested comment tree for comment-type reactions
+  const [nestedComments, setNestedComments] = useState([]);
+  const [loadingComments, setLoadingComments] = useState(false);
 
   // Reset playback state when switching reactions
   const prevIdxRef = useRef(idx);
@@ -101,10 +163,10 @@ function ReactionPlayer({
     }
   }, [idx]);
 
-  // Fetch nested replies when a comment-type reaction is selected
+  // Fetch nested replies when a reaction with a permlink is selected
   useEffect(() => {
     const current = reactions?.[idx];
-    if (!current || current.type !== 'comment' || !current.permlink) {
+    if (!current || !current.permlink) {
       setNestedComments([]);
       return;
     }
@@ -182,7 +244,7 @@ function ReactionPlayer({
 
       const activeIframe = iframeRefs.current[activeIdxRef.current];
 
-      // Handle player-ready: do NOT auto-play reaction iframes (main player has priority)
+      // Handle player-ready: do NOT auto-play
       if (event.data.type === '3speak-player-ready') {
         return;
       }
@@ -302,11 +364,12 @@ function ReactionPlayer({
     if (userScrolledRef.current) return;
     if (!reactions || reactions.length === 0 || !mainDuration || mainDuration <= 0) return;
 
-    const currentPct = mainCurrentTime / mainDuration;
     let closestIdx = 0;
     let closestDist = Infinity;
     for (let i = 0; i < reactions.length; i++) {
-      const dist = Math.abs(reactions[i].pct - currentPct);
+      const r = reactions[i];
+      const rTime = r.pct;
+      const dist = Math.abs(rTime - mainCurrentTime);
       if (dist < closestDist) {
         closestDist = dist;
         closestIdx = i;
@@ -335,7 +398,50 @@ function ReactionPlayer({
   const videoReactions = reactions.filter(r => r.type === 'video');
 
   return (
-    <div className={`reaction-player${mobile ? ' reaction-player--mobile' : ''}`}>
+    <div className={`reaction-player${mobile ? ' reaction-player--mobile' : ''}`} ref={playerRef}>
+      {/* Header - top on mobile */}
+      <div className="reaction-player-header">
+        <div className="reaction-info">
+          <img className="reactor-avatar" src={current.avatar} alt="" />
+          <div className="reactor-text">
+            <span className="reactor-name">@{current.author}</span>
+            <span className="reaction-label">{isVideo ? 'Video Reaction' : 'Comment'}</span>
+          </div>
+        </div>
+        <div className="reaction-controls">
+          <button
+            className="nav-btn"
+            onClick={() => handleItemClick(idx - 1)}
+            disabled={!hasPrev}
+            title="Previous"
+          >
+            <MdChevronLeft />
+          </button>
+          <span className="reaction-count">{idx + 1}/{reactions.length}</span>
+          <button
+            className="nav-btn"
+            onClick={() => handleItemClick(idx + 1)}
+            disabled={!hasNext}
+            title="Next"
+          >
+            <MdChevronRight />
+          </button>
+          <button
+            className="mobile-rct-toggle nav-btn"
+            onClick={() => onClose?.()}
+            title="Hide reactions"
+          >
+            <MdKeyboardArrowUp />
+          </button>
+          <button className="close-btn" onClick={onClose} title="Hide">
+            <MdKeyboardArrowDown />
+          </button>
+        </div>
+      </div>
+
+      <div className={`rct-collapsible${mobileCollapsed ? ' collapsed' : ''}`}>
+      {/* Scrollable area: video + comments scroll together on mobile */}
+      <div className="rct-scroll-area" style={belowMaxHeight != null ? { height: `${belowMaxHeight}px` } : undefined}>
       {/* Content area — same 16:9 size for both video and comment */}
       <div
         className="reaction-video-wrap"
@@ -349,7 +455,7 @@ function ReactionPlayer({
             <iframe
               key={reaction.id}
               ref={el => { iframeRefs.current[originalIdx] = el; }}
-              src={`${reaction.videoUrl}&controls=0`}
+              src={`${reaction.videoUrl}${reaction.videoUrl.includes('?') ? '&' : '?'}layout=desktop&mode=iframe&controls=0`}
               className={`rct-iframe${originalIdx === idx ? ' rct-iframe--active' : ''}`}
               loading="lazy"
               allowFullScreen
@@ -373,13 +479,28 @@ function ReactionPlayer({
         {/* Invisible overlay for video items to capture mouse events */}
         {isVideo && <div className="rct-interact-overlay" onClick={handleTogglePlay} />}
 
-        {/* Size overlay button */}
-        {onCycleSize && (
-          <button className="size-overlay-btn" onClick={onCycleSize} title={`Size: ${size || 'small'}`}>
-            <MdAspectRatio />
-            <span>{SIZE_LABELS[size] || 'S'}</span>
+        {/* Overlay buttons (top-right) */}
+        <div className="overlay-buttons">
+          {/* Mobile-only prev/next nav + count */}
+          <div className="mobile-overlay-nav">
+            <button className="size-overlay-btn size-overlay-btn--nav" onClick={() => handleItemClick(idx - 1)} disabled={!hasPrev} title="Previous">
+              <MdChevronLeft />
+            </button>
+            <span className="overlay-count">{idx + 1}/{reactions.length}</span>
+            <button className="size-overlay-btn size-overlay-btn--nav" onClick={() => handleItemClick(idx + 1)} disabled={!hasNext} title="Next">
+              <MdChevronRight />
+            </button>
+          </div>
+          {onCycleSize && (
+            <button className="size-overlay-btn size-overlay-btn--resize" onClick={onCycleSize} title={`Size: ${size || 'small'}`}>
+              <MdAspectRatio />
+              <span>{SIZE_LABELS[size] || 'S'}</span>
+            </button>
+          )}
+          <button className="size-overlay-btn size-overlay-btn--close" onClick={onClose} title="Hide reactions">
+            <MdKeyboardArrowUp />
           </button>
-        )}
+        </div>
 
         {/* Custom player controls (video only) */}
         {isVideo && (
@@ -421,59 +542,47 @@ function ReactionPlayer({
         )}
       </div>
 
-      {/* Header - below content */}
-      <div className="reaction-player-header">
-        <div className="reaction-info">
-          <img className="reactor-avatar" src={current.avatar} alt="" />
-          <div className="reactor-text">
-            <span className="reactor-name">@{current.author}</span>
-            <span className="reaction-label">{isVideo ? 'Video Reaction' : 'Comment'}</span>
+      {/* Comment thread below video reactions */}
+      {isVideo && current.permlink && (
+        <div className="rct-comment-panel rct-comment-panel--below">
+          <div className="rct-comment-thread">
+            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, children: [] }} depth={0} />
+            {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
+            {nestedComments.map((reply, i) => (
+              <CommentNode key={i} comment={reply} depth={1} />
+            ))}
           </div>
         </div>
-        <div className="reaction-controls">
-          <button
-            className="nav-btn"
-            onClick={() => handleItemClick(idx - 1)}
-            disabled={!hasPrev}
-            title="Previous"
-          >
-            <MdChevronLeft />
-          </button>
-          <span className="reaction-count">{idx + 1}/{reactions.length}</span>
-          <button
-            className="nav-btn"
-            onClick={() => handleItemClick(idx + 1)}
-            disabled={!hasNext}
-            title="Next"
-          >
-            <MdChevronRight />
-          </button>
-          <button className="close-btn" onClick={onClose} title="Close">
-            <MdClose />
-          </button>
-        </div>
-      </div>
+      )}
+      </div>{/* end rct-scroll-area */}
 
       {/* Horizontal scrollable list */}
       <div className="reaction-list" ref={scrollRef}>
-        {reactions.map((reaction, i) => (
-          <div
-            key={reaction.id}
-            className={`reaction-item${i === idx ? ' active' : ''}${reaction.type === 'video' ? ' reaction-item--video' : ' reaction-item--comment'}`}
-            onClick={() => handleItemClick(i)}
-            ref={el => { itemRefs.current[i] = el; }}
-          >
-            <div className="reaction-item-type-badge">
-              {reaction.type === 'video' ? <MdVideocam size={10} /> : <MdComment size={10} />}
-            </div>
-            <img className="reaction-item-avatar" src={reaction.avatar} alt="" />
-            <span className="reaction-item-name">@{reaction.author}</span>
-            {reaction.replyCount > 0 && (
-              <span className="reaction-item-count">{reaction.replyCount}</span>
-            )}
-          </div>
-        ))}
+        {reactions.map((reaction, i) => {
+          // Insert divider before the first non-timestamped reaction
+          const showDivider = reaction.pct === null && (i === 0 || reactions[i - 1].pct !== null);
+          return (
+            <Fragment key={reaction.id}>
+              {showDivider && <div className="reaction-list-divider" />}
+              <div
+                className={`reaction-item${i === idx ? ' active' : ''}${reaction.type === 'video' ? ' reaction-item--video' : ' reaction-item--comment'}`}
+                onClick={() => handleItemClick(i)}
+                ref={el => { itemRefs.current[i] = el; }}
+              >
+                <div className="reaction-item-type-badge">
+                  {reaction.type === 'video' ? <MdVideocam size={10} /> : <MdComment size={10} />}
+                </div>
+                <img className="reaction-item-avatar" src={reaction.avatar} alt="" />
+                <span className="reaction-item-name">@{reaction.author}</span>
+                {reaction.replyCount > 0 && (
+                  <span className="reaction-item-count">{reaction.replyCount}</span>
+                )}
+              </div>
+            </Fragment>
+          );
+        })}
       </div>
+      </div>{/* end rct-collapsible */}
     </div>
   );
 }
