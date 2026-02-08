@@ -1,0 +1,187 @@
+.video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  padding: 20px 12px 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+  pointer-events: none;
+
+  &.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  // Progress bar
+  .vc-progress-row {
+    padding: 0 4px;
+    margin-bottom: 6px;
+  }
+
+  .vc-progress-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+    transition: height 0.15s ease;
+
+    &:hover {
+      height: 6px;
+    }
+  }
+
+  .vc-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--accent-primary, #e53935);
+    border-radius: 2px;
+    transition: width 0.15s linear;
+    pointer-events: none;
+  }
+
+  // Timeline markers
+  .vc-marker {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    z-index: 2;
+
+    .vc-marker-line {
+      width: 2px;
+      height: 14px;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 1px;
+      position: absolute;
+      bottom: 0;
+      transition: height 0.15s ease, background 0.15s ease;
+    }
+
+    .vc-marker-avatar-wrap {
+      position: absolute;
+      bottom: 16px;
+      transition: transform 0.15s ease;
+    }
+
+    .vc-marker-avatar {
+      width: 24px;
+      height: 24px;
+      min-width: 24px;
+      min-height: 24px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      object-fit: cover;
+      aspect-ratio: 1 / 1;
+      display: block;
+      transition: border-color 0.15s ease;
+    }
+
+    .vc-marker-reply-count {
+      position: absolute;
+      top: -4px;
+      right: -6px;
+      min-width: 14px;
+      height: 14px;
+      padding: 0 3px;
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 14px;
+      text-align: center;
+      color: #fff;
+      background: var(--accent-primary, #e53935);
+      border-radius: 7px;
+      pointer-events: none;
+    }
+
+    .vc-marker-tooltip {
+      position: absolute;
+      bottom: 44px;
+      white-space: nowrap;
+      font-size: 11px;
+      font-weight: 500;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 3px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    &--active, &:hover {
+      .vc-marker-line {
+        height: 18px;
+        background: var(--accent-primary, #e53935);
+      }
+
+      .vc-marker-avatar-wrap {
+        transform: scale(1.2);
+      }
+
+      .vc-marker-avatar {
+        border-color: var(--accent-primary, #e53935);
+      }
+    }
+  }
+
+  // Controls
+  .vc-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .vc-controls-left,
+  .vc-controls-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .vc-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    &:active {
+      transform: scale(0.92);
+    }
+
+    &--play {
+      width: 36px;
+      height: 36px;
+    }
+  }
+
+  .vc-time {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    margin-left: 8px;
+    white-space: nowrap;
+    user-select: none;
+  }
+}

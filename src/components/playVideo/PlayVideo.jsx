@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import "./PlayVideo.scss";
+import VideoControls from "../VideoControls/VideoControls";
 import ViewCount from "../ViewCount/ViewCount";
 import { LuTimer } from "react-icons/lu";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
@@ -38,7 +39,7 @@ import Button from "../Button/Button";
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -337,7 +338,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           {(author && permlink) ? (
             <div className="video-iframe-wrapper">
               <iframe
-                src={`${PLAYER_URL}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe`}
+                src={`${PLAYER_URL}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe&controls=0`}
                 style={{
                   position: "absolute",
                   top: 0,
@@ -351,6 +352,29 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 scrolling="no"
                 allowFullScreen
               />
+              {videoControls && (
+                <>
+                  <div
+                    className="video-interact-overlay"
+                    onMouseMove={videoControls.onMouseMove}
+                    onClick={videoControls.onTogglePlay}
+                  />
+                  <VideoControls
+                    currentTime={videoControls.currentTime}
+                    duration={videoControls.duration}
+                    isPlaying={videoControls.isPlaying}
+                    isFullscreen={videoControls.isFullscreen}
+                    isVisible={videoControls.isVisible}
+                    onTogglePlay={videoControls.onTogglePlay}
+                    onSeekBackward={videoControls.onSeekBackward}
+                    onSeekForward={videoControls.onSeekForward}
+                    onSeek={videoControls.onSeek}
+                    onToggleFullscreen={videoControls.onToggleFullscreen}
+                    markers={videoControls.markers}
+                    onMarkerSelect={videoControls.onMarkerSelect}
+                  />
+                </>
+              )}
             </div>
           ) : (
             <div className="video-loader">
