@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { toast } from "sonner";
@@ -10,10 +10,13 @@ import { getFollowers } from "../hive-api/api";
 import Card3 from "../components/Cards/Card3";
 import Follower from "../components/Userprofilepage/Follower";
 import BarLoader from "../components/Loader/BarLoader";
+import { useContentBatch } from "../hooks/useContentBatch";
+import { useWatchHistory } from "../hooks/useWatchHistory";
 
 import { FaVideo } from "react-icons/fa";
 import { IoLogoRss } from "react-icons/io5";
-import { IoMdShare } from "react-icons/io";
+import { IoMdShare, IoMdAdd } from "react-icons/io";
+import { MdLock, MdPublic } from "react-icons/md";
 
 import { LineSpinner, Quantum } from "ldrs/react";
 import "ldrs/react/Quantum.css";
@@ -22,16 +25,67 @@ import icon from "../../public/images/stack.png";
 import { UPLOAD_TOKEN, UPLOAD_URL, FEED_URL } from "../utils/config";
 import "./ProfilePage.scss";
 import { useLegacyUpload } from "../context/LegacyUploadContext";
-import checker from "../../public/images/checker.png"
+import checker from "../../public/images/checker.png";
+import { useMyPlaylists } from "../hooks/useMyPlaylists";
+import { useWatchedVideosCount } from "../hooks/useWatchedVideos";
+import PlaylistCard from "../components/Cards/PlaylistCard";
+import WatchedPlaylistCard from "../components/Cards/WatchedPlaylistCard";
+import WatchLaterPlaylistCard from "../components/Cards/WatchLaterPlaylistCard";
+import { createPlaylist } from "../utils/playlistOperations";
+import { useQueryClient } from "@tanstack/react-query";
+
+// Reserved playlist name for Watch Later
+const WATCH_LATER_NAME = 'Watch Later';
 
 function ProfilePage() {
 
   const  {uploadVideoProgress, uploadStatus, hasBackgroundJob} = useLegacyUpload();
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
 
   const [follower, setFollower] = useState(null);
-  const [show, setShow] = useState("video");
+  const [show, setShow] = useState(() => {
+    // Initialize show based on URL tab parameter
+    const tab = searchParams.get('tab');
+    return tab === 'playlists' ? 'playlists' : 'video';
+  });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [newPlaylistAccess, setNewPlaylistAccess] = useState('public');
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Fetch user's playlists (all - public and private)
+  const { data: playlists = [], isLoading: playlistsLoading, refetch: refetchPlaylists } = useMyPlaylists();
+
+  // Fetch watched videos count
+  const { data: watchedCount = 0, isLoading: watchedCountLoading } = useWatchedVideosCount();
+
+  // Handle create playlist
+  const handleCreatePlaylist = async () => {
+    if (!newPlaylistName.trim()) {
+      toast.error('Please enter a playlist name');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      await createPlaylist(newPlaylistName.trim(), newPlaylistAccess);
+      toast.success('Playlist created! It may take a moment to appear.');
+      setShowCreateModal(false);
+      setNewPlaylistName('');
+      setNewPlaylistAccess('public');
+      setTimeout(() => {
+        refetchPlaylists();
+        queryClient.invalidateQueries(['myPlaylists', user]);
+      }, 3000);
+    } catch (error) {
+      toast.error('Failed to create playlist: ' + error.message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   /* ===============================
      IN-PROGRESS UPLOAD STATE
@@ -188,7 +242,12 @@ function ProfilePage() {
   }, [refetch]);
 
   const videos = data?.pages.flat() || [];
-  console.log(videos)
+
+  // Batch fetch content data
+  const { getContentForVideo } = useContentBatch(videos);
+
+  // Batch check watch history
+  const { isWatched } = useWatchHistory(videos);
 
   /* ===============================
      SCROLL HANDLER
@@ -298,7 +357,10 @@ function ProfilePage() {
       {/* ================= TOGGLE ================= */}
       <div className="toggle-wrap">
         <div className="wrap">
-          <span onClick={() => setShow("video")}>Videos</span>
+          <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
+          <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
+            Playlists {playlists.length > 0 && `(${playlists.length})`}
+          </span>
           <Link to="/draft">Edit Video</Link>
         </div>
 
@@ -376,21 +438,107 @@ function ProfilePage() {
 
       
 
-      {/* ================= VIDEO LIST ================= */}
+      {/* ================= VIDEO LIST / PLAYLISTS ================= */}
       <div className="container-video">
-        {isLoading ? (
-          <BarLoader />
-        ) : videos.length === 0 ? (
-          <div className="empty-wrap">
-            <img src={icon} alt="empty" />
-            <span>No Video Data Available</span>
-          </div>
-        ) : show === "video" ? (
-          <Card3 videos={videos} loading={isFetchingNextPage} />
+        {show === "video" ? (
+          isLoading ? (
+            <BarLoader />
+          ) : videos.length === 0 ? (
+            <div className="empty-wrap">
+              <img src={icon} alt="empty" />
+              <span>No Video Data Available</span>
+            </div>
+          ) : (
+            <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+          )
+        ) : show === "playlists" ? (
+          <>
+            <button className="create-playlist-btn" onClick={() => setShowCreateModal(true)}>
+              <IoMdAdd /> Create Playlist
+            </button>
+            {playlistsLoading && watchedCountLoading ? (
+              <BarLoader />
+            ) : (
+              <>
+                {/* Special playlists row: Watch Later and Watched */}
+                <div className="special-playlists-row">
+                  {/* Watch Later playlist */}
+                  {playlists.find(p => p.name === WATCH_LATER_NAME) && (
+                    <WatchLaterPlaylistCard
+                      playlist={playlists.find(p => p.name === WATCH_LATER_NAME)}
+                      username={user}
+                    />
+                  )}
+                  {/* Watched Videos pseudo-playlist */}
+                  {watchedCount > 0 && (
+                    <WatchedPlaylistCard count={watchedCount} username={user} />
+                  )}
+                </div>
+                {/* Regular playlists (excluding Watch Later) */}
+                {playlists.filter(p => p.name !== WATCH_LATER_NAME).length === 0 && watchedCount === 0 && !playlists.find(p => p.name === WATCH_LATER_NAME) ? (
+                  <div className="empty-wrap">
+                    <img src={icon} alt="empty" />
+                    <span>No Playlists Yet</span>
+                    <button className="create-playlist-btn-empty" onClick={() => setShowCreateModal(true)}>
+                      <IoMdAdd /> Create Your First Playlist
+                    </button>
+                  </div>
+                ) : (
+                  <PlaylistCard playlists={playlists.filter(p => p.name !== WATCH_LATER_NAME)} loading={playlistsLoading} showPrivacyBadge={true} />
+                )}
+              </>
+            )}
+          </>
         ) : (
           <Follower count={follower} />
         )}
       </div>
+
+      {/* Create Playlist Modal */}
+      {showCreateModal && (
+        <div className="create-playlist-modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="create-playlist-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Create New Playlist</h3>
+            <div className="form-group">
+              <label>Playlist Name</label>
+              <input
+                type="text"
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                placeholder="Enter playlist name"
+                autoFocus
+              />
+            </div>
+            <div className="form-group">
+              <label>Visibility</label>
+              <div className="privacy-buttons">
+                <button
+                  type="button"
+                  className={`privacy-btn ${newPlaylistAccess === 'public' ? 'active' : ''}`}
+                  onClick={() => setNewPlaylistAccess('public')}
+                >
+                  <MdPublic /> Public
+                </button>
+                <button
+                  type="button"
+                  className={`privacy-btn ${newPlaylistAccess === 'private' ? 'active' : ''}`}
+                  onClick={() => setNewPlaylistAccess('private')}
+                >
+                  <MdLock /> Private
+                </button>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setShowCreateModal(false)} disabled={isCreating}>
+                Cancel
+              </button>
+              <button className="btn-create" onClick={handleCreatePlaylist} disabled={isCreating}>
+                {isCreating ? 'Creating...' : 'Create Playlist'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

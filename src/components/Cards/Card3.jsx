@@ -1,46 +1,27 @@
-import { IoChevronUpCircleOutline } from "react-icons/io5";
-import { IoEyeOutline } from "react-icons/io5";
+import PayoutAmount from "../PayoutAmount/PayoutAmount";
+import UpvoteCount from "../UpvoteCount/UpvoteCount";
+import ViewCount from "../ViewCount/ViewCount";
 import { IoCalendarOutline } from "react-icons/io5";
 import { MdDelete, MdError, MdPhoneIphone } from "react-icons/md";
 import { FaCog, FaFileAlt } from "react-icons/fa";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import AddToPlaylistButton from "../AddToPlaylistButton/AddToPlaylistButton";
+import TimeAgo from "../TimeAgo/TimeAgo";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHeart } from "react-icons/fa";
 import PropTypes from "prop-types";
 import "./Cards.scss";
-import { useAppStore } from "../../lib/store";
 import { useEffect, useState } from "react";
-import CardVoteTooltip from "../tooltip/CardVoteTooltip";
-// import LazyPayout from "../LazyPayout"; // ✅ Add LazyPayout
 import img from "../../assets/image/speak.jpg";
-import { estimate, getVotePower } from "../../utils/hiveUtils";
-import LazyPayout from "../../page/LazyPayout";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
+import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ProfileModal from "../modal/ProfileModal";
 import useViewCounts from "../../hooks/useViewCounts";
 
-dayjs.extend(relativeTime);
 
-function Card3({ videos = [], loading = false, error = null, tooltipVariant = "default" }) {
-  const { user } = useAppStore();
+function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null }) {
   const navigate = useNavigate();
-  const [voteValue, setVoteValue] = useState(0.0);
-  const [activeTooltipIndex, setActiveTooltipIndex] = useState(null);
-  const [votersNum, setVotersNum] = useState({});
-  const [hoverUser, setHoverUser] = useState(null);
-  const [hoverTimeout, setHoverTimeout] = useState(null);
-  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
   const [modalUser, setModalUser] = useState(null);
   const { getViewCount } = useViewCounts(videos);
   const [showTooltip, setShowTooltip] = useState(false);
-
-
-  const [selectedPost, setSelectedPost] = useState({
-    username: "",
-    permlink: "",
-  });
-  const [voteStatus, setVoteStatus] = useState({})
 
   const formatViewCount = (views) => {
     if (views === null || views === undefined) return null;
@@ -56,49 +37,16 @@ function Card3({ videos = [], loading = false, error = null, tooltipVariant = "d
 }, []);
 
 
-  useEffect(() => {
-    const fetchAccountData = async () => {
-      try {
-        const result = await getVotePower(user);
-        if (result) {
-          const { account } = result;
-          getVotingDefaultValue(account);
-        }
-      } catch (err) {
-        console.error("Error fetching account:", err);
-      }
-    };
-
-    if (user) fetchAccountData();
-  }, [user]);
-
-  const getVotingDefaultValue = async (account) => {
-    const percent = 100;
-    const data = await estimate(account, percent);
-    setVoteValue(data);
-  };
 
   if (loading && videos.length === 0) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
-
-  const toggleTooltip = (username, permlink, index) => {
-    setSelectedPost({ username, permlink });
-    setActiveTooltipIndex((prev) => (prev === index ? null : index));
-  };
-
-
-  
- 
   return (
     <div className="card-container">
       {videos.map((video, index) => {
         const postKey = `${video.author?.username || video.author || video.owner}/${
           video.permlink
         }`;
-        const hasVoted = voteStatus[postKey] === true;
-
-        
 
         return (
           <Link
@@ -127,6 +75,13 @@ function Card3({ videos = [], loading = false, error = null, tooltipVariant = "d
                     .padStart(2, "0")}
                 </span>
               </div>
+
+              {/* Add to Playlist Button */}
+              <AddToPlaylistButton
+                author={video.author?.username || video.author || video.owner}
+                permlink={video.permlink}
+                title={video.title}
+              />
 
               {/* Status Badges */}
               {video.status === 'scheduled' && video.publish_type === 'schedule' && (
@@ -198,93 +153,41 @@ function Card3({ videos = [], loading = false, error = null, tooltipVariant = "d
 
             {/* Author */}
             <div className="profile-view-wrap">
-                <div
-                  className="profile-wrapper"
-                  role="link"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    navigate(`/p/${video.author?.username || video.author || video.owner}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/p/${video.author?.username || video.author || video.owner}`);
-                    }
-                  }}
-                >
-                  <img
-                    className="profile-img"
-                    src={`https://images.hive.blog/u/${
-                      video.author?.username || video.author || video.owner
-                    }/avatar`}
-                    alt=""
-                  />
-                  <h2
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setModalUser(video.author?.username || video.author || video.owner);
-                    }}
-                  >
-                    {video.author?.username || video.author || video.owner}
-                  </h2>
-
-                </div>
+              <AuthorBadge
+                author={video.author?.username || video.author || video.owner}
+                noLink
+                compact
+              />
               {getViewCount(video.author?.username || video.author || video.owner, video.permlink) !== null && (
-                <div className="view-count">
-                  <IoEyeOutline size={14} />
-                  <span>{formatViewCount(getViewCount(video.author?.username || video.author || video.owner, video.permlink))}</span>
-                </div>
+                <ViewCount
+                  views={getViewCount(video.author?.username || video.author || video.owner, video.permlink)}
+                  watched={isWatched?.(video.author?.username || video.author || video.owner, video.permlink) === true}
+                  formatViews={formatViewCount}
+                />
               )}
             </div>
 
             {/* Bottom actions */}
             <div className="bottom-action">
               <div className="wrap-left">
-                <div className="wrap flex-div">
-                  <IoChevronUpCircleOutline
-                    className={`icon ${ hasVoted ? "voted" : ""}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      toggleTooltip(
-                        video.author?.username || video.author || video.owner,
-                        video.permlink,
-                        index
-                      );
-                    }}
-                  />
-                  <span>
-                    {/* ⚡ Lazy payout component */}
-                    <LazyPayout author={video.author?.username || video.author || video.owner} permlink={video.permlink}  setHasVoted1={(isVoted) =>
-                      setVoteStatus((prev) => ({ ...prev, [postKey]: isVoted }))
-                    } setVotersNum={(count) =>
-                      setVotersNum((prev) => ({ ...prev, [postKey]: count }))
-                    } />
-                  </span>
-                </div>
-
-                <div className="wrap flex-div">
-                  <FaHeart className="icon-heart" />
-                  <span>{votersNum[postKey] ?? "…"}</span>
-                </div>
+                <PayoutAmount
+                  amount={(() => {
+                    const author = video.author?.username || video.author || video.owner;
+                    const content = getContentForVideo?.(author, video.permlink);
+                    const val = content?.payout ?? video.stats?.total_hive_reward;
+                    return val != null ? Number(val) : null;
+                  })()}
+                />
+                <UpvoteCount
+                  count={(() => {
+                    const author = video.author?.username || video.author || video.owner;
+                    const content = getContentForVideo?.(author, video.permlink);
+                    return content?.voters ?? video.stats?.num_votes ?? null;
+                  })()}
+                />
               </div>
-              <p>{dayjs(video.created_at || video.created).fromNow()}</p>
+              <p><TimeAgo date={video.created_at || video.created} /></p>
             </div>
-
-            {/* Tooltip */}
-            <CardVoteTooltip
-              showTooltip={activeTooltipIndex === index}
-              setShowTooltip={setActiveTooltipIndex}
-              author={selectedPost.username}
-              permlink={selectedPost.permlink}
-              voteValue={voteValue}
-              setVoteValue={setVoteValue}
-              setVoteStatus={setVoteStatus}
-              tooltipVariant={tooltipVariant}
-            />
           </Link>
         );
       })}
@@ -302,6 +205,8 @@ Card3.propTypes = {
   videos: PropTypes.array.isRequired,
   loading: PropTypes.bool,
   error: PropTypes.string,
+  getContentForVideo: PropTypes.func,
+  isWatched: PropTypes.func,
 };
 
 export default Card3;

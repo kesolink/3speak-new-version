@@ -61,6 +61,38 @@
         }
       }
 
+      // Add to Playlist button (appears on hover)
+      .add-to-playlist-btn {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(4px);
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        opacity: 0;
+        transform: translateY(-5px);
+        transition: all 0.2s ease;
+        z-index: 3;
+
+        &:hover {
+          background: var(--accent-primary, #e53935);
+          transform: translateY(0);
+        }
+      }
+
+      &:hover .add-to-playlist-btn {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
       .scheduled-badge {
         position: absolute;
         top: 8px;
@@ -193,10 +225,21 @@
     h2{
       padding: 0px 4px;
       overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    color: var(--text-primary);
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+      min-height: 2.8em;
+      margin: 5px 0;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+      @include respond(phone) {
+        -webkit-line-clamp: 1;
+        min-height: 1.4em;
+      }
     }
     .profile-view-wrap{
       display: flex;
@@ -252,16 +295,8 @@
 
       }
 
-      .view-count {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        color: var(--text-secondary);
-        font-size: 12px;
-        
-        span {
-          font-size: 11px;
-        }
+      .view-count-badge {
+        flex-shrink: 0;
       }
   
     }
@@ -294,17 +329,11 @@
         padding: 3px 7px;
         border-radius: 12px;
         font-weight: 600;
-        color: var(--text-inverse);
-        background: var(--accent-primary);
+        color: #000;
+        background: rgba(255, 255, 255, 0.7);
       }
     }
 
-    h2 {
-      font-size: 12.95px;
-      font-weight: 500;
-      color: var(--text-primary);
-      margin: 5px 0;
-    }
     h3 {
       font-size: 14px;
       font-weight: 600;

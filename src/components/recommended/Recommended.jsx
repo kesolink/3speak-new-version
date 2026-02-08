@@ -1,13 +1,14 @@
 import "./Recommended.scss";
 import PropTypes from "prop-types";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { LuTimer } from "react-icons/lu";
 import { Link } from "react-router-dom";
-import AuthorProfile from "../AuthorProfile/AuthorProfile";
+import TimeAgo from "../TimeAgo/TimeAgo";
+import AuthorBadge from "../AuthorBadge/AuthorBadge";
+import ViewCount from "../ViewCount/ViewCount";
+import UpvoteCount from "../UpvoteCount/UpvoteCount";
+import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
+import AddToPlaylistButton from "../AddToPlaylistButton/AddToPlaylistButton";
 
-dayjs.extend(relativeTime);
 
 function Recommended({suggestedVideos}) {
   const titleTextTruncate = (text, maxLength) =>
@@ -30,20 +31,24 @@ function Recommended({suggestedVideos}) {
                   src={fixVideoThumbnail(data)}
                   alt={data.title}
                 />
+                <AddToPlaylistButton
+                  author={author}
+                  permlink={data.permlink}
+                  title={data.title}
+                  size={18}
+                  className="compact"
+                />
               </div>
               <div className="vid-info">
                 <h4>{titleTextTruncate(data.title, 56)}</h4>
 
-                <AuthorProfile author={author} className="recommended-author" />
+                <AuthorBadge author={author} noLink compact />
 
+                <span className="time-ago"><TimeAgo date={data.created_at} /></span>
                 <div className="bottom-info">
-                  <div className="info-left">
-                    <LuTimer />
-                    <span>{dayjs(data.created_at).fromNow()}</span>
-                  </div>
-                  <div className="info-right">
-                    ${data?.stats?.total_hive_reward?.toFixed(2) ?? "0.00"}
-                  </div>
+                  <ViewCount views={data?.stats?.num_views} author={author} permlink={data.permlink} />
+                  <PayoutAmount amount={data?.stats?.total_hive_reward} />
+                  <UpvoteCount count={data?.stats?.num_votes} />
                 </div>
               </div>
             </div>

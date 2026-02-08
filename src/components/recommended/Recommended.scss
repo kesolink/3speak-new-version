@@ -38,6 +38,12 @@
         object-fit: cover;
         object-position: center;
       }
+
+      // Show add-to-playlist button on hover
+      &:hover .add-to-playlist-btn {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .vid-info {
@@ -47,51 +53,35 @@
       justify-content: space-between; // Push bottom-info to bottom
 
       h4 {
-        font-size: 13px;
+        font-size: 14px;
         margin-bottom: 7px;
         color: var(--text-primary);
         line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
       }
 
-      .recommended-author {
-        margin-bottom: 4px;
+      .author-badge {
+        align-self: flex-start;
+      }
 
-        .author-avatar {
-          width: 20px;
-          height: 20px;
-        }
-
-        .author-name {
-          font-size: 12px;
-        }
+      .time-ago {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-top: auto;
       }
 
       .bottom-info {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        margin-top: auto; // Align to bottom
+        gap: 8px;
+        font-size: 12px;
+        color: var(--text-secondary);
 
-        .info-left {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 12px;
-          color: var(--text-secondary);
-
-          span {
-            font-size: 12px;
-          }
-
-          svg {
-            flex-shrink: 0;
-          }
-        }
-
-        .info-right {
-          font-size: 12px;
-          color: var(--text-secondary);
-          flex-shrink: 0;
+        .payout-amount-badge {
+          margin-left: auto;
         }
       }
     }

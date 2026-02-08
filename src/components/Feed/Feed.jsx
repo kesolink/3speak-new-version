@@ -1,21 +1,16 @@
 
 import "./Feed.scss"
-import { Link } from "react-router-dom"
-import { IoChevronUpCircleOutline } from "react-icons/io5"
-import { GiEternalLove } from "react-icons/gi"
 import CommunitiesTags from "../communities-tags/CommunitiesTags"
 import { useEffect, useState } from "react"
-import Auth_modal from "../modal/Auth_modal"
 import { has3SpeakPostAuth } from '../../utils/hiveUtils';
 import { useAppStore } from '../../lib/store';
 import CardSkeleton from "../Cards/CardSkeleton"
-import { useQuery } from "@apollo/client"
-import { LATEST_FEED } from "../../graphql/queries"
-import Cards from "../Cards/Cards"
 import axios from "axios"
 import { FEED_URL } from '../../utils/config'
 import { useInfiniteQuery } from "@tanstack/react-query"
 import Card3 from "../Cards/Card3"
+import { useContentBatch } from "../../hooks/useContentBatch"
+import { useWatchHistory } from "../../hooks/useWatchHistory"
 
 
 
@@ -83,8 +78,11 @@ function Feed() {
     // Flatten all pages into a single array
     const videos = data?.pages.flat() || [];
 
+    // Batch fetch content data (payout, voters) for all videos
+    const { getContentForVideo } = useContentBatch(videos);
 
- 
+    // Batch check watch history for all videos
+    const { isWatched } = useWatchHistory(videos);
 
     async function checkPostAuth(username) {
       if(!authenticated){
@@ -101,7 +99,7 @@ function Feed() {
     <>
     <CommunitiesTags />
 
-    {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} />}
+    {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />}
     {isError && <p>Error fetching videos</p>}
       {isFetchingNextPage && (
         <p style={{ textAlign: "center" }}>Loading more...</p>

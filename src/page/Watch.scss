@@ -1,11 +1,39 @@
+@use "../mixins.scss" as *;
+
 .play-container{
-    // background: #f9f9f9;
-    // background-color: #EFF4F5;
-    // padding-left: 2%;
-    // padding-right: 2%;
-    // padding-top: 20px;
     padding-bottom: 20px;
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
+
+    .mobile-recommended {
+      display: none;
+      width: 100%;
+      padding: 0 8px;
+
+      @include respond(phone) {
+        display: block;
+      }
+
+      h4 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 12px 0 8px;
+      }
+
+      // Let Card3's default grid handle the layout
+      .card-container {
+        grid-template-columns: repeat(2, 1fr) !important;
+        grid-row-gap: 10px !important;
+
+        .card .img-wrap {
+          aspect-ratio: 16 / 9;
+
+          img {
+            height: 100% !important;
+          }
+        }
+      }
+    }
 }

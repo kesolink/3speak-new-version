@@ -6,6 +6,212 @@ $text-muted: #64748b;
 $border: #e5e7eb;
 $bg: #ffffff;
 
+// Create Playlist Button
+.create-playlist-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--accent-primary, #e53935), #c62828);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+  }
+
+  svg {
+    font-size: 18px;
+  }
+}
+
+.create-playlist-btn-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  margin-top: 16px;
+  background: linear-gradient(135deg, var(--accent-primary, #e53935), #c62828);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+  }
+
+  svg {
+    font-size: 18px;
+  }
+}
+
+// Special playlists row (Watch Later + Watched)
+.special-playlists-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+
+  @include mix.respond(phone) {
+    grid-template-columns: 1fr;
+  }
+
+  // Override the container styles for child cards to fit in the grid
+  > div {
+    display: contents;
+  }
+}
+
+// Create Playlist Modal
+.create-playlist-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.create-playlist-modal {
+  background: var(--card-bg, #1a1a2e);
+  border: 1px solid var(--border-light, #333);
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+
+  h3 {
+    margin: 0 0 20px;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary, #fff);
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary, #aaa);
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border-light, #333);
+      border-radius: 8px;
+      background: var(--input-bg, #0f0f1a);
+      color: var(--text-primary, #fff);
+      font-size: 14px;
+      box-sizing: border-box;
+      transition: border-color 0.2s ease;
+
+      &:focus {
+        outline: none;
+        border-color: var(--accent-primary, #e53935);
+      }
+    }
+
+    .privacy-buttons {
+      display: flex;
+      gap: 10px;
+
+      .privacy-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid var(--border-light, #333);
+        border-radius: 8px;
+        background: var(--input-bg, #0f0f1a);
+        color: var(--text-secondary, #aaa);
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+          border-color: var(--text-secondary, #666);
+        }
+
+        &.active {
+          border-color: var(--accent-primary, #e53935);
+          background: rgba(229, 57, 53, 0.1);
+          color: var(--accent-primary, #e53935);
+        }
+
+        svg {
+          font-size: 18px;
+        }
+      }
+    }
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+
+    button {
+      flex: 1;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+
+    .btn-cancel {
+      background: transparent;
+      border: 1px solid var(--border-light, #333);
+      color: var(--text-secondary, #aaa);
+
+      &:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.05);
+      }
+    }
+
+    .btn-create {
+      background: linear-gradient(135deg, var(--accent-primary, #e53935), #c62828);
+      border: none;
+      color: #fff;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+      }
+    }
+  }
+}
+
 .profile-page-container {
   .com-profile-img-wrap {
     position: relative;
@@ -202,36 +408,35 @@ $bg: #ffffff;
     @include mix.respond(phone) {
       height: 6rem;
     }
-    // @media (min-width: 768px) {
-    //   height: 10rem;
-    // }
+
+    // Gradient overlay from black bottom to transparent top
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.6) 40%, transparent 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
 
     .gradient-bg {
       position: absolute;
       inset: 0;
-      // z-index: 1;
       opacity: 0.9;
       width: 100%;
       height: 100%;
+      object-fit: cover;
+      object-position: center;
       @include mix.respond(phone) {
         height: 100%;
       }
-    }
-
-    .gradient-overlay {
-      position: absolute;
-      inset: 0;
-      // z-index: 1;
-      // background:
-      //   radial-gradient(circle at 20% 0%, rgba(15,23,42,0.65), transparent 55%),
-      //   radial-gradient(circle at 80% 100%, rgba(15,23,42,0.7), transparent 55%);
     }
   }
 
   .profile-body {
     padding: 0 1rem 1.5rem;
     position: relative;
-    // z-index: 2;
+    z-index: 2;
 
     @media (min-width: 640px) {
       padding: 0 2rem 2rem;

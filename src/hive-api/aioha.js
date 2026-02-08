@@ -80,9 +80,18 @@ export const transferWithAioha = async (to, amount, currency, memo = '') => {
 export const followWithAioha = async (target, follow = true) => {
   return withHiveAuthWaiting(async () => {
     try {
-      const result = follow
-        ? await aioha.follow(target)
-        : await aioha.unfollow(target);
+      let result;
+      if (follow) {
+        result = await aioha.follow(target);
+      } else {
+        // Unfollow via custom_json (aioha has no unfollow method)
+        const json = JSON.stringify(['follow', {
+          follower: aioha.getCurrentUser(),
+          following: target,
+          what: []
+        }]);
+        result = await aioha.customJSON(KeyTypes.Posting, 'follow', json, 'Unfollow @' + target);
+      }
       if (result.success) {
         return { success: true, result: result.result };
       } else {
