@@ -27,6 +27,8 @@ function ReactionPlayer({
   onCycleSize,
   currentTime: mainCurrentTime,
   duration: mainDuration,
+  mainIsPlaying,
+  onReactionPlay,
 }) {
   const scrollRef = useRef(null);
   const itemRefs = useRef([]);
@@ -59,6 +61,28 @@ function ReactionPlayer({
     }
   }, [idx]);
 
+  // Ref for onReactionPlay so the message handler can access it without re-registering
+  const onReactionPlayRef = useRef(onReactionPlay);
+  onReactionPlayRef.current = onReactionPlay;
+
+  // Send commands to the active reaction player iframe
+  const sendCmd = useCallback((msg) => {
+    const iframe = iframeRefs.current[activeIdxRef.current];
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.postMessage(msg, '*');
+    }
+  }, []);
+
+  // When main player starts playing, pause the reaction player
+  const prevMainIsPlaying = useRef(false);
+  useEffect(() => {
+    if (mainIsPlaying && !prevMainIsPlaying.current) {
+      sendCmd({ type: 'pause' });
+      setRctPlaying(false);
+    }
+    prevMainIsPlaying.current = mainIsPlaying;
+  }, [mainIsPlaying, sendCmd]);
+
   // Listen for postMessage from reaction player iframes
   useEffect(() => {
     const handleMessage = (event) => {
@@ -66,14 +90,8 @@ function ReactionPlayer({
 
       const activeIframe = iframeRefs.current[activeIdxRef.current];
 
-      // Handle player-ready: auto-play only the active iframe
+      // Handle player-ready: do NOT auto-play reaction iframes (main player has priority)
       if (event.data.type === '3speak-player-ready') {
-        if (activeIframe && event.source === activeIframe.contentWindow) {
-          setTimeout(() => {
-            activeIframe.contentWindow?.postMessage({ type: 'play' }, '*');
-            setRctPlaying(true);
-          }, 100);
-        }
         return;
       }
 
@@ -110,17 +128,13 @@ function ReactionPlayer({
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // Send commands to the active reaction player iframe
-  const sendCmd = useCallback((msg) => {
-    const iframe = iframeRefs.current[activeIdxRef.current];
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage(msg, '*');
-    }
-  }, []);
-
   const handleTogglePlay = useCallback(() => {
     sendCmd({ type: 'toggle-play' });
-    setRctPlaying(prev => !prev);
+    setRctPlaying(prev => {
+      const willPlay = !prev;
+      if (willPlay) onReactionPlayRef.current?.();
+      return willPlay;
+    });
   }, [sendCmd]);
   const handleSeekBackward = useCallback(() => sendCmd({ type: 'seekBackward', seconds: 10 }), [sendCmd]);
   const handleSeekForward = useCallback(() => sendCmd({ type: 'seekForward', seconds: 10 }), [sendCmd]);

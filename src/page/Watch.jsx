@@ -166,6 +166,11 @@ function Watch() {
     hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
   }, []);
 
+  const pauseMainPlayer = useCallback(() => {
+    sendPlayerCommand('pause');
+    setIsPlaying(false);
+  }, [sendPlayerCommand]);
+
   const handleTogglePlay = useCallback(() => {
     sendPlayerCommand('toggle-play');
     setIsPlaying(prev => !prev);
@@ -231,7 +236,7 @@ function Watch() {
 
       switch (event.data.type) {
         case '3speak-player-ready':
-          setTimeout(() => { triggerPlay(); }, 100);
+          setTimeout(() => { triggerPlay(); setIsPlaying(true); }, 100);
           if (mainIframe?.contentWindow) {
             mainIframe.contentWindow.postMessage({ type: 'hide-controls' }, '*');
           }
@@ -430,6 +435,8 @@ function Watch() {
             onCycleSize={cycleReactionSize}
             currentTime={currentTime}
             duration={videoDuration}
+            mainIsPlaying={isPlaying}
+            onReactionPlay={pauseMainPlayer}
           />
         )}
 
@@ -453,6 +460,8 @@ function Watch() {
               onCycleSize={cycleReactionSize}
               currentTime={currentTime}
               duration={videoDuration}
+              mainIsPlaying={isPlaying}
+              onReactionPlay={pauseMainPlayer}
               mobile
             />
           )}
