@@ -34,6 +34,75 @@
     }
   }
 
+  // Comment panel (same 16:9 space as video)
+  .rct-comment-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: flex-start;
+    background: var(--card-bg, #1a1a2e);
+    overflow-y: auto;
+    z-index: 1;
+  }
+
+  .rct-comment-thread {
+    padding: 12px;
+    width: 100%;
+  }
+
+  .rct-thread-comment {
+    padding: 8px 0;
+
+    & + .rct-thread-comment {
+      border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+    }
+  }
+
+  .rct-thread-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .rct-thread-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .rct-thread-author {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary, #aaa);
+  }
+
+  .rct-thread-body {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary, #fff);
+    word-break: break-word;
+
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      margin: 4px 0;
+    }
+  }
+
+  .rct-thread-loading {
+    padding: 12px 0;
+    font-size: 12px;
+    color: var(--text-secondary, #aaa);
+    text-align: center;
+  }
+
   // Invisible overlay to capture mouse events above iframe
   .rct-interact-overlay {
     position: absolute;
@@ -335,6 +404,29 @@
     text-overflow: ellipsis;
     max-width: 56px;
     text-align: center;
+  }
+
+  // Type badge (video camera or comment icon) on reaction list items
+  .reaction-item-type-badge {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 10px;
+  }
+
+  .reaction-item--video .reaction-item-type-badge {
+    background: var(--accent-primary, #e53935);
+  }
+
+  .reaction-item--comment .reaction-item-type-badge {
+    background: #6b7280;
   }
 
   .reaction-item-count {

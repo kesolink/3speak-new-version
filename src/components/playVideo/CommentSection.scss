@@ -88,5 +88,79 @@
 .btn-wrap {
   display: flex;
   gap: 8px;
+}
+
+// Header row: "Add a comment:" on left, React button on right
+.comment-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// Row below textarea: timestamp input on left, buttons on right
+.comment-form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.comment-timeline-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .timeline-input {
+    width: 64px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--card-bg, #1a1a2e);
+    border: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
+    border-radius: 6px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.15s ease;
+
+    &:focus {
+      border-color: var(--accent-primary, #e53935);
+    }
+  }
+}
+
+.add-reaction-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  background: var(--accent-primary, #e53935);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
 }

@@ -118,6 +118,20 @@
       pointer-events: none;
     }
 
+    // Video reaction markers — red accent
+    &--video .vc-marker-avatar {
+      border-color: var(--accent-primary, #e53935);
+    }
+
+    // Comment markers — muted border
+    &--comment .vc-marker-avatar {
+      border-color: #6b7280;
+    }
+
+    &--comment .vc-marker-line {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
     &--active, &:hover {
       .vc-marker-line {
         height: 18px;

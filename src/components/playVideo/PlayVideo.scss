@@ -370,22 +370,27 @@
             // color: #fff;
             &.sub{
                 border-radius: 12px;
+
+                > span {
+                    display: block;
+                    font-size: 14px;
+                    font-weight: 600;
+                    padding: 3px 20px;
+                    border-radius: 12px 12px 0 0;
+                    background-color: var(--bg-tertiary);
+                    color: var(--text-primary);
+                }
             }
-        span{
-            display: block;
+        .comment-header-row {
             margin-top: 10px;
-            // margin-bottom: 14px;
             font-size: 14px;
             font-weight: 600;
-            padding-left: 20px;
-            padding-top: 3px;
-            padding-bottom: 3px;
+            padding: 3px 20px;
             border-radius: 10px 10px 0px 0px;
             box-sizing: border-box;
             background-color: var(--bg-tertiary);
             color: var(--text-primary);
-
-            width: 100% ;
+            width: 100%;
         }
         .textarea-box{
             width: 100%;

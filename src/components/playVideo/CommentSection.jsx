@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './CommentSection.scss';
 import './BlogContent.scss';
 import { BiDislike } from 'react-icons/bi';
 import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
+import { MdVideocam } from 'react-icons/md';
 import dayjs from 'dayjs';
 import { useAppStore } from '../../lib/store';
 import { Client } from '@hiveio/dhive';
@@ -38,7 +39,28 @@ const getRenderer = async () => {
   return rendererPromise;
 };
 
-function CommentSection({ videoDetails, author, permlink }) {
+function formatTimeInput(seconds) {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  if (hrs > 0) {
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function parseTimeInput(str) {
+  if (!str) return 0;
+  const parts = str.split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 1) return parts[0];
+  return null;
+}
+
+function CommentSection({ videoDetails, author, permlink, currentTime, duration }) {
   const { user } = useAppStore();
   const [commentInfo, setCommentInfo] = useState('');
   const [replyText, setReplyText] = useState("");
@@ -55,6 +77,43 @@ function CommentSection({ videoDetails, author, permlink }) {
       const [accountData, setAccountData] = useState(null);
   // Cache for rendered comment bodies
   const [renderedBodies, setRenderedBodies] = useState({});
+
+  // Timeline position state — auto-follows playhead unless manually edited
+  const [timelineInput, setTimelineInput] = useState('0:00');
+  const [timelineOverride, setTimelineOverride] = useState(false);
+  const prevTimeRef = useRef(0);
+
+  // Auto-update timeline input from playhead position (unless user overrode it)
+  useEffect(() => {
+    if (timelineOverride) return;
+    const rounded = Math.floor(currentTime || 0);
+    if (rounded !== prevTimeRef.current) {
+      prevTimeRef.current = rounded;
+      setTimelineInput(formatTimeInput(rounded));
+    }
+  }, [currentTime, timelineOverride]);
+
+  const handleTimelineInputChange = useCallback((e) => {
+    setTimelineInput(e.target.value);
+    setTimelineOverride(true);
+  }, []);
+
+  const handleTimelineInputBlur = useCallback(() => {
+    // Validate and normalize on blur
+    const parsed = parseTimeInput(timelineInput);
+    if (parsed === null || (duration && parsed > duration)) {
+      // Invalid or out of range — reset to current playhead
+      setTimelineInput(formatTimeInput(Math.floor(currentTime || 0)));
+      setTimelineOverride(false);
+    } else {
+      setTimelineInput(formatTimeInput(parsed));
+    }
+  }, [timelineInput, currentTime, duration]);
+
+  // Reset override when user focuses back on textarea (start following again)
+  const handleTextareaFocus = useCallback(() => {
+    setTimelineOverride(false);
+  }, []);
 
 
       
@@ -293,22 +352,43 @@ function CommentSection({ videoDetails, author, permlink }) {
       
       {/* Main comment form */}
       <div className="add-comment-wrap">
-        <span>Add a comment:</span>
+        <div className="comment-header-row">
+          Add a comment:
+          <button className="add-reaction-btn" type="button" title="Add Video Reaction">
+            <MdVideocam size={14} />
+            React
+          </button>
+        </div>
         <textarea
           placeholder="Write your comment here..."
           className="textarea-box"
           value={commentInfo}
           onChange={(e) => setCommentInfo(e.target.value)}
+          onFocus={handleTextareaFocus}
         />
-        <div className="btn-wrap">
-          <Button text="Cancel" onClick={() => {
-            setCommentInfo('');
-            setReplyToComment(null);
-          }} />
-          <Button text="Comment" prominent onClick={() => {
-            setReplyToComment(null);
-            handlePostComment();
-          }} />
+        <div className="comment-form-row">
+          <div className="comment-timeline-input">
+            <label htmlFor="comment-timestamp">Timestamp:</label>
+            <input
+              id="comment-timestamp"
+              type="text"
+              className="timeline-input"
+              value={timelineInput}
+              onChange={handleTimelineInputChange}
+              onBlur={handleTimelineInputBlur}
+              placeholder="0:00"
+            />
+          </div>
+          <div className="btn-wrap">
+            <Button text="Cancel" onClick={() => {
+              setCommentInfo('');
+              setReplyToComment(null);
+            }} />
+            <Button text="Comment" prominent onClick={() => {
+              setReplyToComment(null);
+              handlePostComment();
+            }} />
+          </div>
         </div>
       </div>
 

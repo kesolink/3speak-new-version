@@ -363,9 +363,11 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     currentTime={videoControls.currentTime}
                     duration={videoControls.duration}
                     isPlaying={videoControls.isPlaying}
+                    isMuted={videoControls.isMuted}
                     isFullscreen={videoControls.isFullscreen}
                     isVisible={videoControls.isVisible}
                     onTogglePlay={videoControls.onTogglePlay}
+                    onToggleMute={videoControls.onToggleMute}
                     onSeekBackward={videoControls.onSeekBackward}
                     onSeekForward={videoControls.onSeekForward}
                     onSeek={videoControls.onSeek}
@@ -510,6 +512,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           author={author}
           permlink={permlink}
           setIsVoted={setIsVoted}
+          currentTime={videoControls?.currentTime}
+          duration={videoControls?.duration}
         />
       </div>
       

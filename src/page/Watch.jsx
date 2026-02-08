@@ -14,6 +14,22 @@ import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
+// Lazy-load the Hive markdown renderer
+let rendererPromise = null;
+const getRenderer = async () => {
+  if (!rendererPromise) {
+    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
+      return createHiveRenderer({
+        ipfsGateway: 'https://ipfs-3speak.b-cdn.net',
+        convertHiveUrls: true,
+        usertagUrlFn: (account) => `/p/${account}`,
+        hashtagUrlFn: (tag) => `/t/${tag}`,
+      });
+    });
+  }
+  return rendererPromise;
+};
+
 // Number of author videos to show at the top of recommendations
 const AUTHOR_VIDEOS_COUNT = 4;
 
@@ -95,6 +111,7 @@ function Watch() {
   const [currentTime, setCurrentTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const hideTimerRef = useRef(null);
@@ -111,14 +128,34 @@ function Watch() {
         const replies = await hiveClient.call('condenser_api', 'get_content_replies', [author, permlink]);
         if (cancelled || !replies || replies.length === 0) return;
 
+        // Pick 3 random indices to simulate video reactions, rest are comments
+        const videoIndices = new Set();
+        const shuffled = [...Array(replies.length).keys()].sort(() => Math.random() - 0.5);
+        for (let i = 0; i < Math.min(3, shuffled.length); i++) {
+          videoIndices.add(shuffled[i]);
+        }
+
+        // Pre-render comment bodies as HTML
+        let render;
+        try { render = await getRenderer(); } catch (e) { render = null; }
+
         // Build markers from top-level comments, placed randomly on the timeline
-        const markers = replies.map((comment) => {
+        const markers = replies.map((comment, i) => {
           const replyCount = comment.children || 0;
+          let bodyHtml = '';
+          if (render && comment.body) {
+            try { bodyHtml = render(comment.body); } catch (_) { bodyHtml = comment.body; }
+          } else {
+            bodyHtml = comment.body || '';
+          }
           return {
             pct: Math.random(),
             avatar: `https://images.hive.blog/u/${comment.author}/avatar`,
             label: comment.author,
+            permlink: comment.permlink,
             replyCount,
+            body: bodyHtml,
+            isVideo: videoIndices.has(i),
           };
         });
 
@@ -142,6 +179,7 @@ function Watch() {
       avatar: m.avatar,
       label: m.label,
       replyCount: m.replyCount,
+      isVideo: m.isVideo,
     }));
   }, [commentMarkers, videoDuration]);
 
@@ -174,6 +212,11 @@ function Watch() {
   const handleTogglePlay = useCallback(() => {
     sendPlayerCommand('toggle-play');
     setIsPlaying(prev => !prev);
+  }, [sendPlayerCommand]);
+
+  const handleToggleMute = useCallback(() => {
+    sendPlayerCommand('toggle-mute');
+    setIsMuted(prev => !prev);
   }, [sendPlayerCommand]);
 
   const handleSeekBackward = useCallback(() => {
@@ -354,20 +397,34 @@ function Watch() {
     return [...authorVideos, ...recommendations];
   }, [authorVideosData, suggestionsData, trendingData, author, permlink]);
 
-  // Build dummy reactions from comment markers, using suggested videos as reaction sources
+  // Build reactions from comment markers: 3 video reactions + rest are comments
   // Note: no dependency on videoDuration to keep the array reference stable
   const reactions = useMemo(() => {
-    if (!commentMarkers || suggestedVideos.length === 0) return [];
+    if (!commentMarkers) return [];
+    let videoIdx = 0;
     return commentMarkers.slice(0, 10).map((m, i) => {
-      const video = suggestedVideos[i % suggestedVideos.length];
-      const videoAuthor = video?.author?.username || video?.author?.id || video?.author || video?.owner;
-      return {
+      const base = {
         id: `reaction-${i}`,
         author: m.label,
         avatar: m.avatar,
-        videoUrl: `${PLAYER_URL}/watch?v=${videoAuthor}/${video.permlink}&layout=desktop&mode=iframe`,
         replyCount: m.replyCount,
         pct: m.pct,
+      };
+      if (m.isVideo && suggestedVideos.length > 0) {
+        const video = suggestedVideos[videoIdx % suggestedVideos.length];
+        const videoAuthor = video?.author?.username || video?.author?.id || video?.author || video?.owner;
+        videoIdx++;
+        return {
+          ...base,
+          type: 'video',
+          videoUrl: `${PLAYER_URL}/watch?v=${videoAuthor}/${video.permlink}&layout=desktop&mode=iframe`,
+        };
+      }
+      return {
+        ...base,
+        type: 'comment',
+        body: m.body,
+        permlink: m.permlink,
       };
     });
   }, [commentMarkers, suggestedVideos]);
@@ -410,9 +467,11 @@ function Watch() {
           currentTime,
           duration: videoDuration,
           isPlaying,
+          isMuted,
           isFullscreen,
           isVisible: controlsVisible,
           onTogglePlay: handleTogglePlay,
+          onToggleMute: handleToggleMute,
           onSeekBackward: handleSeekBackward,
           onSeekForward: handleSeekForward,
           onSeek: handleSeek,

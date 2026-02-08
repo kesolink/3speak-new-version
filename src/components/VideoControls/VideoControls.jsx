@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { FaPlay, FaPause, FaExpand, FaCompress } from 'react-icons/fa';
+import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
 import './VideoControls.scss';
 
@@ -19,10 +19,12 @@ function VideoControls({
   currentTime,
   duration,
   isPlaying,
+  isMuted,
   isFullscreen,
   onSeekBackward,
   onSeekForward,
   onTogglePlay,
+  onToggleMute,
   onToggleFullscreen,
   onSeek,
   isVisible,
@@ -69,7 +71,7 @@ function VideoControls({
             return (
               <div
                 key={i}
-                className={`vc-marker${hoveredMarker === i ? ' vc-marker--active' : ''}`}
+                className={`vc-marker${hoveredMarker === i ? ' vc-marker--active' : ''}${marker.isVideo ? ' vc-marker--video' : ' vc-marker--comment'}`}
                 style={{ left: `${pos}%` }}
                 onClick={(e) => handleMarkerClick(e, marker.time, i)}
                 onMouseEnter={() => setHoveredMarker(i)}
@@ -115,6 +117,9 @@ function VideoControls({
           </div>
         </div>
         <div className="vc-controls-right">
+          <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
+            {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
+          </button>
           <button className="vc-btn" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
             {isFullscreen ? <FaCompress size={14} /> : <FaExpand size={14} />}
           </button>
