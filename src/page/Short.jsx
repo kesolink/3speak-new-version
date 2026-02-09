@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import "./Short.scss";
 import {
   ThumbsUp,
@@ -39,7 +39,7 @@ const HiveIcon = ({ size = 24, className = '' }) => (
     <path d="M6.076 1.637a.103.103 0 00-.09.05L.014 11.95a.102.102 0 000 .104l6.039 10.26c.04.068.14.068.18 0l5.972-10.262a.102.102 0 00-.002-.104L6.166 1.687a.103.103 0 00-.09-.05zm2.863 0c-.079 0-.13.085-.09.154l5.186 8.967a.105.105 0 00.09.053h3.117c.08 0 .13-.088.09-.157l-5.186-8.966a.104.104 0 00-.09-.051H8.94zm5.891 0a.102.102 0 00-.088.154L20.656 12l-5.914 10.209a.102.102 0 00.088.154h3.123a.1.1 0 00.088-.05l5.945-10.262a.1.1 0 000-.102L18.041 1.688a.1.1 0 00-.088-.051H14.83zm-.79 11.7a.1.1 0 00-.089.052l-5.101 8.82c-.04.069.01.154.09.154h3.117a.104.104 0 00.09-.05l5.1-8.82a.103.103 0 00-.09-.155h-3.118z" />
   </svg>
 );
-import hiveApi from '../hive-api/hiveApi';
+import hiveApi, { regenerateShortsSeed, consumePreloadedShorts, hasShortsPreloaded, preloadShorts } from '../hive-api/hiveApi';
 import { useAppStore } from '../lib/store';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -86,11 +86,15 @@ const VideoShort = () => {
   // Reply state
   const [activeReply, setActiveReply] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [captionExpanded, setCaptionExpanded] = useState(false);
 
   // Touch/swipe state for mobile navigation
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [swipeDirection, setSwipeDirection] = useState(null); // 'up' | 'down' | null
+  const [swipeDragY, setSwipeDragY] = useState(0); // live drag offset in px
+  const swipeAnimRef = useRef(null);
 
   const progressBarRef = useRef(null);
   const playPauseTimeoutRef = useRef(null);
@@ -100,7 +104,9 @@ const VideoShort = () => {
   const keyboardRef = useRef(null); // capture keyboard events on mobile when focused
   const prevIndexRef = useRef(0); // Track previous index
   const readyPlayers = useRef(new Set()); // Track which players have sent 3speak-player-ready
+  const [readyPlayerIds, setReadyPlayerIds] = useState(new Set()); // State mirror for render gating
   const pendingPlayRef = useRef(null); // Track video waiting to be played
+  const chainPreloadDataRef = useRef(new Map()); // Chain short metadata for instant navigation
 
   const accessToken = localStorage.getItem("access_token");
   const navigate = useNavigate();
@@ -233,6 +239,12 @@ const VideoShort = () => {
           // Mark this player as ready
           if (sourceVideoId) {
             readyPlayers.current.add(sourceVideoId);
+            setReadyPlayerIds(prev => {
+              if (prev.has(sourceVideoId)) return prev;
+              const next = new Set(prev);
+              next.add(sourceVideoId);
+              return next;
+            });
           }
           
           // Apply orientation styles to the source iframe
@@ -275,6 +287,14 @@ const VideoShort = () => {
             if (data.paused !== undefined) {
               setIsPlaying(!data.paused);
             }
+            // Loop before the player reaches the end (avoids replay button flash)
+            if (data.currentTime > 0 && data.duration - data.currentTime <= 0.15) {
+              const loopIframe = sourceVideoId ? iframeRefs.current[sourceVideoId] : null;
+              if (loopIframe?.contentWindow) {
+                loopIframe.contentWindow.postMessage({ type: 'seek', time: 0 }, '*');
+                loopIframe.contentWindow.postMessage({ type: 'play' }, '*');
+              }
+            }
           }
           break;
 
@@ -298,7 +318,14 @@ const VideoShort = () => {
 
         case '3speak-ended':
           if (isFromCurrentVideo) {
-            setIsPlaying(false);
+            // Auto-replay: seek to start and play again
+            const endedIframe = sourceVideoId ? iframeRefs.current[sourceVideoId] : null;
+            if (endedIframe?.contentWindow) {
+              endedIframe.contentWindow.postMessage({ type: 'seek', time: 0 }, '*');
+              setTimeout(() => {
+                endedIframe.contentWindow?.postMessage({ type: 'play' }, '*');
+              }, 50);
+            }
           }
           break;
       }
@@ -326,6 +353,7 @@ const VideoShort = () => {
     setCurrentTime(0);
     setDuration(0);
     setParentCardVisible(true);
+    setCaptionExpanded(false);
 
     // Pause the previous video if different
     if (prevVid && prevVid.id !== currentVid.id) {
@@ -390,138 +418,201 @@ const VideoShort = () => {
     prevIndexRef.current = currentIndex;
   }, [currentIndex, videos, sendCommandToVideo]);
 
-  // Cleanup on unmount
+  // Lazy enrichment: when a short becomes visible and hasn't been enriched yet,
+  // fetch full Hive data (vote status, reaction chain, child reactions) in background
+  useEffect(() => {
+    const currentVid = videos[currentIndex];
+    if (!currentVid || currentVid._enriched !== false) return;
+
+    // Mark as enriching to prevent duplicate calls
+    setVideos(prev => prev.map((v, i) => i === currentIndex ? { ...v, _enriched: 'loading' } : v));
+
+    const videoId = currentVid.id;
+    (async () => {
+      try {
+        const shortItem = {
+          owner: currentVid.author,
+          permlink: currentVid.permlink,
+          embed_url: currentVid.embedUrl || `@${currentVid.author}/${currentVid.hivePermlink}`,
+          thumbnail_url: currentVid.thumbnailUrl || '',
+          views: currentVid.stats?.views || currentVid.views || 0,
+          createdAt: currentVid.createdAt || '',
+          embed_title: currentVid.caption || '',
+        };
+        const enriched = await hiveApi.fetchCompleteShortData(shortItem, user);
+
+        setVideos(prev => prev.map(v => {
+          if (v.id !== videoId) return v;
+          return {
+            ...v,
+            isLiked: enriched.isLiked || false,
+            isDisliked: enriched.isDisliked || false,
+            parentVideo: enriched.parentVideo || null,
+            parentTimestamp: enriched.parentTimestamp || null,
+            parentComment: enriched.parentComment || null,
+            parentShort: enriched.parentShort || null,
+            reactionChain: enriched.reactionChain || null,
+            childReactions: enriched.childReactions || null,
+            _enriched: true,
+          };
+        }));
+      } catch (err) {
+        console.warn('Failed to enrich short:', err);
+        setVideos(prev => prev.map(v => v.id === videoId ? { ...v, _enriched: true } : v));
+      }
+    })();
+  }, [currentIndex, videos, user]);
+
+  // Cleanup on unmount — preload fresh shorts for the next visit
   useEffect(() => {
     return () => {
       if (playPauseTimeoutRef.current) {
         clearTimeout(playPauseTimeoutRef.current);
       }
+      preloadShorts(10);
     };
   }, []);
 
   /* ---------- FETCH SHORTS DATA ---------- */
   useEffect(() => {
-    const fetchShorts = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    const formatShorts = (shorts) => shorts.map(short => ({
+      id: short.id,
+      author: short.author,
+      permlink: short.permlink,
+      hivePermlink: short.hivePermlink,
+      embedUrl: short.embedUrl || null,
+      thumbnailUrl: short.thumbnailUrl || null,
+      user: {
+        username: short.user.username,
+        avatar: short.user.avatar,
+        isSubscribed: false,
+        followersCount: short.user.followersCount ?? null,
+        reputation: short.user.reputation ?? null,
+      },
+      caption: short.caption || short.title || '',
+      tags: short.tags || [],
+      audio: `${short.user.username} - Original Audio`,
+      albumArt: short.user.avatar,
+      stats: {
+        likes: short.stats.likes,
+        dislikes: short.stats.dislikes,
+        comments: short.stats.comments,
+        shares: short.stats.shares,
+        remixes: short.stats.remixes,
+        views: short.views || short.stats.views || 0,
+        payout: short.stats.payout
+      },
+      isLiked: short.isLiked || false,
+      isDisliked: short.isDisliked || false,
+      comments: [],
+      commentsLoaded: false,
+      timeAgo: short.timeAgo,
+      createdAt: short.createdAt,
+      parentVideo: short.parentVideo || null,
+      parentTimestamp: short.parentTimestamp || null,
+      parentComment: short.parentComment || null,
+      parentShort: short.parentShort || null,
+      reactionChain: short.reactionChain || null,
+      childReactions: short.childReactions || null,
+      _enriched: short._enriched != null ? short._enriched : true,
+    }));
 
-        const data = await hiveApi.fetchShortsWithDetails(1, 10, user);
+    const applySharedVideoLogic = async (formattedVideos, data) => {
+      const sharedVideo = getSharedVideoFromUrl();
 
-        if (data.success) {
-          console.log(data.shorts);
-          const formattedVideos = data.shorts.map(short => ({
-            id: short.id,
-            author: short.author,
-            permlink: short.permlink,
-            hivePermlink: short.hivePermlink,
-            user: {
-              username: short.user.username,
-              avatar: short.user.avatar,
-              isSubscribed: false
-            },
-            caption: short.caption || short.title || '',
-            audio: `${short.user.username} - Original Audio`,
-            albumArt: short.user.avatar,
-            stats: {
-              likes: short.stats.likes,
-              dislikes: short.stats.dislikes,
-              comments: short.stats.comments,
-              shares: short.stats.shares,
-              remixes: short.stats.remixes,
-              views: short.views,
-              payout: short.stats.payout
-            },
-            isLiked: short.isLiked || false,
-            isDisliked: short.isDisliked || false,
-            comments: [],
-            commentsLoaded: false,
-            timeAgo: short.timeAgo,
-            createdAt: short.createdAt,
-            parentVideo: short.parentVideo || null,
-            parentTimestamp: short.parentTimestamp || null,
-            parentComment: short.parentComment || null,
-            parentShort: short.parentShort || null,
-            reactionChain: short.reactionChain || null,
-            childReactions: short.childReactions || null,
-          }));
+      if (sharedVideo) {
+        const sharedIndex = formattedVideos.findIndex(
+          v => v.author === sharedVideo.author && v.permlink === sharedVideo.permlink
+        );
 
-          // Check if there's a shared video in the URL
-          const sharedVideo = getSharedVideoFromUrl();
-          
-          if (sharedVideo) {
-            // Find the index of the shared video in the feed
-            const sharedIndex = formattedVideos.findIndex(
-              v => v.author === sharedVideo.author && v.permlink === sharedVideo.permlink
-            );
+        if (sharedIndex !== -1) {
+          setVideos(formattedVideos);
+          setCurrentIndex(sharedIndex);
+        } else {
+          try {
+            const actualShort = await hiveApi.findShortByPermlink(sharedVideo.permlink);
+            const shortItem = actualShort || {
+              owner: sharedVideo.author,
+              permlink: sharedVideo.permlink,
+              embed_url: `@${sharedVideo.author}/${sharedVideo.permlink}`,
+              thumbnail_url: '',
+              views: 0,
+              createdAt: new Date().toISOString(),
+              embed_title: ''
+            };
 
-            if (sharedIndex !== -1) {
-              // Video found in feed, start from that index
-              setVideos(formattedVideos);
-              setCurrentIndex(sharedIndex);
-            } else {
-              // Video not in current feed, search the API for the actual short data
-              try {
-                // Find the short in the API to get the correct embed_url (Hive permlink)
-                const actualShort = await hiveApi.findShortByPermlink(sharedVideo.permlink);
+            const sharedVideoData = await hiveApi.fetchCompleteShortData(shortItem, user);
+            const formattedSharedVideo = {
+              id: sharedVideoData.id,
+              author: sharedVideoData.author,
+              permlink: sharedVideoData.permlink,
+              hivePermlink: sharedVideoData.hivePermlink,
+              user: sharedVideoData.user,
+              caption: sharedVideoData.caption || sharedVideoData.title || '',
+              audio: `${sharedVideoData.user.username} - Original Audio`,
+              albumArt: sharedVideoData.user.avatar,
+              stats: sharedVideoData.stats,
+              isLiked: sharedVideoData.isLiked || false,
+              isDisliked: sharedVideoData.isDisliked || false,
+              comments: [],
+              commentsLoaded: false,
+              timeAgo: sharedVideoData.timeAgo,
+              createdAt: sharedVideoData.createdAt,
+              parentVideo: sharedVideoData.parentVideo || null,
+              parentTimestamp: sharedVideoData.parentTimestamp || null,
+              parentComment: sharedVideoData.parentComment || null,
+              parentShort: sharedVideoData.parentShort || null,
+              reactionChain: sharedVideoData.reactionChain || null,
+              childReactions: sharedVideoData.childReactions || null,
+            };
 
-                const shortItem = actualShort || {
-                  owner: sharedVideo.author,
-                  permlink: sharedVideo.permlink,
-                  embed_url: `@${sharedVideo.author}/${sharedVideo.permlink}`,
-                  thumbnail_url: '',
-                  views: 0,
-                  createdAt: new Date().toISOString(),
-                  embed_title: ''
-                };
-
-                const sharedVideoData = await hiveApi.fetchCompleteShortData(shortItem, user);
-                
-                const formattedSharedVideo = {
-                  id: sharedVideoData.id,
-                  author: sharedVideoData.author,
-                  permlink: sharedVideoData.permlink,
-                  hivePermlink: sharedVideoData.hivePermlink,
-                  user: sharedVideoData.user,
-                  caption: sharedVideoData.caption || sharedVideoData.title || '',
-                  audio: `${sharedVideoData.user.username} - Original Audio`,
-                  albumArt: sharedVideoData.user.avatar,
-                  stats: sharedVideoData.stats,
-                  isLiked: sharedVideoData.isLiked || false,
-                  isDisliked: sharedVideoData.isDisliked || false,
-                  comments: [],
-                  commentsLoaded: false,
-                  timeAgo: sharedVideoData.timeAgo,
-                  createdAt: sharedVideoData.createdAt,
-                  parentVideo: sharedVideoData.parentVideo || null,
-                  parentTimestamp: sharedVideoData.parentTimestamp || null,
-                  parentComment: sharedVideoData.parentComment || null,
-                  parentShort: sharedVideoData.parentShort || null,
-                  reactionChain: sharedVideoData.reactionChain || null,
-                  childReactions: sharedVideoData.childReactions || null,
-                };
-
-                // Prepend shared video to the feed
-                setVideos([formattedSharedVideo, ...formattedVideos]);
-                setCurrentIndex(0);
-              } catch (err) {
-                console.warn('Could not fetch shared video, showing feed from start:', err);
-                setVideos(formattedVideos);
-                // Update URL to first video since shared video couldn't be loaded
-                if (formattedVideos.length > 0) {
-                  updateUrlWithCurrentVideo(formattedVideos[0]);
-                }
-              }
-            }
-          } else {
+            setVideos([formattedSharedVideo, ...formattedVideos]);
+            setCurrentIndex(0);
+          } catch (err) {
+            console.warn('Could not fetch shared video, showing feed from start:', err);
             setVideos(formattedVideos);
-            // Update URL with first video
             if (formattedVideos.length > 0) {
               updateUrlWithCurrentVideo(formattedVideos[0]);
             }
           }
+        }
+      } else {
+        setVideos(formattedVideos);
+        if (formattedVideos.length > 0) {
+          updateUrlWithCurrentVideo(formattedVideos[0]);
+        }
+      }
 
-          setHasMore(1 < data.totalPages);
+      setHasMore(1 < data.totalPages);
+    };
+
+    const fetchShorts = async () => {
+      try {
+        setError(null);
+
+        // Try preloaded data first (already fetched when the app loaded)
+        // Only show the loading spinner if we actually need to fetch
+        if (!hasShortsPreloaded()) {
+          setLoading(true);
+        }
+
+        const preloaded = await consumePreloadedShorts();
+        if (preloaded?.success) {
+          const formattedVideos = formatShorts(preloaded.shorts);
+          await applySharedVideoLogic(formattedVideos, preloaded);
+
+          setLoading(false);
+          return;
+        }
+
+        // No preload available — generate a fresh seed and fetch
+        setLoading(true);
+        regenerateShortsSeed();
+        const data = await hiveApi.fetchShortsWithDetails(1, 10, user);
+
+        if (data.success) {
+          const formattedVideos = formatShorts(data.shorts);
+          await applySharedVideoLogic(formattedVideos, data);
         }
       } catch (err) {
         console.error('Error fetching shorts:', err);
@@ -565,6 +656,89 @@ const VideoShort = () => {
 
     if (existingIdx !== -1) {
       setCurrentIndex(existingIdx);
+      return;
+    }
+
+    // Check chain preload data for instant switch (iframe already warm)
+    const preloadKey = `${targetAuthor}-${targetPermlink}`;
+    const chainData = chainPreloadDataRef.current.get(preloadKey);
+
+    if (chainData) {
+      // Instant switch — create minimal entry, iframe is already loaded
+      const formatted = {
+        id: preloadKey,
+        author: chainData.author,
+        permlink: chainData.permlink,
+        hivePermlink: chainData.hivePermlink,
+        user: {
+          username: `@${chainData.author}`,
+          avatar: `https://images.hive.blog/u/${chainData.author}/avatar`,
+          isSubscribed: false,
+        },
+        caption: chainData.title || '',
+        audio: `@${chainData.author} - Original Audio`,
+        albumArt: `https://images.hive.blog/u/${chainData.author}/avatar`,
+        stats: { likes: 0, dislikes: 0, comments: 0, shares: 0, remixes: 0, views: 0, payout: '0.00' },
+        isLiked: false,
+        isDisliked: false,
+        comments: [],
+        commentsLoaded: false,
+        timeAgo: '',
+        createdAt: '',
+        parentVideo: null,
+        parentTimestamp: null,
+        parentComment: null,
+        parentShort: null,
+        reactionChain: null,
+        childReactions: null,
+      };
+
+      setVideos(prev => [formatted, ...prev]);
+      setCurrentIndex(0);
+
+      // Enrich with full data in background
+      (async () => {
+        try {
+          const shortItem = {
+            owner: chainData.author,
+            permlink: chainData.permlink,
+            embed_url: `@${chainData.author}/${chainData.hivePermlink}`,
+            thumbnail_url: chainData.thumbnail || '',
+            views: 0,
+            createdAt: '',
+            embed_title: chainData.title || '',
+          };
+          const shortData = await hiveApi.fetchCompleteShortData(shortItem, user);
+          setVideos(prev => prev.map(v => {
+            if (v.id !== preloadKey) return v;
+            return {
+              id: shortData.id,
+              author: shortData.author,
+              permlink: shortData.permlink,
+              hivePermlink: shortData.hivePermlink,
+              user: shortData.user,
+              caption: shortData.caption || shortData.title || '',
+              audio: `${shortData.user.username} - Original Audio`,
+              albumArt: shortData.user.avatar,
+              stats: shortData.stats,
+              isLiked: shortData.isLiked || false,
+              isDisliked: shortData.isDisliked || false,
+              comments: v.comments,
+              commentsLoaded: v.commentsLoaded,
+              timeAgo: shortData.timeAgo,
+              createdAt: shortData.createdAt,
+              parentVideo: shortData.parentVideo || null,
+              parentTimestamp: shortData.parentTimestamp || null,
+              parentComment: shortData.parentComment || null,
+              parentShort: shortData.parentShort || null,
+              reactionChain: shortData.reactionChain || null,
+              childReactions: shortData.childReactions || null,
+            };
+          }));
+        } catch (err) {
+          console.warn('Failed to enrich chain preload:', err);
+        }
+      })();
       return;
     }
 
@@ -628,7 +802,7 @@ const VideoShort = () => {
 
     try {
 
-      const data = await hiveApi.fetchShortsWithDetails(nextPage, 10, user);
+      const data = await hiveApi.fetchShortsWithDetails(nextPage, 20, user);
 
       if (data.success) {
         const formattedVideos = data.shorts.map(short => ({
@@ -636,12 +810,17 @@ const VideoShort = () => {
           author: short.author,
           permlink: short.permlink,
           hivePermlink: short.hivePermlink,
+          embedUrl: short.embedUrl || null,
+          thumbnailUrl: short.thumbnailUrl || null,
           user: {
             username: short.user.username,
             avatar: short.user.avatar,
-            isSubscribed: false
+            isSubscribed: false,
+            followersCount: short.user.followersCount ?? null,
+            reputation: short.user.reputation ?? null,
           },
           caption: short.caption || short.title || '',
+          tags: short.tags || [],
           audio: `${short.user.username} - Original Audio`,
           albumArt: short.user.avatar,
           stats: {
@@ -650,7 +829,7 @@ const VideoShort = () => {
             comments: short.stats.comments,
             shares: short.stats.shares,
             remixes: short.stats.remixes,
-            views: short.views,
+            views: short.views || short.stats.views || 0,
             payout: short.stats.payout
           },
           isLiked: short.isLiked || false,
@@ -664,6 +843,8 @@ const VideoShort = () => {
           parentComment: short.parentComment || null,
           parentShort: short.parentShort || null,
           reactionChain: short.reactionChain || null,
+          childReactions: short.childReactions || null,
+          _enriched: short._enriched != null ? short._enriched : true,
         }));
 
         setVideos(prev => [...prev, ...formattedVideos]);
@@ -777,13 +958,14 @@ const VideoShort = () => {
         };
 
         if (isReply) {
-          // Add reply to the parent comment
+          // Add reply to the parent comment and increment comment count
           setVideos(prev =>
             prev.map((v, idx) => {
               if (idx !== currentIndex) return v;
               return {
                 ...v,
-                comments: addReplyToComment(v.comments, parentPermlink, newCommentObj)
+                comments: addReplyToComment(v.comments, parentPermlink, newCommentObj),
+                stats: { ...v.stats, comments: (v.stats.comments || 0) + 1 }
               };
             })
           );
@@ -926,8 +1108,20 @@ const VideoShort = () => {
 
   /* ---------- NAVIGATION ---------- */
 
+  const triggerSwipeAnimation = (direction) => {
+    if (swipeAnimRef.current) clearTimeout(swipeAnimRef.current);
+    setSwipeDragY(0);
+    setSwipeDirection(direction);
+    swipeAnimRef.current = setTimeout(() => {
+      setSwipeDirection(null);
+      swipeAnimRef.current = null;
+    }, 350);
+  };
+
   const handlePrevious = () => {
     if (currentIndex === 0) return;
+    shortHistoryRef.current = [];
+    triggerSwipeAnimation('down');
     setCurrentIndex(prev => prev - 1);
   };
 
@@ -938,9 +1132,12 @@ const VideoShort = () => {
       }
       return;
     }
+    shortHistoryRef.current = [];
+    triggerSwipeAnimation('up');
     setCurrentIndex(prev => prev + 1);
 
-    if (currentIndex >= videos.length - 3 && hasMore) {
+    // Prefetch 7 items before the end of the current page
+    if (currentIndex >= videos.length - 7 && hasMore) {
       loadMoreVideos();
     }
   };
@@ -1002,10 +1199,17 @@ const VideoShort = () => {
 
   const onTouchMove = (e) => {
     if (showComments) return;
-    setTouchEnd(e.targetTouches[0].clientY);
+    const y = e.targetTouches[0].clientY;
+    setTouchEnd(y);
+    // Live drag: clamp to ±120px for visual feedback
+    if (touchStart != null) {
+      const delta = y - touchStart;
+      setSwipeDragY(Math.max(-120, Math.min(120, delta)));
+    }
   };
 
   const onTouchEnd = async () => {
+    setSwipeDragY(0);
     if (!touchStart || !touchEnd || showComments || isTransitioning) return;
 
     const distance = touchStart - touchEnd;
@@ -1016,12 +1220,12 @@ const VideoShort = () => {
       // Swipe up = next video
       setIsTransitioning(true);
       await handleNext();
-      setTimeout(() => setIsTransitioning(false), 300);
+      setTimeout(() => setIsTransitioning(false), 350);
     } else if (isSwipeDown && currentIndex > 0) {
       // Swipe down = previous video
       setIsTransitioning(true);
       handlePrevious();
-      setTimeout(() => setIsTransitioning(false), 300);
+      setTimeout(() => setIsTransitioning(false), 350);
     }
 
     // Reset touch state
@@ -1042,8 +1246,9 @@ const VideoShort = () => {
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Calculate which videos to preload - keep more in memory
-  const preloadRange = { before: 3, after: 6 };
+  // Calculate which videos to preload — on mobile iframes load slower so keep more ahead
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const preloadRange = { before: 3, after: isMobile ? 10 : 6 };
   const preloadedIndices = [];
   for (let i = Math.max(0, currentIndex - preloadRange.before); i <= Math.min(videos.length - 1, currentIndex + preloadRange.after); i++) {
     preloadedIndices.push(i);
@@ -1056,17 +1261,90 @@ const VideoShort = () => {
     }
   }, []);
 
+  // Populate chain preload data for instant navigation
+  useEffect(() => {
+    const cv = videos[currentIndex];
+    if (cv?.reactionChain) {
+      for (const step of cv.reactionChain) {
+        if (step.shortPermlink && !step.isRoot) {
+          chainPreloadDataRef.current.set(`${step.author}-${step.shortPermlink}`, {
+            author: step.author,
+            permlink: step.shortPermlink,
+            hivePermlink: step.permlink,
+            title: step.title || '',
+            thumbnail: step.thumbnail || null,
+          });
+        }
+      }
+    }
+    if (cv?.childReactions) {
+      for (const child of cv.childReactions) {
+        if (child.shortPermlink) {
+          chainPreloadDataRef.current.set(`${child.author}-${child.shortPermlink}`, {
+            author: child.author,
+            permlink: child.shortPermlink,
+            hivePermlink: child.permlink,
+            title: child.title || '',
+            thumbnail: child.thumbnail || null,
+          });
+        }
+      }
+    }
+  }, [videos, currentIndex]);
+
+  // Compute chain preload entries for iframe pre-warming
+  const chainPreloadEntries = useMemo(() => {
+    const cv = videos[currentIndex];
+    const entries = [];
+    const seen = new Set(videos.map(v => v.id));
+
+    if (cv?.reactionChain) {
+      for (const step of cv.reactionChain) {
+        if (step.shortPermlink && !step.isRoot) {
+          const id = `${step.author}-${step.shortPermlink}`;
+          if (!seen.has(id)) {
+            seen.add(id);
+            entries.push({ id, author: step.author, permlink: step.shortPermlink });
+          }
+        }
+      }
+    }
+    if (cv?.childReactions) {
+      for (const child of cv.childReactions) {
+        if (child.shortPermlink) {
+          const id = `${child.author}-${child.shortPermlink}`;
+          if (!seen.has(id)) {
+            seen.add(id);
+            entries.push({ id, author: child.author, permlink: child.shortPermlink });
+          }
+        }
+      }
+    }
+
+    return entries;
+  }, [videos, currentIndex]);
+
   // Clean up old iframe refs that are no longer in preload range
   useEffect(() => {
     const preloadedIds = new Set(preloadedIndices.map(idx => videos[idx]?.id).filter(Boolean));
+    chainPreloadEntries.forEach(e => preloadedIds.add(e.id));
+    const removedIds = [];
     Object.keys(iframeRefs.current).forEach(id => {
       if (!preloadedIds.has(id)) {
         delete iframeRefs.current[id];
-        // Also remove from ready players since the iframe is gone
         readyPlayers.current.delete(id);
+        removedIds.push(id);
       }
     });
-  }, [preloadedIndices, videos]);
+    if (removedIds.length > 0) {
+      setReadyPlayerIds(prev => {
+        if (!removedIds.some(id => prev.has(id))) return prev;
+        const next = new Set(prev);
+        removedIds.forEach(id => next.delete(id));
+        return next;
+      });
+    }
+  }, [preloadedIndices, videos, chainPreloadEntries]);
 
   const handleProfileNavigation = (username) => {
     navigate(`/p/${username}`);
@@ -1119,17 +1397,20 @@ const VideoShort = () => {
 
         {/* VIDEO */}
         <div
-          className="videoContainer"
+          className={`videoContainer${swipeDirection ? ` swipe-${swipeDirection}` : ''}`}
           ref={videoContainerRef}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
+          style={swipeDragY && !swipeDirection ? { transform: `translateY(${swipeDragY * 0.3}px)`, transition: 'none' } : undefined}
         >
           {/* Preloaded iframes for smooth playback */}
           {preloadedIndices.map((idx) => {
             const video = videos[idx];
             if (!video) return null;
             const isCurrent = idx === currentIndex;
+            const isReady = readyPlayerIds.has(video.id);
+
             return (
               <iframe
                 key={video.id}
@@ -1142,24 +1423,68 @@ const VideoShort = () => {
                 allow="autoplay; fullscreen"
                 allowFullScreen
                 onLoad={(e) => {
-                  console.log(`[VideoShort] Iframe loaded for video: ${video.id}, isCurrent: ${isCurrent}`);
                   // Store ref again on load in case it wasn't set
                   iframeRefs.current[video.id] = e.target;
-                  
-                  // Don't send play here - wait for 3speak-player-ready message
-                  // The player inside the iframe needs time to initialize Video.js
                 }}
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
-                  opacity: isCurrent ? 1 : 0,
+                  opacity: isCurrent && isReady ? 1 : 0,
                   pointerEvents: 'none',
-                  zIndex: isCurrent ? 1 : 0,
+                  zIndex: isCurrent ? 2 : 0,
                 }}
               />
             );
           })}
+
+          {/* Loading overlay while player initializes */}
+          {currentVideo && !readyPlayerIds.has(currentVideo.id) && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#000',
+                gap: '1rem',
+              }}
+            >
+              <Loader2 className="spinner" size={48} />
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', animation: 'pulseText 2s ease-in-out infinite' }}>Loading shorts...</p>
+            </div>
+          )}
+
+          {/* Chain preload iframes — pre-warm players for instant navigation */}
+          {chainPreloadEntries.map(entry => (
+            <iframe
+              key={entry.id}
+              ref={(el) => setIframeRef(entry.id, el)}
+              src={`${PLAYER_URL}/embed?v=${entry.author}/${entry.permlink}&mode=iframe&controls=0`}
+              width="100%"
+              height="100%"
+              frameBorder="0"
+              allow="autoplay; fullscreen"
+              allowFullScreen
+              onLoad={(e) => {
+                iframeRefs.current[entry.id] = e.target;
+              }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                opacity: 0,
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            />
+          ))}
 
           {/* Transparent overlay for play/pause */}
           <div
@@ -1248,7 +1573,7 @@ const VideoShort = () => {
                                   <AuthorBadge author={step.author} compact noLink />
                                   {step.type === 'video' && (
                                     step.shortPermlink ? (
-                                      <Link to={`/shorts?v=${step.shortAuthor}/${step.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
+                                      <Link to={`/shorts?v=${step.author}/${step.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
                                         <Camera size={11} />
                                       </Link>
                                     ) : (
@@ -1298,7 +1623,7 @@ const VideoShort = () => {
                             <div className="chainChild chainChild--video chainChild--downstream">
                               <div className="chainChildHeader">
                                 <AuthorBadge author={child.author} compact noLink />
-                                <Link to={`/shorts?v=${child.shortAuthor}/${child.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
+                                <Link to={`/shorts?v=${child.author}/${child.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
                                   <Camera size={11} />
                                 </Link>
                               </div>
@@ -1326,25 +1651,31 @@ const VideoShort = () => {
           })()}
 
           <div className="bottomOverlay">
-            <div className="userRow">
-              <div className="avatar" onClick={(e) => {
-                    // e.preventDefault();
-                    e.stopPropagation();
-                    handleProfileNavigation(currentVideo.user.username);
-                  }}>
-                <img src={currentVideo.user.avatar} alt="" />
-              </div>
-              <span className="username">{currentVideo.user.username}</span>
-              <button
-                className="subscribeBtn"
-                onClick={(e) => { e.stopPropagation(); handleSubscribe(); }}
-              >
-                {currentVideo.user.isSubscribed ? "Following" : "Follow"}
-              </button>
+            <div className="userRow" onClick={(e) => e.stopPropagation()}>
+              <AuthorBadge
+                author={currentVideo.author}
+                showFollow
+                followersCount={currentVideo.user.followersCount}
+                reputation={currentVideo.user.reputation}
+                isFollowing={currentVideo.user.isSubscribed}
+                onFollow={() => handleSubscribe()}
+              />
             </div>
-            <p className="caption">{currentVideo.caption}</p>
+            <div className={`caption${captionExpanded ? ' caption--expanded' : ''}`} onClick={(e) => { e.stopPropagation(); setCaptionExpanded(prev => !prev); }}>
+              <p className="captionText">{currentVideo.caption}</p>
+              {captionExpanded && currentVideo.tags?.length > 0 && (
+                <div className="captionTags">
+                  {currentVideo.tags.map((tag, i) => (
+                    <Link key={i} to={`/t/${tag}`} className="captionTag" onClick={(e) => e.stopPropagation()}>#{tag}</Link>
+                  ))}
+                </div>
+              )}
+              {!captionExpanded && currentVideo.caption?.length > 60 && (
+                <span className="captionMore">more</span>
+              )}
+            </div>
             <div className="audioMarquee">
-              <Music2 size={16} />
+              <Music2 size={12} />
               <div className="audioText">
                 <p>{currentVideo.audio}</p>
               </div>

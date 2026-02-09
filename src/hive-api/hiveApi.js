@@ -5,12 +5,20 @@
  */
 
 import axios from "axios";
+import { convert } from "html-to-text";
 import { HIVE_API_URL } from "../utils/config";
 
 /* -----------------------------
    Hive RPC setup
 ------------------------------ */
-const SHORTS_API = "https://tags.3speak.tv/shorts";
+const SHORTS_API = import.meta.env.VITE_SHORTS_API_URL || "https://3speak-checker.okinoko.io/shortssorted";
+
+// Random seed for shorts ordering — regenerated each time shorts are opened
+let SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
+
+export function regenerateShortsSeed() {
+  SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
+}
 
 /* -----------------------------
    Hive RPC helper
@@ -41,7 +49,7 @@ async function hiveRpc(method, params) {
 ------------------------------ */
 
 export async function fetchShortsList(page = 1, limit = 20) {
-  const url = `${SHORTS_API}?page=${page}&limit=${limit}`;
+  const url = `${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`;
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
   return response.data;
@@ -89,6 +97,10 @@ export async function getPostDetails(author, permlink) {
   return await hiveRpc("bridge.get_post", { author, permlink });
 }
 
+export async function getActiveVotes(author, permlink) {
+  return await hiveRpc("condenser_api.get_active_votes", [author, permlink]);
+}
+
 export async function getComments(author, permlink) {
   return await hiveRpc("bridge.get_discussion", { author, permlink });
 }
@@ -100,6 +112,29 @@ export async function getAccounts(accounts) {
 /* -----------------------------
    Utils
 ------------------------------ */
+
+/**
+ * Convert hive_body (markdown/HTML) to clean plaintext for display as caption.
+ * Strips URLs, HTML tags, markdown syntax, and collapses whitespace.
+ */
+function bodyToPlaintext(body) {
+  if (!body) return "";
+  // Convert any HTML to text
+  let text = convert(body, { wordwrap: false, selectors: [{ selector: 'a', options: { ignoreHref: true } }, { selector: 'img', format: 'skip' }] });
+  // Remove URLs
+  text = text.replace(/https?:\/\/\S+/gi, '');
+  // Remove markdown image/link syntax leftovers: ![alt](url) or [text](url)
+  text = text.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1');
+  // Remove markdown bold/italic markers
+  text = text.replace(/[*_]{1,3}/g, '');
+  // Remove markdown headers
+  text = text.replace(/^#{1,6}\s+/gm, '');
+  // Remove <sup>...</sup> and similar stray HTML
+  text = text.replace(/<[^>]+>/g, '');
+  // Collapse whitespace and trim
+  text = text.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+/g, ' ').trim();
+  return text;
+}
 
 /**
  * Parse embed_url to extract author and permlink
@@ -241,34 +276,22 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
 
   try {
     if (hivePermlink) {
-      const post = await getPostDetails(author, hivePermlink);
-      console.log('Fetching post details data:', post);
+      // Run vote check and post details in parallel
+      const [votes, post] = await Promise.all([
+        loggedInUser ? getActiveVotes(author, hivePermlink).catch(() => null) : Promise.resolve(null),
+        getPostDetails(author, hivePermlink),
+      ]);
+
+      // Lightweight vote status from get_active_votes
+      if (votes && loggedInUser) {
+        const userVote = votes.find(v => v.voter === loggedInUser);
+        if (userVote) {
+          base.isLiked = userVote.percent >= 0;
+          base.isDisliked = userVote.percent < 0;
+        }
+      }
 
       if (post) {
-        base.title = post.title || base.title;
-        base.caption = post.title || base.caption;
-        base.stats.comments = post.children || 0;
-        base.stats.likes = post.stats?.total_votes || post.active_votes?.length || 0;
-        base.stats.payout = post.payout || post.pending_payout_value || "0.00";
-
-        // Determine if the logged-in user has voted on the post
-        if (loggedInUser) {
-          try {
-            const userVoted = post.active_votes?.some(v => v.voter === loggedInUser) ?? false;
-            base.isLiked = userVoted;
-            // Check for negative percent to mark as disliked
-            const userVote = post.active_votes?.find(v => v.voter === loggedInUser);
-            base.isDisliked = userVote ? (userVote.percent < 0) : false;
-          } catch (_) {
-            base.isLiked = false;
-            base.isDisliked = false;
-          }
-        }
-
-        if (post.author_reputation) {
-          base.user.reputation = post.author_reputation;
-        }
-
         // Check if this short is a reaction with a parentTimestamp
         const jm = typeof post.json_metadata === 'string'
           ? JSON.parse(post.json_metadata || '{}')
@@ -574,40 +597,47 @@ export async function fetchShortsWithDetails(page = 1, limit = 10, loggedInUser 
     throw new Error("Failed to fetch shorts list");
   }
 
-  const shorts = await Promise.all(
-    shortsList.shorts.map((s) =>
-      fetchCompleteShortData(s, loggedInUser).catch((err) => {
-        console.warn(`Error fetching short data for ${s.embed_url}:`, err);
+  // Fast path: format directly from the list API data (no per-short RPC)
+  const shorts = shortsList.shorts.map((s) => {
+    const { author, permlink: hivePermlink } = parseEmbedUrl(s.embed_url);
+    const finalAuthor = author || s.owner;
 
-        const { author, permlink: hivePermlink } = parseEmbedUrl(s.embed_url);
-        const finalAuthor = author || s.owner;
-
-        return {
-          id: `${finalAuthor}-${s.permlink}`,
-          author: finalAuthor,
-          permlink: s.permlink,
-          hivePermlink: hivePermlink,
-          embedUrl: s.embed_url,
-          thumbnailUrl: s.thumbnail_url,
-          views: s.views || 0,
-          createdAt: s.createdAt,
-          timeAgo: timeAgo(s.createdAt),
-          title: s.embed_title || "",
-          caption: s.embed_title || "",
-          user: {
-            username: `@${finalAuthor}`,
-            avatar: `https://images.hive.blog/u/${finalAuthor}/avatar`,
-            isSubscribed: false
-          },
-          stats: { likes: 0, dislikes: 0, comments: 0, shares: 0, remixes: 0, payout: "0.00" },
-          comments: [],
-          commentsLoaded: false,
-          isLiked: false,
-          isDisliked: false
-        };
-      })
-    )
-  );
+    return {
+      id: `${finalAuthor}-${s.permlink}`,
+      author: finalAuthor,
+      permlink: s.permlink,
+      hivePermlink: hivePermlink,
+      embedUrl: s.embed_url,
+      thumbnailUrl: s.thumbnail_url,
+      views: s.views || 0,
+      createdAt: s.createdAt,
+      timeAgo: timeAgo(s.createdAt),
+      title: s.hive_title || s.embed_title || "",
+      caption: bodyToPlaintext(s.hive_body) || s.hive_title || s.embed_title || "",
+      tags: Array.isArray(s.hive_tags) ? s.hive_tags : [],
+      user: {
+        username: `@${finalAuthor}`,
+        avatar: `https://images.hive.blog/u/${finalAuthor}/avatar`,
+        isSubscribed: false,
+        followersCount: s.hive_followers ?? null,
+        reputation: s.hive_author_reputation ?? null,
+      },
+      stats: {
+        likes: s.hive_votes || 0,
+        dislikes: 0,
+        comments: s.hive_comments || 0,
+        shares: 0,
+        remixes: 0,
+        payout: s.hive_reward != null ? String(s.hive_reward) : "0.00"
+      },
+      comments: [],
+      commentsLoaded: false,
+      isLiked: false,
+      isDisliked: false,
+      // Mark as not yet enriched — reaction chain & vote status loaded lazily
+      _enriched: false,
+    };
+  });
 
   return {
     success: true,
@@ -638,6 +668,51 @@ export function build3SpeakEmbedUrl(author, permlink, layout = "mobile", control
 }
 
 /* -----------------------------
+   Shorts preload cache
+------------------------------ */
+
+let _preloadedShorts = null;
+let _preloadPromise = null;
+
+/**
+ * Preloads the first page of shorts in the background.
+ * Safe to call multiple times — only runs once until consumed.
+ */
+export function preloadShorts(limit = 5) {
+  if (_preloadedShorts || _preloadPromise) return; // already preloading or done
+  regenerateShortsSeed();
+  _preloadPromise = fetchShortsWithDetails(1, limit)
+    .then((data) => {
+      _preloadedShorts = data;
+      _preloadPromise = null;
+    })
+    .catch((err) => {
+      console.warn('Shorts preload failed:', err.message);
+      _preloadPromise = null;
+    });
+}
+
+/**
+ * Synchronous check: returns true if preloaded data is already available
+ * (finished loading, not just in-flight).
+ */
+export function hasShortsPreloaded() {
+  return _preloadedShorts != null;
+}
+
+/**
+ * Returns preloaded shorts data and clears the cache (one-time consumption).
+ * If preload is still in flight, waits for it.
+ * Returns null if nothing was preloaded.
+ */
+export async function consumePreloadedShorts() {
+  if (_preloadPromise) await _preloadPromise;
+  const data = _preloadedShorts;
+  _preloadedShorts = null;
+  return data;
+}
+
+/* -----------------------------
    Default export
 ------------------------------ */
 
@@ -657,6 +732,9 @@ export default {
   fetchPostComments,
   get3SpeakEmbedUrl,
   build3SpeakEmbedUrl,
+  preloadShorts,
+  hasShortsPreloaded,
+  consumePreloadedShorts,
   HIVE_API_URL,
   SHORTS_API
 };

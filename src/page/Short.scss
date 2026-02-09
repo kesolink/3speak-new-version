@@ -78,6 +78,16 @@
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border-color);
 
+    // Swipe transition animations
+    &.swipe-up {
+      animation: swipeUp 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+    &.swipe-down {
+      animation: swipeDown 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+
+
     @media (max-width: 768px) {
       position: absolute;
       top: 0;
@@ -549,6 +559,29 @@
         @media (max-width: 768px) {
       margin-bottom: 0.35rem;
     }
+
+    .author-badge {
+      background: transparent;
+      border-color: transparent;
+
+      &:hover {
+        background: transparent;
+        border-color: transparent;
+      }
+
+      img {
+        width: 36px;
+        height: 36px;
+      }
+
+      .author-name {
+        color: #fff;
+      }
+
+      .followers-count {
+        color: rgba(255, 255, 255, 0.7);
+      }
+    }
   }
 
   .avatar {
@@ -594,14 +627,58 @@
   }
 
   .caption {
-    font-size: 1rem;
+    font-size: 0.8rem;
     color: white;
     font-weight: 400;
     margin-bottom: 0.75rem;
     line-height: 1.375;
+    cursor: pointer;
+    pointer-events: auto;
     @media (max-width: 768px) {
       margin-bottom: 0.4rem;
-      font-size: 0.875rem;
+      font-size: 0.75rem;
+    }
+
+    .captionText {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin: 0;
+    }
+
+    .captionMore {
+      font-weight: 600;
+      opacity: 0.8;
+      font-size: 0.75rem;
+    }
+
+    &--expanded .captionText {
+      display: block;
+      -webkit-line-clamp: unset;
+      overflow: visible;
+    }
+
+    .captionTags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+
+      .captionTag {
+        font-size: 0.7rem;
+        color: rgba(255, 255, 255, 0.85);
+        background: rgba(255, 255, 255, 0.15);
+        padding: 2px 8px;
+        border-radius: 10px;
+        text-decoration: none;
+        pointer-events: auto;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.25);
+          color: #fff;
+        }
+      }
     }
   }
 
@@ -612,8 +689,8 @@
     opacity: 0.9;
 
     svg {
-      width: 1rem;
-      height: 1rem;
+      width: 0.75rem;
+      height: 0.75rem;
       color: white;
     }
   }
@@ -623,7 +700,7 @@
     width: 10rem;
 
     p {
-      font-size: 0.875rem;
+      font-size: 0.75rem;
       color: white;
       white-space: nowrap;
     }
@@ -835,6 +912,11 @@
     }
   }
 
+  @keyframes pulseText {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
   .loadingState,
   .errorState,
   .emptyState {
@@ -848,8 +930,10 @@
     gap: 1rem;
 
     p {
-      font-size: 1rem;
+      font-size: 0.8rem;
+      font-family: inherit;
       color: var(--text-secondary);
+      animation: pulseText 1.5s ease-in-out infinite;
     }
 
     button {
@@ -1446,5 +1530,28 @@
       color: var(--text-muted);
       cursor: not-allowed;
     }
+  }
+}
+
+// Swipe navigation animations
+@keyframes swipeUp {
+  0% {
+    transform: translateY(30%);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes swipeDown {
+  0% {
+    transform: translateY(-30%);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
   }
 }

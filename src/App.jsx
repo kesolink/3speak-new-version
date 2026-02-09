@@ -43,6 +43,7 @@ import Details from "./components/legacy-studio/Details";
 import Preview from "./components/legacy-studio/Preview";
 import Test from "./page/Test";
 import Short from "./page/Short";
+import ShortsPreloader from "./components/ShortsPreloader";
 // import Email from "./page/Login/Email"
 // import AuthCallback from "./page/Login/AuthCallback";
 // import {AUTH_JWT_SECRET} from "../src/utils/config";
@@ -221,6 +222,7 @@ function App() {
     <LegacyUploadProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
       <Toaster richColors position="top-right" />
+      <ShortsPreloader />
       <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
       <div>
         <Sidebar sidebar={sidebar} />
