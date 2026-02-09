@@ -1,7 +1,7 @@
 import { Buffer } from "buffer";
 import bs58 from "bs58";
 
-const APP_BUNNY_IPFS_CDN = "https://ipfs-3speak.b-cdn.net";
+const APP_BUNNY_IPFS_CDN = "https://hotipfs-3speak-1.b-cdn.net";
 const APP_IMAGE_CDN_DOMAIN = "https://media.3speak.tv";
 
 // export function fixVideoThumbnail(video) {
