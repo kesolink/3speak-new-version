@@ -26,16 +26,24 @@ const getRenderer = async () => {
 
 const SIZE_LABELS = { small: 'S', medium: 'M', big: 'L' };
 
-function strip3SpeakEmbeds(html) {
+function stripRepliedTo(html) {
   if (!html) return '';
   return html
+    .replace(/<p>\s*<sup>\s*replied to[\s\S]*?<\/sup>\s*<\/p>/gi, '')
+    .replace(/<sup>\s*replied to[\s\S]*?<\/sup>/gi, '')
+    .replace(/\n?<sup>replied to \[.*?\]\([^)]*\)[^<]*<\/sup>/g, '');
+}
+
+function strip3SpeakEmbeds(html) {
+  if (!html) return '';
+  return stripRepliedTo(html)
     .replace(/<div[^>]*class="[^"]*video-container[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
     .replace(/<iframe[^>]*src="[^"]*3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi, '')
     .replace(/<iframe[^>]*src="[^"]*embed\.3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi, '');
 }
 
 function CommentNode({ comment, depth }) {
-  const bodyHtml = depth === 0 ? strip3SpeakEmbeds(comment.body) : (comment.body || '');
+  const bodyHtml = depth === 0 ? strip3SpeakEmbeds(comment.body) : stripRepliedTo(comment.body || '');
   return (
     <div className="rct-thread-comment" style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 16}px` } : undefined}>
       <div className="rct-thread-header">

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
+import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo } from 'react-icons/fa';
 import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
 import './VideoControls.scss';
 
@@ -30,6 +30,7 @@ function VideoControls({
   isVisible,
   markers,
   onMarkerSelect,
+  onReactToMoment,
 }) {
   const resolvedMarkers = markers || [];
 
@@ -38,6 +39,26 @@ function VideoControls({
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const trackRef = useRef(null);
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // Build a heatmap gradient showing where reactions cluster
+  const heatmapStyle = duration > 0 && resolvedMarkers.length > 0 ? (() => {
+    // Create soft gaussian-like glows at each marker position
+    const stops = resolvedMarkers.map(m => {
+      const pos = (m.time / duration) * 100;
+      const color = m.isVideo ? 'rgba(229,57,53,0.25)' : 'rgba(255,255,255,0.12)';
+      return `${color} ${pos}%`;
+    });
+    // Interleave transparent stops to create isolated glows
+    const gradient = [];
+    for (const m of resolvedMarkers) {
+      const pos = (m.time / duration) * 100;
+      const color = m.isVideo ? 'rgba(229,57,53,0.25)' : 'rgba(255,255,255,0.12)';
+      gradient.push(`transparent ${Math.max(0, pos - 3)}%`);
+      gradient.push(`${color} ${pos}%`);
+      gradient.push(`transparent ${Math.min(100, pos + 3)}%`);
+    }
+    return { background: `linear-gradient(to right, ${gradient.join(', ')})` };
+  })() : null;
 
   const handleTrackClick = useCallback((e) => {
     if (!trackRef.current || !duration) return;
@@ -63,6 +84,7 @@ function VideoControls({
       {/* Progress bar */}
       <div className="vc-progress-row">
         <div className="vc-progress-track" ref={trackRef} onClick={handleTrackClick}>
+          {heatmapStyle && <div className="vc-heatmap" style={heatmapStyle} />}
           <div className="vc-progress-fill" style={{ width: `${progress}%` }} />
 
           {/* Timeline markers */}
@@ -118,6 +140,11 @@ function VideoControls({
           </div>
         </div>
         <div className="vc-controls-right">
+          {onReactToMoment && (
+            <button className="vc-btn vc-btn--react" onClick={onReactToMoment} title="React to this moment">
+              <FaVideo size={13} />
+            </button>
+          )}
           <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
             {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
           </button>

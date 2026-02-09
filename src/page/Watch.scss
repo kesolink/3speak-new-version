@@ -95,6 +95,10 @@
     }
 
     .show-reactions-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
       width: 100%;
       padding: 10px;
       margin-bottom: 12px;
@@ -106,6 +110,10 @@
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
+
+      svg {
+        vertical-align: middle;
+      }
 
       &:hover {
         background: var(--bg-tertiary, rgba(255, 255, 255, 0.05));

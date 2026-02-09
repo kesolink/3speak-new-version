@@ -21,6 +21,7 @@ import PayoutAmount from '../PayoutAmount/PayoutAmount';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { HIVE_API_NODES } from '../../utils/config';
 import TimeAgo from '../TimeAgo/TimeAgo';
+import { Link } from 'react-router-dom';
 
 const client = new Client(HIVE_API_NODES);
 
@@ -61,7 +62,7 @@ function parseTimeInput(str) {
   return null;
 }
 
-function CommentSection({ videoDetails, author, permlink, currentTime, duration, onSeek, onRefreshReactions }) {
+function CommentSection({ videoDetails, author, permlink, currentTime, duration, onSeek, onPause, onRefreshReactions }) {
   const { user } = useAppStore();
   const [commentInfo, setCommentInfo] = useState('');
   const [activeTab, setActiveTab] = useState('comment'); // 'comment' | 'react'
@@ -212,9 +213,50 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
         const children = await client.call('condenser_api', 'get_content_replies', [comment.author, comment.permlink]);
         const has_voted = comment.active_votes?.some(v => v.voter === user) ?? false;
         let parentTimestamp = null;
+        let hasVideo = false;
+        let shortAuthor = null;
+        let shortPermlink = null;
         try {
           const meta = typeof comment.json_metadata === 'string' ? JSON.parse(comment.json_metadata) : comment.json_metadata;
           if (meta?.parentTimestamp != null) parentTimestamp = meta.parentTimestamp;
+          if (meta?.video?.url || meta?.video?.platform === '3speak') {
+            hasVideo = true;
+            // Try extracting player permlink from video.url
+            const videoUrl = meta.video?.url || '';
+            // Handle full URLs like https://3speak.tv/watch?v=author/perm or https://play.3speak.tv/embed?v=author/perm
+            const urlMatch = videoUrl.match(/[?&]v=([^&\s"']+)/);
+            if (urlMatch) {
+              const cleaned = urlMatch[1].startsWith('@') ? urlMatch[1].slice(1) : urlMatch[1];
+              const parts = cleaned.split('/');
+              if (parts.length >= 2 && parts[0] && parts[1]) {
+                shortAuthor = parts[0];
+                shortPermlink = parts[1];
+              }
+            }
+            // Handle simple @author/permlink format
+            if (!shortAuthor) {
+              const cleaned = videoUrl.startsWith('@') ? videoUrl.slice(1) : videoUrl;
+              const parts = cleaned.split('/');
+              if (parts.length >= 2 && parts[0] && parts[1]) {
+                shortAuthor = parts[0];
+                shortPermlink = parts[1];
+              }
+            }
+          }
+          // Also scan the comment body for 3speak embed/watch URLs
+          if (!shortAuthor && comment.body) {
+            const bodyMatch = comment.body.match(/https?:\/\/[^\s]*3speak[^\s]*[?&]v=([^&\s"')]+)/);
+            if (bodyMatch) {
+              hasVideo = true;
+              const cleaned = bodyMatch[1].startsWith('@') ? bodyMatch[1].slice(1) : bodyMatch[1];
+              const parts = cleaned.split('/');
+              if (parts.length >= 2 && parts[0] && parts[1]) {
+                shortAuthor = parts[0];
+                shortPermlink = parts[1];
+              }
+            }
+          }
+
         } catch (_) {}
         return {
           author: {
@@ -229,6 +271,9 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
           created_at: comment.created,
           body: comment.body,
           parentTimestamp,
+          hasVideo,
+          shortAuthor,
+          shortPermlink,
           stats: {
             num_likes: comment.active_votes?.filter((v) => v.percent > 0).length || 0,
             num_dislikes: comment.active_votes?.filter((v) => v.percent < 0).length || 0,
@@ -244,12 +289,21 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
 
   const processedBody = (content, permlink) => {
     if (!content) return '';
+    let html;
     // Use pre-rendered body if available
     if (permlink && renderedBodies[permlink]) {
-      return renderedBodies[permlink];
+      html = renderedBodies[permlink];
+    } else {
+      // Fallback - return raw content (will be rendered on next fetch)
+      html = content;
     }
-    // Fallback - return raw content (will be rendered on next fetch)
-    return content;
+    // Strip "replied to [timestamp](link)" lines (raw markdown or rendered HTML)
+    html = html
+      .replace(/<p>\s*<sup>\s*replied to\s*<a[^>]*>.*?<\/a>\s*<\/sup>\s*<\/p>/gi, '')
+      .replace(/<sup>\s*replied to\s*<a[^>]*>.*?<\/a>\s*<\/sup>/gi, '')
+      .replace(/\n?<sup>replied to \[.*?\]\([^)]*\)<\/sup>/g, '');
+
+    return html;
   };
 
   const handlePostComment = async (replyTimestamp) => {
@@ -279,13 +333,23 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
         }
       }
 
+      // Append "replied to" timestamp reference if we have a timestamp
+      let body = textToPost;
+      if (metadata.parentTimestamp > 0) {
+        const ts = metadata.parentTimestamp;
+        const tsLabel = formatTimeInput(ts);
+        const baseUrl = window.location.origin;
+        const host = window.location.host;
+        body += `\n<sup>replied to [${tsLabel}](${baseUrl}/watch?v=${author}/${permlink}&t=${ts}) on [${host}](${baseUrl})</sup>`;
+      }
+
       // Use aioha for comment broadcasting (works with all providers: Keychain, HiveAuth, etc.)
       const result = await commentWithAioha(
         parent_author,
         parent_permlink,
         new_permlink,
         '', // title (empty for comments)
-        textToPost,
+        body,
         metadata
       );
 
@@ -460,6 +524,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
             currentTime={currentTime}
             formatTime={formatTimeInput}
             onPosted={() => { setActiveTab('comment'); onRefreshReactions?.(); }}
+            onRecordStart={onPause}
           />
         </div>
       )}
@@ -582,6 +647,15 @@ function Comment({
                 setActiveReply(comment.permlink);
                 setReplyToComment(comment);
               }} />
+            {comment.hasVideo && (
+              <Link
+                to={`/shorts?v=${comment.shortAuthor || comment.author?.username}/${comment.shortPermlink || comment.permlink}`}
+                className="btn-default comment-shorts-link"
+              >
+                <MdVideocam size={13} />
+                <span>Open in Shorts</span>
+              </Link>
+            )}
             <CommentVoteTooltip
              author={comment?.author?.username}
              permlink={comment.permlink}
@@ -653,6 +727,7 @@ function Comment({
               currentTime={replyTimestamp ?? currentTime}
               formatTime={formatTimeInput}
               onPosted={() => { setReplyTab('comment'); setActiveReply(null); onRefreshReactions?.(); }}
+              onRecordStart={onPause}
             />
           )}
         </div>

@@ -16,7 +16,12 @@ import {
   Pause,
   Send,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  ArrowLeft,
+  ExternalLink,
+  Video,
+  MessageSquareText,
+  Camera
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 
@@ -40,8 +45,9 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { PLAYER_URL } from '../utils/config';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
+import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 
 
 /* ================= COMPONENT ================= */
@@ -56,6 +62,9 @@ const VideoShort = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [parentCardVisible, setParentCardVisible] = useState(true);
+  const [expandedChainCard, setExpandedChainCard] = useState(null);
+  const [shortNavLoading, setShortNavLoading] = useState(false);
+  const shortHistoryRef = useRef([]); // Stack of {author, permlink} for back navigation
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -95,6 +104,7 @@ const VideoShort = () => {
 
   const accessToken = localStorage.getItem("access_token");
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Minimum swipe distance to trigger navigation (in pixels)
   const minSwipeDistance = 50;
@@ -431,6 +441,9 @@ const VideoShort = () => {
             parentVideo: short.parentVideo || null,
             parentTimestamp: short.parentTimestamp || null,
             parentComment: short.parentComment || null,
+            parentShort: short.parentShort || null,
+            reactionChain: short.reactionChain || null,
+            childReactions: short.childReactions || null,
           }));
 
           // Check if there's a shared video in the URL
@@ -483,6 +496,9 @@ const VideoShort = () => {
                   parentVideo: sharedVideoData.parentVideo || null,
                   parentTimestamp: sharedVideoData.parentTimestamp || null,
                   parentComment: sharedVideoData.parentComment || null,
+                  parentShort: sharedVideoData.parentShort || null,
+                  reactionChain: sharedVideoData.reactionChain || null,
+                  childReactions: sharedVideoData.childReactions || null,
                 };
 
                 // Prepend shared video to the feed
@@ -517,6 +533,91 @@ const VideoShort = () => {
 
     fetchShorts();
   }, [user, getSharedVideoFromUrl, updateUrlWithCurrentVideo]);
+
+  /* ---------- HANDLE IN-PAGE NAVIGATION TO A SHORT ---------- */
+  // When location.search changes (e.g. clicking "View parent reaction"),
+  // jump to or load the target short without re-fetching the entire feed.
+  const prevSearchRef = useRef(location.search);
+  useEffect(() => {
+    if (location.search === prevSearchRef.current) return;
+    prevSearchRef.current = location.search;
+
+    // Only act if we already have videos loaded
+    if (videos.length === 0) return;
+
+    const params = new URLSearchParams(location.search);
+    const videoParam = params.get('v');
+    if (!videoParam) return;
+
+    const [targetAuthor, targetPermlink] = videoParam.split('/');
+    if (!targetAuthor || !targetPermlink) return;
+
+    // Save current short to history stack for back navigation
+    const currentVid = videos[currentIndex];
+    if (currentVid) {
+      shortHistoryRef.current = [...shortHistoryRef.current, { author: currentVid.author, permlink: currentVid.permlink }];
+    }
+
+    // Check if it's already in the feed
+    const existingIdx = videos.findIndex(
+      v => v.author === targetAuthor && v.permlink === targetPermlink
+    );
+
+    if (existingIdx !== -1) {
+      setCurrentIndex(existingIdx);
+      return;
+    }
+
+    // Not in feed — fetch and prepend it
+    setShortNavLoading(true);
+    (async () => {
+      try {
+        const shortEntry = await hiveApi.findShortByPermlink(targetPermlink);
+        const shortItem = shortEntry || {
+          owner: targetAuthor,
+          permlink: targetPermlink,
+          embed_url: `@${targetAuthor}/${targetPermlink}`,
+          thumbnail_url: '',
+          views: 0,
+          createdAt: new Date().toISOString(),
+          embed_title: '',
+        };
+
+        const shortData = await hiveApi.fetchCompleteShortData(shortItem, user);
+
+        const formatted = {
+          id: shortData.id,
+          author: shortData.author,
+          permlink: shortData.permlink,
+          hivePermlink: shortData.hivePermlink,
+          user: shortData.user,
+          caption: shortData.caption || shortData.title || '',
+          audio: `${shortData.user.username} - Original Audio`,
+          albumArt: shortData.user.avatar,
+          stats: shortData.stats,
+          isLiked: shortData.isLiked || false,
+          isDisliked: shortData.isDisliked || false,
+          comments: [],
+          commentsLoaded: false,
+          timeAgo: shortData.timeAgo,
+          createdAt: shortData.createdAt,
+          parentVideo: shortData.parentVideo || null,
+          parentTimestamp: shortData.parentTimestamp || null,
+          parentComment: shortData.parentComment || null,
+          parentShort: shortData.parentShort || null,
+          reactionChain: shortData.reactionChain || null,
+          childReactions: shortData.childReactions || null,
+        };
+
+        setVideos(prev => [formatted, ...prev]);
+        setCurrentIndex(0);
+      } catch (err) {
+        console.warn('Could not navigate to parent short:', err);
+      } finally {
+        setShortNavLoading(false);
+      }
+    })();
+  }, [location.search, videos, user]);
 
   /* ---------- LOAD MORE VIDEOS ---------- */
   const loadMoreVideos = useCallback(async () => {
@@ -561,6 +662,8 @@ const VideoShort = () => {
           parentVideo: short.parentVideo || null,
           parentTimestamp: short.parentTimestamp || null,
           parentComment: short.parentComment || null,
+          parentShort: short.parentShort || null,
+          reactionChain: short.reactionChain || null,
         }));
 
         setVideos(prev => [...prev, ...formattedVideos]);
@@ -760,6 +863,15 @@ const VideoShort = () => {
       return v;
     }));
   };
+
+  /* ---------- BACK NAVIGATION ---------- */
+  const handleShortBack = useCallback(() => {
+    const history = shortHistoryRef.current;
+    if (history.length === 0) return;
+    const prev = history[history.length - 1];
+    shortHistoryRef.current = history.slice(0, -1);
+    navigate(`/shorts?v=${prev.author}/${prev.permlink}`, { replace: true });
+  }, [navigate]);
 
   /* ---------- SHARE FUNCTIONALITY ---------- */
   const handleShare = async () => {
@@ -1073,40 +1185,145 @@ const VideoShort = () => {
             <div className="videoProgressHandle" style={{ left: `${progressPercentage}%` }} />
           </div>
 
-          {/* Bottom overlay */}
-          {/* Parent video overlay card (for reactions) */}
-          {currentVideo.parentVideo && (
-            <div className={`parentVideoOverlay${parentCardVisible ? '' : ' collapsed'}`} onClick={(e) => e.stopPropagation()}>
-              {parentCardVisible && (
-                <Link to={`/watch?v=${currentVideo.parentVideo.author}/${currentVideo.parentVideo.permlink}${currentVideo.parentTimestamp != null ? `&t=${currentVideo.parentTimestamp}` : ''}`} className="parentVideoCard">
-                  <img
-                    src={fixVideoThumbnail(currentVideo.parentVideo)}
-                    alt=""
-                    className="parentVideoThumb"
-                  />
-                  <div className="parentVideoInfo">
-                    <span className="parentVideoTitle">{currentVideo.parentVideo.title}</span>
-                    <span className="parentVideoAuthor">@{currentVideo.parentVideo.author}</span>
-                    {currentVideo.parentComment && (
-                      <div className="parentCommentExcerpt">
-                        <span className="parentCommentLabel">Replying to @{currentVideo.parentComment.author}:</span>
-                        <p className="parentCommentBody">{currentVideo.parentComment.body}</p>
+          {/* Loading overlay for short navigation */}
+          {shortNavLoading && (
+            <div className="shortNavLoadingOverlay" onClick={(e) => e.stopPropagation()}>
+              <Loader2 size={28} className="spinner" />
+            </div>
+          )}
+
+          {/* Back button (visible after navigating to a parent short) */}
+          {shortHistoryRef.current.length > 0 && (
+            <button className="shortBackBtn" onClick={(e) => { e.stopPropagation(); handleShortBack(); }}>
+              <ArrowLeft size={18} />
+              <span>Back</span>
+            </button>
+          )}
+
+          {/* Reaction chain overlay (for reactions) */}
+          {currentVideo.reactionChain && currentVideo.reactionChain.length > 0 && (() => {
+            const rootStep = currentVideo.reactionChain.find(s => s.isRoot);
+            const childSteps = currentVideo.reactionChain.filter(s => !s.isRoot);
+            const rootUrl = rootStep ? `/watch?v=${rootStep.author}/${rootStep.permlink}${currentVideo.parentTimestamp != null ? `&t=${currentVideo.parentTimestamp}` : ''}` : null;
+            return (
+              <div className={`reactionChainOverlay${parentCardVisible ? '' : ' collapsed'}${shortHistoryRef.current.length > 0 ? ' has-back' : ''}`} onClick={(e) => e.stopPropagation()}>
+                {parentCardVisible && (
+                  <div className="reactionChainBreadcrumb">
+                    {/* Root / origin card — 50% wide, thumb left + info right */}
+                    {rootStep && (
+                      <div className="chainRoot">
+                        {rootStep.thumbnail && (
+                          <img className="chainRootThumb" src={fixVideoThumbnail({ thumbnail: rootStep.thumbnail })} alt="" />
+                        )}
+                        <div className="chainRootInfo">
+                          <span className="chainRootTitle">{rootStep.title || 'Original video'}</span>
+                          <div className="chainRootMeta">
+                            <AuthorBadge author={rootStep.author} compact noLink />
+                            {currentVideo.parentTimestamp != null && (
+                              <span className="chainRootTimestamp">
+                                {Math.floor(currentVideo.parentTimestamp / 60)}:{(currentVideo.parentTimestamp % 60).toString().padStart(2, '0')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Link to={rootUrl} className="chainActionBtn" onClick={(e) => e.stopPropagation()} title="Watch">
+                          <Video size={14} />
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Child steps — horizontal scroll row */}
+                    {childSteps.length > 0 && (
+                      <div className="chainChildRow">
+                        {childSteps.map((step, i) => {
+                          const isExpanded = expandedChainCard === i;
+                          return (
+                            <React.Fragment key={i}>
+                              {i > 0 && <span className="chainDash">&mdash;</span>}
+                              <div
+                                className={`chainChild${isExpanded ? ' chainChild--expanded' : ''}${step.type === 'video' ? ' chainChild--video' : ' chainChild--comment'}`}
+                                onClick={() => setExpandedChainCard(isExpanded ? null : i)}
+                              >
+                                <div className="chainChildHeader">
+                                  <AuthorBadge author={step.author} compact noLink />
+                                  {step.type === 'video' && (
+                                    step.shortPermlink ? (
+                                      <Link to={`/shorts?v=${step.shortAuthor}/${step.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
+                                        <Camera size={11} />
+                                      </Link>
+                                    ) : (
+                                      <Link to={`/watch?v=${step.author}/${step.permlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Watch">
+                                        <Video size={11} />
+                                      </Link>
+                                    )
+                                  )}
+                                </div>
+                                <span className={`chainChildTitle${isExpanded ? ' chainChildTitle--full' : ''}`}>
+                                  {step.title || (step.type === 'comment' ? 'Comment' : 'Reaction')}
+                                </span>
+                                {isExpanded && step.body && (
+                                  <p className="chainChildText">{step.body}</p>
+                                )}
+                                {step.duration > 0 && (
+                                  <span className="chainChildDuration">
+                                    {Math.floor(step.duration / 60)}:{Math.floor(step.duration % 60).toString().padStart(2, '0')}
+                                  </span>
+                                )}
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
+                        <span className="chainDash">&mdash;</span>
+                        {(() => {
+                          const currentIdx = childSteps.length;
+                          const isCurExpanded = expandedChainCard === currentIdx;
+                          return (
+                            <div
+                              className={`chainChild chainChild--current${isCurExpanded ? ' chainChild--expanded' : ''}`}
+                              onClick={() => setExpandedChainCard(isCurExpanded ? null : currentIdx)}
+                            >
+                              <div className="chainChildHeader">
+                                <AuthorBadge author={currentVideo.author} compact noLink />
+                              </div>
+                              <span className={`chainChildTitle${isCurExpanded ? ' chainChildTitle--full' : ''}`}>
+                                {currentVideo.caption || 'This video'}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                        {/* Child reactions (downstream from current short) */}
+                        {currentVideo.childReactions?.map((child, ci) => (
+                          <React.Fragment key={`child-${ci}`}>
+                            <span className="chainDash">&mdash;</span>
+                            <div className="chainChild chainChild--video chainChild--downstream">
+                              <div className="chainChildHeader">
+                                <AuthorBadge author={child.author} compact noLink />
+                                <Link to={`/shorts?v=${child.shortAuthor}/${child.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
+                                  <Camera size={11} />
+                                </Link>
+                              </div>
+                              <span className="chainChildTitle">
+                                {child.title || 'Reaction'}
+                              </span>
+                              {child.duration > 0 && (
+                                <span className="chainChildDuration">
+                                  {Math.floor(child.duration / 60)}:{Math.floor(child.duration % 60).toString().padStart(2, '0')}
+                                </span>
+                              )}
+                            </div>
+                          </React.Fragment>
+                        ))}
                       </div>
                     )}
                   </div>
-                  {currentVideo.parentTimestamp != null && (
-                    <span className="parentVideoTimestamp">
-                      at {Math.floor(currentVideo.parentTimestamp / 60)}:{(currentVideo.parentTimestamp % 60).toString().padStart(2, '0')}
-                    </span>
-                  )}
-                </Link>
-              )}
-              <button className="parentVideoClose" onClick={(e) => { e.stopPropagation(); setParentCardVisible(prev => !prev); }}>
-                {!parentCardVisible && <span className="parentVideoCloseLabel">show origin</span>}
-                {parentCardVisible ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
-            </div>
-          )}
+                )}
+                <button className="chainToggleBtn" onClick={(e) => { e.stopPropagation(); setParentCardVisible(prev => !prev); }}>
+                  {!parentCardVisible && <span className="chainToggleLabel">show reaction chain</span>}
+                  {parentCardVisible ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+              </div>
+            );
+          })()}
 
           <div className="bottomOverlay">
             <div className="userRow">

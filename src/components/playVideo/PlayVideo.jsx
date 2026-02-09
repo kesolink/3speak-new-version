@@ -391,6 +391,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     onToggleFullscreen={videoControls.onToggleFullscreen}
                     markers={videoControls.markers}
                     onMarkerSelect={videoControls.onMarkerSelect}
+                    onReactToMoment={videoControls.onReactToMoment}
                   />
                 </>
               )}
@@ -558,6 +559,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           duration={videoControls?.duration}
           onSeek={videoControls?.onSeek}
           onRefreshReactions={videoControls?.onRefreshReactions}
+          onPause={videoControls?.onPause}
         />
       </div>
       

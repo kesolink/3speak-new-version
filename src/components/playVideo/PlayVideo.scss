@@ -407,18 +407,27 @@
         color: var(--text-primary);
         transition: background-color 0.3s ease;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
 
         .description-collapsible {
+            width: 100%;
+
             &.collapsed {
                 max-height: 0;
                 overflow: hidden;
+
+                @include mix.respond(desktop) {
+                    max-height: none;
+                    overflow: visible;
+                }
             }
         }
 
         .description-toggle-btn {
-            display: block;
-            width: 100%;
-            padding: 8px;
+            display: inline-block;
+            padding: 8px 16px;
             border: none;
             background: transparent;
             color: var(--text-secondary);
@@ -430,6 +439,10 @@
 
             &:hover {
                 color: var(--text-primary);
+            }
+
+            @include mix.respond(desktop) {
+                display: none;
             }
         }
     }

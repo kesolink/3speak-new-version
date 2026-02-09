@@ -12,7 +12,7 @@ import './ReactVideoModal.scss';
  * Lets users pick a file or record from webcam, add a description,
  * then uploads via TUS and publishes as a comment under the parent post.
  */
-function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted }) {
+function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, onRecordStart }) {
   const { user } = useAppStore();
 
   // Source selection
@@ -150,7 +150,8 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted }) 
     recorderRef.current = recorder;
     recorder.start();
     setRecording(true);
-  }, [stream, calcDuration]);
+    onRecordStart?.();
+  }, [stream, calcDuration, onRecordStart]);
 
   const stopRecording = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
@@ -236,7 +237,16 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted }) 
       const timestampSec = currentTime ? Math.round(currentTime) : 0;
       const commentText = description.trim() || 'Video reaction';
       // Body: description text + embed URL on its own line
-      const commentBody = `${commentText}\n${embedUrl}`;
+      let commentBody = `${commentText}\n${embedUrl}`;
+      // Append "replied to" timestamp reference
+      if (timestampSec > 0) {
+        const mins = Math.floor(timestampSec / 60);
+        const secs = Math.floor(timestampSec % 60);
+        const tsLabel = `${mins}:${secs.toString().padStart(2, '0')}`;
+        const baseUrl = window.location.origin;
+        const host = window.location.host;
+        commentBody += `\n<sup>replied to [${tsLabel}](${baseUrl}/watch?v=${author}/${permlink}&t=${timestampSec}) on [${host}](${baseUrl})</sup>`;
+      }
       const newPermlink = `re-${permlink}-${Date.now()}`;
 
       const metadata = {

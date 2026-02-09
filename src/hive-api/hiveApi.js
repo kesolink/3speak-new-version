@@ -48,6 +48,40 @@ export async function fetchShortsList(page = 1, limit = 20) {
 }
 
 /* -----------------------------
+   Cached shorts list (avoids repeated pagination)
+------------------------------ */
+let _cachedShorts = null;
+let _cachedShortsTime = 0;
+let _cachePromise = null;
+const SHORTS_CACHE_TTL = 60000; // 1 minute
+
+async function getAllShortsCached() {
+  if (_cachedShorts && Date.now() - _cachedShortsTime < SHORTS_CACHE_TTL) return _cachedShorts;
+  // Deduplicate: if a fetch is already in progress, share the same promise
+  if (_cachePromise) return _cachePromise;
+  _cachePromise = (async () => {
+    try {
+      const all = [];
+      let page = 1;
+      const limit = 50;
+      while (page <= 20) {
+        const data = await fetchShortsList(page, limit);
+        if (!data?.shorts) break;
+        all.push(...data.shorts);
+        if (page >= (data.totalPages || 1)) break;
+        page++;
+      }
+      _cachedShorts = all;
+      _cachedShortsTime = Date.now();
+      return all;
+    } finally {
+      _cachePromise = null;
+    }
+  })();
+  return _cachePromise;
+}
+
+/* -----------------------------
    Hive data fetchers
 ------------------------------ */
 
@@ -246,6 +280,7 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
             const immediateParent = await getPostDetails(post.parent_author, post.parent_permlink);
             if (immediateParent) {
               let rootPost = immediateParent;
+              let intermediateChain = [];
 
               // If the immediate parent is a comment (not the root video), capture it
               if (immediateParent.parent_author) {
@@ -257,15 +292,63 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
                   };
                 }
 
-                // Walk up the chain to find the root video
+                // Check if the immediate parent is itself a short (video reaction)
+                const parentJm = typeof immediateParent.json_metadata === 'string'
+                  ? JSON.parse(immediateParent.json_metadata || '{}')
+                  : (immediateParent.json_metadata || {});
+                if (parentJm.video?.url || parentJm.video?.platform === '3speak') {
+                  try {
+                    const parentShortEntry = await findShortByEmbedUrl(immediateParent.author, immediateParent.permlink);
+                    if (parentShortEntry) {
+                      base.parentShort = {
+                        author: parentShortEntry.owner,
+                        permlink: parentShortEntry.permlink,
+                      };
+                    }
+                  } catch (e) {
+                    console.warn('Failed to look up parent short:', e.message);
+                  }
+                }
+
+                // Walk up the chain to find the root video, collecting the chain
+                const parentDur = parentJm.video?.info?.duration || parentJm.video?.duration || 0;
+                const parentBody = (immediateParent.body || '').split('\n').filter(l => l.trim() && !l.startsWith('<sup>') && !l.startsWith('http')).slice(0, 3).join('\n');
+
+                const reactionChain = [{
+                  author: immediateParent.author,
+                  permlink: immediateParent.permlink,
+                  title: immediateParent.title || '',
+                  body: parentBody,
+                  duration: parentDur,
+                  type: parentJm.video ? 'video' : 'comment',
+                  thumbnail: parentJm?.image?.[0] || null,
+                }];
                 let current = immediateParent;
                 let depth = 0;
                 while (current.parent_author && depth < 10) {
                   current = await getPostDetails(current.parent_author, current.parent_permlink);
                   if (!current) break;
+                  if (current.parent_author) {
+                    const cJm = typeof current.json_metadata === 'string'
+                      ? JSON.parse(current.json_metadata || '{}') : (current.json_metadata || {});
+                    const dur = cJm.video?.info?.duration || cJm.video?.duration || 0;
+                    const cBody = (current.body || '').split('\n').filter(l => l.trim() && !l.startsWith('<sup>') && !l.startsWith('http')).slice(0, 3).join('\n');
+
+                    reactionChain.unshift({
+                      author: current.author,
+                      permlink: current.permlink,
+                      title: current.title || '',
+                      body: cBody,
+                      duration: dur,
+                      type: cJm.video ? 'video' : 'comment',
+                      thumbnail: cJm?.image?.[0] || null,
+                    });
+                  }
                   depth++;
                 }
                 if (current) rootPost = current;
+                // Store intermediates for later — root will be prepended below
+                intermediateChain = reactionChain;
               }
 
               // Store the root video
@@ -285,11 +368,75 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
                     num_votes: rootPost.stats?.total_votes || rootPost.active_votes?.length || 0,
                   }
                 };
+
+                // Build complete chain: [root, ...intermediates]
+                const rootDur = rootJm?.video?.info?.duration || rootJm?.video?.duration || 0;
+                const rootBody = (rootPost.body || '').split('\n').filter(l => l.trim() && !l.startsWith('<sup>') && !l.startsWith('http')).slice(0, 3).join('\n');
+                const rootEntry = {
+                  author: rootPost.author,
+                  permlink: rootPost.permlink,
+                  title: rootPost.title || '',
+                  body: rootBody,
+                  duration: rootDur,
+                  type: 'video',
+                  thumbnail: rootJm?.image?.[0] || null,
+                  isRoot: true,
+                };
+                base.reactionChain = [rootEntry, ...intermediateChain];
+
+                // Resolve internal player permlinks for video-type chain steps
+                try {
+                  const allShorts = await getAllShortsCached();
+                  for (const step of base.reactionChain) {
+                    if (step.type === 'video' && !step.isRoot) {
+                      const target = `@${step.author}/${step.permlink}`;
+                      const found = allShorts.find(s => s.embed_url === target);
+                      if (found) {
+                        step.shortAuthor = found.owner;
+                        step.shortPermlink = found.permlink;
+                      }
+                    }
+                  }
+                } catch (e) {
+                  console.warn('Failed to resolve chain step permlinks:', e.message);
+                }
               }
             }
           } catch (err) {
             console.warn('Failed to fetch parent video:', err.message);
           }
+        }
+
+        // Load direct child reactions (replies to this short that are themselves shorts)
+        try {
+          const replies = await hiveRpc("condenser_api.get_content_replies", [post.author, post.permlink]);
+          if (replies?.length > 0) {
+            const allShorts = await getAllShortsCached();
+            const childReactions = [];
+            for (const reply of replies) {
+              const rJm = typeof reply.json_metadata === 'string'
+                ? JSON.parse(reply.json_metadata || '{}') : (reply.json_metadata || {});
+              if (rJm.video?.url || rJm.video?.platform === '3speak') {
+                const target = `@${reply.author}/${reply.permlink}`;
+                const found = allShorts.find(s => s.embed_url === target);
+                if (found) {
+                  childReactions.push({
+                    author: reply.author,
+                    permlink: reply.permlink,
+                    shortAuthor: found.owner,
+                    shortPermlink: found.permlink,
+                    title: reply.title || '',
+                    type: 'video',
+                    thumbnail: rJm?.image?.[0] || null,
+                    duration: rJm.video?.info?.duration || rJm.video?.duration || 0,
+                  });
+                }
+              }
+            }
+            if (childReactions.length > 0) base.childReactions = childReactions;
+          }
+        } catch (err) {
+          console.warn('Failed to load child reactions:', err.message);
         }
       }
     }
@@ -367,6 +514,30 @@ async function loadNestedComments(comments, loggedInUser = null) {
   );
 
   return result;
+}
+
+/* -----------------------------
+   Find a short by its Hive embed_url (e.g. "@author/permlink")
+------------------------------ */
+
+export async function findShortByEmbedUrl(author, hivePermlink) {
+  const target = `@${author}/${hivePermlink}`;
+  let page = 1;
+  const limit = 50;
+  const maxPages = 10;
+
+  while (page <= maxPages) {
+    const data = await fetchShortsList(page, limit);
+    if (!data?.shorts) break;
+
+    const found = data.shorts.find(s => s.embed_url === target);
+    if (found) return found;
+
+    if (page >= (data.totalPages || 1)) break;
+    page++;
+  }
+
+  return null;
 }
 
 /* -----------------------------
@@ -473,6 +644,7 @@ export function build3SpeakEmbedUrl(author, permlink, layout = "mobile", control
 export default {
   fetchShortsList,
   findShortByPermlink,
+  findShortByEmbedUrl,
   getPostDetails,
   getComments,
   getAccounts,

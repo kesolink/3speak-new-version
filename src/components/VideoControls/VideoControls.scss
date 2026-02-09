@@ -37,6 +37,14 @@
     }
   }
 
+  .vc-heatmap {
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
   .vc-progress-fill {
     position: absolute;
     top: 0;
@@ -187,6 +195,15 @@
     &--play {
       width: 36px;
       height: 36px;
+    }
+
+    &--react {
+      color: var(--accent-primary, #e53935);
+
+      &:hover {
+        color: #fff;
+        background: var(--accent-primary, #e53935);
+      }
     }
   }
 

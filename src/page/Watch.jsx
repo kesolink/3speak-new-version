@@ -11,6 +11,7 @@ import { recordWatch } from '../utils/watchHistory';
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, PLAYER_URL } from '../utils/config';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
+import { MdVideocam, MdChatBubble } from 'react-icons/md';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -224,6 +225,17 @@ function Watch() {
     if (textarea) {
       textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setTimeout(() => textarea.focus(), 400);
+    }
+  }, []);
+
+  const handleReactToMoment = useCallback(() => {
+    // Activate the React tab in the comment section
+    const reactTab = document.querySelector('.comment-tabs .comment-tab:nth-child(2)');
+    if (reactTab) reactTab.click();
+    // Scroll the comment section into view
+    const commentWrap = document.querySelector('.vid-comment-wrap');
+    if (commentWrap) {
+      commentWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, []);
 
@@ -488,10 +500,13 @@ function Watch() {
   const reactionCountLabel = useMemo(() => {
     const videoCount = reactions.filter(r => r.type === 'video').length;
     const commentCount = reactions.length - videoCount;
-    if (videoCount > 0 && commentCount > 0) {
-      return `${videoCount} video, ${commentCount} comment`;
-    }
-    return String(reactions.length);
+    return (
+      <>
+        {videoCount > 0 && <><MdVideocam size={14} /> {videoCount}</>}
+        {videoCount > 0 && commentCount > 0 && <span style={{ margin: '0 4px' }}>·</span>}
+        {commentCount > 0 && <><MdChatBubble size={12} /> {commentCount}</>}
+      </>
+    );
   }, [reactions]);
 
   const handleSelectReaction = useCallback((index) => {
@@ -567,6 +582,8 @@ function Watch() {
           onToggleFullscreen: handleToggleFullscreen,
           onMouseMove: showControlsTemporarily,
           onToggleControls: toggleControlsVisibility,
+          onPause: pauseMainPlayer,
+          onReactToMoment: handleReactToMoment,
           markers: resolvedMarkers,
           onMarkerSelect: handleSelectReaction,
         }}
