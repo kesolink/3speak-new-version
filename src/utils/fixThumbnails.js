@@ -37,6 +37,11 @@ export function fixVideoThumbnail(video) {
     return `${APP_BUNNY_IPFS_CDN}/ipfs/${ipfsHash}`;
   }
 
+  // 🔄 Replace deprecated CDN with new CDN
+  if (thumbnail.includes("ipfs-3speak.b-cdn.net")) {
+    return thumbnail.replace("https://ipfs-3speak.b-cdn.net", APP_BUNNY_IPFS_CDN);
+  }
+
   // 🧠 Handle media.3speak.tv URLs with Hive proxy
   if (thumbnail.includes(APP_IMAGE_CDN_DOMAIN)) {
     const encoded = bs58.encode(Buffer.from(thumbnail));
