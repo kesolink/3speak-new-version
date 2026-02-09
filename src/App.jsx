@@ -167,6 +167,7 @@ function App() {
             <Route path="/leaderboard" element={<LeaderBoard />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/p/:user" element={<UserProfilePage />} />
+            <Route path="/user/:user" element={<UserProfilePage />} />
             <Route path="/wallet/:user" element={<Wallet />} />
             <Route path="/test" element={<ProfileModal />} />
             <Route path="/image" element={<HiveImageUploader />} />
