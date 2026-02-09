@@ -256,7 +256,7 @@ useEffect(() => {
     // If the URL starts with "ipfs://", convert it to a CDN link
     if (url.startsWith("ipfs://")) {
       const ipfsHash = url.replace("ipfs://", "");
-      setVideoUrlSelected(`https://ipfs-3speak.b-cdn.net/ipfs/${ipfsHash}`);
+      setVideoUrlSelected(`https://hotipfs-3speak-1.b-cdn.net/ipfs/${ipfsHash}`);
     } 
     // Otherwise, use the link directly (e.g., m3u8 link)
     else {
