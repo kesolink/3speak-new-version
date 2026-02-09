@@ -40,8 +40,8 @@ async function hiveRpc(method, params) {
    Shorts list
 ------------------------------ */
 
-export async function fetchShortsList(page = 1, limit = 20, app = "snapie") {
-  const url = `${SHORTS_API}?page=${page}&limit=${limit}&app=${app}`;
+export async function fetchShortsList(page = 1, limit = 20) {
+  const url = `${SHORTS_API}?page=${page}&limit=${limit}`;
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
   return response.data;
