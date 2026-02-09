@@ -327,7 +327,17 @@ function Watch() {
 
       switch (event.data.type) {
         case '3speak-player-ready':
-          setTimeout(() => { triggerPlay(); setIsPlaying(true); }, 100);
+          setTimeout(() => {
+            triggerPlay();
+            setIsPlaying(true);
+            // Seek to timestamp if ?t= parameter is present
+            const startTime = parseInt(searchParams.get('t'), 10);
+            if (startTime > 0 && mainIframe?.contentWindow) {
+              setTimeout(() => {
+                mainIframe.contentWindow.postMessage({ type: 'seek', time: startTime }, '*');
+              }, 200);
+            }
+          }, 100);
           if (mainIframe?.contentWindow) {
             mainIframe.contentWindow.postMessage({ type: 'hide-controls' }, '*');
           }
@@ -494,6 +504,29 @@ function Watch() {
       handleSeek(reaction.pct);
     }
   }, [reactions, videoDuration, handleSeek]);
+
+  // When loading with ?t= parameter and reactions are available, select the closest reaction
+  const initialReactionSetRef = useRef(false);
+  useEffect(() => {
+    if (initialReactionSetRef.current) return;
+    if (!reactions || reactions.length === 0) return;
+    const startTime = parseInt(searchParams.get('t'), 10);
+    if (!(startTime > 0)) return;
+
+    let closestIdx = 0;
+    let closestDist = Infinity;
+    for (let i = 0; i < reactions.length; i++) {
+      const dist = Math.abs(reactions[i].pct - startTime);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestIdx = i;
+      }
+    }
+
+    initialReactionSetRef.current = true;
+    setSelectedReactionIndex(closestIdx);
+    setReactionsVisible(true);
+  }, [reactions, searchParams]);
 
   const isNetworkError = videoError && videoError.networkError;
   const isLoading = videoLoading || (suggestionsLoading && trendingLoading && authorVideosLoading);

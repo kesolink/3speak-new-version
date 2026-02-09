@@ -180,6 +180,15 @@
   }
 }
 
+// Compact reply variant — constrain to parent width despite the margin-left inset
+.add-comment-wrap.sub {
+  max-width: calc(100% - 40px);
+
+  .comment-tabs-bar {
+    border-bottom-width: 1px;
+  }
+}
+
 // Row below textarea: buttons on right
 .comment-form-row {
   display: flex;

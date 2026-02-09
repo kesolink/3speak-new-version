@@ -186,7 +186,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                   })()}
                 />
               </div>
-              <p><TimeAgo date={video.created_at || video.created} /></p>
+              <p><TimeAgo date={video.created_at || video.created} short /></p>
             </div>
           </Link>
         );

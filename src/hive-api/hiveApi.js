@@ -40,8 +40,8 @@ async function hiveRpc(method, params) {
    Shorts list
 ------------------------------ */
 
-export async function fetchShortsList(page = 1, limit = 20, app = "snapie") {
-  const url = `${SHORTS_API}?page=${page}&limit=${limit}&app=${app}`;
+export async function fetchShortsList(page = 1, limit = 20) {
+  const url = `${SHORTS_API}?page=${page}&limit=${limit}`;
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
   return response.data;
@@ -234,6 +234,63 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
         if (post.author_reputation) {
           base.user.reputation = post.author_reputation;
         }
+
+        // Check if this short is a reaction with a parentTimestamp
+        const jm = typeof post.json_metadata === 'string'
+          ? JSON.parse(post.json_metadata || '{}')
+          : (post.json_metadata || {});
+
+        if (jm.parentTimestamp != null && post.parent_author) {
+          base.parentTimestamp = jm.parentTimestamp;
+          try {
+            const immediateParent = await getPostDetails(post.parent_author, post.parent_permlink);
+            if (immediateParent) {
+              let rootPost = immediateParent;
+
+              // If the immediate parent is a comment (not the root video), capture it
+              if (immediateParent.parent_author) {
+                const bodyExcerpt = (immediateParent.body || '').split('\n').filter(l => l.trim()).slice(0, 2).join('\n');
+                if (bodyExcerpt) {
+                  base.parentComment = {
+                    author: immediateParent.author,
+                    body: bodyExcerpt,
+                  };
+                }
+
+                // Walk up the chain to find the root video
+                let current = immediateParent;
+                let depth = 0;
+                while (current.parent_author && depth < 10) {
+                  current = await getPostDetails(current.parent_author, current.parent_permlink);
+                  if (!current) break;
+                  depth++;
+                }
+                if (current) rootPost = current;
+              }
+
+              // Store the root video
+              if (rootPost && !rootPost.parent_author) {
+                const rootJm = typeof rootPost.json_metadata === 'string'
+                  ? JSON.parse(rootPost.json_metadata || '{}')
+                  : (rootPost.json_metadata || {});
+                base.parentVideo = {
+                  author: rootPost.author,
+                  permlink: rootPost.permlink,
+                  title: rootPost.title,
+                  created: rootPost.created,
+                  duration: rootJm?.video?.info?.duration || rootJm?.video?.duration || 0,
+                  thumbnail: rootJm?.image?.[0] || null,
+                  stats: {
+                    total_hive_reward: rootPost.payout || rootPost.pending_payout_value || 0,
+                    num_votes: rootPost.stats?.total_votes || rootPost.active_votes?.length || 0,
+                  }
+                };
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to fetch parent video:', err.message);
+          }
+        }
       }
     }
   } catch (err) {
@@ -310,6 +367,29 @@ async function loadNestedComments(comments, loggedInUser = null) {
   );
 
   return result;
+}
+
+/* -----------------------------
+   Find a short by player permlink
+------------------------------ */
+
+export async function findShortByPermlink(permlink) {
+  let page = 1;
+  const limit = 50;
+  const maxPages = 10;
+
+  while (page <= maxPages) {
+    const data = await fetchShortsList(page, limit);
+    if (!data?.shorts) break;
+
+    const found = data.shorts.find(s => s.permlink === permlink);
+    if (found) return found;
+
+    if (page >= (data.totalPages || 1)) break;
+    page++;
+  }
+
+  return null;
 }
 
 /* -----------------------------
@@ -392,6 +472,7 @@ export function build3SpeakEmbedUrl(author, permlink, layout = "mobile", control
 
 export default {
   fetchShortsList,
+  findShortByPermlink,
   getPostDetails,
   getComments,
   getAccounts,

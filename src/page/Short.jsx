@@ -14,7 +14,9 @@ import {
   Loader2,
   Play,
   Pause,
-  Send
+  Send,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 
@@ -38,7 +40,8 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { PLAYER_URL } from '../utils/config';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { fixVideoThumbnail } from '../utils/fixThumbnails';
 
 
 /* ================= COMPONENT ================= */
@@ -52,6 +55,7 @@ const VideoShort = () => {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [parentCardVisible, setParentCardVisible] = useState(true);
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -311,6 +315,7 @@ const VideoShort = () => {
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
+    setParentCardVisible(true);
 
     // Pause the previous video if different
     if (prevVid && prevVid.id !== currentVid.id) {
@@ -422,7 +427,10 @@ const VideoShort = () => {
             comments: [],
             commentsLoaded: false,
             timeAgo: short.timeAgo,
-            createdAt: short.createdAt
+            createdAt: short.createdAt,
+            parentVideo: short.parentVideo || null,
+            parentTimestamp: short.parentTimestamp || null,
+            parentComment: short.parentComment || null,
           }));
 
           // Check if there's a shared video in the URL
@@ -439,20 +447,22 @@ const VideoShort = () => {
               setVideos(formattedVideos);
               setCurrentIndex(sharedIndex);
             } else {
-              // Video not in current feed, fetch it separately and prepend
+              // Video not in current feed, search the API for the actual short data
               try {
-                const sharedVideoData = await hiveApi.fetchCompleteShortData(
-                  { 
-                    owner: sharedVideo.author, 
-                    permlink: sharedVideo.permlink,
-                    embed_url: `@${sharedVideo.author}/${sharedVideo.permlink}`,
-                    thumbnail_url: '',
-                    views: 0,
-                    createdAt: new Date().toISOString(),
-                    embed_title: ''
-                  }, 
-                  user
-                );
+                // Find the short in the API to get the correct embed_url (Hive permlink)
+                const actualShort = await hiveApi.findShortByPermlink(sharedVideo.permlink);
+
+                const shortItem = actualShort || {
+                  owner: sharedVideo.author,
+                  permlink: sharedVideo.permlink,
+                  embed_url: `@${sharedVideo.author}/${sharedVideo.permlink}`,
+                  thumbnail_url: '',
+                  views: 0,
+                  createdAt: new Date().toISOString(),
+                  embed_title: ''
+                };
+
+                const sharedVideoData = await hiveApi.fetchCompleteShortData(shortItem, user);
                 
                 const formattedSharedVideo = {
                   id: sharedVideoData.id,
@@ -469,7 +479,10 @@ const VideoShort = () => {
                   comments: [],
                   commentsLoaded: false,
                   timeAgo: sharedVideoData.timeAgo,
-                  createdAt: sharedVideoData.createdAt
+                  createdAt: sharedVideoData.createdAt,
+                  parentVideo: sharedVideoData.parentVideo || null,
+                  parentTimestamp: sharedVideoData.parentTimestamp || null,
+                  parentComment: sharedVideoData.parentComment || null,
                 };
 
                 // Prepend shared video to the feed
@@ -544,7 +557,10 @@ const VideoShort = () => {
           comments: [],
           commentsLoaded: false,
           timeAgo: short.timeAgo,
-          createdAt: short.createdAt
+          createdAt: short.createdAt,
+          parentVideo: short.parentVideo || null,
+          parentTimestamp: short.parentTimestamp || null,
+          parentComment: short.parentComment || null,
         }));
 
         setVideos(prev => [...prev, ...formattedVideos]);
@@ -1058,6 +1074,40 @@ const VideoShort = () => {
           </div>
 
           {/* Bottom overlay */}
+          {/* Parent video overlay card (for reactions) */}
+          {currentVideo.parentVideo && (
+            <div className={`parentVideoOverlay${parentCardVisible ? '' : ' collapsed'}`} onClick={(e) => e.stopPropagation()}>
+              {parentCardVisible && (
+                <Link to={`/watch?v=${currentVideo.parentVideo.author}/${currentVideo.parentVideo.permlink}${currentVideo.parentTimestamp != null ? `&t=${currentVideo.parentTimestamp}` : ''}`} className="parentVideoCard">
+                  <img
+                    src={fixVideoThumbnail(currentVideo.parentVideo)}
+                    alt=""
+                    className="parentVideoThumb"
+                  />
+                  <div className="parentVideoInfo">
+                    <span className="parentVideoTitle">{currentVideo.parentVideo.title}</span>
+                    <span className="parentVideoAuthor">@{currentVideo.parentVideo.author}</span>
+                    {currentVideo.parentComment && (
+                      <div className="parentCommentExcerpt">
+                        <span className="parentCommentLabel">Replying to @{currentVideo.parentComment.author}:</span>
+                        <p className="parentCommentBody">{currentVideo.parentComment.body}</p>
+                      </div>
+                    )}
+                  </div>
+                  {currentVideo.parentTimestamp != null && (
+                    <span className="parentVideoTimestamp">
+                      at {Math.floor(currentVideo.parentTimestamp / 60)}:{(currentVideo.parentTimestamp % 60).toString().padStart(2, '0')}
+                    </span>
+                  )}
+                </Link>
+              )}
+              <button className="parentVideoClose" onClick={(e) => { e.stopPropagation(); setParentCardVisible(prev => !prev); }}>
+                {!parentCardVisible && <span className="parentVideoCloseLabel">show origin</span>}
+                {parentCardVisible ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+            </div>
+          )}
+
           <div className="bottomOverlay">
             <div className="userRow">
               <div className="avatar" onClick={(e) => {

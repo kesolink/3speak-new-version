@@ -35,13 +35,14 @@ function strip3SpeakEmbeds(html) {
 }
 
 function CommentNode({ comment, depth }) {
+  const bodyHtml = depth === 0 ? strip3SpeakEmbeds(comment.body) : (comment.body || '');
   return (
     <div className="rct-thread-comment" style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 16}px` } : undefined}>
       <div className="rct-thread-header">
         <img className="rct-thread-avatar" src={comment.avatar} alt="" />
         <span className="rct-thread-author">@{comment.author}</span>
       </div>
-      <div className="rct-thread-body markdown-view" dangerouslySetInnerHTML={{ __html: strip3SpeakEmbeds(comment.body) }} />
+      <div className="rct-thread-body markdown-view" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
       {comment.children?.map((child, i) => (
         <CommentNode key={i} comment={child} depth={depth + 1} />
       ))}

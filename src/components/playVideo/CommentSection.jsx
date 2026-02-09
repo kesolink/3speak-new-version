@@ -252,7 +252,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
     return content;
   };
 
-  const handlePostComment = async () => {
+  const handlePostComment = async (replyTimestamp) => {
     const textToPost = replyToComment ? replyText : commentInfo;
 
     if (!textToPost.trim()) return;
@@ -269,6 +269,11 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
       const metadata = { app: '3speak/new-version' };
       if (isReplyingToMainPost) {
         const timestampSec = parseTimeInput(timelineInput);
+        if (timestampSec !== null && timestampSec > 0) {
+          metadata.parentTimestamp = timestampSec;
+        }
+      } else if (replyTimestamp != null) {
+        const timestampSec = typeof replyTimestamp === 'string' ? parseTimeInput(replyTimestamp) : replyTimestamp;
         if (timestampSec !== null && timestampSec > 0) {
           metadata.parentTimestamp = timestampSec;
         }
@@ -298,6 +303,8 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
           permlink: new_permlink,
           created_at: new Date().toISOString(),
           body: textToPost,
+          parentTimestamp: metadata.parentTimestamp ?? null,
+          has_voted: false,
           stats: {
             num_likes: 0,
             num_dislikes: 0,
@@ -496,6 +503,9 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
       accountData={accountData}
       setAccountData={setAccountData}
       onSeek={onSeek}
+      currentTime={currentTime}
+      duration={duration}
+      onRefreshReactions={onRefreshReactions}
 
         />
       )) )}
@@ -532,8 +542,20 @@ function Comment({
       accountData,
       setAccountData,
       onSeek,
+      currentTime,
+      duration,
+      onRefreshReactions,
 }) {
   const isReplying = activeReply === comment.permlink;
+  const [replyTab, setReplyTab] = useState('comment');
+
+  // Inherit timestamp from the parent comment (not editable)
+  const replyTimestamp = comment?.parentTimestamp ?? null;
+
+  // Reset reply tab when reply opens
+  useEffect(() => {
+    if (isReplying) setReplyTab('comment');
+  }, [isReplying]);
 
   return (
     <div className="comment-container" style={{ marginLeft: depth > 0 ? '40px' : '0px' }} >
@@ -581,18 +603,58 @@ function Comment({
       </div>
 
       {isReplying && (
-        <div className="add-comment-wrap sub">
-          <span>Reply:</span>
-          <textarea
-            placeholder="Write your reply here..."
-            className="textarea-box sub"
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-          />
-          <div className="btn-wrap">
-            <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />
-            <Button text="Comment" prominent onClick={handlePostComment} />
+        <div className="add-comment-wrap sub" style={{ marginLeft: '40px' }}>
+          {/* Tab headers + timestamp */}
+          <div className="comment-tabs-bar">
+            <div className="comment-tabs">
+              <button
+                className={`comment-tab${replyTab === 'comment' ? ' active' : ''}`}
+                onClick={() => setReplyTab('comment')}
+              >
+                <MdComment size={14} />
+                Comment
+              </button>
+              <button
+                className={`comment-tab${replyTab === 'react' ? ' active' : ''}`}
+                onClick={() => setReplyTab('react')}
+              >
+                <MdVideocam size={14} />
+                React
+              </button>
+            </div>
+            {replyTimestamp != null && (
+              <div className="comment-timestamp">
+                <span className="comment-timestamp-label">at {formatTimeInput(replyTimestamp)}</span>
+              </div>
+            )}
           </div>
+
+          {/* Comment tab */}
+          {replyTab === 'comment' && (
+            <>
+              <textarea
+                placeholder="Write your reply here..."
+                className="textarea-box sub"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+              />
+              <div className="btn-wrap">
+                <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />
+                <Button text="Comment" prominent onClick={() => handlePostComment(replyTimestamp)} />
+              </div>
+            </>
+          )}
+
+          {/* React tab */}
+          {replyTab === 'react' && (
+            <ReactVideoTab
+              author={comment?.author?.username}
+              permlink={comment.permlink}
+              currentTime={replyTimestamp ?? currentTime}
+              formatTime={formatTimeInput}
+              onPosted={() => { setReplyTab('comment'); setActiveReply(null); onRefreshReactions?.(); }}
+            />
+          )}
         </div>
       )}
 
@@ -627,6 +689,9 @@ function Comment({
       accountData={accountData}
       setAccountData={setAccountData}
       onSeek={onSeek}
+      currentTime={currentTime}
+      duration={duration}
+      onRefreshReactions={onRefreshReactions}
             />
           ))}
         </div>
