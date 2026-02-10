@@ -339,6 +339,33 @@
       font-style: italic;
       margin: 10px 0;
     }
+
+    // 3Speak video embed container (from @snapie/renderer)
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-width: 720px;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 8px 0;
+
+      iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        max-height: none;
+      }
+
+      &.vertical {
+        aspect-ratio: 9 / 16;
+        max-width: 320px;
+      }
+    }
   }
   .youtube-embed {
     position: relative;

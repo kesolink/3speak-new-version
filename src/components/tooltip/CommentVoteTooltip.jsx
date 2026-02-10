@@ -1,113 +1,217 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './UpvoteTooltip.scss';
 import { useAppStore } from '../../lib/store';
-import { IoChevronUpCircleOutline } from 'react-icons/io5';
+import { X, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { estimate, getUersContent, getVotePower } from '../../utils/hiveUtils';
+import { getUersContent, getVotePower, getDynamicProps, votingPower, accountVestingShares, calculateVoteRshares } from '../../utils/hiveUtils';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
 import { Orbit } from 'ldrs/react';
 import 'ldrs/react/Orbit.css';
 import { voteWithAioha, isLoggedIn } from '../../hive-api/aioha';
 
+// Pure-math vote estimation — no API calls
+function estimateLocal(account, dynamicProps, percent) {
+  if (!account || !dynamicProps) return '0.000';
+  const { fundRecentClaims, fundRewardBalance, base, quote } = dynamicProps;
+  if (!fundRecentClaims || !fundRewardBalance || !base || !quote) return '0.000';
+
+  const sign = percent < 0 ? -1 : 1;
+  const userEffectiveVests = accountVestingShares(account);
+  const userVotingPower = votingPower(account) * 100;
+  const voteWeight = Math.abs(percent) * 100;
+  const voteEffectiveShares = calculateVoteRshares(userEffectiveVests, userVotingPower * (voteWeight / 10000));
+  const voteValue = (voteEffectiveShares / fundRecentClaims) * fundRewardBalance * (base / quote);
+  return (Math.max(voteValue, 0) * sign).toFixed(3);
+}
+
 const CommentVoteTooltip = ({
   author,
   permlink,
   showTooltip,
   setShowTooltip,
-  weight,
-  setWeight,
+  weight: parentWeight,
+  setWeight: setParentWeight,
   setCommentList,
-  voteValue,
-  setVoteValue,
+  voteValue: parentVoteValue,
+  setVoteValue: setParentVoteValue,
   accountData,
   setAccountData,
   setActiveTooltipPermlink,
-  onVoteSuccess // Optional callback for when vote succeeds (used by Short.jsx for main post)
+  onVoteSuccess,
+  compact
 }) => {
   const { user, authenticated } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
-  const [isCalculating, setIsCalculating] = useState(false);
+  const [initializing, setInitializing] = useState(false);
+  const isLoadingRef = useRef(false);
   const tooltipRef = useRef(null);
-  const isLoadingRef = useRef(false); // Track loading state for click outside handler
 
-  // Keep isLoadingRef in sync with isLoading state
+  // DOM refs for custom slider
+  const sliderContainerRef = useRef(null);
+  const fillRef = useRef(null);
+  const thumbRef = useRef(null);
+  const labelRef = useRef(null);
+  const valueRef = useRef(null);
+
+  // Current weight lives in a ref — no React state during drag
+  const weightRef = useRef(parentWeight);
+
+  // Cached data for local estimation (fetched once on open)
+  const cachedAccountRef = useRef(null);
+  const cachedDynamicPropsRef = useRef(null);
+
+  // Update all DOM elements for a given weight (no React re-render)
+  const updateSliderDOM = useCallback((w) => {
+    weightRef.current = w;
+    if (labelRef.current) labelRef.current.textContent = `Vote Weight: ${w}%`;
+    if (fillRef.current) fillRef.current.style.width = `${w}%`;
+    if (thumbRef.current) thumbRef.current.style.left = `${w}%`;
+    if (valueRef.current && cachedAccountRef.current && cachedDynamicPropsRef.current) {
+      valueRef.current.textContent = `$${estimateLocal(cachedAccountRef.current, cachedDynamicPropsRef.current, w)}`;
+    }
+  }, []);
+
+  // Build the custom div-based slider when popup opens
+  useEffect(() => {
+    if (!showTooltip) return;
+    const container = sliderContainerRef.current;
+    if (!container) return;
+
+    weightRef.current = parentWeight;
+    if (labelRef.current) labelRef.current.textContent = `Vote Weight: ${parentWeight}%`;
+
+    // Build track → fill + thumb
+    const track = document.createElement('div');
+    track.className = 'vote-slider-track';
+
+    const fill = document.createElement('div');
+    fill.className = 'vote-slider-fill';
+    fill.style.width = `${parentWeight}%`;
+
+    const thumb = document.createElement('div');
+    thumb.className = 'vote-slider-thumb';
+    thumb.style.left = `${parentWeight}%`;
+
+    track.appendChild(fill);
+    track.appendChild(thumb);
+
+    fillRef.current = fill;
+    thumbRef.current = thumb;
+
+    // Convert mouse/touch clientX → 1–100 percent
+    const getPct = (clientX) => {
+      const rect = track.getBoundingClientRect();
+      const raw = ((clientX - rect.left) / rect.width) * 100;
+      return Math.round(Math.max(1, Math.min(100, raw)));
+    };
+
+    let dragging = false;
+
+    const onPointerDown = (clientX) => {
+      if (isLoadingRef.current) return;
+      dragging = true;
+      const pct = getPct(clientX);
+      updateSliderDOM(pct);
+    };
+
+    const onPointerMove = (clientX) => {
+      if (!dragging) return;
+      const pct = getPct(clientX);
+      updateSliderDOM(pct);
+    };
+
+    const onPointerUp = () => { dragging = false; };
+
+    // Mouse events
+    const onMouseDown = (e) => { e.preventDefault(); onPointerDown(e.clientX); };
+    const onMouseMove = (e) => { onPointerMove(e.clientX); };
+    const onMouseUp = () => { onPointerUp(); };
+
+    // Touch events
+    const onTouchStart = (e) => { onPointerDown(e.touches[0].clientX); };
+    const onTouchMove = (e) => { if (dragging) { e.preventDefault(); onPointerMove(e.touches[0].clientX); } };
+    const onTouchEnd = () => { onPointerUp(); };
+
+    track.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    track.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+
+    container.appendChild(track);
+
+    return () => {
+      track.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      track.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      if (container.contains(track)) container.removeChild(track);
+      fillRef.current = null;
+      thumbRef.current = null;
+    };
+  }, [showTooltip]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     isLoadingRef.current = isLoading;
   }, [isLoading]);
 
-  // Close tooltip on outside click (but not while voting is in progress)
+  // Close on Escape key
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      // Don't close if voting is in progress
-      if (isLoadingRef.current) return;
-
-      if (tooltipRef.current && !tooltipRef.current.contains(e.target)) {
+    if (!showTooltip) return;
+    const handleKey = (e) => {
+      if (e.key === 'Escape' && !isLoadingRef.current) {
         setShowTooltip(false);
         setActiveTooltipPermlink?.(null);
       }
     };
-
-    if (showTooltip) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
   }, [showTooltip, setShowTooltip, setActiveTooltipPermlink]);
 
-  // Fetch account data when tooltip opens
+  // Fetch account + dynamic props ONCE when popup opens
   useEffect(() => {
     if (!user || !showTooltip) return;
 
-    const fetchAccountData = async () => {
+    let cancelled = false;
+    const init = async () => {
+      setInitializing(true);
       try {
-        setIsCalculating(true);
-        const result = await getVotePower(user);
+        const [acctResult, dynProps] = await Promise.all([
+          getVotePower(user),
+          getDynamicProps(),
+        ]);
 
-        if (result && result.account) {
-          setAccountData(result.account);
-          // Calculate initial vote value with the fetched account data
-          await calculateVoteValue(result.account, weight);
-        } else {
-          console.error('No account data returned');
-          setVoteValue('0.000');
+        if (cancelled) return;
+
+        const acct = acctResult?.account;
+        if (acct) {
+          setAccountData(acct);
+          cachedAccountRef.current = acct;
+        }
+        if (dynProps) {
+          cachedDynamicPropsRef.current = dynProps;
+        }
+
+        // Initial estimate — update DOM directly
+        if (acct && dynProps && valueRef.current) {
+          valueRef.current.textContent = `$${estimateLocal(acct, dynProps, weightRef.current)}`;
         }
       } catch (err) {
-        console.error('Error fetching account:', err);
-        setVoteValue('0.000');
+        console.error('Error fetching vote data:', err);
+        if (!cancelled && valueRef.current) valueRef.current.textContent = '$0.000';
       } finally {
-        setIsCalculating(false);
+        if (!cancelled) setInitializing(false);
       }
     };
 
-    fetchAccountData();
-  }, [user, showTooltip]);
-
-  // Recalculate vote value when weight changes
-  useEffect(() => {
-    if (!accountData) return;
-
-    const debounceTimer = setTimeout(() => {
-      calculateVoteValue(accountData, weight);
-    }, 100); // Small debounce to avoid too many calculations
-
-    return () => clearTimeout(debounceTimer);
-  }, [weight, accountData]);
-
-  const calculateVoteValue = async (account, percent) => {
-    try {
-      setIsCalculating(true);
-      const estimatedValue = await estimate(account, percent);
-      setVoteValue(estimatedValue || '0.000');
-    } catch (err) {
-      console.error('Error calculating vote value:', err);
-      setVoteValue('0.000');
-    } finally {
-      setIsCalculating(false);
-    }
-  };
+    init();
+    return () => { cancelled = true; };
+  }, [user, showTooltip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleVote = async () => {
     if (!authenticated || !isLoggedIn()) {
@@ -116,7 +220,8 @@ const CommentVoteTooltip = ({
     }
 
     setIsLoading(true);
-    const voteWeight = Math.round(weight * 100); // Convert 1-100 to 100-10000
+    const currentWeight = weightRef.current;
+    const voteWeight = Math.round(currentWeight * 100);
 
     try {
       const data = await getUersContent(author, permlink);
@@ -135,21 +240,27 @@ const CommentVoteTooltip = ({
         return;
       }
 
-      // Use aioha for client-side voting
       await voteWithAioha(author, permlink, voteWeight);
 
-      toast.success(`Vote successful! Value: $${voteValue}`);
+      const finalValue = cachedAccountRef.current && cachedDynamicPropsRef.current
+        ? estimateLocal(cachedAccountRef.current, cachedDynamicPropsRef.current, currentWeight)
+        : '0.000';
 
-      // Update comment list optimistically
+      toast.success(`Vote successful! Value: $${finalValue}`);
+
+      // Sync back to parent
+      setParentWeight(currentWeight);
+      setParentVoteValue(finalValue);
+
       const isNewVote = !existingVote;
-      setCommentList(prev => updateCommentsRecursively(prev, permlink, false, isNewVote));
+      if (setCommentList) {
+        setCommentList(prev => updateCommentsRecursively(prev, permlink, false, isNewVote));
+      }
 
-      // Call onVoteSuccess callback if provided (for main post votes in Short.jsx)
       if (onVoteSuccess) {
         onVoteSuccess(author, permlink, isNewVote, voteWeight);
       }
 
-      // Close tooltip only after successful vote
       setShowTooltip(false);
       setActiveTooltipPermlink?.(null);
     } catch (err) {
@@ -160,20 +271,19 @@ const CommentVoteTooltip = ({
     }
   };
 
-  // Helper function to recursively update comments
   const updateCommentsRecursively = (comments, targetPermlink, isRollback = false, isNewVote = true) => {
     return comments.map(comment => {
       if (comment.permlink === targetPermlink) {
         return {
           ...comment,
-          has_voted: !isRollback, // true for vote, false for rollback
+          has_voted: !isRollback,
           stats: {
             ...comment.stats,
             num_likes: isRollback
               ? Math.max(0, (comment.stats.num_likes || 0) - 1)
               : isNewVote
                 ? (comment.stats.num_likes || 0) + 1
-                : comment.stats.num_likes || 0, // Re-vote: don't increment
+                : comment.stats.num_likes || 0,
           },
         };
       }
@@ -190,50 +300,65 @@ const CommentVoteTooltip = ({
   };
 
   return (
-    <div
-      className="upvote-tooltip-wrap"
-      ref={tooltipRef}
-      onClick={(e) => e.preventDefault()}
-    >
+    <>
       {showTooltip && (
-        <div className="tooltip-box comment">
-          <p>Vote Weight: {weight}%</p>
-          <div className="wrap">
-            {isLoading ? (
-              <div className='wrap-circle'>
-                <TailChase
-                  className="loader-circle"
-                  size="15"
-                  speed="1.5"
-                  color="red"
-                />
-              </div>
-            ) : (
-              <IoChevronUpCircleOutline
-                size={30}
-                onClick={handleVote}
-                style={{ cursor: 'pointer' }}
-              />
-            )}
-            <input
-              type="range"
-              min="1"
-              max="100"
-              value={weight}
-              onChange={(e) => setWeight(Number(e.target.value))}
+        <div className="vote-popup-overlay" onMouseDown={(e) => {
+          if (!isLoadingRef.current) {
+            setShowTooltip(false);
+            setActiveTooltipPermlink?.(null);
+          }
+        }}>
+          <div
+            className={`vote-popup${compact ? ' vote-popup--compact' : ''}`}
+            ref={tooltipRef}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              className="vote-popup-close"
+              onClick={() => {
+                if (!isLoading) {
+                  setShowTooltip(false);
+                  setActiveTooltipPermlink?.(null);
+                }
+              }}
               disabled={isLoading}
-            />
-            <p>
-              {isCalculating ? (
-                <Orbit size="30" speed="1.5" color="red" />
-              ) : (
-                `$${voteValue}`
-              )}
+            >
+              <X size={18} />
+            </button>
+
+            <p className="vote-popup-label" ref={labelRef}>Vote Weight: {parentWeight}%</p>
+
+            {/* Container for custom div-based slider — no <input> at all */}
+            <div ref={sliderContainerRef} />
+
+            <p className="vote-popup-value" ref={valueRef}>
+              {initializing ? '' : `$${parentVoteValue}`}
             </p>
+            {initializing && (
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <Orbit size="24" speed="1.5" color="red" />
+              </div>
+            )}
+
+            <button
+              className="vote-popup-submit"
+              onClick={handleVote}
+              disabled={isLoading || initializing}
+            >
+              {isLoading ? (
+                <TailChase size="18" speed="1.5" color="white" />
+              ) : (
+                <>
+                  <ChevronUp size={20} />
+                  Vote
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

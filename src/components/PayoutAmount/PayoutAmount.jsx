@@ -1,4 +1,4 @@
-import { IoChevronUpCircleOutline } from 'react-icons/io5';
+import { FaHive } from 'react-icons/fa6';
 import './PayoutAmount.scss';
 
 function PayoutAmount({ amount, size, onClick }) {
@@ -7,7 +7,7 @@ function PayoutAmount({ amount, size, onClick }) {
 
   return (
     <div className={`payout-amount-badge${onClick ? ' clickable' : ''}`} style={size ? { fontSize: size } : undefined} onClick={onClick}>
-      <IoChevronUpCircleOutline size={iconSize || undefined} />
+      <FaHive size={iconSize || undefined} />
       <span>${display}</span>
     </div>
   );

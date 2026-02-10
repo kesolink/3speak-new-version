@@ -4,7 +4,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 6px 3px 3px;
+  padding: 1px 1px 1px 1px;
+
+  &:not(:has(.follow-btn)) {
+    padding-right: 4px;
+  }
+
   background: var(--bg-tertiary);
   border: 1px solid var(--border-light);
   border-radius: 20px;
@@ -40,8 +45,8 @@
   }
 
   img {
-    width: 26px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
@@ -76,7 +81,8 @@
 
   .follow-btn {
     margin-left: 4px;
-    padding: 4px 14px;
+    padding: 0 14px;
+    align-self: stretch;
     background: var(--text-secondary);
     color: var(--text-inverse);
     border: none;

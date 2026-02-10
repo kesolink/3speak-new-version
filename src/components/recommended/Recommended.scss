@@ -1,10 +1,7 @@
 @use "../../mixins.scss" as mix;
 
 .recommended {
-  flex-basis: 30%;
-  @include mix.respond(phone) {
-    display: none;
-  }
+  width: 100%;
 
   .side-video-link {
     text-decoration: none;

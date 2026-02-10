@@ -20,6 +20,7 @@ import { createPlaylist } from '../../utils/playlistOperations';
 import { toast } from 'sonner';
 import { useContentBatch } from '../../hooks/useContentBatch';
 import { useWatchHistory } from '../../hooks/useWatchHistory';
+import { fetchUserShortsWithDetails } from '../../hive-api/hiveApi';
 
 
 
@@ -31,9 +32,10 @@ function UserProfilePage() {
     const { user: authenticatedUser } = useAppStore();
     const [follower, setFollower] = useState(null)
     const [show, setShow] = useState(() => {
-      // Initialize show based on URL tab parameter
       const tab = searchParams.get('tab');
-      return tab === 'playlists' ? 'playlists' : 'video';
+      if (tab === 'playlists') return 'playlists';
+      if (tab === 'shorts') return 'shorts';
+      return 'video';
     });
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -123,23 +125,64 @@ const {
   },
 });
 
-      
+            // Shorts feed for this user
+            const fetchUserShorts = async ({ pageParam = 1 }) => {
+              const data = await fetchUserShortsWithDetails(user, pageParam, 20);
+              return data;
+            };
+
+            const {
+              data: shortsData,
+              fetchNextPage: fetchNextShortsPage,
+              hasNextPage: hasNextShortsPage,
+              isFetchingNextPage: isFetchingNextShortsPage,
+              isLoading: isShortsLoading,
+            } = useInfiniteQuery({
+              queryKey: ["UserShorts", user],
+              queryFn: fetchUserShorts,
+              getNextPageParam: (lastPage) => {
+                if (lastPage?.page < lastPage?.totalPages) {
+                  return lastPage.page + 1;
+                }
+                return undefined;
+              },
+              enabled: show === 'shorts',
+            });
+
+            // Flatten shorts pages and map to Card3 format
+            const shortsVideos = (shortsData?.pages || []).flatMap(page =>
+              (page?.shorts || []).map(s => ({
+                author: s.author,
+                permlink: s.permlink,
+                title: (s.caption || s.title || '').slice(0, 80),
+                images: { thumbnail: s.thumbnailUrl },
+                duration: 0,
+                stats: {
+                  total_hive_reward: parseFloat(s.stats?.payout) || 0,
+                  num_votes: s.stats?.likes || 0,
+                },
+                created_at: s.createdAt,
+              }))
+            );
+
         useEffect(() => {
               const handleScroll = () => {
                 if (
                   window.innerHeight + window.scrollY >=
-                    document.body.offsetHeight - 200 &&
-                  !isFetchingNextPage &&
-                  hasNextPage
+                    document.body.offsetHeight - 200
                 ) {
-                  fetchNextPage();
+                  if (show === 'shorts' && !isFetchingNextShortsPage && hasNextShortsPage) {
+                    fetchNextShortsPage();
+                  } else if (show === 'video' && !isFetchingNextPage && hasNextPage) {
+                    fetchNextPage();
+                  }
                 }
               };
-          
+
               window.addEventListener("scroll", handleScroll);
               return () => window.removeEventListener("scroll", handleScroll);
-            }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
-          
+            }, [show, isFetchingNextPage, hasNextPage, fetchNextPage, isFetchingNextShortsPage, hasNextShortsPage, fetchNextShortsPage]);
+
             // Flatten all pages into a single array
             const videos = data?.pages.flat() || [];
 
@@ -230,6 +273,7 @@ const {
       <div className="toggle-wrap">
         <div className="wrap">
           <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
+          <span className={show === "shorts" ? "active" : ""} onClick={() => setShow("shorts")}>Shorts</span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
@@ -247,6 +291,17 @@ const {
       </div>
     ) : (
       <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+    )
+  ) : show === "shorts" ? (
+    isShortsLoading ? (
+      <BarLoader />
+    ) : shortsVideos.length === 0 ? (
+      <div className='empty-wrap'>
+        <img src={icon} alt="" />
+        <span>No Shorts Available</span>
+      </div>
+    ) : (
+      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} />
     )
   ) : show === "playlists" ? (
     <>

@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './CommentSection.scss';
 import './BlogContent.scss';
 import { BiDislike } from 'react-icons/bi';
 import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
+import { MdVideocam, MdComment } from 'react-icons/md';
+import ReactVideoTab from '../ReactVideoModal/ReactVideoModal';
 import dayjs from 'dayjs';
 import { useAppStore } from '../../lib/store';
 import { Client } from '@hiveio/dhive';
@@ -11,7 +13,7 @@ import UpvoteTooltip from '../tooltip/UpvoteTooltip';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import {  toast } from 'sonner'
 import { estimate, getVotePower } from '../../utils/hiveUtils';
-import { filterByReputation } from '../../utils/reputation';
+import { filterByReputation, getUserReputation } from '../../utils/reputation';
 import Button from '../Button/Button';
 import AuthorBadge from '../AuthorBadge/AuthorBadge';
 import UpvoteCount from '../UpvoteCount/UpvoteCount';
@@ -19,6 +21,7 @@ import PayoutAmount from '../PayoutAmount/PayoutAmount';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { HIVE_API_NODES } from '../../utils/config';
 import TimeAgo from '../TimeAgo/TimeAgo';
+import { Link } from 'react-router-dom';
 
 const client = new Client(HIVE_API_NODES);
 
@@ -38,9 +41,31 @@ const getRenderer = async () => {
   return rendererPromise;
 };
 
-function CommentSection({ videoDetails, author, permlink }) {
+function formatTimeInput(seconds) {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  if (hrs > 0) {
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function parseTimeInput(str) {
+  if (!str) return 0;
+  const parts = str.split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 1) return parts[0];
+  return null;
+}
+
+function CommentSection({ videoDetails, author, permlink, currentTime, duration, onSeek, onPause, onRefreshReactions }) {
   const { user } = useAppStore();
   const [commentInfo, setCommentInfo] = useState('');
+  const [activeTab, setActiveTab] = useState('comment'); // 'comment' | 'react'
   const [replyText, setReplyText] = useState("");
   const [activeReply, setActiveReply] = useState(null);
   const [replyToComment, setReplyToComment] = useState(null);
@@ -56,8 +81,65 @@ function CommentSection({ videoDetails, author, permlink }) {
   // Cache for rendered comment bodies
   const [renderedBodies, setRenderedBodies] = useState({});
 
+  // Timeline position state — auto-follows playhead unless manually edited
+  const [timelineInput, setTimelineInput] = useState('0:00');
+  const [timelineOverride, setTimelineOverride] = useState(false);
+  const prevTimeRef = useRef(0);
 
-      
+  // Auto-update timeline input from playhead position (unless user overrode it)
+  useEffect(() => {
+    if (timelineOverride) return;
+    const rounded = Math.floor(currentTime || 0);
+    if (rounded !== prevTimeRef.current) {
+      prevTimeRef.current = rounded;
+      setTimelineInput(formatTimeInput(rounded));
+    }
+  }, [currentTime, timelineOverride]);
+
+  const handleTimelineInputChange = useCallback((e) => {
+    setTimelineInput(e.target.value);
+    setTimelineOverride(true);
+  }, []);
+
+  const handleTimelineInputBlur = useCallback(() => {
+    // Validate and normalize on blur
+    const parsed = parseTimeInput(timelineInput);
+    if (parsed === null || (duration && parsed > duration)) {
+      // Invalid or out of range — reset to current playhead
+      setTimelineInput(formatTimeInput(Math.floor(currentTime || 0)));
+      setTimelineOverride(false);
+    } else {
+      setTimelineInput(formatTimeInput(parsed));
+    }
+  }, [timelineInput, currentTime, duration]);
+
+  // Reset override when user focuses back on textarea (start following again)
+  const handleTextareaFocus = useCallback(() => {
+    setTimelineOverride(false);
+  }, []);
+
+  // Listen for 3speak player ready messages to detect vertical videos in comments
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (!event.data || event.data.type !== '3speak-player-ready') return;
+      if (!event.data.isVertical) return;
+
+      // Find the iframe in comment containers that sent this message
+      const wrap = document.querySelector('.vid-comment-wrap');
+      if (!wrap) return;
+
+      const iframes = wrap.querySelectorAll('.video-container iframe');
+      for (const iframe of iframes) {
+        if (iframe.contentWindow === event.source) {
+          iframe.parentElement.classList.add('vertical');
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   useEffect(() => {
     const fetchComments = async () => {
@@ -65,8 +147,16 @@ function CommentSection({ videoDetails, author, permlink }) {
       try {
         const replies = await client.call('condenser_api', 'get_content_replies', [author, permlink]);
         const commentsWithChildren = await loadNestedComments(replies);
-        // Filter out spam accounts (negative reputation)
+        // Filter out spam accounts (negative reputation) — also caches reputations
         const filteredComments = await filterByReputation(commentsWithChildren);
+        // Attach cached reputations to comment authors (all cache hits after filtering)
+        const attachRep = async (comments) => {
+          for (const c of comments) {
+            if (c.author?.username) c.author.reputation = await getUserReputation(c.author.username);
+            if (c.children?.length) await attachRep(c.children);
+          }
+        };
+        await attachRep(filteredComments);
         setCommentList(filteredComments);
         
         // Pre-render all comment bodies (createHiveRenderer returns a function directly)
@@ -130,6 +220,52 @@ function CommentSection({ videoDetails, author, permlink }) {
       comments.map(async (comment) => {
         const children = await client.call('condenser_api', 'get_content_replies', [comment.author, comment.permlink]);
         const has_voted = comment.active_votes?.some(v => v.voter === user) ?? false;
+        let parentTimestamp = null;
+        let hasVideo = false;
+        let shortAuthor = null;
+        let shortPermlink = null;
+        try {
+          const meta = typeof comment.json_metadata === 'string' ? JSON.parse(comment.json_metadata) : comment.json_metadata;
+          if (meta?.parentTimestamp != null) parentTimestamp = meta.parentTimestamp;
+          if (meta?.video?.url || meta?.video?.platform === '3speak') {
+            hasVideo = true;
+            // Try extracting player permlink from video.url
+            const videoUrl = meta.video?.url || '';
+            // Handle full URLs like https://3speak.tv/watch?v=author/perm or https://play.3speak.tv/embed?v=author/perm
+            const urlMatch = videoUrl.match(/[?&]v=([^&\s"']+)/);
+            if (urlMatch) {
+              const cleaned = urlMatch[1].startsWith('@') ? urlMatch[1].slice(1) : urlMatch[1];
+              const parts = cleaned.split('/');
+              if (parts.length >= 2 && parts[0] && parts[1]) {
+                shortAuthor = parts[0];
+                shortPermlink = parts[1];
+              }
+            }
+            // Handle simple @author/permlink format
+            if (!shortAuthor) {
+              const cleaned = videoUrl.startsWith('@') ? videoUrl.slice(1) : videoUrl;
+              const parts = cleaned.split('/');
+              if (parts.length >= 2 && parts[0] && parts[1]) {
+                shortAuthor = parts[0];
+                shortPermlink = parts[1];
+              }
+            }
+          }
+          // Also scan the comment body for 3speak embed/watch URLs
+          if (!shortAuthor && comment.body) {
+            const bodyMatch = comment.body.match(/https?:\/\/[^\s]*3speak[^\s]*[?&]v=([^&\s"')]+)/);
+            if (bodyMatch) {
+              hasVideo = true;
+              const cleaned = bodyMatch[1].startsWith('@') ? bodyMatch[1].slice(1) : bodyMatch[1];
+              const parts = cleaned.split('/');
+              if (parts.length >= 2 && parts[0] && parts[1]) {
+                shortAuthor = parts[0];
+                shortPermlink = parts[1];
+              }
+            }
+          }
+
+        } catch (_) {}
         return {
           author: {
             username: comment.author,
@@ -142,6 +278,10 @@ function CommentSection({ videoDetails, author, permlink }) {
           permlink: comment.permlink,
           created_at: comment.created,
           body: comment.body,
+          parentTimestamp,
+          hasVideo,
+          shortAuthor,
+          shortPermlink,
           stats: {
             num_likes: comment.active_votes?.filter((v) => v.percent > 0).length || 0,
             num_dislikes: comment.active_votes?.filter((v) => v.percent < 0).length || 0,
@@ -157,15 +297,24 @@ function CommentSection({ videoDetails, author, permlink }) {
 
   const processedBody = (content, permlink) => {
     if (!content) return '';
+    let html;
     // Use pre-rendered body if available
     if (permlink && renderedBodies[permlink]) {
-      return renderedBodies[permlink];
+      html = renderedBodies[permlink];
+    } else {
+      // Fallback - return raw content (will be rendered on next fetch)
+      html = content;
     }
-    // Fallback - return raw content (will be rendered on next fetch)
-    return content;
+    // Strip "replied to [timestamp](link)" lines (raw markdown or rendered HTML)
+    html = html
+      .replace(/<p>\s*<sup>\s*replied to\s*<a[^>]*>.*?<\/a>\s*<\/sup>\s*<\/p>/gi, '')
+      .replace(/<sup>\s*replied to\s*<a[^>]*>.*?<\/a>\s*<\/sup>/gi, '')
+      .replace(/\n?<sup>replied to \[.*?\]\([^)]*\)<\/sup>/g, '');
+
+    return html;
   };
 
-  const handlePostComment = async () => {
+  const handlePostComment = async (replyTimestamp) => {
     const textToPost = replyToComment ? replyText : commentInfo;
 
     if (!textToPost.trim()) return;
@@ -178,14 +327,38 @@ function CommentSection({ videoDetails, author, permlink }) {
     const new_permlink = `re-${parent_permlink}-${Date.now()}`;
 
     try {
+      // Build json_metadata with optional timestamp
+      const metadata = { app: '3speak/new-version' };
+      if (isReplyingToMainPost) {
+        const timestampSec = parseTimeInput(timelineInput);
+        if (timestampSec !== null && timestampSec > 0) {
+          metadata.parentTimestamp = timestampSec;
+        }
+      } else if (replyTimestamp != null) {
+        const timestampSec = typeof replyTimestamp === 'string' ? parseTimeInput(replyTimestamp) : replyTimestamp;
+        if (timestampSec !== null && timestampSec > 0) {
+          metadata.parentTimestamp = timestampSec;
+        }
+      }
+
+      // Append "replied to" timestamp reference if we have a timestamp
+      let body = textToPost;
+      if (metadata.parentTimestamp > 0) {
+        const ts = metadata.parentTimestamp;
+        const tsLabel = formatTimeInput(ts);
+        const baseUrl = window.location.origin;
+        const host = window.location.host;
+        body += `\n<sup>replied to [${tsLabel}](${baseUrl}/watch?v=${author}/${permlink}&t=${ts}) on [${host}](${baseUrl})</sup>`;
+      }
+
       // Use aioha for comment broadcasting (works with all providers: Keychain, HiveAuth, etc.)
       const result = await commentWithAioha(
         parent_author,
         parent_permlink,
         new_permlink,
         '', // title (empty for comments)
-        textToPost,
-        { app: '3speak/new-version' } // json_metadata
+        body,
+        metadata
       );
 
       if (result.success) {
@@ -202,6 +375,8 @@ function CommentSection({ videoDetails, author, permlink }) {
           permlink: new_permlink,
           created_at: new Date().toISOString(),
           body: textToPost,
+          parentTimestamp: metadata.parentTimestamp ?? null,
+          has_voted: false,
           stats: {
             num_likes: 0,
             num_dislikes: 0,
@@ -236,6 +411,7 @@ function CommentSection({ videoDetails, author, permlink }) {
         setReplyText('');
         setActiveReply(null);
         setReplyToComment(null);
+        onRefreshReactions?.();
       } else {
         toast.error('Comment failed, please try again');
       }
@@ -291,26 +467,75 @@ function CommentSection({ videoDetails, author, permlink }) {
     <div className="vid-comment-wrap">
       
       
-      {/* Main comment form */}
-      <div className="add-comment-wrap">
-        <span>Add a comment:</span>
-        <textarea
-          placeholder="Write your comment here..."
-          className="textarea-box"
-          value={commentInfo}
-          onChange={(e) => setCommentInfo(e.target.value)}
-        />
-        <div className="btn-wrap">
-          <Button text="Cancel" onClick={() => {
-            setCommentInfo('');
-            setReplyToComment(null);
-          }} />
-          <Button text="Comment" prominent onClick={() => {
-            setReplyToComment(null);
-            handlePostComment();
-          }} />
+      {/* Tab headers + shared timestamp */}
+      <div className="comment-tabs-bar">
+        <div className="comment-tabs">
+          <button
+            className={`comment-tab${activeTab === 'comment' ? ' active' : ''}`}
+            onClick={() => setActiveTab('comment')}
+          >
+            <MdComment size={14} />
+            Comment
+          </button>
+          <button
+            className={`comment-tab${activeTab === 'react' ? ' active' : ''}`}
+            onClick={() => setActiveTab('react')}
+          >
+            <MdVideocam size={14} />
+            React
+          </button>
+        </div>
+        <div className="comment-timestamp">
+          <span className="comment-timestamp-label">at</span>
+          <input
+            type="text"
+            className="comment-timestamp-input"
+            value={timelineInput}
+            onChange={handleTimelineInputChange}
+            onBlur={handleTimelineInputBlur}
+            placeholder="0:00"
+          />
         </div>
       </div>
+
+      {/* Comment tab */}
+      {activeTab === 'comment' && (
+        <div className="add-comment-wrap">
+          <textarea
+            placeholder="Write your comment here..."
+            className="textarea-box"
+            value={commentInfo}
+            onChange={(e) => setCommentInfo(e.target.value)}
+            onFocus={handleTextareaFocus}
+          />
+          <div className="comment-form-row">
+            <div className="btn-wrap">
+              <Button text="Cancel" onClick={() => {
+                setCommentInfo('');
+                setReplyToComment(null);
+              }} />
+              <Button text="Comment" prominent onClick={() => {
+                setReplyToComment(null);
+                handlePostComment();
+              }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* React tab */}
+      {activeTab === 'react' && (
+        <div className="add-comment-wrap">
+          <ReactVideoTab
+            author={author}
+            permlink={permlink}
+            currentTime={currentTime}
+            formatTime={formatTimeInput}
+            onPosted={() => { setActiveTab('comment'); onRefreshReactions?.(); }}
+            onRecordStart={onPause}
+          />
+        </div>
+      )}
 
       <h4>{countComments(commentList)} Comments</h4>
 
@@ -350,7 +575,11 @@ function CommentSection({ videoDetails, author, permlink }) {
       setVoteValue={setVoteValue}
       accountData={accountData}
       setAccountData={setAccountData}
-          
+      onSeek={onSeek}
+      currentTime={currentTime}
+      duration={duration}
+      onRefreshReactions={onRefreshReactions}
+
         />
       )) )}
     </div>
@@ -385,16 +614,32 @@ function Comment({
       setVoteValue,
       accountData,
       setAccountData,
+      onSeek,
+      currentTime,
+      duration,
+      onRefreshReactions,
 }) {
   const isReplying = activeReply === comment.permlink;
+  const [replyTab, setReplyTab] = useState('comment');
+
+  // Inherit timestamp from the parent comment (not editable)
+  const replyTimestamp = comment?.parentTimestamp ?? null;
+
+  // Reset reply tab when reply opens
+  useEffect(() => {
+    if (isReplying) setReplyTab('comment');
+  }, [isReplying]);
 
   return (
     <div className="comment-container" style={{ marginLeft: depth > 0 ? '40px' : '0px' }} >
       <div className="comment">
         <div className="comment-content">
           <div className="comment-header">
-            <AuthorBadge author={comment?.author?.username} noLink />
+            <AuthorBadge author={comment?.author?.username} reputation={comment?.author?.reputation} noLink />
             <span className="comment-date"><TimeAgo date={comment?.created_at} /></span>
+            {comment?.parentTimestamp != null && (
+              <span className="comment-timestamp-badge" onClick={() => onSeek?.(comment.parentTimestamp)}>at {formatTimeInput(comment.parentTimestamp)}</span>
+            )}
           </div>
           <div className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '', comment?.permlink) }} />
           <div className="comment-action">
@@ -404,12 +649,23 @@ function Comment({
               onClick={() => toggleTooltip(comment?.author?.username, comment.permlink, commentIndex)}
             />
             <PayoutAmount amount={comment?.stats?.total_hive_reward} />
-            <Button text="Reply" onClick={() => {
-                setCommentInfo("");
-                setReplyText("")
-                setActiveReply(comment.permlink);
-                setReplyToComment(comment);
-              }} />
+            <div className="comment-action-right">
+              {comment.hasVideo && (
+                <Link
+                  to={`/shorts?v=${comment.shortAuthor || comment.author?.username}/${comment.shortPermlink || comment.permlink}`}
+                  className="comment-shorts-link"
+                >
+                  <MdVideocam size={13} />
+                  <span>Open in Shorts</span>
+                </Link>
+              )}
+              <Button text="Reply" onClick={() => {
+                  setCommentInfo("");
+                  setReplyText("")
+                  setActiveReply(comment.permlink);
+                  setReplyToComment(comment);
+                }} />
+            </div>
             <CommentVoteTooltip
              author={comment?.author?.username}
              permlink={comment.permlink}
@@ -431,18 +687,59 @@ function Comment({
       </div>
 
       {isReplying && (
-        <div className="add-comment-wrap sub">
-          <span>Reply:</span>
-          <textarea
-            placeholder="Write your reply here..."
-            className="textarea-box sub"
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-          />
-          <div className="btn-wrap">
-            <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />
-            <Button text="Comment" prominent onClick={handlePostComment} />
+        <div className="add-comment-wrap sub" style={{ marginLeft: '40px' }}>
+          {/* Tab headers + timestamp */}
+          <div className="comment-tabs-bar">
+            <div className="comment-tabs">
+              <button
+                className={`comment-tab${replyTab === 'comment' ? ' active' : ''}`}
+                onClick={() => setReplyTab('comment')}
+              >
+                <MdComment size={14} />
+                Comment
+              </button>
+              <button
+                className={`comment-tab${replyTab === 'react' ? ' active' : ''}`}
+                onClick={() => setReplyTab('react')}
+              >
+                <MdVideocam size={14} />
+                React
+              </button>
+            </div>
+            {replyTimestamp != null && (
+              <div className="comment-timestamp">
+                <span className="comment-timestamp-label">at {formatTimeInput(replyTimestamp)}</span>
+              </div>
+            )}
           </div>
+
+          {/* Comment tab */}
+          {replyTab === 'comment' && (
+            <>
+              <textarea
+                placeholder="Write your reply here..."
+                className="textarea-box sub"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+              />
+              <div className="btn-wrap">
+                <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />
+                <Button text="Comment" prominent onClick={() => handlePostComment(replyTimestamp)} />
+              </div>
+            </>
+          )}
+
+          {/* React tab */}
+          {replyTab === 'react' && (
+            <ReactVideoTab
+              author={comment?.author?.username}
+              permlink={comment.permlink}
+              currentTime={replyTimestamp ?? currentTime}
+              formatTime={formatTimeInput}
+              onPosted={() => { setReplyTab('comment'); setActiveReply(null); onRefreshReactions?.(); }}
+              onRecordStart={onPause}
+            />
+          )}
         </div>
       )}
 
@@ -471,11 +768,15 @@ function Comment({
               activeTooltipPermlink={activeTooltipPermlink}
               setActiveTooltipPermlink={setActiveTooltipPermlink}
               weight={weight}
-             setWeight={setWeight}      
+             setWeight={setWeight}
       voteValue={voteValue}
       setVoteValue={setVoteValue}
       accountData={accountData}
       setAccountData={setAccountData}
+      onSeek={onSeek}
+      currentTime={currentTime}
+      duration={duration}
+      onRefreshReactions={onRefreshReactions}
             />
           ))}
         </div>

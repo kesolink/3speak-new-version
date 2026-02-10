@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getFollowers } from '../../hive-api/api';
 import './AuthorBadge.scss';
 
-function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing, onFollow, noLink, compact }) {
+function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing, onFollow, noLink, compact, reputation }) {
   const navigate = useNavigate();
   const [localFollowers, setLocalFollowers] = useState(null);
 
@@ -42,7 +42,7 @@ function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFoll
     <>
       <img src={`https://images.hive.blog/u/${author}/avatar/small`} alt="" />
       <div className="author-text">
-        <span className="author-name">@{author}</span>
+        <span className="author-name">@{author}{reputation != null ? ` (${Math.round(reputation)})` : ''}</span>
         {displayFollowers != null && (
           <span className="followers-count">{displayFollowers} Followers</span>
         )}

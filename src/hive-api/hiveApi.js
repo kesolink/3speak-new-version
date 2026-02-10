@@ -5,12 +5,21 @@
  */
 
 import axios from "axios";
+import { convert } from "html-to-text";
 import { HIVE_API_URL } from "../utils/config";
 
 /* -----------------------------
    Hive RPC setup
 ------------------------------ */
-const SHORTS_API = "https://tags.3speak.tv/shorts";
+const SHORTS_API = import.meta.env.VITE_SHORTS_API_URL || "https://3speak-checker.okinoko.io/shortssorted";
+const USER_SHORTS_API = import.meta.env.VITE_USER_SHORTS_API_URL || "https://3speak-checker.okinoko.io/shorts";
+
+// Random seed for shorts ordering — regenerated each time shorts are opened
+let SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
+
+export function regenerateShortsSeed() {
+  SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
+}
 
 /* -----------------------------
    Hive RPC helper
@@ -40,10 +49,24 @@ async function hiveRpc(method, params) {
    Shorts list
 ------------------------------ */
 
+// In-memory index of shorts we've already fetched — avoids redundant API lookups
+const _shortsByEmbedUrl = new Map(); // embed_url → short object
+const _shortsByPermlink = new Map(); // permlink → short object
+
 export async function fetchShortsList(page = 1, limit = 20) {
-  const url = `${SHORTS_API}?page=${page}&limit=${limit}`;
+  const url = `${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`;
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
+
+  // Index every short we receive so findShortByEmbedUrl/findShortByPermlink
+  // can resolve instantly without extra API calls
+  if (response.data?.shorts) {
+    for (const s of response.data.shorts) {
+      if (s.embed_url) _shortsByEmbedUrl.set(s.embed_url, s);
+      if (s.permlink) _shortsByPermlink.set(s.permlink, s);
+    }
+  }
+
   return response.data;
 }
 
@@ -53,6 +76,10 @@ export async function fetchShortsList(page = 1, limit = 20) {
 
 export async function getPostDetails(author, permlink) {
   return await hiveRpc("bridge.get_post", { author, permlink });
+}
+
+export async function getActiveVotes(author, permlink) {
+  return await hiveRpc("condenser_api.get_active_votes", [author, permlink]);
 }
 
 export async function getComments(author, permlink) {
@@ -66,6 +93,29 @@ export async function getAccounts(accounts) {
 /* -----------------------------
    Utils
 ------------------------------ */
+
+/**
+ * Convert hive_body (markdown/HTML) to clean plaintext for display as caption.
+ * Strips URLs, HTML tags, markdown syntax, and collapses whitespace.
+ */
+function bodyToPlaintext(body) {
+  if (!body) return "";
+  // Convert any HTML to text
+  let text = convert(body, { wordwrap: false, selectors: [{ selector: 'a', options: { ignoreHref: true } }, { selector: 'img', format: 'skip' }] });
+  // Remove URLs
+  text = text.replace(/https?:\/\/\S+/gi, '');
+  // Remove markdown image/link syntax leftovers: ![alt](url) or [text](url)
+  text = text.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1');
+  // Remove markdown bold/italic markers
+  text = text.replace(/[*_]{1,3}/g, '');
+  // Remove markdown headers
+  text = text.replace(/^#{1,6}\s+/gm, '');
+  // Remove <sup>...</sup> and similar stray HTML
+  text = text.replace(/<[^>]+>/g, '');
+  // Collapse whitespace and trim
+  text = text.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+/g, ' ').trim();
+  return text;
+}
 
 /**
  * Parse embed_url to extract author and permlink
@@ -207,32 +257,205 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
 
   try {
     if (hivePermlink) {
-      const post = await getPostDetails(author, hivePermlink);
-      console.log('Fetching post details data:', post);
+      // Run vote check and post details in parallel
+      const [votes, post] = await Promise.all([
+        loggedInUser ? getActiveVotes(author, hivePermlink).catch(() => null) : Promise.resolve(null),
+        getPostDetails(author, hivePermlink),
+      ]);
+
+      // Lightweight vote status from get_active_votes
+      if (votes && loggedInUser) {
+        const userVote = votes.find(v => v.voter === loggedInUser);
+        if (userVote) {
+          base.isLiked = userVote.percent >= 0;
+          base.isDisliked = userVote.percent < 0;
+        }
+      }
 
       if (post) {
-        base.title = post.title || base.title;
-        base.caption = post.title || base.caption;
+        // Populate stats from Hive post data
+        base.stats.likes = post.stats?.total_votes || post.active_votes?.filter(v => v.percent > 0).length || 0;
         base.stats.comments = post.children || 0;
-        base.stats.likes = post.stats?.total_votes || post.active_votes?.length || 0;
-        base.stats.payout = post.payout || post.pending_payout_value || "0.00";
+        const payout = parseFloat(post.payout) || parseFloat(post.pending_payout_value) || 0;
+        base.stats.payout = payout.toFixed(2);
+        base.caption = bodyToPlaintext(post.body) || base.caption;
+        base.title = post.title || base.title;
 
-        // Determine if the logged-in user has voted on the post
-        if (loggedInUser) {
+        // Check if this short is a reaction with a parentTimestamp
+        const jm = typeof post.json_metadata === 'string'
+          ? JSON.parse(post.json_metadata || '{}')
+          : (post.json_metadata || {});
+
+        if (jm.parentTimestamp != null && post.parent_author) {
+          base.parentTimestamp = jm.parentTimestamp;
           try {
-            const userVoted = post.active_votes?.some(v => v.voter === loggedInUser) ?? false;
-            base.isLiked = userVoted;
-            // Check for negative percent to mark as disliked
-            const userVote = post.active_votes?.find(v => v.voter === loggedInUser);
-            base.isDisliked = userVote ? (userVote.percent < 0) : false;
-          } catch (_) {
-            base.isLiked = false;
-            base.isDisliked = false;
+            const immediateParent = await getPostDetails(post.parent_author, post.parent_permlink);
+            if (immediateParent) {
+              let rootPost = immediateParent;
+              let intermediateChain = [];
+
+              // If the immediate parent is a comment (not the root video), capture it
+              if (immediateParent.parent_author) {
+                const bodyExcerpt = (immediateParent.body || '').split('\n').filter(l => l.trim()).slice(0, 2).join('\n');
+                if (bodyExcerpt) {
+                  base.parentComment = {
+                    author: immediateParent.author,
+                    body: bodyExcerpt,
+                  };
+                }
+
+                // Check if the immediate parent is itself a short (video reaction)
+                const parentJm = typeof immediateParent.json_metadata === 'string'
+                  ? JSON.parse(immediateParent.json_metadata || '{}')
+                  : (immediateParent.json_metadata || {});
+                if (parentJm.video?.url || parentJm.video?.platform === '3speak') {
+                  try {
+                    const parentShortEntry = await findShortByEmbedUrl(immediateParent.author, immediateParent.permlink);
+                    if (parentShortEntry) {
+                      base.parentShort = {
+                        author: parentShortEntry.owner,
+                        permlink: parentShortEntry.permlink,
+                      };
+                    }
+                  } catch (e) {
+                    console.warn('Failed to look up parent short:', e.message);
+                  }
+                }
+
+                // Walk up the chain to find the root video, collecting the chain
+                const parentDur = parentJm.video?.info?.duration || parentJm.video?.duration || 0;
+                const parentBody = (immediateParent.body || '').split('\n').filter(l => l.trim() && !l.startsWith('<sup>') && !l.startsWith('http')).slice(0, 3).join('\n');
+
+                const reactionChain = [{
+                  author: immediateParent.author,
+                  permlink: immediateParent.permlink,
+                  title: immediateParent.title || '',
+                  body: parentBody,
+                  duration: parentDur,
+                  type: parentJm.video ? 'video' : 'comment',
+                  thumbnail: parentJm?.image?.[0] || null,
+                  children: immediateParent.children || 0,
+                }];
+                let current = immediateParent;
+                let depth = 0;
+                while (current.parent_author && depth < 10) {
+                  current = await getPostDetails(current.parent_author, current.parent_permlink);
+                  if (!current) break;
+                  if (current.parent_author) {
+                    const cJm = typeof current.json_metadata === 'string'
+                      ? JSON.parse(current.json_metadata || '{}') : (current.json_metadata || {});
+                    const dur = cJm.video?.info?.duration || cJm.video?.duration || 0;
+                    const cBody = (current.body || '').split('\n').filter(l => l.trim() && !l.startsWith('<sup>') && !l.startsWith('http')).slice(0, 3).join('\n');
+
+                    reactionChain.unshift({
+                      author: current.author,
+                      permlink: current.permlink,
+                      title: current.title || '',
+                      body: cBody,
+                      duration: dur,
+                      type: cJm.video ? 'video' : 'comment',
+                      thumbnail: cJm?.image?.[0] || null,
+                      children: current.children || 0,
+                    });
+                  }
+                  depth++;
+                }
+                if (current) rootPost = current;
+                // Store intermediates for later — root will be prepended below
+                intermediateChain = reactionChain;
+              }
+
+              // Store the root video
+              if (rootPost && !rootPost.parent_author) {
+                const rootJm = typeof rootPost.json_metadata === 'string'
+                  ? JSON.parse(rootPost.json_metadata || '{}')
+                  : (rootPost.json_metadata || {});
+                base.parentVideo = {
+                  author: rootPost.author,
+                  permlink: rootPost.permlink,
+                  title: rootPost.title,
+                  created: rootPost.created,
+                  duration: rootJm?.video?.info?.duration || rootJm?.video?.duration || 0,
+                  thumbnail: rootJm?.image?.[0] || null,
+                  stats: {
+                    total_hive_reward: rootPost.payout || rootPost.pending_payout_value || 0,
+                    num_votes: rootPost.stats?.total_votes || rootPost.active_votes?.length || 0,
+                  }
+                };
+
+                // Build complete chain: [root, ...intermediates]
+                const rootDur = rootJm?.video?.info?.duration || rootJm?.video?.duration || 0;
+                const rootBody = (rootPost.body || '').split('\n').filter(l => l.trim() && !l.startsWith('<sup>') && !l.startsWith('http')).slice(0, 3).join('\n');
+                const rootEntry = {
+                  author: rootPost.author,
+                  permlink: rootPost.permlink,
+                  title: rootPost.title || '',
+                  body: rootBody,
+                  duration: rootDur,
+                  type: 'video',
+                  thumbnail: rootJm?.image?.[0] || null,
+                  isRoot: true,
+                  children: rootPost.children || 0,
+                };
+                base.reactionChain = [rootEntry, ...intermediateChain];
+
+                // Resolve internal player permlinks for video-type chain steps
+                try {
+                  await Promise.all(
+                    base.reactionChain
+                      .filter(step => step.type === 'video' && !step.isRoot)
+                      .map(async (step) => {
+                        const found = await findShortByEmbedUrl(step.author, step.permlink);
+                        if (found) {
+                          step.shortAuthor = found.owner;
+                          step.shortPermlink = found.permlink;
+                        }
+                      })
+                  );
+                } catch (e) {
+                  console.warn('Failed to resolve chain step permlinks:', e.message);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to fetch parent video:', err.message);
           }
         }
 
-        if (post.author_reputation) {
-          base.user.reputation = post.author_reputation;
+        // Load direct child reactions (replies to this short that are themselves shorts)
+        try {
+          const replies = await hiveRpc("condenser_api.get_content_replies", [post.author, post.permlink]);
+          if (replies?.length > 0) {
+            const videoReplies = replies.filter(reply => {
+              const rJm = typeof reply.json_metadata === 'string'
+                ? JSON.parse(reply.json_metadata || '{}') : (reply.json_metadata || {});
+              return rJm.video?.url || rJm.video?.platform === '3speak';
+            });
+            const childReactions = (await Promise.all(
+              videoReplies.map(async (reply) => {
+                const rJm = typeof reply.json_metadata === 'string'
+                  ? JSON.parse(reply.json_metadata || '{}') : (reply.json_metadata || {});
+                const found = await findShortByEmbedUrl(reply.author, reply.permlink);
+                if (found) {
+                  return {
+                    author: reply.author,
+                    permlink: reply.permlink,
+                    shortAuthor: found.owner,
+                    shortPermlink: found.permlink,
+                    title: reply.title || '',
+                    type: 'video',
+                    thumbnail: rJm?.image?.[0] || null,
+                    duration: rJm.video?.info?.duration || rJm.video?.duration || 0,
+                    children: reply.children || 0,
+                  };
+                }
+                return null;
+              })
+            )).filter(Boolean);
+            if (childReactions.length > 0) base.childReactions = childReactions;
+          }
+        } catch (err) {
+          console.warn('Failed to load child reactions:', err.message);
         }
       }
     }
@@ -313,6 +536,65 @@ async function loadNestedComments(comments, loggedInUser = null) {
 }
 
 /* -----------------------------
+   Find a short by its Hive embed_url (e.g. "@author/permlink")
+------------------------------ */
+
+export async function findShortByEmbedUrl(author, hivePermlink) {
+  const target = `@${author}/${hivePermlink}`;
+
+  // Fast path: check in-memory index first (populated by every fetchShortsList call)
+  const cached = _shortsByEmbedUrl.get(target);
+  if (cached) return cached;
+
+  // Slow fallback: paginate the API (only hits shorts not yet in our index)
+  let page = 1;
+  const limit = 50;
+  const maxPages = 10;
+
+  while (page <= maxPages) {
+    const data = await fetchShortsList(page, limit);
+    if (!data?.shorts) break;
+
+    // fetchShortsList already indexes results, so just re-check the map
+    const found = _shortsByEmbedUrl.get(target);
+    if (found) return found;
+
+    if (page >= (data.totalPages || 1)) break;
+    page++;
+  }
+
+  return null;
+}
+
+/* -----------------------------
+   Find a short by player permlink
+------------------------------ */
+
+export async function findShortByPermlink(permlink) {
+  // Fast path: check in-memory index first
+  const cached = _shortsByPermlink.get(permlink);
+  if (cached) return cached;
+
+  // Slow fallback: paginate the API
+  let page = 1;
+  const limit = 50;
+  const maxPages = 10;
+
+  while (page <= maxPages) {
+    const data = await fetchShortsList(page, limit);
+    if (!data?.shorts) break;
+
+    const found = _shortsByPermlink.get(permlink);
+    if (found) return found;
+
+    if (page >= (data.totalPages || 1)) break;
+    page++;
+  }
+
+  return null;
+}
+
+/* -----------------------------
    Bulk shorts fetch
 ------------------------------ */
 
@@ -323,40 +605,122 @@ export async function fetchShortsWithDetails(page = 1, limit = 10, loggedInUser 
     throw new Error("Failed to fetch shorts list");
   }
 
-  const shorts = await Promise.all(
-    shortsList.shorts.map((s) =>
-      fetchCompleteShortData(s, loggedInUser).catch((err) => {
-        console.warn(`Error fetching short data for ${s.embed_url}:`, err);
+  // Fast path: format directly from the list API data (no per-short RPC)
+  const shorts = shortsList.shorts.map((s) => {
+    const { author, permlink: hivePermlink } = parseEmbedUrl(s.embed_url);
+    const finalAuthor = author || s.owner;
 
-        const { author, permlink: hivePermlink } = parseEmbedUrl(s.embed_url);
-        const finalAuthor = author || s.owner;
+    return {
+      id: `${finalAuthor}-${s.permlink}`,
+      author: finalAuthor,
+      permlink: s.permlink,
+      hivePermlink: hivePermlink,
+      embedUrl: s.embed_url,
+      thumbnailUrl: s.thumbnail_url,
+      views: s.views || 0,
+      createdAt: s.createdAt,
+      timeAgo: timeAgo(s.createdAt),
+      title: s.hive_title || s.embed_title || "",
+      caption: bodyToPlaintext(s.hive_body) || s.hive_title || s.embed_title || "",
+      tags: Array.isArray(s.hive_tags) ? s.hive_tags : [],
+      user: {
+        username: `@${finalAuthor}`,
+        avatar: `https://images.hive.blog/u/${finalAuthor}/avatar`,
+        isSubscribed: false,
+        followersCount: s.hive_followers ?? null,
+        reputation: s.hive_author_reputation ?? null,
+      },
+      stats: {
+        likes: s.hive_votes || 0,
+        dislikes: 0,
+        comments: s.hive_comments || 0,
+        shares: 0,
+        remixes: 0,
+        payout: s.hive_reward != null ? String(s.hive_reward) : "0.00"
+      },
+      comments: [],
+      commentsLoaded: false,
+      isLiked: false,
+      isDisliked: false,
+      // Mark as not yet enriched — reaction chain & vote status loaded lazily
+      _enriched: false,
+    };
+  });
 
-        return {
-          id: `${finalAuthor}-${s.permlink}`,
-          author: finalAuthor,
-          permlink: s.permlink,
-          hivePermlink: hivePermlink,
-          embedUrl: s.embed_url,
-          thumbnailUrl: s.thumbnail_url,
-          views: s.views || 0,
-          createdAt: s.createdAt,
-          timeAgo: timeAgo(s.createdAt),
-          title: s.embed_title || "",
-          caption: s.embed_title || "",
-          user: {
-            username: `@${finalAuthor}`,
-            avatar: `https://images.hive.blog/u/${finalAuthor}/avatar`,
-            isSubscribed: false
-          },
-          stats: { likes: 0, dislikes: 0, comments: 0, shares: 0, remixes: 0, payout: "0.00" },
-          comments: [],
-          commentsLoaded: false,
-          isLiked: false,
-          isDisliked: false
-        };
-      })
-    )
-  );
+  return {
+    success: true,
+    page: shortsList.page,
+    total: shortsList.total,
+    totalPages: shortsList.totalPages,
+    shorts
+  };
+}
+
+/* -----------------------------
+   User-specific shorts feed
+------------------------------ */
+
+export async function fetchUserShortsList(username, page = 1, limit = 20) {
+  const url = `${USER_SHORTS_API}/${username}?page=${page}&limit=${limit}`;
+  const response = await axios.get(url);
+
+  // Index results in the same maps so findShortByPermlink works
+  if (response.data?.shorts) {
+    for (const s of response.data.shorts) {
+      if (s.embed_url) _shortsByEmbedUrl.set(s.embed_url, s);
+      if (s.permlink) _shortsByPermlink.set(s.permlink, s);
+    }
+  }
+
+  return response.data;
+}
+
+export async function fetchUserShortsWithDetails(username, page = 1, limit = 20) {
+  const shortsList = await fetchUserShortsList(username, page, limit);
+
+  if (!shortsList?.shorts) {
+    throw new Error("Failed to fetch user shorts list");
+  }
+
+  const shorts = shortsList.shorts.map((s) => {
+    const { author, permlink: hivePermlink } = parseEmbedUrl(s.embed_url);
+    const finalAuthor = author || s.owner;
+
+    return {
+      id: `${finalAuthor}-${s.permlink}`,
+      author: finalAuthor,
+      permlink: s.permlink,
+      hivePermlink: hivePermlink,
+      embedUrl: s.embed_url,
+      thumbnailUrl: s.thumbnail_url,
+      views: s.views || 0,
+      createdAt: s.createdAt,
+      timeAgo: timeAgo(s.createdAt),
+      title: s.hive_title || s.embed_title || "",
+      caption: bodyToPlaintext(s.hive_body) || s.hive_title || s.embed_title || "",
+      tags: Array.isArray(s.hive_tags) ? s.hive_tags : [],
+      user: {
+        username: `@${finalAuthor}`,
+        avatar: `https://images.hive.blog/u/${finalAuthor}/avatar`,
+        isSubscribed: false,
+        followersCount: s.hive_followers ?? null,
+        reputation: s.hive_author_reputation ?? null,
+      },
+      stats: {
+        likes: s.hive_votes || 0,
+        dislikes: 0,
+        comments: s.hive_comments || 0,
+        shares: 0,
+        remixes: 0,
+        payout: s.hive_reward != null ? String(s.hive_reward) : "0.00"
+      },
+      comments: [],
+      commentsLoaded: false,
+      isLiked: false,
+      isDisliked: false,
+      _enriched: false,
+    };
+  });
 
   return {
     success: true,
@@ -387,11 +751,58 @@ export function build3SpeakEmbedUrl(author, permlink, layout = "mobile", control
 }
 
 /* -----------------------------
+   Shorts preload cache
+------------------------------ */
+
+let _preloadedShorts = null;
+let _preloadPromise = null;
+
+/**
+ * Preloads the first page of shorts in the background.
+ * Safe to call multiple times — only runs once until consumed.
+ */
+export function preloadShorts(limit = 5) {
+  if (_preloadedShorts || _preloadPromise) return; // already preloading or done
+  regenerateShortsSeed();
+  _preloadPromise = fetchShortsWithDetails(1, limit)
+    .then((data) => {
+      _preloadedShorts = data;
+      _preloadPromise = null;
+    })
+    .catch((err) => {
+      console.warn('Shorts preload failed:', err.message);
+      _preloadPromise = null;
+    });
+}
+
+/**
+ * Synchronous check: returns true if preloaded data is already available
+ * (finished loading, not just in-flight).
+ */
+export function hasShortsPreloaded() {
+  return _preloadedShorts != null;
+}
+
+/**
+ * Returns preloaded shorts data and clears the cache (one-time consumption).
+ * If preload is still in flight, waits for it.
+ * Returns null if nothing was preloaded.
+ */
+export async function consumePreloadedShorts() {
+  if (_preloadPromise) await _preloadPromise;
+  const data = _preloadedShorts;
+  _preloadedShorts = null;
+  return data;
+}
+
+/* -----------------------------
    Default export
 ------------------------------ */
 
 export default {
   fetchShortsList,
+  findShortByPermlink,
+  findShortByEmbedUrl,
   getPostDetails,
   getComments,
   getAccounts,
@@ -404,6 +815,9 @@ export default {
   fetchPostComments,
   get3SpeakEmbedUrl,
   build3SpeakEmbedUrl,
+  preloadShorts,
+  hasShortsPreloaded,
+  consumePreloadedShorts,
   HIVE_API_URL,
   SHORTS_API
 };
