@@ -43,6 +43,7 @@ import Details from "./components/legacy-studio/Details";
 import Preview from "./components/legacy-studio/Preview";
 import Test from "./page/Test";
 import Short from "./page/Short";
+import ShortsPreloader from "./components/ShortsPreloader";
 // import Email from "./page/Login/Email"
 // import AuthCallback from "./page/Login/AuthCallback";
 // import {AUTH_JWT_SECRET} from "../src/utils/config";
@@ -78,11 +79,11 @@ function App() {
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
   const loginInProgress = useRef(false); // Track if login is being processed
-  
-  // Check if we should hide nav (on /shorts route on mobile)
+
+  // Hide nav on /shorts route on mobile
   const isShorts = location.pathname === '/shorts';
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 767);
-  
+
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 767);
@@ -90,9 +91,8 @@ function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  
-  const hideNavOnMobile = isShorts && isMobile;
 
+  const hideNavOnMobile = isShorts && isMobile;
 
 
   useEffect(() => {
@@ -234,6 +234,7 @@ function App() {
     <LegacyUploadProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
       <Toaster richColors position="top-right" />
+      <ShortsPreloader />
       {!hideNavOnMobile && (
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
       )}

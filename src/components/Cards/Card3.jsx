@@ -17,7 +17,7 @@ import ProfileModal from "../modal/ProfileModal";
 import useViewCounts from "../../hooks/useViewCounts";
 
 
-function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null }) {
+function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, linkPrefix = '/watch', linkQuery = '' }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
   const { getViewCount } = useViewCounts(videos);
@@ -50,9 +50,9 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
 
         return (
           <Link
-            to={`/watch?v=${video.author?.username || video.author || video.owner}/${
+            to={`${linkPrefix}?v=${video.author?.username || video.author || video.owner}/${
               video.permlink
-            }`}
+            }${linkQuery}`}
             className="card"
             // key={postKey}
             key={`${postKey}-${index}`}
@@ -186,7 +186,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                   })()}
                 />
               </div>
-              <p><TimeAgo date={video.created_at || video.created} /></p>
+              <p><TimeAgo date={video.created_at || video.created} short /></p>
             </div>
           </Link>
         );
@@ -207,6 +207,7 @@ Card3.propTypes = {
   error: PropTypes.string,
   getContentForVideo: PropTypes.func,
   isWatched: PropTypes.func,
+  linkPrefix: PropTypes.string,
 };
 
 export default Card3;

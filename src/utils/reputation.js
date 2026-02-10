@@ -32,14 +32,16 @@ export async function getUserReputation(username) {
     }
 
     const reputation = await response.json();
-    
+    // 0 means no reputation data (new account) — treat as neutral (25)
+    const score = reputation || 25;
+
     // Cache the result
     repCache.set(username, {
-      rep: reputation,
+      rep: score,
       timestamp: Date.now()
     });
 
-    return reputation;
+    return score;
   } catch (error) {
     console.error('Error fetching reputation for', username, error);
     return 25; // Default to neutral on error (fail-open)
@@ -165,6 +167,20 @@ export async function filterByReputation(content) {
   }
   
   return filterItems(content);
+}
+
+/**
+ * Convert raw Hive author_reputation (bigint) to human-readable score (e.g. 72)
+ * @param {number|string} raw - Raw reputation from Hive API
+ * @returns {number|null}
+ */
+export function hiveRepToScore(raw) {
+  if (raw == null) return null;
+  const n = parseInt(raw);
+  if (isNaN(n) || n === 0) return 25;
+  const neg = n < 0;
+  const out = Math.log10(Math.abs(n));
+  return Math.floor(Math.max(out - 9, 0) * (neg ? -1 : 1) * 9 + 25);
 }
 
 /**

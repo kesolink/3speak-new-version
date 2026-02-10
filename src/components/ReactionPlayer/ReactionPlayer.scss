@@ -1,0 +1,630 @@
+@use "../../mixins.scss" as mix;
+
+.reaction-player {
+  background: var(--card-bg, #1a1a2e);
+  border: 1px solid var(--border-light, #333);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+
+  // Scrollable area containing video + comment-below
+  .rct-scroll-area {
+    // Desktop: no scroll, comment panel handles its own overflow
+  }
+
+  // 16:9 video container (player handles vertical internally)
+  .reaction-video-wrap {
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%;
+    background: #000;
+    border-radius: 12px 12px 0 0;
+    overflow: hidden;
+  }
+
+  // Preloaded iframes: all absolute, only active one visible
+  .rct-iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    visibility: hidden;
+    pointer-events: none;
+
+    &--active {
+      visibility: visible;
+      pointer-events: auto;
+    }
+  }
+
+  // Comment panel (same 16:9 space as video)
+  .rct-comment-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: flex-start;
+    background: var(--card-bg, #1a1a2e);
+    overflow-y: auto;
+    z-index: 1;
+
+    // Below-video variant: flows in document, not absolute
+    &--below {
+      position: relative;
+      top: auto;
+      left: auto;
+      height: auto;
+      max-height: 300px;
+      border-top: 1px solid var(--border-light, #333);
+
+      .rct-comment-thread {
+        padding-top: 4px;
+      }
+    }
+  }
+
+  .rct-comment-thread {
+    padding: 12px;
+    width: 100%;
+  }
+
+  .rct-thread-comment {
+    padding: 8px 0;
+
+    & + .rct-thread-comment {
+      border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+    }
+  }
+
+  .rct-thread-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .rct-thread-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .rct-thread-author {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary, #aaa);
+  }
+
+  .rct-thread-body {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary, #fff);
+    word-break: break-word;
+
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      margin: 4px 0;
+    }
+  }
+
+  .rct-thread-loading {
+    padding: 12px 0;
+    font-size: 12px;
+    color: var(--text-secondary, #aaa);
+    text-align: center;
+  }
+
+  // Invisible overlay to capture mouse events above iframe
+  .rct-interact-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    cursor: pointer;
+  }
+
+  // Overlay buttons container (top-right of video)
+  .overlay-buttons {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 8;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .reaction-video-wrap:hover .overlay-buttons {
+    opacity: 1;
+  }
+
+  // Mobile nav controls inside overlay — hidden on desktop
+  .mobile-overlay-nav {
+    display: none;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .overlay-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  .size-overlay-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.85);
+    }
+
+    svg {
+      font-size: 16px;
+    }
+
+    // Mobile-only nav arrows (prev/next) in overlay
+    &--nav {
+      display: none;
+
+      @include mix.respond(phone) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+
+        svg {
+          font-size: 20px;
+        }
+
+        &:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        &:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+      }
+    }
+
+    // Hide overlay close button on desktop (header has its own close)
+    &--close {
+      display: none;
+
+      @include mix.respond(phone) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+
+        svg {
+          font-size: 20px;
+        }
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+      }
+    }
+  }
+
+  // Custom player controls (overlay at bottom of video)
+  .rct-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+    padding: 16px 8px 4px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 7;
+    pointer-events: none;
+
+    &.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  .rct-progress-row {
+    padding: 0 2px;
+    margin-bottom: 4px;
+  }
+
+  .rct-progress-track {
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+    transition: height 0.15s ease;
+
+    &:hover {
+      height: 5px;
+    }
+  }
+
+  .rct-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--accent-primary, #e53935);
+    border-radius: 2px;
+    transition: width 0.15s linear;
+    pointer-events: none;
+  }
+
+  .rct-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .rct-controls-left,
+  .rct-controls-right {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .rct-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    &:active {
+      transform: scale(0.92);
+    }
+
+    &--play {
+      width: 28px;
+      height: 28px;
+    }
+  }
+
+  .rct-time {
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    margin-left: 4px;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  // Header - below the video
+  .reaction-player-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-light, #333);
+
+    .reaction-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .reactor-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .reactor-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+      min-width: 0;
+    }
+
+    .reactor-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary, #fff);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .reaction-label {
+      font-size: 11px;
+      color: var(--text-secondary, #aaa);
+    }
+
+    .reaction-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .reaction-count {
+      font-size: 12px;
+      color: var(--text-secondary, #aaa);
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 8px;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+
+    .nav-btn,
+    .close-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-primary, #fff);
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      &:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      svg {
+        font-size: 18px;
+      }
+    }
+
+    .close-btn {
+      border-radius: 50%;
+      display: none;
+
+      @media (max-width: 767px) {
+        display: flex;
+      }
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+    }
+  }
+
+  // Horizontal scrollable reaction list
+  .reaction-list {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-primary, #e53935) transparent;
+
+    &::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--accent-primary, #e53935);
+      border-radius: 2px;
+    }
+  }
+
+  .reaction-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+    padding: 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+    position: relative;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    &.active {
+      border-color: var(--accent-primary, #e53935);
+      background: rgba(229, 57, 53, 0.15);
+    }
+  }
+
+  .reaction-item-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 4px;
+  }
+
+  .reaction-item-name {
+    font-size: 10px;
+    color: var(--text-secondary, #aaa);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 56px;
+    text-align: center;
+  }
+
+  // Type badge (video camera or comment icon) on reaction list items
+  .reaction-item-type-badge {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 10px;
+  }
+
+  .reaction-item--video .reaction-item-type-badge {
+    background: var(--accent-primary, #e53935);
+  }
+
+  .reaction-item--comment .reaction-item-type-badge {
+    background: #6b7280;
+  }
+
+  .reaction-item-count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+    color: #fff;
+    background: #6b7280;
+    border-radius: 7px;
+  }
+
+  // Divider between timestamped and non-timestamped reactions
+  .reaction-list-divider {
+    width: 1px;
+    align-self: stretch;
+    flex-shrink: 0;
+    background: var(--border-light, rgba(255, 255, 255, 0.15));
+    margin: 4px 2px;
+  }
+
+  // Collapse/hide toggle button
+  .mobile-rct-toggle {
+    // Visible on all screen sizes (nav-btn styles apply)
+  }
+
+  // Collapsible wrapper for content + list
+  .rct-collapsible {
+    // Desktop: always visible (collapse = hide entire panel via onClose)
+  }
+
+  // Mobile variant
+  &--mobile {
+    border-radius: 10px;
+    margin: 8px 0;
+
+    // Hide the full header on mobile
+    .reaction-player-header {
+      display: none;
+    }
+
+    // Scroll area: video + comments scroll together
+    .rct-scroll-area {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent-primary, #e53935) transparent;
+    }
+
+    // Comment panel inside scroll area: no own scroll
+    .rct-comment-panel--below {
+      max-height: none;
+      overflow-y: visible;
+    }
+
+    // Always show overlay buttons on mobile (no hover needed)
+    .overlay-buttons {
+      opacity: 1;
+    }
+
+    // Show mobile nav controls in overlay
+    .mobile-overlay-nav {
+      display: flex;
+    }
+
+    // Hide resize button on mobile
+    .size-overlay-btn--resize {
+      display: none;
+    }
+
+    // Smaller avatars in reaction list
+    .reaction-item {
+      min-width: 48px;
+      padding: 4px;
+    }
+
+    .reaction-item-avatar {
+      width: 28px;
+      height: 28px;
+    }
+
+    .reaction-item-name {
+      max-width: 44px;
+    }
+
+    .reaction-list {
+      padding: 6px 8px;
+      gap: 6px;
+    }
+  }
+}

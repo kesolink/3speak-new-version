@@ -125,7 +125,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
               <Link to="/new" className="side-link-n" onClick={handleNav}>
                 <LuNewspaper className="icon" /> <span>New Content</span>
               </Link>
-            <Link to="/shorts" className="side-link-n">
+            <Link to="/shorts" className="side-link-n" onClick={handleNav}>
               <SiYoutubeshorts className="icon" /> <span>Shorts</span>
             </Link>
               <Link to="/communities" className="side-link-n" onClick={handleNav}>

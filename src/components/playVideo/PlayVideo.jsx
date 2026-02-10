@@ -1,10 +1,11 @@
 import PropTypes from "prop-types";
 import "./PlayVideo.scss";
+import VideoControls from "../VideoControls/VideoControls";
 import ViewCount from "../ViewCount/ViewCount";
 import { LuTimer } from "react-icons/lu";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@apollo/client";
 import { GET_PROFILE } from "../../graphql/queries";
 import dayjs from "dayjs";
@@ -13,6 +14,7 @@ import BlogContent from "./BlogContent";
 import CommentSection from "./CommentSection";
 import { useAppStore } from '../../lib/store';
 import { estimate, getUersContent, getVotePower } from "../../utils/hiveUtils";
+import { getUserReputation } from "../../utils/reputation";
 import ToolTip from "../tooltip/ToolTip";
 import { ImSpinner9 } from "react-icons/im";
 import { useNavigate } from "react-router-dom";
@@ -22,11 +24,11 @@ import { toast } from 'sonner';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
-import UpvoteTooltip from "../tooltip/UpvoteTooltip";
+import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import { FEED_URL, PLAYER_URL, HIVE_API_URL } from '../../utils/config';
 import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
-import { MdPlaylistAdd, MdWatchLater } from "react-icons/md";
+import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp } from "react-icons/md";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
 import PlaylistBar from "../PlaylistBar/PlaylistBar";
@@ -38,11 +40,17 @@ import Button from "../Button/Button";
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  
+
+  const lastTouchRef = useRef(0); // prevent touch+mouse double-fire
+
+  // Mobile collapsible details
+  const [mobileDetailsExpanded, setMobileDetailsExpanded] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+
   // State
   const [openTooltip, setOpenToolTip] = useState(false);
   const [tooltipVoters, setTooltipVoters] = useState([]);
@@ -61,6 +69,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
   const [communityData, setCommunityData] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [authorReputation, setAuthorReputation] = useState(null);
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -227,12 +236,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     fetchAccountData();
   }, [user, calculateVoteValue, weight]);
 
-  // Effect: Fetch speak data and followers (only when author/permlink changes)
+  // Effect: Fetch speak data, followers, and reputation (only when author/permlink changes)
   useEffect(() => {
     if (!author || !permlink) return;
-    
+
     speakWatchData();
     getFollowersCount(author);
+    getUserReputation(author).then(rep => setAuthorReputation(rep)).catch(() => {});
   }, [author, permlink, speakWatchData, getFollowersCount]);
 
   // Effect: Check if current user follows the author
@@ -337,7 +347,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           {(author && permlink) ? (
             <div className="video-iframe-wrapper">
               <iframe
-                src={`${PLAYER_URL}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe`}
+                src={`${PLAYER_URL}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe&controls=0`}
                 style={{
                   position: "absolute",
                   top: 0,
@@ -351,6 +361,43 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 scrolling="no"
                 allowFullScreen
               />
+              {videoControls && (
+                <>
+                  <div
+                    className="video-interact-overlay"
+                    onMouseMove={() => {
+                      if (window.innerWidth > 767) videoControls.onMouseMove();
+                    }}
+                    onMouseDown={() => {
+                      if (Date.now() - lastTouchRef.current < 500) return;
+                      if (window.innerWidth <= 767) videoControls.onToggleControls();
+                      else videoControls.onTogglePlay();
+                    }}
+                    onTouchStart={(e) => {
+                      lastTouchRef.current = Date.now();
+                      e.preventDefault();
+                      videoControls.onToggleControls();
+                    }}
+                  />
+                  <VideoControls
+                    currentTime={videoControls.currentTime}
+                    duration={videoControls.duration}
+                    isPlaying={videoControls.isPlaying}
+                    isMuted={videoControls.isMuted}
+                    isFullscreen={videoControls.isFullscreen}
+                    isVisible={videoControls.isVisible}
+                    onTogglePlay={videoControls.onTogglePlay}
+                    onToggleMute={videoControls.onToggleMute}
+                    onSeekBackward={videoControls.onSeekBackward}
+                    onSeekForward={videoControls.onSeekForward}
+                    onSeek={videoControls.onSeek}
+                    onToggleFullscreen={videoControls.onToggleFullscreen}
+                    markers={videoControls.markers}
+                    onMarkerSelect={videoControls.onMarkerSelect}
+                    onReactToMoment={videoControls.onReactToMoment}
+                  />
+                </>
+              )}
             </div>
           ) : (
             <div className="video-loader">
@@ -358,11 +405,21 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
           )}
 
-          <h3>{videoDetails?.title}</h3>
-          
+          <div className="video-title-row">
+            <h3>{videoDetails?.title}</h3>
+            <button
+              className="mobile-title-toggle"
+              onClick={() => setMobileDetailsExpanded(prev => !prev)}
+            >
+              {mobileDetailsExpanded ? <MdKeyboardArrowUp size={20} /> : <MdKeyboardArrowDown size={20} />}
+            </button>
+          </div>
+
+          <div className={`video-details-collapsible${mobileDetailsExpanded ? '' : ' collapsed'}`}>
           <div className="badges-row">
             <AuthorBadge
               author={videoDetails?.author?.id}
+              reputation={authorReputation}
               followersCount={followData?.follower_count}
               showFollow={author !== user}
               isFollowing={isFollowing}
@@ -392,7 +449,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               ))}
             </div>
           </div>
-          
+
           <div className="play-video-info">
             <div className="wrap-left">
               <ViewCount views={view} author={author} permlink={permlink} size={13} />
@@ -445,23 +502,25 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </>
               )}
 
-              <UpvoteTooltip
+              <CommentVoteTooltip
                 showTooltip={showTooltip}
                 setShowTooltip={setShowTooltip}
                 author={author}
                 permlink={permlink}
-                setIsVoted={setIsVoted}
-                setOptimisticVoteCount={setOptimisticVoteCount}
                 weight={weight}
                 setWeight={setWeight}
                 voteValue={voteValue}
                 setVoteValue={setVoteValue}
-                setAccountData={setAccountData}
                 accountData={accountData}
+                setAccountData={setAccountData}
+                compact
+                onVoteSuccess={(a, p, isNewVote) => {
+                  setIsVoted(true);
+                  if (isNewVote) setOptimisticVoteCount(prev => prev + 1);
+                }}
               />
             </div>
           </div>
-        </div>
 
         {/* Show PlaylistBar when watching from a playlist, otherwise show VideoPlaylists */}
         {playlistData ? (
@@ -476,16 +535,38 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         )}
 
         <div className="description-wrap">
-          <div className="blog-content">
-            <BlogContent author={author} permlink={permlink} />
+          <div className={`description-collapsible${descriptionExpanded ? '' : ' collapsed'}`}>
+            <div className="blog-content">
+              <BlogContent author={author} permlink={permlink} />
+            </div>
           </div>
+          <button
+            className="description-toggle-btn"
+            onClick={() => setDescriptionExpanded(prev => !prev)}
+          >
+            {descriptionExpanded ? 'Show less' : 'Show more'}
+          </button>
         </div>
+        </div>{/* end video-details-collapsible */}
+        </div>{/* end top-container */}
+
+        {/* Mobile reactions slot — between description and comments */}
+        {mobileReactionPanel && (
+          <div className="mobile-reactions-slot">
+            {mobileReactionPanel}
+          </div>
+        )}
 
         <CommentSection
           videoDetails={videoDetails}
           author={author}
           permlink={permlink}
           setIsVoted={setIsVoted}
+          currentTime={videoControls?.currentTime}
+          duration={videoControls?.duration}
+          onSeek={videoControls?.onSeek}
+          onRefreshReactions={videoControls?.onRefreshReactions}
+          onPause={videoControls?.onPause}
         />
       </div>
       
@@ -538,6 +619,7 @@ PlayVideo.propTypes = {
     currentIndex: PropTypes.number,
   }),
   onClosePlaylist: PropTypes.func,
+  mobileReactionPanel: PropTypes.node,
 };
 
 export default PlayVideo;

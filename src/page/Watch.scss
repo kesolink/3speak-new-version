@@ -6,6 +6,63 @@
     justify-content: space-between;
     flex-wrap: wrap;
 
+    .right-column {
+      flex-basis: 30%;
+      max-width: 30%;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+
+      @include respond(phone) {
+        display: none;
+      }
+
+      .right-column-videos {
+        h4 {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin: 0 0 8px;
+        }
+
+        .card-container {
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+          grid-row-gap: 10px !important;
+
+          .card .img-wrap {
+            aspect-ratio: 16 / 9;
+
+            img {
+              height: 100% !important;
+            }
+          }
+        }
+      }
+    }
+
+    // Size variants for reaction player (small is default)
+    &.reaction-medium {
+      .play-video {
+        flex-basis: 50%;
+        max-width: 50%;
+      }
+      .right-column {
+        flex-basis: 48%;
+        max-width: 48%;
+      }
+    }
+
+    &.reaction-big {
+      .play-video {
+        flex-basis: 30%;
+        max-width: 30%;
+      }
+      .right-column {
+        flex-basis: 68%;
+        max-width: 68%;
+      }
+    }
+
     .mobile-recommended {
       display: none;
       width: 100%;
@@ -34,6 +91,34 @@
             height: 100% !important;
           }
         }
+      }
+    }
+
+    .show-reactions-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border-light, #333);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text-secondary, #aaa);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      svg {
+        vertical-align: middle;
+      }
+
+      &:hover {
+        background: var(--bg-tertiary, rgba(255, 255, 255, 0.05));
+        color: var(--text-primary, #fff);
+        border-color: var(--border-color, #555);
       }
     }
 }

@@ -18,6 +18,35 @@
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
+
+    .tooltip-close-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      margin: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.1);
+      color: #666;
+      cursor: pointer;
+      z-index: 1;
+
+      &:hover { background: rgba(0, 0, 0, 0.2); }
+      &:disabled { opacity: 0.4; cursor: not-allowed; }
+
+      [data-theme="dark"] & {
+        background: rgba(255, 255, 255, 0.15);
+        color: #ccc;
+        &:hover { background: rgba(255, 255, 255, 0.25); }
+      }
+    }
+
     [data-theme="dark"] & {
       background-color: #333;
       border: solid 1px rgba(128, 128, 128, 0.144);
@@ -102,7 +131,7 @@
       position: relative;
     }
 
-    button {
+    button:not(.tooltip-close-btn) {
       margin-top: 8px;
       padding: 6px 12px;
       background: #1fae51;
@@ -118,5 +147,166 @@
     border: none;
     cursor: pointer;
     font-size: 16px;
+  }
+}
+
+/* ============= Centered vote popup (used by CommentVoteTooltip) ============= */
+.vote-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.vote-popup {
+  position: relative;
+  width: 320px;
+  max-width: 90vw;
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 24px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  [data-theme="dark"] & {
+    background: #1e1e1e;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  }
+
+  .vote-popup-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.08);
+    color: #555;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:hover { background: rgba(0, 0, 0, 0.15); }
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    [data-theme="dark"] & {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ccc;
+      &:hover { background: rgba(255, 255, 255, 0.2); }
+    }
+  }
+
+  .vote-popup-label {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    color: #222;
+
+    [data-theme="dark"] & { color: #eee; }
+  }
+
+  --range-track: #ddd;
+  [data-theme="dark"] & { --range-track: #444; }
+
+  .vote-slider-track {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--range-track);
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .vote-slider-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent-primary, #e53935);
+    pointer-events: none;
+  }
+
+  .vote-slider-thumb {
+    position: absolute;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-primary, #e53935);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .vote-popup-value {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    text-align: center;
+    color: #111;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    [data-theme="dark"] & { color: #fff; }
+  }
+
+  .vote-popup-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 12px 0;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    min-height: 48px;
+
+    &:hover { background: var(--accent-hover, #c62828); }
+    &:active { transform: scale(0.98); }
+    &:disabled { opacity: 0.6; cursor: not-allowed; }
+  }
+
+  // Compact variant — smaller popup on desktop (watch page)
+  &.vote-popup--compact {
+    @media screen and (min-width: 768px) {
+      width: 260px;
+      padding: 20px 18px 18px;
+      gap: 12px;
+      border-radius: 12px;
+
+      .vote-popup-close { width: 26px; height: 26px; top: 8px; right: 8px; }
+      .vote-popup-label { font-size: 14px; }
+      .vote-popup-value { font-size: 18px; min-height: 24px; }
+      .vote-slider-thumb { width: 16px; height: 16px; }
+
+      .vote-popup-submit {
+        padding: 8px 0;
+        font-size: 14px;
+        min-height: 38px;
+        border-radius: 8px;
+      }
+    }
   }
 }
