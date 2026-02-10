@@ -14,6 +14,7 @@ import BlogContent from "./BlogContent";
 import CommentSection from "./CommentSection";
 import { useAppStore } from '../../lib/store';
 import { estimate, getUersContent, getVotePower } from "../../utils/hiveUtils";
+import { getUserReputation } from "../../utils/reputation";
 import ToolTip from "../tooltip/ToolTip";
 import { ImSpinner9 } from "react-icons/im";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +24,7 @@ import { toast } from 'sonner';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
-import UpvoteTooltip from "../tooltip/UpvoteTooltip";
+import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import { FEED_URL, PLAYER_URL, HIVE_API_URL } from '../../utils/config';
 import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
@@ -68,6 +69,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
   const [communityData, setCommunityData] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [authorReputation, setAuthorReputation] = useState(null);
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -234,12 +236,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     fetchAccountData();
   }, [user, calculateVoteValue, weight]);
 
-  // Effect: Fetch speak data and followers (only when author/permlink changes)
+  // Effect: Fetch speak data, followers, and reputation (only when author/permlink changes)
   useEffect(() => {
     if (!author || !permlink) return;
-    
+
     speakWatchData();
     getFollowersCount(author);
+    getUserReputation(author).then(rep => setAuthorReputation(rep)).catch(() => {});
   }, [author, permlink, speakWatchData, getFollowersCount]);
 
   // Effect: Check if current user follows the author
@@ -416,6 +419,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           <div className="badges-row">
             <AuthorBadge
               author={videoDetails?.author?.id}
+              reputation={authorReputation}
               followersCount={followData?.follower_count}
               showFollow={author !== user}
               isFollowing={isFollowing}
@@ -498,19 +502,22 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </>
               )}
 
-              <UpvoteTooltip
+              <CommentVoteTooltip
                 showTooltip={showTooltip}
                 setShowTooltip={setShowTooltip}
                 author={author}
                 permlink={permlink}
-                setIsVoted={setIsVoted}
-                setOptimisticVoteCount={setOptimisticVoteCount}
                 weight={weight}
                 setWeight={setWeight}
                 voteValue={voteValue}
                 setVoteValue={setVoteValue}
-                setAccountData={setAccountData}
                 accountData={accountData}
+                setAccountData={setAccountData}
+                compact
+                onVoteSuccess={(a, p, isNewVote) => {
+                  setIsVoted(true);
+                  if (isNewVote) setOptimisticVoteCount(prev => prev + 1);
+                }}
               />
             </div>
           </div>

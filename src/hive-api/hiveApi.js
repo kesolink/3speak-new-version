@@ -12,6 +12,7 @@ import { HIVE_API_URL } from "../utils/config";
    Hive RPC setup
 ------------------------------ */
 const SHORTS_API = import.meta.env.VITE_SHORTS_API_URL || "https://3speak-checker.okinoko.io/shortssorted";
+const USER_SHORTS_API = import.meta.env.VITE_USER_SHORTS_API_URL || "https://3speak-checker.okinoko.io/shorts";
 
 // Random seed for shorts ordering — regenerated each time shorts are opened
 let SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
@@ -48,45 +49,25 @@ async function hiveRpc(method, params) {
    Shorts list
 ------------------------------ */
 
+// In-memory index of shorts we've already fetched — avoids redundant API lookups
+const _shortsByEmbedUrl = new Map(); // embed_url → short object
+const _shortsByPermlink = new Map(); // permlink → short object
+
 export async function fetchShortsList(page = 1, limit = 20) {
   const url = `${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`;
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
-  return response.data;
-}
 
-/* -----------------------------
-   Cached shorts list (avoids repeated pagination)
------------------------------- */
-let _cachedShorts = null;
-let _cachedShortsTime = 0;
-let _cachePromise = null;
-const SHORTS_CACHE_TTL = 60000; // 1 minute
-
-async function getAllShortsCached() {
-  if (_cachedShorts && Date.now() - _cachedShortsTime < SHORTS_CACHE_TTL) return _cachedShorts;
-  // Deduplicate: if a fetch is already in progress, share the same promise
-  if (_cachePromise) return _cachePromise;
-  _cachePromise = (async () => {
-    try {
-      const all = [];
-      let page = 1;
-      const limit = 50;
-      while (page <= 20) {
-        const data = await fetchShortsList(page, limit);
-        if (!data?.shorts) break;
-        all.push(...data.shorts);
-        if (page >= (data.totalPages || 1)) break;
-        page++;
-      }
-      _cachedShorts = all;
-      _cachedShortsTime = Date.now();
-      return all;
-    } finally {
-      _cachePromise = null;
+  // Index every short we receive so findShortByEmbedUrl/findShortByPermlink
+  // can resolve instantly without extra API calls
+  if (response.data?.shorts) {
+    for (const s of response.data.shorts) {
+      if (s.embed_url) _shortsByEmbedUrl.set(s.embed_url, s);
+      if (s.permlink) _shortsByPermlink.set(s.permlink, s);
     }
-  })();
-  return _cachePromise;
+  }
+
+  return response.data;
 }
 
 /* -----------------------------
@@ -292,6 +273,14 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
       }
 
       if (post) {
+        // Populate stats from Hive post data
+        base.stats.likes = post.stats?.total_votes || post.active_votes?.filter(v => v.percent > 0).length || 0;
+        base.stats.comments = post.children || 0;
+        const payout = parseFloat(post.payout) || parseFloat(post.pending_payout_value) || 0;
+        base.stats.payout = payout.toFixed(2);
+        base.caption = bodyToPlaintext(post.body) || base.caption;
+        base.title = post.title || base.title;
+
         // Check if this short is a reaction with a parentTimestamp
         const jm = typeof post.json_metadata === 'string'
           ? JSON.parse(post.json_metadata || '{}')
@@ -345,6 +334,7 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
                   duration: parentDur,
                   type: parentJm.video ? 'video' : 'comment',
                   thumbnail: parentJm?.image?.[0] || null,
+                  children: immediateParent.children || 0,
                 }];
                 let current = immediateParent;
                 let depth = 0;
@@ -365,6 +355,7 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
                       duration: dur,
                       type: cJm.video ? 'video' : 'comment',
                       thumbnail: cJm?.image?.[0] || null,
+                      children: current.children || 0,
                     });
                   }
                   depth++;
@@ -404,22 +395,23 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
                   type: 'video',
                   thumbnail: rootJm?.image?.[0] || null,
                   isRoot: true,
+                  children: rootPost.children || 0,
                 };
                 base.reactionChain = [rootEntry, ...intermediateChain];
 
                 // Resolve internal player permlinks for video-type chain steps
                 try {
-                  const allShorts = await getAllShortsCached();
-                  for (const step of base.reactionChain) {
-                    if (step.type === 'video' && !step.isRoot) {
-                      const target = `@${step.author}/${step.permlink}`;
-                      const found = allShorts.find(s => s.embed_url === target);
-                      if (found) {
-                        step.shortAuthor = found.owner;
-                        step.shortPermlink = found.permlink;
-                      }
-                    }
-                  }
+                  await Promise.all(
+                    base.reactionChain
+                      .filter(step => step.type === 'video' && !step.isRoot)
+                      .map(async (step) => {
+                        const found = await findShortByEmbedUrl(step.author, step.permlink);
+                        if (found) {
+                          step.shortAuthor = found.owner;
+                          step.shortPermlink = found.permlink;
+                        }
+                      })
+                  );
                 } catch (e) {
                   console.warn('Failed to resolve chain step permlinks:', e.message);
                 }
@@ -434,16 +426,18 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
         try {
           const replies = await hiveRpc("condenser_api.get_content_replies", [post.author, post.permlink]);
           if (replies?.length > 0) {
-            const allShorts = await getAllShortsCached();
-            const childReactions = [];
-            for (const reply of replies) {
+            const videoReplies = replies.filter(reply => {
               const rJm = typeof reply.json_metadata === 'string'
                 ? JSON.parse(reply.json_metadata || '{}') : (reply.json_metadata || {});
-              if (rJm.video?.url || rJm.video?.platform === '3speak') {
-                const target = `@${reply.author}/${reply.permlink}`;
-                const found = allShorts.find(s => s.embed_url === target);
+              return rJm.video?.url || rJm.video?.platform === '3speak';
+            });
+            const childReactions = (await Promise.all(
+              videoReplies.map(async (reply) => {
+                const rJm = typeof reply.json_metadata === 'string'
+                  ? JSON.parse(reply.json_metadata || '{}') : (reply.json_metadata || {});
+                const found = await findShortByEmbedUrl(reply.author, reply.permlink);
                 if (found) {
-                  childReactions.push({
+                  return {
                     author: reply.author,
                     permlink: reply.permlink,
                     shortAuthor: found.owner,
@@ -452,10 +446,12 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
                     type: 'video',
                     thumbnail: rJm?.image?.[0] || null,
                     duration: rJm.video?.info?.duration || rJm.video?.duration || 0,
-                  });
+                    children: reply.children || 0,
+                  };
                 }
-              }
-            }
+                return null;
+              })
+            )).filter(Boolean);
             if (childReactions.length > 0) base.childReactions = childReactions;
           }
         } catch (err) {
@@ -545,6 +541,12 @@ async function loadNestedComments(comments, loggedInUser = null) {
 
 export async function findShortByEmbedUrl(author, hivePermlink) {
   const target = `@${author}/${hivePermlink}`;
+
+  // Fast path: check in-memory index first (populated by every fetchShortsList call)
+  const cached = _shortsByEmbedUrl.get(target);
+  if (cached) return cached;
+
+  // Slow fallback: paginate the API (only hits shorts not yet in our index)
   let page = 1;
   const limit = 50;
   const maxPages = 10;
@@ -553,7 +555,8 @@ export async function findShortByEmbedUrl(author, hivePermlink) {
     const data = await fetchShortsList(page, limit);
     if (!data?.shorts) break;
 
-    const found = data.shorts.find(s => s.embed_url === target);
+    // fetchShortsList already indexes results, so just re-check the map
+    const found = _shortsByEmbedUrl.get(target);
     if (found) return found;
 
     if (page >= (data.totalPages || 1)) break;
@@ -568,6 +571,11 @@ export async function findShortByEmbedUrl(author, hivePermlink) {
 ------------------------------ */
 
 export async function findShortByPermlink(permlink) {
+  // Fast path: check in-memory index first
+  const cached = _shortsByPermlink.get(permlink);
+  if (cached) return cached;
+
+  // Slow fallback: paginate the API
   let page = 1;
   const limit = 50;
   const maxPages = 10;
@@ -576,7 +584,7 @@ export async function findShortByPermlink(permlink) {
     const data = await fetchShortsList(page, limit);
     if (!data?.shorts) break;
 
-    const found = data.shorts.find(s => s.permlink === permlink);
+    const found = _shortsByPermlink.get(permlink);
     if (found) return found;
 
     if (page >= (data.totalPages || 1)) break;
@@ -635,6 +643,81 @@ export async function fetchShortsWithDetails(page = 1, limit = 10, loggedInUser 
       isLiked: false,
       isDisliked: false,
       // Mark as not yet enriched — reaction chain & vote status loaded lazily
+      _enriched: false,
+    };
+  });
+
+  return {
+    success: true,
+    page: shortsList.page,
+    total: shortsList.total,
+    totalPages: shortsList.totalPages,
+    shorts
+  };
+}
+
+/* -----------------------------
+   User-specific shorts feed
+------------------------------ */
+
+export async function fetchUserShortsList(username, page = 1, limit = 20) {
+  const url = `${USER_SHORTS_API}/${username}?page=${page}&limit=${limit}`;
+  const response = await axios.get(url);
+
+  // Index results in the same maps so findShortByPermlink works
+  if (response.data?.shorts) {
+    for (const s of response.data.shorts) {
+      if (s.embed_url) _shortsByEmbedUrl.set(s.embed_url, s);
+      if (s.permlink) _shortsByPermlink.set(s.permlink, s);
+    }
+  }
+
+  return response.data;
+}
+
+export async function fetchUserShortsWithDetails(username, page = 1, limit = 20) {
+  const shortsList = await fetchUserShortsList(username, page, limit);
+
+  if (!shortsList?.shorts) {
+    throw new Error("Failed to fetch user shorts list");
+  }
+
+  const shorts = shortsList.shorts.map((s) => {
+    const { author, permlink: hivePermlink } = parseEmbedUrl(s.embed_url);
+    const finalAuthor = author || s.owner;
+
+    return {
+      id: `${finalAuthor}-${s.permlink}`,
+      author: finalAuthor,
+      permlink: s.permlink,
+      hivePermlink: hivePermlink,
+      embedUrl: s.embed_url,
+      thumbnailUrl: s.thumbnail_url,
+      views: s.views || 0,
+      createdAt: s.createdAt,
+      timeAgo: timeAgo(s.createdAt),
+      title: s.hive_title || s.embed_title || "",
+      caption: bodyToPlaintext(s.hive_body) || s.hive_title || s.embed_title || "",
+      tags: Array.isArray(s.hive_tags) ? s.hive_tags : [],
+      user: {
+        username: `@${finalAuthor}`,
+        avatar: `https://images.hive.blog/u/${finalAuthor}/avatar`,
+        isSubscribed: false,
+        followersCount: s.hive_followers ?? null,
+        reputation: s.hive_author_reputation ?? null,
+      },
+      stats: {
+        likes: s.hive_votes || 0,
+        dislikes: 0,
+        comments: s.hive_comments || 0,
+        shares: 0,
+        remixes: 0,
+        payout: s.hive_reward != null ? String(s.hive_reward) : "0.00"
+      },
+      comments: [],
+      commentsLoaded: false,
+      isLiked: false,
+      isDisliked: false,
       _enriched: false,
     };
   });

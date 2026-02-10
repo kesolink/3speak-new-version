@@ -91,21 +91,26 @@
     margin: 8px 0;
     font-size: 13px;
     color: var(--text-secondary);
-    .btn-default {
-      margin-left: auto;
-    }
+  }
+
+  .comment-action-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
   }
 
   .comment-shorts-link {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 13px;
+    font-weight: 400;
     color: var(--text-secondary, #aaa);
     text-decoration: none;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 4px 16px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
     white-space: nowrap;
     transition: background 0.15s ease, color 0.15s ease;
 

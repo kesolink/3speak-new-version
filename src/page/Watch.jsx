@@ -275,7 +275,7 @@ function Watch() {
   }, [sendPlayerCommand]);
 
   const handleToggleMute = useCallback(() => {
-    sendPlayerCommand('toggle-mute');
+    sendPlayerCommand('toggleMute');
     setIsMuted(prev => !prev);
   }, [sendPlayerCommand]);
 

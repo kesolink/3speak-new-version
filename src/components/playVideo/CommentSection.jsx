@@ -13,7 +13,7 @@ import UpvoteTooltip from '../tooltip/UpvoteTooltip';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import {  toast } from 'sonner'
 import { estimate, getVotePower } from '../../utils/hiveUtils';
-import { filterByReputation } from '../../utils/reputation';
+import { filterByReputation, getUserReputation } from '../../utils/reputation';
 import Button from '../Button/Button';
 import AuthorBadge from '../AuthorBadge/AuthorBadge';
 import UpvoteCount from '../UpvoteCount/UpvoteCount';
@@ -147,8 +147,16 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
       try {
         const replies = await client.call('condenser_api', 'get_content_replies', [author, permlink]);
         const commentsWithChildren = await loadNestedComments(replies);
-        // Filter out spam accounts (negative reputation)
+        // Filter out spam accounts (negative reputation) — also caches reputations
         const filteredComments = await filterByReputation(commentsWithChildren);
+        // Attach cached reputations to comment authors (all cache hits after filtering)
+        const attachRep = async (comments) => {
+          for (const c of comments) {
+            if (c.author?.username) c.author.reputation = await getUserReputation(c.author.username);
+            if (c.children?.length) await attachRep(c.children);
+          }
+        };
+        await attachRep(filteredComments);
         setCommentList(filteredComments);
         
         // Pre-render all comment bodies (createHiveRenderer returns a function directly)
@@ -627,7 +635,7 @@ function Comment({
       <div className="comment">
         <div className="comment-content">
           <div className="comment-header">
-            <AuthorBadge author={comment?.author?.username} noLink />
+            <AuthorBadge author={comment?.author?.username} reputation={comment?.author?.reputation} noLink />
             <span className="comment-date"><TimeAgo date={comment?.created_at} /></span>
             {comment?.parentTimestamp != null && (
               <span className="comment-timestamp-badge" onClick={() => onSeek?.(comment.parentTimestamp)}>at {formatTimeInput(comment.parentTimestamp)}</span>
@@ -641,21 +649,23 @@ function Comment({
               onClick={() => toggleTooltip(comment?.author?.username, comment.permlink, commentIndex)}
             />
             <PayoutAmount amount={comment?.stats?.total_hive_reward} />
-            <Button text="Reply" onClick={() => {
-                setCommentInfo("");
-                setReplyText("")
-                setActiveReply(comment.permlink);
-                setReplyToComment(comment);
-              }} />
-            {comment.hasVideo && (
-              <Link
-                to={`/shorts?v=${comment.shortAuthor || comment.author?.username}/${comment.shortPermlink || comment.permlink}`}
-                className="btn-default comment-shorts-link"
-              >
-                <MdVideocam size={13} />
-                <span>Open in Shorts</span>
-              </Link>
-            )}
+            <div className="comment-action-right">
+              {comment.hasVideo && (
+                <Link
+                  to={`/shorts?v=${comment.shortAuthor || comment.author?.username}/${comment.shortPermlink || comment.permlink}`}
+                  className="comment-shorts-link"
+                >
+                  <MdVideocam size={13} />
+                  <span>Open in Shorts</span>
+                </Link>
+              )}
+              <Button text="Reply" onClick={() => {
+                  setCommentInfo("");
+                  setReplyText("")
+                  setActiveReply(comment.permlink);
+                  setReplyToComment(comment);
+                }} />
+            </div>
             <CommentVoteTooltip
              author={comment?.author?.username}
              permlink={comment.permlink}

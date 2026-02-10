@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import "./Short.scss";
 import {
-  ThumbsUp,
+  Heart,
   MessageSquare,
   Share2,
   RefreshCw,
@@ -21,7 +21,9 @@ import {
   ExternalLink,
   Video,
   MessageSquareText,
-  Camera
+  Camera,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 
@@ -39,7 +41,7 @@ const HiveIcon = ({ size = 24, className = '' }) => (
     <path d="M6.076 1.637a.103.103 0 00-.09.05L.014 11.95a.102.102 0 000 .104l6.039 10.26c.04.068.14.068.18 0l5.972-10.262a.102.102 0 00-.002-.104L6.166 1.687a.103.103 0 00-.09-.05zm2.863 0c-.079 0-.13.085-.09.154l5.186 8.967a.105.105 0 00.09.053h3.117c.08 0 .13-.088.09-.157l-5.186-8.966a.104.104 0 00-.09-.051H8.94zm5.891 0a.102.102 0 00-.088.154L20.656 12l-5.914 10.209a.102.102 0 00.088.154h3.123a.1.1 0 00.088-.05l5.945-10.262a.1.1 0 000-.102L18.041 1.688a.1.1 0 00-.088-.051H14.83zm-.79 11.7a.1.1 0 00-.089.052l-5.101 8.82c-.04.069.01.154.09.154h3.117a.104.104 0 00.09-.05l5.1-8.82a.103.103 0 00-.09-.155h-3.118z" />
   </svg>
 );
-import hiveApi, { regenerateShortsSeed, consumePreloadedShorts, hasShortsPreloaded, preloadShorts } from '../hive-api/hiveApi';
+import hiveApi, { regenerateShortsSeed, consumePreloadedShorts, hasShortsPreloaded, preloadShorts, fetchUserShortsWithDetails } from '../hive-api/hiveApi';
 import { useAppStore } from '../lib/store';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -49,6 +51,21 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 
+// Lazy-loaded Hive markdown renderer (same as CommentSection)
+let rendererPromise = null;
+const getRenderer = async () => {
+  if (!rendererPromise) {
+    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
+      return createHiveRenderer({
+        ipfsGateway: 'https://ipfs-3speak.b-cdn.net',
+        convertHiveUrls: true,
+        usertagUrlFn: (account) => `/p/${account}`,
+        hashtagUrlFn: (tag) => `/t/${tag}`,
+      });
+    });
+  }
+  return rendererPromise;
+};
 
 /* ================= COMPONENT ================= */
 const VideoShort = () => {
@@ -64,13 +81,30 @@ const VideoShort = () => {
   const [parentCardVisible, setParentCardVisible] = useState(true);
   const [expandedChainCard, setExpandedChainCard] = useState(null);
   const [shortNavLoading, setShortNavLoading] = useState(false);
+  const [firstPlayerReady, setFirstPlayerReady] = useState(false);
   const shortHistoryRef = useRef([]); // Stack of {author, permlink} for back navigation
+  const isNavigatingBackRef = useRef(false); // Prevents URL-change effect from pushing to history on back
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(() => {
+    const cookie = document.cookie.split('; ').find(c => c.startsWith('shorts_muted='));
+    return cookie ? cookie.split('=')[1] !== '0' : false;
+  });
+  // currentTime/duration as refs instead of state to avoid re-renders on every timeupdate (~4x/sec)
+  // Progress bar is updated directly via DOM refs
+  const currentTimeRef = useRef(0);
+  const durationRef = useRef(0);
+  const progressFillRef = useRef(null);
+  const progressHandleRef = useRef(null);
+  const updateProgressBar = useCallback(() => {
+    const pct = durationRef.current > 0 ? (currentTimeRef.current / durationRef.current) * 100 : 0;
+    if (progressFillRef.current) progressFillRef.current.style.width = `${pct}%`;
+    if (progressHandleRef.current) progressHandleRef.current.style.left = `${pct}%`;
+  }, []);
   const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(false);
+  const [showMuteIcon, setShowMuteIcon] = useState(false);
+  const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
@@ -82,6 +116,9 @@ const VideoShort = () => {
   const [weight, setWeight] = useState(100);
   const [voteValue, setVoteValue] = useState(0.0);
   const [accountData, setAccountData] = useState(null);
+
+  // Rendered comment bodies (permlink -> HTML string)
+  const [renderedBodies, setRenderedBodies] = useState({});
 
   // Reply state
   const [activeReply, setActiveReply] = useState(null);
@@ -95,6 +132,7 @@ const VideoShort = () => {
   const [swipeDirection, setSwipeDirection] = useState(null); // 'up' | 'down' | null
   const [swipeDragY, setSwipeDragY] = useState(0); // live drag offset in px
   const swipeAnimRef = useRef(null);
+  const touchStartYRef = useRef(null); // Synchronous mirror of touchStart for gesture detection
 
   const progressBarRef = useRef(null);
   const playPauseTimeoutRef = useRef(null);
@@ -103,14 +141,40 @@ const VideoShort = () => {
   const iframeRefs = useRef({}); // Store refs to all iframes by video id
   const keyboardRef = useRef(null); // capture keyboard events on mobile when focused
   const prevIndexRef = useRef(0); // Track previous index
+  const prevVideoIdRef = useRef(null); // Track previous video id to avoid re-running play on enrichment
   const readyPlayers = useRef(new Set()); // Track which players have sent 3speak-player-ready
   const [readyPlayerIds, setReadyPlayerIds] = useState(new Set()); // State mirror for render gating
   const pendingPlayRef = useRef(null); // Track video waiting to be played
   const chainPreloadDataRef = useRef(new Map()); // Chain short metadata for instant navigation
+  const loadingMoreRef = useRef(false); // Prevent concurrent loadMore calls
+
+  // Gesture detection refs
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const gestureHandledRef = useRef(false); // Prevent touch + click double-fire
+  const muteIconTimeoutRef = useRef(null);
+  const heartAnimTimeoutRef = useRef(null);
+  const isMutedRef = useRef(isMuted); // Mirror of isMuted for use inside message handler closure
+  const mouseLongPressRef = useRef(null); // Timer for desktop mouse long-press
+  const mouseLongPressHandledRef = useRef(false); // Tracks whether mouse long-press fired
+  const recentTouchRef = useRef(false); // Guards click handler from firing after touch events
+  const wasPlayingBeforePopupRef = useRef(false); // Tracks play state before vote popup opens
+
+  const commentsDragStartY = useRef(null); // Drag handle touch start Y
+  const commentsPanelRef = useRef(null); // Ref for comments panel element
 
   const accessToken = localStorage.getItem("access_token");
   const navigate = useNavigate();
   const location = useLocation();
+
+  // User-specific feed mode: when ?user=username is in the URL, load from the per-user endpoint
+  const feedUser = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('user') || null;
+  }, [location.search]);
+  const feedUserRef = useRef(feedUser);
+  feedUserRef.current = feedUser;
 
   // Minimum swipe distance to trigger navigation (in pixels)
   const minSwipeDistance = 50;
@@ -158,34 +222,124 @@ const VideoShort = () => {
     sendCommandToVideo(currentVid, command, data);
   }, [videos, currentIndex, sendCommandToVideo]);
 
-  const togglePlayPause = useCallback((e) => {
-    e.stopPropagation();
-    sendCommand('toggle-play');
+  // Play an iframe with correct mute state.
+  // mute=1 in URL doesn't survive player.load() after user activation,
+  // so we always explicitly sync mute state via postMessage before playing.
+  // Play an iframe with correct mute state.
+  // Sends mute/unmute before play so the player's intendedMuted flag is set correctly.
+  const playIframeWithMuteSync = useCallback((iframe) => {
+    if (!iframe?.contentWindow) return;
+    const muteCmd = isMutedRef.current ? 'mute' : 'unmute';
+    iframe.contentWindow.postMessage({ type: muteCmd }, '*');
+    iframe.contentWindow.postMessage({ type: 'play' }, '*');
+  }, []);
 
+  const togglePlayPause = useCallback(() => {
+    sendCommand('toggle-play');
     setShowPlayPauseIcon(true);
-    if (playPauseTimeoutRef.current) {
-      clearTimeout(playPauseTimeoutRef.current);
-    }
-    playPauseTimeoutRef.current = setTimeout(() => {
-      setShowPlayPauseIcon(false);
-    }, 500);
+    if (playPauseTimeoutRef.current) clearTimeout(playPauseTimeoutRef.current);
+    playPauseTimeoutRef.current = setTimeout(() => setShowPlayPauseIcon(false), 500);
   }, [sendCommand]);
+
+  // Toggle mute: only send to current (active) iframe — background iframes ignore postMessage.
+  // Other iframes get mute synced when they become current via playIframeWithMuteSync.
+  const toggleMute = useCallback(() => {
+    const newMuted = !isMuted;
+    const command = newMuted ? 'mute' : 'unmute';
+    // Only the current iframe is active and will receive this
+    sendCommand(command);
+    setIsMuted(newMuted);
+    isMutedRef.current = newMuted;
+    document.cookie = `shorts_muted=${newMuted ? '1' : '0'}; path=/; max-age=${365 * 24 * 3600}`;
+    // Show mute/unmute icon feedback
+    setShowMuteIcon(true);
+    if (muteIconTimeoutRef.current) clearTimeout(muteIconTimeoutRef.current);
+    muteIconTimeoutRef.current = setTimeout(() => setShowMuteIcon(false), 600);
+  }, [isMuted, sendCommand]);
+
+  // Pause video while vote popup is open, resume when it closes (only if was playing)
+  useEffect(() => {
+    if (showTooltip) {
+      wasPlayingBeforePopupRef.current = isPlaying;
+      if (isPlaying) sendCommand('pause');
+    } else {
+      if (wasPlayingBeforePopupRef.current) {
+        sendCommand('play');
+        wasPlayingBeforePopupRef.current = false;
+      }
+    }
+  }, [showTooltip]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Quick upvote via double-tap — opens vote popup (same as sidebar heart button)
+  const quickUpvote = useCallback(() => {
+    const video = videos[currentIndex];
+    if (!video) return;
+    // Open the vote tooltip (same as clicking the heart in the sidebar)
+    if (!authenticated) {
+      toast.error('Login to vote');
+      return;
+    }
+    setSelectedComment({ author: video.author, permlink: video.hivePermlink });
+    setShowTooltip(true);
+    setActiveTooltipPermlink(video.hivePermlink);
+  }, [videos, currentIndex, authenticated]);
+
+  // Desktop mouse handlers: mouseDown starts a long-press timer (mute/unmute), mouseUp cancels it,
+  // click fires the single/double-click gesture (play/pause or upvote).
+  // Touch devices suppress click via e.preventDefault() in onTouchEnd, so no double-fire.
+  const handleOverlayMouseDown = useCallback((e) => {
+    if (showComments) return;
+    mouseLongPressHandledRef.current = false;
+    mouseLongPressRef.current = setTimeout(() => {
+      mouseLongPressHandledRef.current = true;
+      toggleMute();
+    }, 700); // Longer threshold for mouse (700ms vs 500ms touch)
+  }, [showComments, toggleMute]);
+
+  const handleOverlayMouseUp = useCallback(() => {
+    if (mouseLongPressRef.current) {
+      clearTimeout(mouseLongPressRef.current);
+      mouseLongPressRef.current = null;
+    }
+  }, []);
+
+  const handleOverlayClick = useCallback((e) => {
+    e.stopPropagation();
+    // Skip click if it was synthesized from a recent touch (touch handler already processed it)
+    if (recentTouchRef.current) return;
+    if (showComments || mouseLongPressHandledRef.current) return;
+
+    tapCountRef.current += 1;
+    if (tapCountRef.current === 1) {
+      tapTimerRef.current = setTimeout(() => {
+        if (tapCountRef.current === 1) {
+          togglePlayPause();
+        }
+        tapCountRef.current = 0;
+      }, 300);
+    } else if (tapCountRef.current >= 2) {
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      tapCountRef.current = 0;
+      quickUpvote();
+    }
+  }, [showComments, togglePlayPause, quickUpvote]);
 
   const seekTo = useCallback((time) => {
     sendCommand('seek', { time });
   }, [sendCommand]);
 
   const handleProgressBarInteraction = useCallback((e) => {
-    if (!progressBarRef.current || duration === 0) return;
+    if (!progressBarRef.current || durationRef.current === 0) return;
 
     const rect = progressBarRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, x / rect.width));
-    const newTime = percentage * duration;
+    const newTime = percentage * durationRef.current;
 
     seekTo(newTime);
-    setCurrentTime(newTime);
-  }, [duration, seekTo]);
+    currentTimeRef.current = newTime;
+    updateProgressBar();
+  }, [seekTo, updateProgressBar]);
 
   const handleProgressMouseDown = useCallback((e) => {
     e.stopPropagation();
@@ -245,6 +399,8 @@ const VideoShort = () => {
               next.add(sourceVideoId);
               return next;
             });
+            // Dismiss the initial "Loading shorts..." overlay once any player is ready
+            setFirstPlayerReady(true);
           }
           
           // Apply orientation styles to the source iframe
@@ -269,38 +425,33 @@ const VideoShort = () => {
             }
           }
 
-          // If this video is waiting to be played (is current and was pending), play it now
+          // If this is the current video (or pending), sync mute + play.
+          // Background iframes ignore postMessage, so we only sync when becoming current.
           if (isFromCurrentVideo || pendingPlayRef.current === sourceVideoId) {
             console.log(`[VideoShort] Player ready - now playing: ${sourceVideoId}`);
             pendingPlayRef.current = null;
-            setTimeout(() => {
-              sourceIframe?.contentWindow?.postMessage({ type: 'play' }, '*');
-            }, 50);
+            setTimeout(() => playIframeWithMuteSync(sourceIframe), 50);
           }
           break;
 
         case '3speak-timeupdate':
-          // Only update state if from current video
+          // Only update if from current video — use refs (not state) to avoid re-renders
           if (isFromCurrentVideo && !isScrubbing && data.duration > 0) {
-            setCurrentTime(data.currentTime || 0);
-            setDuration(data.duration);
+            currentTimeRef.current = data.currentTime || 0;
+            durationRef.current = data.duration;
+            updateProgressBar(); // Direct DOM update, no React re-render
             if (data.paused !== undefined) {
               setIsPlaying(!data.paused);
             }
-            // Loop before the player reaches the end (avoids replay button flash)
-            if (data.currentTime > 0 && data.duration - data.currentTime <= 0.15) {
-              const loopIframe = sourceVideoId ? iframeRefs.current[sourceVideoId] : null;
-              if (loopIframe?.contentWindow) {
-                loopIframe.contentWindow.postMessage({ type: 'seek', time: 0 }, '*');
-                loopIframe.contentWindow.postMessage({ type: 'play' }, '*');
-              }
-            }
+            // NOTE: We intentionally do NOT sync muted state from the player.
+            // Our React state (isMuted / isMutedRef) is the source of truth.
+            // Looping is handled natively by the player via loop=1 param.
           }
           break;
 
         case '3speak-durationchange':
           if (isFromCurrentVideo) {
-            setDuration(data.duration || 0);
+            durationRef.current = data.duration || 0;
           }
           break;
 
@@ -317,16 +468,17 @@ const VideoShort = () => {
           break;
 
         case '3speak-ended':
-          if (isFromCurrentVideo) {
-            // Auto-replay: seek to start and play again
-            const endedIframe = sourceVideoId ? iframeRefs.current[sourceVideoId] : null;
-            if (endedIframe?.contentWindow) {
-              endedIframe.contentWindow.postMessage({ type: 'seek', time: 0 }, '*');
-              setTimeout(() => {
-                endedIframe.contentWindow?.postMessage({ type: 'play' }, '*');
-              }, 50);
-            }
-          }
+          // Looping is handled natively by the player via loop=1 param.
+          // The player should not fire this event when loop=1 is set,
+          // but if it does, no action needed.
+          break;
+
+        case '3speak-state':
+          console.log(`[MuteSync] STATE from ${sourceVideoId}: muted=${data.muted}, intendedMuted=${data.intendedMuted}, paused=${data.paused}, volume=${data.volume}`);
+          break;
+
+        case '3speak-volumechange':
+          console.log(`[MuteSync] VOLUMECHANGE from ${sourceVideoId}: muted=${data.muted}, volume=${data.volume}`);
           break;
       }
     };
@@ -336,47 +488,62 @@ const VideoShort = () => {
   }, [isScrubbing, videos, currentIndex]);
 
   // Handle video change - pause previous, play current
+  // Only react to actual index changes (not videos enrichment re-renders)
   useEffect(() => {
     const currentVid = videos[currentIndex];
+    if (!currentVid) return;
+
+    // Skip if index hasn't actually changed (e.g. videos array updated by enrichment)
+    if (prevIndexRef.current === currentIndex && currentVid.id === prevVideoIdRef.current) return;
+
     const prevIndex = prevIndexRef.current;
     const prevVid = videos[prevIndex];
 
-    if (!currentVid) return;
-
     console.log(`[VideoShort] Index changed: ${prevIndex} -> ${currentIndex}, video: ${currentVid.id}`);
+
+    // Always clear pending play from previous navigation
+    pendingPlayRef.current = null;
 
     // Update URL with current video (without page reload)
     updateUrlWithCurrentVideo(currentVid);
 
     // Reset player state
     setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
+    currentTimeRef.current = 0;
+    durationRef.current = 0;
+    updateProgressBar();
     setParentCardVisible(true);
     setCaptionExpanded(false);
 
-    // Pause the previous video if different
-    if (prevVid && prevVid.id !== currentVid.id) {
-      console.log(`[VideoShort] Pausing previous video: ${prevVid.id}`);
-      sendCommandToVideo(prevVid, 'pause');
-    }
+    // Pause ALL other players (not just previous) to free up connections on mobile
+    Object.entries(iframeRefs.current).forEach(([id, iframe]) => {
+      if (id !== currentVid.id && iframe?.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage({ type: 'pause' }, '*');
+        } catch (e) { /* ignore */ }
+      }
+    });
+
+    // Update tracking refs
+    prevIndexRef.current = currentIndex;
+    prevVideoIdRef.current = currentVid.id;
 
     // Check if the player is already ready
     const isPlayerReady = readyPlayers.current.has(currentVid.id);
     console.log(`[VideoShort] Player ready status for ${currentVid.id}: ${isPlayerReady}`);
 
     if (isPlayerReady) {
-      // Player is ready, play immediately
+      // Player is ready, play immediately (small delay for DOM to settle)
       const iframe = iframeRefs.current[currentVid.id];
       if (iframe?.contentWindow) {
         console.log(`[VideoShort] Playing immediately (player ready): ${currentVid.id}`);
-        iframe.contentWindow.postMessage({ type: 'play' }, '*');
+        setTimeout(() => playIframeWithMuteSync(iframe), 50);
       }
     } else {
       // Player not ready yet, set as pending and wait for 3speak-player-ready
       console.log(`[VideoShort] Player not ready, setting pending play: ${currentVid.id}`);
       pendingPlayRef.current = currentVid.id;
-      
+
       // Also set up a fallback with retries in case the ready event was missed
       const timeouts = [];
       const playIfReady = (attempt) => {
@@ -385,38 +552,56 @@ const VideoShort = () => {
           console.log(`[VideoShort] Skipping retry - no longer pending: ${currentVid.id}`);
           return;
         }
-        
+
         // Check if player became ready
         if (readyPlayers.current.has(currentVid.id)) {
           const iframe = iframeRefs.current[currentVid.id];
           if (iframe?.contentWindow) {
             console.log(`[VideoShort] Playing on retry ${attempt} (player now ready): ${currentVid.id}`);
             pendingPlayRef.current = null;
-            iframe.contentWindow.postMessage({ type: 'play' }, '*');
+            playIframeWithMuteSync(iframe);
           }
         } else {
           console.log(`[VideoShort] Retry ${attempt}: Player still not ready: ${currentVid.id}`);
         }
       };
-      
+
       // Retry at longer intervals to catch late ready events
       [500, 1000, 1500, 2000, 3000, 4000, 5000].forEach((delay, idx) => {
         const timeout = setTimeout(() => playIfReady(idx + 1), delay);
         timeouts.push(timeout);
       });
 
-      // Update previous index
-      prevIndexRef.current = currentIndex;
-
       // Cleanup
       return () => {
         timeouts.forEach(t => clearTimeout(t));
       };
     }
-
-    // Update previous index
-    prevIndexRef.current = currentIndex;
   }, [currentIndex, videos, sendCommandToVideo]);
+
+  // Force-show fallback: if the player hasn't sent ready after 6s, show it anyway and try playing
+  useEffect(() => {
+    const currentVid = videos[currentIndex];
+    if (!currentVid || readyPlayers.current.has(currentVid.id)) return;
+
+    const timer = setTimeout(() => {
+      if (!readyPlayers.current.has(currentVid.id)) {
+        console.log(`[VideoShort] Force-showing player after timeout: ${currentVid.id}`);
+        readyPlayers.current.add(currentVid.id);
+        setReadyPlayerIds(prev => {
+          const next = new Set(prev);
+          next.add(currentVid.id);
+          return next;
+        });
+        setFirstPlayerReady(true);
+        // Try playing — the iframe may be functional, just didn't fire the ready event
+        const iframe = iframeRefs.current[currentVid.id];
+        playIframeWithMuteSync(iframe);
+      }
+    }, 6000);
+
+    return () => clearTimeout(timer);
+  }, [currentIndex, videos]);
 
   // Lazy enrichment: when a short becomes visible and hasn't been enriched yet,
   // fetch full Hive data (vote status, reaction chain, child reactions) in background
@@ -590,29 +775,38 @@ const VideoShort = () => {
       try {
         setError(null);
 
-        // Try preloaded data first (already fetched when the app loaded)
-        // Only show the loading spinner if we actually need to fetch
-        if (!hasShortsPreloaded()) {
+        // User-specific feed mode: skip preloading, fetch directly from user endpoint
+        if (feedUser) {
           setLoading(true);
-        }
+          const data = await fetchUserShortsWithDetails(feedUser, 1, 20);
+          if (data.success) {
+            const formattedVideos = formatShorts(data.shorts);
+            await applySharedVideoLogic(formattedVideos, data);
+          }
+        } else {
+          // Default global feed
+          // Try preloaded data first (already fetched when the app loaded)
+          if (!hasShortsPreloaded()) {
+            setLoading(true);
+          }
 
-        const preloaded = await consumePreloadedShorts();
-        if (preloaded?.success) {
-          const formattedVideos = formatShorts(preloaded.shorts);
-          await applySharedVideoLogic(formattedVideos, preloaded);
+          const preloaded = await consumePreloadedShorts();
+          if (preloaded?.success) {
+            const formattedVideos = formatShorts(preloaded.shorts);
+            await applySharedVideoLogic(formattedVideos, preloaded);
+            setLoading(false);
+            return;
+          }
 
-          setLoading(false);
-          return;
-        }
+          // No preload available — generate a fresh seed and fetch
+          setLoading(true);
+          regenerateShortsSeed();
+          const data = await hiveApi.fetchShortsWithDetails(1, 10, user);
 
-        // No preload available — generate a fresh seed and fetch
-        setLoading(true);
-        regenerateShortsSeed();
-        const data = await hiveApi.fetchShortsWithDetails(1, 10, user);
-
-        if (data.success) {
-          const formattedVideos = formatShorts(data.shorts);
-          await applySharedVideoLogic(formattedVideos, data);
+          if (data.success) {
+            const formattedVideos = formatShorts(data.shorts);
+            await applySharedVideoLogic(formattedVideos, data);
+          }
         }
       } catch (err) {
         console.error('Error fetching shorts:', err);
@@ -623,7 +817,7 @@ const VideoShort = () => {
     };
 
     fetchShorts();
-  }, [user, getSharedVideoFromUrl, updateUrlWithCurrentVideo]);
+  }, [user, feedUser, getSharedVideoFromUrl, updateUrlWithCurrentVideo]);
 
   /* ---------- HANDLE IN-PAGE NAVIGATION TO A SHORT ---------- */
   // When location.search changes (e.g. clicking "View parent reaction"),
@@ -643,10 +837,14 @@ const VideoShort = () => {
     const [targetAuthor, targetPermlink] = videoParam.split('/');
     if (!targetAuthor || !targetPermlink) return;
 
-    // Save current short to history stack for back navigation
-    const currentVid = videos[currentIndex];
-    if (currentVid) {
-      shortHistoryRef.current = [...shortHistoryRef.current, { author: currentVid.author, permlink: currentVid.permlink }];
+    // Save current short to history stack for back navigation (skip when navigating back)
+    if (isNavigatingBackRef.current) {
+      isNavigatingBackRef.current = false;
+    } else {
+      const currentVid = videos[currentIndex];
+      if (currentVid) {
+        shortHistoryRef.current = [...shortHistoryRef.current, { author: currentVid.author, permlink: currentVid.permlink }];
+      }
     }
 
     // Check if it's already in the feed
@@ -795,14 +993,16 @@ const VideoShort = () => {
 
   /* ---------- LOAD MORE VIDEOS ---------- */
   const loadMoreVideos = useCallback(async () => {
-    if (!hasMore || loading) return;
+    if (!hasMore || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
 
     const nextPage = page + 1;
     setPage(nextPage);
 
     try {
-
-      const data = await hiveApi.fetchShortsWithDetails(nextPage, 20, user);
+      const data = feedUserRef.current
+        ? await fetchUserShortsWithDetails(feedUserRef.current, nextPage, 20)
+        : await hiveApi.fetchShortsWithDetails(nextPage, 20, user);
 
       if (data.success) {
         const formattedVideos = data.shorts.map(short => ({
@@ -852,8 +1052,10 @@ const VideoShort = () => {
       }
     } catch (err) {
       console.error('Error loading more shorts:', err);
+    } finally {
+      loadingMoreRef.current = false;
     }
-  }, [hasMore, loading, page]);
+  }, [hasMore, page]);
 
   /* ---------- FETCH COMMENTS ---------- */
   const fetchComments = useCallback(async () => {
@@ -867,6 +1069,20 @@ const VideoShort = () => {
 
     try {
       const comments = await hiveApi.fetchPostComments(video.author, video.hivePermlink, user);
+
+      // Pre-render comment bodies as HTML
+      try {
+        const render = await getRenderer();
+        const rendered = {};
+        const renderComment = (c) => {
+          if (c?.body) {
+            try { rendered[c.permlink] = render(c.body); } catch (_) {}
+          }
+          if (c.children) c.children.forEach(renderComment);
+        };
+        comments.forEach(renderComment);
+        setRenderedBodies(prev => ({ ...prev, ...rendered }));
+      } catch (_) {}
 
       setVideos(prev =>
         prev.map((v, idx) =>
@@ -1030,15 +1246,19 @@ const VideoShort = () => {
 
   // Update post (video) state after a vote on the main post
   const handlePostVoteSuccess = (author, permlink, isNewVote, voteWeight) => {
+    // Show heart animation on confirmed vote
+    setShowHeartAnimation(true);
+    if (heartAnimTimeoutRef.current) clearTimeout(heartAnimTimeoutRef.current);
+    heartAnimTimeoutRef.current = setTimeout(() => setShowHeartAnimation(false), 800);
+
     setVideos(prev => prev.map(v => {
       if (v.author === author && v.hivePermlink === permlink) {
-        // Only increment likes count if it's a new vote (not a re-vote with different weight)
-        const newLikes = isNewVote 
-          ? (v.stats?.likes || 0) + 1 
+        const newLikes = isNewVote
+          ? (v.stats?.likes || 0) + 1
           : v.stats?.likes || 0;
         return {
           ...v,
-          isLiked: true, // Always set to true on successful vote
+          isLiked: true,
           stats: { ...v.stats, likes: newLikes }
         };
       }
@@ -1052,6 +1272,7 @@ const VideoShort = () => {
     if (history.length === 0) return;
     const prev = history[history.length - 1];
     shortHistoryRef.current = history.slice(0, -1);
+    isNavigatingBackRef.current = true;
     navigate(`/shorts?v=${prev.author}/${prev.permlink}`, { replace: true });
   }, [navigate]);
 
@@ -1106,6 +1327,37 @@ const VideoShort = () => {
 
   const handleToggleComments = () => setShowComments(prev => !prev);
 
+  // Mobile comments panel drag-to-close
+  const handleCommentsDragStart = useCallback((e) => {
+    commentsDragStartY.current = e.touches[0].clientY;
+    const panel = commentsPanelRef.current;
+    if (panel) panel.style.transition = 'none';
+  }, []);
+
+  const handleCommentsDragMove = useCallback((e) => {
+    if (commentsDragStartY.current == null) return;
+    const dy = e.touches[0].clientY - commentsDragStartY.current;
+    const offset = Math.max(0, dy); // only allow dragging down
+    const panel = commentsPanelRef.current;
+    if (panel) panel.style.transform = `translateY(${offset}px)`;
+  }, []);
+
+  const handleCommentsDragEnd = useCallback((e) => {
+    if (commentsDragStartY.current == null) return;
+    const dy = e.changedTouches[0].clientY - commentsDragStartY.current;
+    commentsDragStartY.current = null;
+    const panel = commentsPanelRef.current;
+    if (panel) panel.style.transition = '';
+    if (dy > 80) {
+      // Dragged down far enough — close
+      setShowComments(false);
+      if (panel) panel.style.transform = '';
+    } else {
+      // Snap back
+      if (panel) panel.style.transform = '';
+    }
+  }, []);
+
   /* ---------- NAVIGATION ---------- */
 
   const triggerSwipeAnimation = (direction) => {
@@ -1118,26 +1370,42 @@ const VideoShort = () => {
     }, 350);
   };
 
+  // Find the nearest ready player index in a given direction, skipping up to `maxSkip` non-ready videos
+  const findNextReady = (fromIdx, direction = 1, maxSkip = 2) => {
+    let target = fromIdx + direction;
+    if (readyPlayers.current.has(videos[target]?.id)) return target;
+    for (let i = 1; i <= maxSkip; i++) {
+      const candidate = target + i * direction;
+      if (candidate < 0 || candidate >= videos.length) break;
+      if (readyPlayers.current.has(videos[candidate]?.id)) return candidate;
+    }
+    return target; // fallback to immediate next (will show thumbnail)
+  };
+
   const handlePrevious = () => {
     if (currentIndex === 0) return;
     shortHistoryRef.current = [];
     triggerSwipeAnimation('down');
-    setCurrentIndex(prev => prev - 1);
+    const prevIdx = findNextReady(currentIndex, -1);
+    setCurrentIndex(Math.max(0, prevIdx));
   };
 
   const handleNext = async () => {
-    if (currentIndex === videos.length - 1) {
-      if (hasMore) {
+    if (currentIndex >= videos.length - 1) {
+      if (hasMore && !loadingMoreRef.current) {
         await loadMoreVideos();
+        triggerSwipeAnimation('up');
+        setCurrentIndex(prev => prev + 1);
       }
       return;
     }
     shortHistoryRef.current = [];
     triggerSwipeAnimation('up');
-    setCurrentIndex(prev => prev + 1);
+    const nextIdx = findNextReady(currentIndex, 1);
+    setCurrentIndex(Math.min(videos.length - 1, nextIdx));
 
     // Prefetch 7 items before the end of the current page
-    if (currentIndex >= videos.length - 7 && hasMore) {
+    if (nextIdx >= videos.length - 7 && hasMore) {
       loadMoreVideos();
     }
   };
@@ -1158,12 +1426,23 @@ const VideoShort = () => {
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         handlePrevious();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        seekTo(Math.max(0, currentTimeRef.current - 5));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        seekTo(Math.min(durationRef.current, currentTimeRef.current + 5));
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.key === 'm' || e.key === 'M') {
+        toggleMute();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleNext, handlePrevious, showComments, isTransitioning]);
+  }, [handleNext, handlePrevious, seekTo, togglePlayPause, toggleMute, showComments, isTransitioning]);
 
   // Local handler for the hidden focusable element (helps capture on mobile)
   const handleKeyDownCapture = (e) => {
@@ -1179,6 +1458,17 @@ const VideoShort = () => {
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       handlePrevious();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      seekTo(Math.max(0, currentTimeRef.current - 5));
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      seekTo(Math.min(durationRef.current, currentTimeRef.current + 5));
+    } else if (e.key === ' ') {
+      e.preventDefault();
+      togglePlayPause();
+    } else if (e.key === 'm' || e.key === 'M') {
+      toggleMute();
     }
   };
 
@@ -1188,7 +1478,15 @@ const VideoShort = () => {
     // Don't handle swipe if comments panel is open
     if (showComments) return;
     setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientY);
+    const startY = e.targetTouches[0].clientY;
+    setTouchStart(startY);
+    touchStartYRef.current = startY; // Synchronous mirror for reliable gesture detection
+    gestureHandledRef.current = false;
+    // Start long-press timer (500ms)
+    longPressTimerRef.current = setTimeout(() => {
+      gestureHandledRef.current = true;
+      toggleMute();
+    }, 500);
     // attempt to focus the hidden keyboard capture so mobile hardware keyboards send events
     try {
       keyboardRef.current?.focus?.();
@@ -1206,31 +1504,65 @@ const VideoShort = () => {
       const delta = y - touchStart;
       setSwipeDragY(Math.max(-120, Math.min(120, delta)));
     }
+    // Cancel long press if finger is moving
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
   };
 
-  const onTouchEnd = async () => {
+  const onTouchEnd = async (e) => {
+    // Prevent browser from synthesizing a click event after touch
+    if (e?.preventDefault) e.preventDefault();
+    // Guard: mark recent touch so handleOverlayClick skips any synthetic click
+    recentTouchRef.current = true;
+    setTimeout(() => { recentTouchRef.current = false; }, 400);
     setSwipeDragY(0);
-    if (!touchStart || !touchEnd || showComments || isTransitioning) return;
+    // Cancel long-press timer
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
 
-    const distance = touchStart - touchEnd;
-    const isSwipeUp = distance > minSwipeDistance;
-    const isSwipeDown = distance < -minSwipeDistance;
+    // Compute swipe distance from refs/event (not state, which may be stale on fast swipes)
+    const startY = touchStartYRef.current;
+    const endY = e.changedTouches?.[0]?.clientY;
+    const distance = startY != null && endY != null ? startY - endY : 0;
+    const wasSwipe = Math.abs(distance) > minSwipeDistance;
 
-    if (isSwipeUp && (currentIndex < videos.length - 1 || hasMore)) {
-      // Swipe up = next video
-      setIsTransitioning(true);
-      await handleNext();
-      setTimeout(() => setIsTransitioning(false), 350);
-    } else if (isSwipeDown && currentIndex > 0) {
-      // Swipe down = previous video
-      setIsTransitioning(true);
-      handlePrevious();
-      setTimeout(() => setIsTransitioning(false), 350);
+    if (startY != null && endY != null && !showComments && !isTransitioning) {
+      if (distance > minSwipeDistance && (currentIndex < videos.length - 1 || hasMore)) {
+        setIsTransitioning(true);
+        await handleNext();
+        setTimeout(() => setIsTransitioning(false), 350);
+      } else if (distance < -minSwipeDistance && currentIndex > 0) {
+        setIsTransitioning(true);
+        handlePrevious();
+        setTimeout(() => setIsTransitioning(false), 350);
+      }
     }
 
     // Reset touch state
     setTouchStart(null);
     setTouchEnd(null);
+    touchStartYRef.current = null;
+
+    // Gesture tap detection — only if it wasn't a swipe or long press
+    if (wasSwipe || gestureHandledRef.current || showComments) return;
+
+    tapCountRef.current += 1;
+    if (tapCountRef.current === 1) {
+      tapTimerRef.current = setTimeout(() => {
+        if (tapCountRef.current === 1) {
+          togglePlayPause();
+        }
+        tapCountRef.current = 0;
+      }, 300);
+    } else if (tapCountRef.current >= 2) {
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      tapCountRef.current = 0;
+      quickUpvote();
+    }
   };
 
   const formatNumber = (num) =>
@@ -1244,15 +1576,16 @@ const VideoShort = () => {
     return `$${num.toFixed(2)}`;
   };
 
-  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
-
-  // Calculate which videos to preload — on mobile iframes load slower so keep more ahead
-  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
-  const preloadRange = { before: 3, after: isMobile ? 10 : 6 };
-  const preloadedIndices = [];
-  for (let i = Math.max(0, currentIndex - preloadRange.before); i <= Math.min(videos.length - 1, currentIndex + preloadRange.after); i++) {
-    preloadedIndices.push(i);
-  }
+  // Calculate which videos to preload — memoized to prevent cleanup effect from running on every render
+  const preloadedIndices = useMemo(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    const preloadRange = { before: 1, after: isMobile ? 4 : 4 };
+    const indices = [];
+    for (let i = Math.max(0, currentIndex - preloadRange.before); i <= Math.min(videos.length - 1, currentIndex + preloadRange.after); i++) {
+      indices.push(i);
+    }
+    return indices;
+  }, [currentIndex, videos.length]);
 
   // Store iframe ref
   const setIframeRef = useCallback((videoId, element) => {
@@ -1325,12 +1658,20 @@ const VideoShort = () => {
   }, [videos, currentIndex]);
 
   // Clean up old iframe refs that are no longer in preload range
+  // IMPORTANT: pause players before removing them so HLS streams stop downloading
   useEffect(() => {
     const preloadedIds = new Set(preloadedIndices.map(idx => videos[idx]?.id).filter(Boolean));
     chainPreloadEntries.forEach(e => preloadedIds.add(e.id));
     const removedIds = [];
     Object.keys(iframeRefs.current).forEach(id => {
       if (!preloadedIds.has(id)) {
+        // Pause the player to stop HLS stream download before removing
+        const iframe = iframeRefs.current[id];
+        if (iframe?.contentWindow) {
+          try {
+            iframe.contentWindow.postMessage({ type: 'pause' }, '*');
+          } catch (e) { /* iframe may already be gone */ }
+        }
         delete iframeRefs.current[id];
         readyPlayers.current.delete(id);
         removedIds.push(id);
@@ -1362,6 +1703,10 @@ const VideoShort = () => {
       </main>
     );
   }
+
+  // Show "Loading shorts..." overlay until the first player is ready
+  // (iframes render underneath so they can load in the background)
+  const showInitialLoadingOverlay = !firstPlayerReady && videos.length > 0;
 
   if (error && videos.length === 0) {
     return (
@@ -1399,9 +1744,6 @@ const VideoShort = () => {
         <div
           className={`videoContainer${swipeDirection ? ` swipe-${swipeDirection}` : ''}`}
           ref={videoContainerRef}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
           style={swipeDragY && !swipeDirection ? { transform: `translateY(${swipeDragY * 0.3}px)`, transition: 'none' } : undefined}
         >
           {/* Preloaded iframes for smooth playback */}
@@ -1416,14 +1758,14 @@ const VideoShort = () => {
                 key={video.id}
                 id={getPlayerId(video)}
                 ref={(el) => setIframeRef(video.id, el)}
-                src={`${PLAYER_URL}/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0`}
+                src={`${PLAYER_URL}/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0&loop=1&mute=1`}
                 width="100%"
                 height="100%"
                 frameBorder="0"
                 allow="autoplay; fullscreen"
                 allowFullScreen
                 onLoad={(e) => {
-                  // Store ref again on load in case it wasn't set
+
                   iframeRefs.current[video.id] = e.target;
                 }}
                 style={{
@@ -1438,7 +1780,7 @@ const VideoShort = () => {
             );
           })}
 
-          {/* Loading overlay while player initializes */}
+          {/* Thumbnail placeholder while player initializes */}
           {currentVideo && !readyPlayerIds.has(currentVideo.id) && (
             <div
               style={{
@@ -1449,15 +1791,48 @@ const VideoShort = () => {
                 height: '100%',
                 zIndex: 1,
                 display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#000',
+              }}
+            >
+              {currentVideo.thumbnailUrl && (
+                <img
+                  src={currentVideo.thumbnailUrl}
+                  alt=""
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                  }}
+                />
+              )}
+              <Loader2 className="spinner" size={36} style={{ position: 'relative', zIndex: 2 }} />
+            </div>
+          )}
+
+          {/* Full "Loading shorts..." overlay for the very first video until its player is ready */}
+          {showInitialLoadingOverlay && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 10,
+                display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: '#000',
-                gap: '1rem',
               }}
             >
               <Loader2 className="spinner" size={48} />
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', animation: 'pulseText 2s ease-in-out infinite' }}>Loading shorts...</p>
+              <p style={{ color: '#fff', marginTop: 12 }}>Loading shorts...</p>
             </div>
           )}
 
@@ -1466,13 +1841,14 @@ const VideoShort = () => {
             <iframe
               key={entry.id}
               ref={(el) => setIframeRef(entry.id, el)}
-              src={`${PLAYER_URL}/embed?v=${entry.author}/${entry.permlink}&mode=iframe&controls=0`}
+              src={`${PLAYER_URL}/embed?v=${entry.author}/${entry.permlink}&mode=iframe&controls=0&loop=1&mute=1`}
               width="100%"
               height="100%"
               frameBorder="0"
               allow="autoplay; fullscreen"
               allowFullScreen
               onLoad={(e) => {
+                // chain iframe loaded
                 iframeRefs.current[entry.id] = e.target;
               }}
               style={{
@@ -1486,16 +1862,35 @@ const VideoShort = () => {
             />
           ))}
 
-          {/* Transparent overlay for play/pause */}
+          {/* Transparent overlay for gestures */}
           <div
             className="videoOverlay"
-            onClick={togglePlayPause}
+            onClick={handleOverlayClick}
+            onMouseDown={handleOverlayMouseDown}
+            onMouseUp={handleOverlayMouseUp}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
           >
+            {/* Play/Pause icon (long press feedback) */}
             <div className={`playPauseIcon ${showPlayPauseIcon ? 'visible' : ''}`}>
               {isPlaying ? <Pause size={48} /> : <Play size={48} />}
+            </div>
+            {/* Mute/Unmute icon (single tap feedback) */}
+            <div className={`playPauseIcon ${showMuteIcon ? 'visible' : ''}`}>
+              {isMuted ? <VolumeX size={48} /> : <Volume2 size={48} />}
+            </div>
+            {/* Heart animation (double tap feedback) */}
+            <div className={`heartAnimation ${showHeartAnimation ? 'visible' : ''}`}>
+              <Heart size={80} fill="#ff2d55" color="#ff2d55" />
+            </div>
+            {/* Mute/unmute toggle button */}
+            <div className="muteIndicator"
+              onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); toggleMute(); }}
+            >
+              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </div>
           </div>
 
@@ -1506,8 +1901,8 @@ const VideoShort = () => {
             onMouseDown={handleProgressMouseDown}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="videoProgressFill" style={{ width: `${progressPercentage}%` }} />
-            <div className="videoProgressHandle" style={{ left: `${progressPercentage}%` }} />
+            <div className="videoProgressFill" ref={progressFillRef} style={{ width: '0%' }} />
+            <div className="videoProgressHandle" ref={progressHandleRef} style={{ left: '0%' }} />
           </div>
 
           {/* Loading overlay for short navigation */}
@@ -1687,7 +2082,7 @@ const VideoShort = () => {
         <div className="actionSidebar" onClick={(e) => e.stopPropagation()}>
           <div className="actionItem" onClick={(e) => { e.stopPropagation(); toggleVoteTooltip(currentVideo.author, currentVideo.hivePermlink); }}>
             <div className={`actionButton ${currentVideo.isLiked ? 'liked' : ''}`}>
-              <ThumbsUp size={24} />
+              <Heart size={24} fill={currentVideo.isLiked ? '#ff2d55' : 'none'} />
             </div>
             <span className="actionLabel">{formatNumber(currentVideo.stats.likes)}</span>
             <CommentVoteTooltip
@@ -1736,6 +2131,13 @@ const VideoShort = () => {
             <span className="actionLabel">{currentVideo.stats.remixes || 0}</span>
           </div>
 
+          <div className="actionItem" onClick={(e) => { e.stopPropagation(); toggleMute(); }}>
+            <div className={`actionButton ${isMuted ? '' : 'active'}`}>
+              {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+            </div>
+            <span className="actionLabel">{isMuted ? 'Unmute' : 'Mute'}</span>
+          </div>
+
           <div className="albumArt"  onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1767,9 +2169,14 @@ const VideoShort = () => {
       />
 
       {/* COMMENTS PANEL */}
-      <div className={`commentsPanel ${showComments ? 'open' : ''}`}>
+      <div className={`commentsPanel ${showComments ? 'open' : ''}`} ref={commentsPanelRef}>
         {/* Mobile drag handle */}
-        <div className="commentsPanelHandle" />
+        <div
+          className="commentsPanelHandle"
+          onTouchStart={handleCommentsDragStart}
+          onTouchMove={handleCommentsDragMove}
+          onTouchEnd={handleCommentsDragEnd}
+        />
 
         <div className="commentsHeader">
           <span className="commentsTitle">Comments</span>
@@ -1821,6 +2228,7 @@ const VideoShort = () => {
                 handlePostComment={handlePostComment}
                 postingComment={postingComment}
                 user={user}
+                renderedBodies={renderedBodies}
               />
             ))
           )}
@@ -1879,12 +2287,22 @@ const CommentItem = ({
   setReplyText,
   handlePostComment,
   postingComment,
-  user
+  user,
+  renderedBodies
 }) => {
   const [showReplies, setShowReplies] = useState(false);
   const maxDepth = 3;
 
   const isReplying = activeReply === comment.permlink;
+
+  // Use pre-rendered HTML if available, strip "replied to" metadata
+  const getCommentHtml = () => {
+    let html = renderedBodies?.[comment.permlink] || comment.body || '';
+    return html
+      .replace(/<p>\s*<sup>\s*replied to\s*<a[^>]*>.*?<\/a>\s*<\/sup>\s*<\/p>/gi, '')
+      .replace(/<sup>\s*replied to\s*<a[^>]*>.*?<\/a>\s*<\/sup>/gi, '')
+      .replace(/\n?<sup>replied to \[.*?\]\([^)]*\)<\/sup>/g, '');
+  };
 
   return (
     <div className={`commentItem ${depth > 0 ? 'nested' : ''}`} style={{ marginLeft: depth > 0 ? '12px' : '0' }}>
@@ -1896,13 +2314,13 @@ const CommentItem = ({
           <span className="commentUsername">{comment.user?.username}</span>
           <span className="commentTime">{comment.timeAgo}</span>
         </div>
-        <p className="commentText">{comment.body}</p>
+        <div className="commentText markdown-view" dangerouslySetInnerHTML={{ __html: getCommentHtml() }} />
         <div className="commentActions">
           <button
             className={`commentActionBtn ${comment.has_voted ? 'liked' : ''}`}
             onClick={() => toggleVoteTooltip(comment.author, comment.permlink)}
           >
-            <ThumbsUp size={14} />
+            <Heart size={14} fill={comment.has_voted ? '#ff2d55' : 'none'} />
             <span>{comment.stats?.num_likes ?? 0}</span>
           </button>
           <div className="commentReward">
@@ -2001,6 +2419,7 @@ const CommentItem = ({
                 handlePostComment={handlePostComment}
                 postingComment={postingComment}
                 user={user}
+                renderedBodies={renderedBodies}
               />
             ))}
           </div>
