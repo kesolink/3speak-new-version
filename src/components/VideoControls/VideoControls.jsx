@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo } from 'react-icons/fa';
 import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
 import './VideoControls.scss';
@@ -60,12 +60,47 @@ function VideoControls({
     return { background: `linear-gradient(to right, ${gradient.join(', ')})` };
   })() : null;
 
-  const handleTrackClick = useCallback((e) => {
+  // Seek to the position under a pointer/touch event
+  const seekFromEvent = useCallback((e) => {
     if (!trackRef.current || !duration) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const rect = trackRef.current.getBoundingClientRect();
-    const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     onSeek?.(fraction * duration);
   }, [duration, onSeek]);
+
+  // Drag/scrub support: track whether user is dragging the progress bar
+  const isDraggingRef = useRef(false);
+
+  const handleTrackPointerDown = useCallback((e) => {
+    // Ignore right-clicks
+    if (e.button && e.button !== 0) return;
+    isDraggingRef.current = true;
+    seekFromEvent(e);
+    e.preventDefault(); // prevent text selection / touch scroll
+  }, [seekFromEvent]);
+
+  useEffect(() => {
+    const handleMove = (e) => {
+      if (!isDraggingRef.current) return;
+      e.preventDefault();
+      seekFromEvent(e);
+    };
+    const handleUp = () => {
+      isDraggingRef.current = false;
+    };
+
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+    document.addEventListener('touchmove', handleMove, { passive: false });
+    document.addEventListener('touchend', handleUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleUp);
+    };
+  }, [seekFromEvent]);
 
   const handleMarkerClick = useCallback((e, time, index) => {
     e.stopPropagation();
@@ -83,7 +118,7 @@ function VideoControls({
     >
       {/* Progress bar */}
       <div className="vc-progress-row">
-        <div className="vc-progress-track" ref={trackRef} onClick={handleTrackClick}>
+        <div className="vc-progress-track" ref={trackRef} onMouseDown={handleTrackPointerDown} onTouchStart={handleTrackPointerDown}>
           {heatmapStyle && <div className="vc-heatmap" style={heatmapStyle} />}
           <div className="vc-progress-fill" style={{ width: `${progress}%` }} />
 

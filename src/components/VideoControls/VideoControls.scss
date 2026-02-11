@@ -35,6 +35,17 @@
     &:hover {
       height: 6px;
     }
+
+    // Invisible expanded tap/click target
+    &::after {
+      content: '';
+      position: absolute;
+      top: -12px;
+      bottom: -12px;
+      left: 0;
+      right: 0;
+      z-index: 1;
+    }
   }
 
   .vc-heatmap {
