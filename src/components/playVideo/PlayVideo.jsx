@@ -23,11 +23,11 @@ import TipModal from "../../components/tip-reward/TipModal";
 import { toast } from 'sonner';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
-import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
+import { getFollowers } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import { FEED_URL, PLAYER_URL, HIVE_API_URL } from '../../utils/config';
-import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
+import { isLoggedIn } from "../../hive-api/aioha";
 import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney } from "react-icons/md";
 import { FaHeart } from "react-icons/fa";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
@@ -69,7 +69,6 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
   const [communityData, setCommunityData] = useState(null);
-  const [isFollowing, setIsFollowing] = useState(false);
   const [authorReputation, setAuthorReputation] = useState(null);
   const [fabOpen, setFabOpen] = useState(false);
 
@@ -251,23 +250,6 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     getUserReputation(author).then(rep => setAuthorReputation(rep)).catch(() => {});
   }, [author, permlink, speakWatchData, getFollowersCount]);
 
-  // Effect: Check if current user follows the author
-  useEffect(() => {
-    if (!user || !author || user === author) {
-      setIsFollowing(false);
-      return;
-    }
-    const checkRelationship = async () => {
-      try {
-        const relation = await getRelationshipBetweenAccounts(user, author);
-        setIsFollowing(relation?.follows === true);
-      } catch (err) {
-        console.error('Error checking follow relationship:', err);
-      }
-    };
-    checkRelationship();
-  }, [user, author]);
-
   // Effect: Get tooltip voters (only when author/permlink/user changes)
   useEffect(() => {
     if (!author || !permlink) return;
@@ -350,24 +332,6 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     return <BarLoader />;
   }
 
-  // Follow/unfollow user using aioha (supports multiple providers)
-  const toggleFollowUser = async (following) => {
-    if (!isLoggedIn()) {
-      toast.error("Please login to follow users");
-      return;
-    }
-
-    const willFollow = !isFollowing;
-    try {
-      await followWithAioha(following, willFollow);
-      setIsFollowing(willFollow);
-      toast.success(willFollow ? `Successfully followed @${following}` : `Unfollowed @${following}`);
-    } catch (error) {
-      console.error('Failed to follow/unfollow user:', error);
-      toast.error(`Failed: ${error.message}`);
-    }
-  };
-
   return (
     <>
       <div className="play-video">
@@ -449,9 +413,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               author={videoDetails?.author?.id}
               reputation={authorReputation}
               followersCount={followData?.follower_count}
-              showFollow={author !== user}
-              isFollowing={isFollowing}
-              onFollow={() => toggleFollowUser(author)}
+              showFollow
             />
             {community_id && (<div className="community-title-wrap" onClick={() => handleCommunityNavigate(community_id)}>
               <img src={`https://images.hive.blog/u/${community_id}/avatar/small`} alt="" />

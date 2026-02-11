@@ -1,11 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getFollowers } from '../../hive-api/api';
+import { toast } from 'sonner';
+import { getFollowers, getRelationshipBetweenAccounts } from '../../hive-api/api';
+import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
+import { useAppStore } from '../../lib/store';
 import './AuthorBadge.scss';
 
-function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing, onFollow, noLink, compact, reputation }) {
+function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing: isFollowingProp, onFollow, noLink, compact, reputation }) {
   const navigate = useNavigate();
+  const { user } = useAppStore();
   const [localFollowers, setLocalFollowers] = useState(null);
+  const [following, setFollowing] = useState(isFollowingProp ?? false);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  // Sync from prop when it changes
+  useEffect(() => {
+    if (isFollowingProp != null) setFollowing(isFollowingProp);
+  }, [isFollowingProp]);
+
+  // Check actual follow status from blockchain when showFollow is true
+  useEffect(() => {
+    if (!showFollow || !author || !user || author === user || isFollowingProp != null) return;
+    let cancelled = false;
+    getRelationshipBetweenAccounts(user, author).then((relation) => {
+      if (!cancelled && relation?.follows != null) {
+        setFollowing(relation.follows);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [author, user, showFollow, isFollowingProp]);
 
   useEffect(() => {
     if (!fetchFollowers || followersCount != null || !author) return;
@@ -32,11 +55,32 @@ function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFoll
     }
   };
 
-  const handleFollow = (e) => {
+  const handleFollow = useCallback(async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onFollow) onFollow(author);
-  };
+
+    if (!isLoggedIn()) {
+      toast.error('Please login to follow users');
+      return;
+    }
+
+    if (followLoading) return;
+
+    const willFollow = !following;
+    setFollowLoading(true);
+    setFollowing(willFollow);
+
+    try {
+      await followWithAioha(author, willFollow);
+      toast.success(willFollow ? `Followed @${author}` : `Unfollowed @${author}`);
+      if (onFollow) onFollow(author, willFollow);
+    } catch (err) {
+      setFollowing(!willFollow);
+      toast.error(`Failed to ${willFollow ? 'follow' : 'unfollow'}: ${err.message}`);
+    } finally {
+      setFollowLoading(false);
+    }
+  }, [author, following, followLoading, onFollow]);
 
   const inner = (
     <>
@@ -50,6 +94,8 @@ function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFoll
     </>
   );
 
+  const showFollowBtn = showFollow && author !== user;
+
   return (
     <div className={`author-badge${compact ? ' compact' : ''}`}>
       {noLink ? (
@@ -61,12 +107,13 @@ function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFoll
           {inner}
         </Link>
       )}
-      {showFollow && (
+      {showFollowBtn && (
         <button
-          className={`follow-btn ${isFollowing ? 'following' : ''}`}
+          className={`follow-btn ${following ? 'following' : ''}`}
           onClick={handleFollow}
+          disabled={followLoading}
         >
-          {isFollowing ? 'Following' : 'Follow'}
+          {followLoading ? '...' : following ? 'Following' : 'Follow'}
         </button>
       )}
     </div>

@@ -41,9 +41,9 @@ const VideoCard = ({  video, onEdit, onView, onDelete, onPublish}) => {
             {getStatusLabel(video.status)}
           </span>
         </div>
-        {video.status === 'scheduled' && video.publish_data?.scheduled_at && (
+        {video.status === 'scheduled' && video.publish_data && (
           <div className="scheduled-date">
-            Publishes {dayjs.utc(video.publish_data.scheduled_at).local().format('MMM D, YYYY [at] h:mm A')}
+            Publishes {dayjs(typeof video.publish_data === 'number' ? video.publish_data * 1000 : video.publish_data).format('MMM D, YYYY [at] h:mm A')}
           </div>
         )}
         <div className="actions">

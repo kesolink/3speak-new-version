@@ -110,8 +110,8 @@ $black: #212529;
       }
 
       &--scheduled {
-        background-color: yellow;
-        color: black;
+        background-color: rgba($primary-blue, 0.1);
+        color: $primary-blue;
       }
 
       &--publish_manual {
