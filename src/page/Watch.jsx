@@ -116,6 +116,8 @@ function Watch() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const hideTimerRef = useRef(null);
+  const videoIsVerticalRef = useRef(false);
+  const fullscreenFromButtonRef = useRef(false);
 
   // Comment-based timeline markers
   const [commentMarkers, setCommentMarkers] = useState(null);
@@ -229,14 +231,29 @@ function Watch() {
   }, []);
 
   const handleReactToMoment = useCallback(() => {
+    // Exit fullscreen first if active
+    const wrapper = document.querySelector('.video-iframe-wrapper');
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else if (wrapper?.classList.contains('landscape-fullscreen')) {
+      wrapper.classList.remove('landscape-fullscreen');
+      setIsFullscreen(false);
+      const iframe = wrapper.querySelector('iframe');
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
+      }
+    }
+
     // Activate the React tab in the comment section
     const reactTab = document.querySelector('.comment-tabs .comment-tab:nth-child(2)');
     if (reactTab) reactTab.click();
-    // Scroll the comment section into view
-    const commentWrap = document.querySelector('.vid-comment-wrap');
-    if (commentWrap) {
-      commentWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    // Wait for React to render the tab content, then scroll it into view
+    setTimeout(() => {
+      const addCommentWrap = document.querySelector('.add-comment-wrap');
+      if (addCommentWrap) {
+        addCommentWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   }, []);
 
   const cycleReactionSize = useCallback(() => {
@@ -303,11 +320,58 @@ function Watch() {
   const handleToggleFullscreen = useCallback(() => {
     const wrapper = document.querySelector('.video-iframe-wrapper');
     if (!wrapper) return;
+
+    // If currently in CSS landscape-fullscreen, exit that first
+    if (wrapper.classList.contains('landscape-fullscreen')) {
+      wrapper.classList.remove('landscape-fullscreen');
+      setIsFullscreen(false);
+      const iframe = wrapper.querySelector('iframe');
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
+      }
+      return;
+    }
+
     if (!document.fullscreenElement) {
+      fullscreenFromButtonRef.current = true;
       wrapper.requestFullscreen?.();
     } else {
       document.exitFullscreen?.();
     }
+  }, []);
+
+  // Auto CSS-fullscreen when phone rotates to landscape (horizontal videos only)
+  // Note: the Fullscreen API requires a user gesture, so we use a CSS class instead
+  useEffect(() => {
+    if (!screen.orientation) return;
+
+    const handleOrientationChange = () => {
+      // Don't interfere when real fullscreen is active (triggered by button)
+      if (document.fullscreenElement) return;
+
+      const wrapper = document.querySelector('.video-iframe-wrapper');
+      if (!wrapper) return;
+
+      const isLandscape = screen.orientation.type.startsWith('landscape');
+      if (isLandscape && !videoIsVerticalRef.current) {
+        wrapper.classList.add('landscape-fullscreen');
+        setIsFullscreen(true);
+        const iframe = wrapper.querySelector('iframe');
+        if (iframe?.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'fullscreen-entered' }, '*');
+        }
+      } else if (wrapper.classList.contains('landscape-fullscreen')) {
+        wrapper.classList.remove('landscape-fullscreen');
+        setIsFullscreen(false);
+        const iframe = wrapper.querySelector('iframe');
+        if (iframe?.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
+        }
+      }
+    };
+
+    screen.orientation.addEventListener('change', handleOrientationChange);
+    return () => screen.orientation.removeEventListener('change', handleOrientationChange);
   }, []);
 
   // Navigate to next video in playlist
@@ -339,6 +403,9 @@ function Watch() {
 
       switch (event.data.type) {
         case '3speak-player-ready':
+          videoIsVerticalRef.current = !!event.data.isVertical;
+          mainIframe?.closest('.video-iframe-wrapper')?.classList
+            .toggle('vertical-video', !!event.data.isVertical);
           setTimeout(() => {
             triggerPlay();
             setIsPlaying(true);
@@ -374,7 +441,28 @@ function Watch() {
     };
 
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isNowFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isNowFullscreen);
+
+      // Tell the iframe player to switch to/from fill mode
+      const mainIframeEl = document.querySelector('.video-iframe-wrapper iframe');
+      if (mainIframeEl?.contentWindow) {
+        mainIframeEl.contentWindow.postMessage(
+          { type: isNowFullscreen ? 'fullscreen-entered' : 'fullscreen-exited' },
+          '*',
+        );
+      }
+
+      // Lock screen orientation only when fullscreen was triggered by the button
+      if (screen.orientation?.lock && fullscreenFromButtonRef.current) {
+        if (isNowFullscreen) {
+          const lockType = videoIsVerticalRef.current ? 'portrait' : 'landscape';
+          screen.orientation.lock(lockType).catch(() => {});
+        } else {
+          screen.orientation.unlock?.();
+        }
+      }
+      fullscreenFromButtonRef.current = false;
     };
 
     window.addEventListener('message', handleMessage);
