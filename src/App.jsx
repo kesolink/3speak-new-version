@@ -147,6 +147,7 @@ function App() {
             <Route path="/trend" element={<Trend />} />
             <Route path="/new" element={<NewVideos />} />
             <Route path="/login" element={<KeyChainLogin />} />
+            <Route path="/auth/login" element={<KeyChainLogin />} />
              <Route path="/auth/callback" element={<AuthCallback />} />
             {/* <Route path="/email" element={<Email/>} />  */}
             <Route path="/newlogin" element={<LoginNew />} />
