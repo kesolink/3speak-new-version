@@ -5,6 +5,7 @@ import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES } from '../../utils/config';
 import './ReactionPlayer.scss';
+import { markByReputation } from '../../utils/reputation';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -43,12 +44,29 @@ function strip3SpeakEmbeds(html) {
 }
 
 function CommentNode({ comment, depth }) {
+  const [collapsed, setCollapsed] = useState(false);
   const bodyHtml = depth === 0 ? strip3SpeakEmbeds(comment.body) : stripRepliedTo(comment.body || '');
+
+  if (comment.isLowReputation) return null;
+
+  if (collapsed) {
+    return (
+      <div className="rct-thread-comment" style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 16}px` } : undefined}>
+        <div className="comment-collapsed-bar" onClick={() => setCollapsed(false)}>
+          <img className="comment-collapsed-avatar" src={comment.avatar} alt="" />
+          <span className="comment-collapsed-name">@{comment.author}</span>
+          <MdKeyboardArrowUp size={18} className="comment-collapsed-chevron" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rct-thread-comment" style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 16}px` } : undefined}>
       <div className="rct-thread-header">
         <img className="rct-thread-avatar" src={comment.avatar} alt="" />
         <span className="rct-thread-author">@{comment.author}</span>
+        <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>
       </div>
       <div className="rct-thread-body markdown-view" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
       {comment.children?.map((child, i) => (
@@ -208,8 +226,9 @@ function ReactionPlayer({
         };
 
         const tree = await buildTree(current.author, current.permlink, 0);
+        const markedTree = await markByReputation(tree);
         if (!cancelled) {
-          setNestedComments(tree);
+          setNestedComments(markedTree);
           setLoadingComments(false);
         }
       } catch (err) {
@@ -476,7 +495,7 @@ function ReactionPlayer({
         {!isVideo && (
           <div className="rct-comment-panel">
             <div className="rct-comment-thread">
-              <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, children: [] }} depth={0} />
+              <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} />
               {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
               {nestedComments.map((reply, i) => (
                 <CommentNode key={i} comment={reply} depth={1} />
@@ -555,7 +574,7 @@ function ReactionPlayer({
       {isVideo && current.permlink && (
         <div className="rct-comment-panel rct-comment-panel--below">
           <div className="rct-comment-thread">
-            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, children: [] }} depth={0} />
+            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} />
             {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
             {nestedComments.map((reply, i) => (
               <CommentNode key={i} comment={reply} depth={1} />
@@ -568,6 +587,7 @@ function ReactionPlayer({
       {/* Horizontal scrollable list */}
       <div className="reaction-list" ref={scrollRef}>
         {reactions.map((reaction, i) => {
+          if (reaction.isLowReputation) return null;
           // Insert divider before the first non-timestamped reaction
           const showDivider = reaction.pct === null && (i === 0 || reactions[i - 1].pct !== null);
           return (

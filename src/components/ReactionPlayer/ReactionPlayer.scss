@@ -558,6 +558,16 @@
     margin: 4px 2px;
   }
 
+  // Low-reputation scroller item — greyed out but still clickable
+  .reaction-item--low-rep {
+    opacity: 0.4;
+    filter: grayscale(0.6);
+    &.active {
+      opacity: 0.7;
+      filter: grayscale(0.3);
+    }
+  }
+
   // Collapse/hide toggle button
   .mobile-rct-toggle {
     // Visible on all screen sizes (nav-btn styles apply)

@@ -30,6 +30,7 @@ function Recommended({suggestedVideos}) {
                 <img
                   src={fixVideoThumbnail(data)}
                   alt={data.title}
+                  onError={(e) => (e.currentTarget.src = 'https://media.3speak.tv/defaults/default_thumbnail.png')}
                 />
                 <AddToPlaylistButton
                   author={author}

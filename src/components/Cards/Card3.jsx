@@ -1,7 +1,10 @@
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import ViewCount from "../ViewCount/ViewCount";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 import { IoCalendarOutline } from "react-icons/io5";
+dayjs.extend(utc);
 import { MdDelete, MdError, MdPhoneIphone } from "react-icons/md";
 import { FaCog, FaFileAlt } from "react-icons/fa";
 import AddToPlaylistButton from "../AddToPlaylistButton/AddToPlaylistButton";
@@ -9,7 +12,7 @@ import TimeAgo from "../TimeAgo/TimeAgo";
 import { Link, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import "./Cards.scss";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import img from "../../assets/image/speak.jpg";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
@@ -21,8 +24,6 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
   const { getViewCount } = useViewCounts(videos);
-  const [showTooltip, setShowTooltip] = useState(false);
-
   const formatViewCount = (views) => {
     if (views === null || views === undefined) return null;
     if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
@@ -30,11 +31,6 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
     return views.toLocaleString();
   };
 
-  useEffect(() => {
-  const close = () => setShowTooltip(false);
-  window.addEventListener("click", close);
-  return () => window.removeEventListener("click", close);
-}, []);
 
 
 
@@ -85,31 +81,14 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
 
               {/* Status Badges */}
               {video.status === 'scheduled' && video.publish_type === 'schedule' && (
-                <div
-                  className="status-badge scheduled"
-                  onMouseEnter={() => setShowTooltip(true)}
-                  onMouseLeave={() => setShowTooltip(false)}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setShowTooltip((prev) => !prev);
-                  }}
-                >
+                <div className="status-badge scheduled">
                   <IoCalendarOutline size={18} />
-                  <span>Scheduled</span>
-
-                  {showTooltip && (
-                    <div className="schedule-tooltip">
-                      Scheduled for <br />
-                      <strong>
-                        {dayjs(video.publish_data?.scheduled_at).format(
-                          "MMM D, YYYY h:mm A"
-                        )}
-                      </strong>
-                    </div>
-                  )}
+                  <span>
+                    {video.publish_data?.scheduled_at
+                      ? dayjs.utc(video.publish_data.scheduled_at).local().format('MMM D, h:mm A')
+                      : 'Scheduled'}
+                  </span>
                 </div>
-
               )}
 
               {video.publish_type === 'publish_manual' && (

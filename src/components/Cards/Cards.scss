@@ -403,43 +403,6 @@
     }
   }
 }
-.status-badge {
-  position: relative;
-  cursor: pointer;
-
-  .schedule-tooltip {
-    position: absolute;
-    top: 120%;
-    right: 0;
-    background: rgba(20, 20, 20, 0.96);
-    color: #fff;
-    padding: 8px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    white-space: nowrap;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-    z-index: 50;
-
-    animation: fadeIn 0.15s ease forwards;
-
-    &::before {
-      content: "";
-      position: absolute;
-      top: -5px;
-      right: 12px;
-      border-width: 6px;
-      border-style: solid;
-      border-color: transparent transparent rgba(241, 10, 10, 0.96)
-        transparent;
-    }
-  }
-}
-
-@media (hover: none) {
-  .status-badge span {
-    display: none;
-  }
-}
 
 
 @keyframes fadeIn {

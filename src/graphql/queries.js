@@ -53,7 +53,6 @@ export const GET_VIDEO_DETAILS = gql`
           }
         }
         body
-        spkvideo
         stats {
           num_comments
           num_votes

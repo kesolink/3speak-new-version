@@ -7,7 +7,7 @@ import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@apollo/client";
-import { GET_PROFILE } from "../../graphql/queries";
+import { GET_PROFILE, GET_VIDEO } from "../../graphql/queries";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
@@ -117,8 +117,12 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     skip: !videoDetails?.author?.id,
   });
 
-  // Use spkvideo from videoDetails (already fetched by Watch.jsx)
-  const spkvideo = videoDetails?.spkvideo;
+  // Fetch spkvideo separately (resilient — doesn't block videoDetails)
+  const { data: videoData } = useQuery(GET_VIDEO, {
+    variables: { author, permlink },
+    skip: !author || !permlink,
+  });
+  const spkvideo = videoData?.socialPost?.spkvideo || videoDetails?.spkvideo;
   const profile = getUserProfile.data?.profile;
   
   // Memoized values

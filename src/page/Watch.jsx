@@ -12,6 +12,7 @@ import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, PLAYER_URL } from '../utils/config';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
+import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -175,6 +176,14 @@ function Watch() {
             isVideo: !!videoUrl,
             videoUrl,
           });
+        }
+
+        // Batch-fetch reputations and mark low-rep authors
+        const authors = markers.map(m => m.label);
+        const reputations = await batchGetReputations(authors);
+        for (const m of markers) {
+          const rep = reputations.get(m.label) ?? 25;
+          m.isLowReputation = rep < LOW_REP_THRESHOLD;
         }
 
         // Sort by timestamp: timestamped first (ascending), then no-timestamp at end
@@ -473,11 +482,77 @@ function Watch() {
     };
   }, [triggerPlay, playlistData, showPlaylist, navigateToNextVideo]);
 
-  const { data: videoData, loading: videoLoading, error: videoError } = useQuery(GET_VIDEO_DETAILS, {
+  const { data: videoData, loading: videoLoading, error: videoError, refetch: refetchVideo } = useQuery(GET_VIDEO_DETAILS, {
     variables: { author, permlink },
   });
 
-  const videoDetails = videoData?.socialPost;
+  // Hive fallback: when GraphQL doesn't have the video, fetch directly from blockchain
+  const [hiveFallback, setHiveFallback] = useState(null);
+  const [hiveFallbackLoading, setHiveFallbackLoading] = useState(false);
+
+  useEffect(() => {
+    if (videoLoading || videoData?.socialPost || !author || author === 'unknown') return;
+
+    let cancelled = false;
+    setHiveFallbackLoading(true);
+
+    (async () => {
+      try {
+        const post = await hiveClient.call('condenser_api', 'get_content', [author, permlink]);
+        if (cancelled || !post || !post.author) { setHiveFallbackLoading(false); return; }
+
+        let meta = {};
+        try { meta = JSON.parse(post.json_metadata || '{}'); } catch (_) {}
+        const videoInfo = meta.video?.info || {};
+
+        // Build play_url from video metadata
+        let play_url = videoInfo.video_v2 || videoInfo.file || null;
+        if (!play_url && videoInfo.sourceMap) {
+          const videoSource = videoInfo.sourceMap.find(s => s.type === 'video');
+          if (videoSource) play_url = videoSource.url;
+        }
+
+        // Build thumbnail from metadata
+        let thumbnail_url = null;
+        if (videoInfo.sourceMap) {
+          const thumbSource = videoInfo.sourceMap.find(s => s.type === 'thumbnail');
+          if (thumbSource) thumbnail_url = thumbSource.url;
+        }
+        if (!thumbnail_url && meta.image?.[0]) thumbnail_url = meta.image[0];
+
+        const payout = parseFloat(post.total_payout_value) + parseFloat(post.curator_payout_value) + parseFloat(post.pending_payout_value || '0');
+
+        setHiveFallback({
+          title: post.title,
+          body: post.body,
+          author: {
+            id: post.author,
+            username: post.author,
+            profile: { name: post.author, images: { avatar: `https://images.hive.blog/u/${post.author}/avatar` } },
+          },
+          stats: {
+            num_comments: post.children || 0,
+            num_votes: post.active_votes?.length || 0,
+            total_hive_reward: payout,
+          },
+          community: post.category ? { _id: post.category, title: post.category } : null,
+          created_at: post.created,
+          tags: meta.tags || [],
+          parent_permlink: post.parent_permlink,
+          spkvideo: play_url ? { play_url, thumbnail_url, duration: videoInfo.duration || 0 } : null,
+          _hiveFallback: true,
+        });
+      } catch (err) {
+        console.error('Hive fallback failed:', err);
+      } finally {
+        if (!cancelled) setHiveFallbackLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [videoLoading, videoData, author, permlink]);
+
+  const videoDetails = videoData?.socialPost || hiveFallback;
 
   // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
@@ -566,6 +641,7 @@ function Watch() {
         replyCount: m.replyCount,
         pct: m.pct,
         pctIsSeconds: m.pctIsSeconds,
+        isLowReputation: m.isLowReputation ?? false,
       };
       if (m.isVideo && m.videoUrl) {
         return {
@@ -632,18 +708,19 @@ function Watch() {
   }, [reactions, searchParams]);
 
   const isNetworkError = videoError && videoError.networkError;
-  const isLoading = videoLoading || (suggestionsLoading && trendingLoading && authorVideosLoading);
+  const isLoading = videoLoading || hiveFallbackLoading || (suggestionsLoading && trendingLoading && authorVideosLoading);
 
   if (isLoading) {
     return <BarLoader />;
   }
 
-  if (videoError) {
-    return <div>Error loading data. Please try again.</div>;
-  }
-
-  if (isNetworkError) {
-    return <div>network error</div>;
+  if (videoError || !videoDetails) {
+    return (
+      <div className="watch-error">
+        <p>{isNetworkError ? 'Network error. Please check your connection.' : videoError ? 'Error loading video.' : 'Video not found or failed to load.'}</p>
+        <button className="watch-error-retry" onClick={() => refetchVideo()}>Retry</button>
+      </div>
+    );
   }
 
   return (
