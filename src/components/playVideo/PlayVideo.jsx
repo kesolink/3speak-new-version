@@ -28,7 +28,8 @@ import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import { FEED_URL, PLAYER_URL, HIVE_API_URL } from '../../utils/config';
 import { followWithAioha, isLoggedIn } from "../../hive-api/aioha";
-import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp } from "react-icons/md";
+import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney } from "react-icons/md";
+import { FaHeart } from "react-icons/fa";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
 import PlaylistBar from "../PlaylistBar/PlaylistBar";
@@ -70,6 +71,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [communityData, setCommunityData] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [authorReputation, setAuthorReputation] = useState(null);
+  const [fabOpen, setFabOpen] = useState(false);
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -312,6 +314,28 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const toggleTooltip = useCallback(() => {
     setShowTooltip((prev) => !prev);
   }, []);
+
+  const handleShare = useCallback(async () => {
+    const shareUrl = `${window.location.origin}/watch?v=${author}/${permlink}`;
+    const shareData = { title: videoDetails?.title || '3Speak Video', url: shareUrl };
+    try {
+      if (navigator.share && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard!');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          toast.success('Link copied to clipboard!');
+        } catch {
+          toast.error('Failed to share');
+        }
+      }
+    }
+  }, [author, permlink, videoDetails?.title]);
 
   const handleCommunityNavigate = useCallback((community) => {
     navigate(`/community/${community}`);
@@ -585,6 +609,74 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         permlink={permlink}
         videoTitle={videoDetails?.title}
       />
+
+      {/* Mobile FAB — speed-dial for quick actions */}
+      {!videoControls?.isFullscreen && fabOpen && (
+        <div className="fab-backdrop" onClick={() => setFabOpen(false)} />
+      )}
+      {!videoControls?.isFullscreen && (
+        <div className={`fab-speed-dial${fabOpen ? ' open' : ''}`}>
+          {fabOpen && (
+            <div className="fab-actions">
+              <div className="fab-action">
+                <span className="fab-action-label">Share</span>
+                <button
+                  className="fab-action-btn"
+                  onClick={() => { handleShare(); setFabOpen(false); }}
+                  aria-label="Share"
+                >
+                  <MdShare size={20} />
+                </button>
+              </div>
+
+              {authenticated && isLoggedIn() && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Playlist</span>
+                  <button
+                    className="fab-action-btn"
+                    onClick={() => { setIsPlaylistModalOpen(true); setFabOpen(false); }}
+                    aria-label="Add to playlist"
+                  >
+                    <MdPlaylistAdd size={20} />
+                  </button>
+                </div>
+              )}
+
+              {authenticated && isLoggedIn() && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Tip</span>
+                  <button
+                    className="fab-action-btn"
+                    onClick={() => { setIsTipModalOpen(true); setFabOpen(false); }}
+                    aria-label="Tip"
+                  >
+                    <MdAttachMoney size={20} />
+                  </button>
+                </div>
+              )}
+
+              <div className="fab-action">
+                <span className="fab-action-label">Vote</span>
+                <button
+                  className={`fab-action-btn${isVoted ? ' fab-action-btn--voted' : ''}`}
+                  onClick={() => { setMobileDetailsExpanded(true); setShowTooltip(true); setFabOpen(false); }}
+                  aria-label="Vote"
+                >
+                  <FaHeart size={18} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button
+            className="fab-main"
+            onClick={() => setFabOpen(prev => !prev)}
+            aria-label={fabOpen ? 'Close menu' : 'Open actions'}
+          >
+            {fabOpen ? <MdClose size={24} /> : <MdAdd size={24} />}
+          </button>
+        </div>
+      )}
     </>
   );
 };

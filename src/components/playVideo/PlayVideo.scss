@@ -637,3 +637,127 @@
         }
     }
 }
+
+// FAB Speed-Dial — mobile only
+.fab-backdrop {
+    display: none;
+
+    @include mix.respond(phone) {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 49;
+        animation: fab-fade-in 0.2s ease;
+    }
+}
+
+.fab-speed-dial {
+    display: none;
+
+    @include mix.respond(phone) {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        position: fixed;
+        bottom: 24px;
+        right: 16px;
+        z-index: 50;
+    }
+}
+
+.fab-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 14px;
+    // Offset so 44px action buttons center-align with the 56px main button
+    padding-right: calc((56px - 44px) / 2);
+}
+
+.fab-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(12px) scale(0.8);
+    animation: fab-action-in 0.25s ease forwards;
+
+    @for $i from 1 through 4 {
+        &:nth-last-child(#{$i}) {
+            animation-delay: #{$i * 0.04}s;
+        }
+    }
+}
+
+.fab-action-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary, #fff);
+    background: var(--bg-elevated, #2a2a2a);
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.fab-action-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: var(--bg-elevated, #2a2a2a);
+    color: var(--text-primary, #fff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: background 0.15s ease, transform 0.15s ease;
+
+    &:active {
+        transform: scale(0.9);
+    }
+
+    &--voted {
+        color: var(--accent-primary, #e53935);
+    }
+}
+
+.fab-main {
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+    z-index: 51;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:active {
+        transform: scale(0.92);
+    }
+
+    &.open {
+        transform: rotate(45deg);
+    }
+}
+
+@keyframes fab-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fab-action-in {
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
