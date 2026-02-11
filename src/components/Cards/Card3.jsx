@@ -84,8 +84,8 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                 <div className="status-badge scheduled">
                   <IoCalendarOutline size={18} />
                   <span>
-                    {video.publish_data?.scheduled_at
-                      ? dayjs.utc(video.publish_data.scheduled_at).local().format('MMM D, h:mm A')
+                    {video.publish_data
+                      ? dayjs(typeof video.publish_data === 'number' ? video.publish_data * 1000 : video.publish_data).format('MMM D, h:mm A')
                       : 'Scheduled'}
                   </span>
                 </div>

@@ -1316,15 +1316,6 @@ const VideoShort = () => {
 
   /* ---------- INTERACTIONS ---------- */
 
-  const handleSubscribe = () => {
-    setVideos(prev =>
-      prev.map((video, idx) =>
-        idx === currentIndex
-          ? { ...video, user: { ...video.user, isSubscribed: !video.user.isSubscribed } }
-          : video
-      )
-    );
-  };
 
   const handleToggleComments = () => setShowComments(prev => !prev);
 
@@ -2060,8 +2051,6 @@ const VideoShort = () => {
                 showFollow
                 followersCount={currentVideo.user.followersCount}
                 reputation={currentVideo.user.reputation}
-                isFollowing={currentVideo.user.isSubscribed}
-                onFollow={() => handleSubscribe()}
               />
             </div>
             <div className={`caption${captionExpanded ? ' caption--expanded' : ''}`} onClick={(e) => { e.stopPropagation(); setCaptionExpanded(prev => !prev); }}>
