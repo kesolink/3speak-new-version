@@ -814,3 +814,61 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 } */
 
+/* Chevron to hide a comment — right-aligned in header */
+.comment-collapse-chevron {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary, rgba(255,255,255,0.08));
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.comment-collapse-chevron:hover {
+  color: var(--text-secondary, #aaa);
+  background: var(--bg-hover, rgba(255,255,255,0.14));
+}
+
+/* Collapsed comment bar — slim row with avatar + name, click to expand */
+.comment-collapsed-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  background: var(--bg-tertiary, rgba(255,255,255,0.04));
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 2px 0;
+  transition: background 0.15s ease;
+}
+.comment-collapsed-bar:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.08));
+}
+.comment-collapsed-bar .author-badge {
+  flex-shrink: 0;
+}
+.comment-collapsed-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.comment-collapsed-name {
+  font-size: 12px;
+  color: var(--text-secondary, #aaa);
+  white-space: nowrap;
+}
+.comment-collapsed-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted, #888);
+  transform: rotate(180deg);
+}
+
+

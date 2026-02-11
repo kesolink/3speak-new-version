@@ -7,6 +7,8 @@
 
 const REPUTATION_API = 'https://api.syncad.com/reputation-api/accounts';
 
+export const LOW_REP_THRESHOLD = 15;
+
 // Cache to avoid repeated API calls for the same user
 const repCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -65,7 +67,7 @@ export async function isLowReputation(username) {
  * @param {string[]} usernames - Array of usernames to lookup
  * @returns {Promise<Map<string, number>>} - Map of username to reputation
  */
-async function batchGetReputations(usernames) {
+export async function batchGetReputations(usernames) {
   const uniqueUsernames = [...new Set(usernames)];
   const results = new Map();
   
@@ -167,6 +169,46 @@ export async function filterByReputation(content) {
   }
   
   return filterItems(content);
+}
+
+/**
+ * Mark content by reputation without removing anything.
+ * Adds `isLowReputation: true` to items from authors with rep < LOW_REP_THRESHOLD.
+ * Recursively marks nested children/replies.
+ *
+ * @template T
+ * @param {T[]} content - Array of comments/posts to mark
+ * @returns {Promise<T[]>} - Same array with isLowReputation flag added
+ */
+export async function markByReputation(content) {
+  if (!content || content.length === 0) return [];
+
+  const allAuthors = collectAllAuthors(content);
+  const reputations = await batchGetReputations(allAuthors);
+
+  function markItems(items) {
+    return items.map(item => {
+      const authorName = typeof item.author === 'string'
+        ? item.author
+        : item.author?.username;
+
+      const reputation = reputations.get(authorName) ?? 25;
+      const marked = { ...item, isLowReputation: reputation < LOW_REP_THRESHOLD };
+
+      const nested = item.children || item.replies;
+      if (nested && nested.length > 0) {
+        if (item.children) {
+          marked.children = markItems(nested);
+        } else if (item.replies) {
+          marked.replies = markItems(nested);
+        }
+      }
+
+      return marked;
+    });
+  }
+
+  return markItems(content);
 }
 
 /**

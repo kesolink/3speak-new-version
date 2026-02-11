@@ -10,7 +10,6 @@ import {
   ArrowDown,
   X,
   SlidersHorizontal,
-  MoreVertical,
   Loader2,
   Play,
   Pause,
@@ -50,6 +49,7 @@ import { PLAYER_URL } from '../utils/config';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
+import { markByReputation } from '../utils/reputation';
 
 // Lazy-loaded Hive markdown renderer (same as CommentSection)
 let rendererPromise = null;
@@ -1068,7 +1068,8 @@ const VideoShort = () => {
     commentsFetchedRef.current.add(video.id);
 
     try {
-      const comments = await hiveApi.fetchPostComments(video.author, video.hivePermlink, user);
+      const rawComments = await hiveApi.fetchPostComments(video.author, video.hivePermlink, user);
+      const comments = await markByReputation(rawComments);
 
       // Pre-render comment bodies as HTML
       try {
@@ -1940,7 +1941,7 @@ const VideoShort = () => {
                     {rootStep && (
                       <div className="chainRoot">
                         {rootStep.thumbnail && (
-                          <img className="chainRootThumb" src={fixVideoThumbnail({ thumbnail: rootStep.thumbnail })} alt="" />
+                          <img className="chainRootThumb" src={fixVideoThumbnail({ thumbnail: rootStep.thumbnail })} alt="" onError={(e) => (e.currentTarget.src = 'https://media.3speak.tv/defaults/default_thumbnail.png')} />
                         )}
                         <div className="chainRootInfo">
                           <span className="chainRootTitle">{rootStep.title || 'Original video'}</span>
@@ -2291,6 +2292,7 @@ const CommentItem = ({
   renderedBodies
 }) => {
   const [showReplies, setShowReplies] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const maxDepth = 3;
 
   const isReplying = activeReply === comment.permlink;
@@ -2304,6 +2306,20 @@ const CommentItem = ({
       .replace(/\n?<sup>replied to \[.*?\]\([^)]*\)<\/sup>/g, '');
   };
 
+  if (comment.isLowReputation) return null;
+
+  if (collapsed) {
+    return (
+      <div className={`commentItem ${depth > 0 ? 'nested' : ''}`} style={{ marginLeft: depth > 0 ? '12px' : '0' }}>
+        <div className="comment-collapsed-bar" onClick={() => setCollapsed(false)}>
+          <img className="comment-collapsed-avatar" src={comment.user?.avatar} alt="" />
+          <span className="comment-collapsed-name">@{comment.user?.username}</span>
+          <ChevronUp size={16} className="comment-collapsed-chevron" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`commentItem ${depth > 0 ? 'nested' : ''}`} style={{ marginLeft: depth > 0 ? '12px' : '0' }}>
       <div className="commentAvatar">
@@ -2313,6 +2329,7 @@ const CommentItem = ({
         <div className="commentMeta">
           <span className="commentUsername">{comment.user?.username}</span>
           <span className="commentTime">{comment.timeAgo}</span>
+          <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><ChevronUp size={16} /></span>
         </div>
         <div className="commentText markdown-view" dangerouslySetInnerHTML={{ __html: getCommentHtml() }} />
         <div className="commentActions">
@@ -2425,9 +2442,6 @@ const CommentItem = ({
           </div>
         )}
       </div>
-      <button className="commentMoreBtn">
-        <MoreVertical size={16} />
-      </button>
     </div>
   );
 };

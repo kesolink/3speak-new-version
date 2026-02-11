@@ -1,8 +1,11 @@
 import React from 'react';
 import "./VideoCard.scss"
 import dayjs from "dayjs";
+import utc from 'dayjs/plugin/utc';
 import {  useNavigate } from 'react-router-dom';
 import { fixVideoThumbnail } from '../../utils/fixThumbnails';
+import fallbackImg from '../../assets/image/speak.jpg';
+dayjs.extend(utc);
 const VideoCard = ({  video, onEdit, onView, onDelete, onPublish}) => {
   const navigate = useNavigate()
   const handleNavigate = ()=>{
@@ -28,7 +31,7 @@ const VideoCard = ({  video, onEdit, onView, onDelete, onPublish}) => {
   return (
     <div className="video-card">
       <div className="thumbnail">
-        <img src={fixVideoThumbnail(video)} alt={video.title} />
+        <img src={fixVideoThumbnail(video)} alt={video.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
       </div>
       <div className="content">
         <h3 className="title">{video.title || ""}</h3>
@@ -38,6 +41,11 @@ const VideoCard = ({  video, onEdit, onView, onDelete, onPublish}) => {
             {getStatusLabel(video.status)}
           </span>
         </div>
+        {video.status === 'scheduled' && video.publish_data?.scheduled_at && (
+          <div className="scheduled-date">
+            Publishes {dayjs.utc(video.publish_data.scheduled_at).local().format('MMM D, YYYY [at] h:mm A')}
+          </div>
+        )}
         <div className="actions">
           {video.status === 'published' ? (
             <>

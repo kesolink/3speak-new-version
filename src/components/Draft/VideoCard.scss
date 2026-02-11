@@ -103,7 +103,7 @@ $black: #212529;
       font-size: 12px;
       border-radius: 30px;
       font-weight: 500;
-      
+
       &--published {
         background-color: rgba($primary-blue, 0.1);
         color: $primary-blue;
@@ -113,10 +113,21 @@ $black: #212529;
         background-color: yellow;
         color: black;
       }
-      
+
       &--publish_manual {
         background-color: rgba($primary-red, 0.1);
         color: $primary-red;
+      }
+    }
+
+    .scheduled-date {
+      font-size: 12px;
+      color: #e6a800;
+      font-weight: 500;
+      margin-bottom: 10px;
+
+      [data-theme="dark"] & {
+        color: #ffc107;
       }
     }
     

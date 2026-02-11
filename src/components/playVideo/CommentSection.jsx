@@ -4,7 +4,7 @@ import './BlogContent.scss';
 import { BiDislike } from 'react-icons/bi';
 import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
-import { MdVideocam, MdComment } from 'react-icons/md';
+import { MdVideocam, MdComment, MdKeyboardArrowUp } from 'react-icons/md';
 import ReactVideoTab from '../ReactVideoModal/ReactVideoModal';
 import dayjs from 'dayjs';
 import { useAppStore } from '../../lib/store';
@@ -13,7 +13,7 @@ import UpvoteTooltip from '../tooltip/UpvoteTooltip';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import {  toast } from 'sonner'
 import { estimate, getVotePower } from '../../utils/hiveUtils';
-import { filterByReputation, getUserReputation } from '../../utils/reputation';
+import { markByReputation, getUserReputation } from '../../utils/reputation';
 import Button from '../Button/Button';
 import AuthorBadge from '../AuthorBadge/AuthorBadge';
 import UpvoteCount from '../UpvoteCount/UpvoteCount';
@@ -147,17 +147,17 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
       try {
         const replies = await client.call('condenser_api', 'get_content_replies', [author, permlink]);
         const commentsWithChildren = await loadNestedComments(replies);
-        // Filter out spam accounts (negative reputation) — also caches reputations
-        const filteredComments = await filterByReputation(commentsWithChildren);
-        // Attach cached reputations to comment authors (all cache hits after filtering)
+        // Mark low-reputation accounts (rep < 15) — also caches reputations
+        const markedComments = await markByReputation(commentsWithChildren);
+        // Attach cached reputations to comment authors (all cache hits after marking)
         const attachRep = async (comments) => {
           for (const c of comments) {
             if (c.author?.username) c.author.reputation = await getUserReputation(c.author.username);
             if (c.children?.length) await attachRep(c.children);
           }
         };
-        await attachRep(filteredComments);
-        setCommentList(filteredComments);
+        await attachRep(markedComments);
+        setCommentList(markedComments);
         
         // Pre-render all comment bodies (createHiveRenderer returns a function directly)
         const render = await getRenderer();
@@ -174,7 +174,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
             comment.children.forEach(renderComment);
           }
         };
-        filteredComments.forEach(renderComment);
+        markedComments.forEach(renderComment);
         setRenderedBodies(rendered);
       } catch (error) {
         console.error('Failed to fetch comments from Hive:', error);
@@ -621,6 +621,7 @@ function Comment({
 }) {
   const isReplying = activeReply === comment.permlink;
   const [replyTab, setReplyTab] = useState('comment');
+  const [collapsed, setCollapsed] = useState(false);
 
   // Inherit timestamp from the parent comment (not editable)
   const replyTimestamp = comment?.parentTimestamp ?? null;
@@ -629,6 +630,19 @@ function Comment({
   useEffect(() => {
     if (isReplying) setReplyTab('comment');
   }, [isReplying]);
+
+  if (comment.isLowReputation) return null;
+
+  if (collapsed) {
+    return (
+      <div className="comment-container" style={{ marginLeft: depth > 0 ? '40px' : '0px' }}>
+        <div className="comment-collapsed-bar" onClick={() => setCollapsed(false)}>
+          <AuthorBadge author={comment?.author?.username} reputation={comment?.author?.reputation} noLink compact />
+          <MdKeyboardArrowUp size={18} className="comment-collapsed-chevron" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="comment-container" style={{ marginLeft: depth > 0 ? '40px' : '0px' }} >
@@ -640,6 +654,7 @@ function Comment({
             {comment?.parentTimestamp != null && (
               <span className="comment-timestamp-badge" onClick={() => onSeek?.(comment.parentTimestamp)}>at {formatTimeInput(comment.parentTimestamp)}</span>
             )}
+            <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>
           </div>
           <div className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '', comment?.permlink) }} />
           <div className="comment-action">
@@ -685,7 +700,6 @@ function Comment({
           </div>
         </div>
       </div>
-
       {isReplying && (
         <div className="add-comment-wrap sub" style={{ marginLeft: '40px' }}>
           {/* Tab headers + timestamp */}

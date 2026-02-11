@@ -1413,12 +1413,6 @@
       }
     }
 
-    &:hover {
-      .commentMoreBtn {
-        opacity: 1;
-      }
-    }
-
     @media (max-width: 768px) {
       padding: 0.625rem 1rem;
       gap: 0.625rem;
@@ -1583,28 +1577,6 @@
 
     &:hover {
       text-decoration: underline;
-    }
-  }
-
-  .commentMoreBtn {
-    position: absolute;
-    right: 1rem;
-    top: 0.75rem;
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 150ms;
-    padding: 0.25rem;
-    border-radius: 50%;
-
-    &:hover {
-      background-color: var(--bg-hover);
-
-      [data-theme="dark"] & {
-        background-color: #272727;
-      }
     }
   }
 
