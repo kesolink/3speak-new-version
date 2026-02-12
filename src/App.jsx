@@ -62,8 +62,7 @@ import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
 import { KeyTypes } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
-import { LOCAL_STORAGE_ACCESS_TOKEN_KEY, LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
-import axios from "axios";
+import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
 
 function App() {
   const location = useLocation();
@@ -79,6 +78,7 @@ function App() {
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
   const loginInProgress = useRef(false); // Track if login is being processed
+  const aiohaUserSeen = useRef(false); // Track if aiohaUser has ever been populated
 
   // Hide nav on /shorts route on mobile
   const isShorts = location.pathname === '/shorts';
@@ -117,7 +117,9 @@ function App() {
 
   // Watch for aioha user changes and sync with 3Speak
   useEffect(() => {
-    if (!aiohaUser && appUser) {
+    if (loginInProgress.current) return; // handleAiohaLogin is already handling this
+    if (aiohaUser) aiohaUserSeen.current = true;
+    if (!aiohaUser && appUser && aiohaUserSeen.current) {
       // Aioha logged out - log out of 3Speak too
       console.log("Aioha logged out, logging out of 3Speak");
       LogOut(appUser);
@@ -127,7 +129,6 @@ function App() {
       console.log("Aioha user changed to:", aiohaUser);
       localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, aiohaUser);
       setUser(aiohaUser);
-      initializeAuth();
     }
   }, [aiohaUser]);
 
@@ -183,7 +184,7 @@ function App() {
   }
 
   // Handle login callback from AiohaModal
-  const handleAiohaLogin = async (loginResult) => {
+  const handleAiohaLogin = (loginResult) => {
     console.log("Aioha login result:", loginResult);
 
     if (!loginResult || loginResult.error) {
@@ -192,41 +193,11 @@ function App() {
       return;
     }
 
-    try {
-      // Send to 3Speak backend for JWT token
-      // Use the same proof that was signed in loginOptions.msg
-      const data = {
-        challenge: loginResult.result,
-        proof: loginProof,
-        publicKey: loginResult.publicKey,
-        username: loginResult.username,
-      };
-
-      const response = await axios.post(
-        'https://studio.3speak.tv/mobile/login',
-        data,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      console.log('Login Success:', response.data);
-      const token = response.data.token;
-      localStorage.setItem(LOCAL_STORAGE_ACCESS_TOKEN_KEY, token);
-      localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, loginResult.username);
-
-      setUser(loginResult.username);
-      initializeAuth();
-      setLoginModalOpen(false);
-      loginInProgress.current = false;
-      toast.success("Login successful!");
-    } catch (err) {
-      console.error("3Speak auth error:", err);
-      loginInProgress.current = false;
-      toast.error("Login failed: " + (err.response?.data?.error || err.message));
-    }
+    localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, loginResult.username);
+    setUser(loginResult.username);
+    setLoginModalOpen(false);
+    loginInProgress.current = false;
+    toast.success("Login successful!");
   }
 
   return (

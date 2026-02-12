@@ -4,8 +4,16 @@ const aioha = initAioha({
   hiveauth: {
     name: '3Speak',
     description: '3Speak - Decentralized Video Platform'
+  },
+  hivesigner: {
+    app: import.meta.env.VITE_HIVESIGNER_APP,
+    callbackURL: window.location.origin + '/hivesigner.html',
+    scope: ['login', 'vote', 'comment', 'follow', 'transfer'],
   }
 })
+
+// Override default RPC node (aioha defaults to techcoderx.com which rate-limits)
+aioha.setApi('https://api.hive.blog')
 
 // Store for HiveAuth waiting callbacks
 let hiveAuthCallbacks = {
