@@ -12,7 +12,7 @@ import TimeAgo from "../TimeAgo/TimeAgo";
 import { Link, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import "./Cards.scss";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import img from "../../assets/image/speak.jpg";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
@@ -31,18 +31,25 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
     return views.toLocaleString();
   };
 
-
-
+  // Memoize video processing to prevent re-computing thumbnails on every render
+  const processedVideos = useMemo(() => {
+    return videos.map(video => ({
+      ...video,
+      _processedThumbnail: fixVideoThumbnail(video)
+    }));
+  }, [videos]);
 
   if (loading && videos.length === 0) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
   return (
     <div className="card-container">
-      {videos.map((video, index) => {
+      {processedVideos.map((video, index) => {
         const postKey = `${video.author?.username || video.author || video.owner}/${
           video.permlink
         }`;
+        
+        console.log('🟠 [Card3] Rendering video card:', { index, postKey });
 
         return (
           <Link
@@ -56,9 +63,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
             {/* Thumbnail */}
             <div className="img-wrap">
               <img
-                // src={video.images?.thumbnail}
-                src={fixVideoThumbnail(video)}
-                // src={video.images?.thumbnail || img}
+                src={video._processedThumbnail}
                 alt="thumbnail"
                 onError={(e) => (e.currentTarget.src = img)}
                 loading="lazy"
