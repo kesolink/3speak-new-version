@@ -5,12 +5,11 @@ import fallbackImg from "../assets/image/speak.jpg";
 const APP_BUNNY_IPFS_CDN = "https://ipfs-3speak.b-cdn.net";
 const APP_IMAGE_CDN_DOMAIN = "https://media.3speak.tv";
 
+export { fallbackImg };
 
 export function fixVideoThumbnail(video) {
-  const thumbnail = video?.images?.thumbnail || video?.thumbUrl || video?.spkvideo?.thumbnail_url || video?.thumbnail;
+  const thumbnail = video?.images?.thumbnail || video?.thumbUrl || video?.spkvideo?.thumbnail_url || video?.thumbnailUrl || video?.thumbnail;
 
-
-  // 🚧 If no thumbnail, return a fallback image
   if (!thumbnail) {
     return fallbackImg;
   }

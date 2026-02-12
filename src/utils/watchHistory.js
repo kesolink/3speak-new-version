@@ -6,18 +6,18 @@ import { PLAYLISTS_API_URL } from './config';
  * @param {string} username - The user who watched
  * @param {string} author - Video author
  * @param {string} permlink - Video permlink
+ * @param {object} [options] - Optional fields
+ * @param {boolean} [options.short] - Whether this is a short
  */
-export async function recordWatch(username, author, permlink) {
+export async function recordWatch(username, author, permlink, options = {}) {
   if (!username || !author || !permlink) {
     return null;
   }
 
   try {
-    const response = await axios.put(`${PLAYLISTS_API_URL}/watch-history`, {
-      username,
-      author,
-      permlink,
-    });
+    const body = { username, author, permlink };
+    if (options.short != null) body.short = options.short;
+    const response = await axios.put(`${PLAYLISTS_API_URL}/watch-history`, body);
     return response.data;
   } catch (error) {
     console.error('Failed to record watch:', error);

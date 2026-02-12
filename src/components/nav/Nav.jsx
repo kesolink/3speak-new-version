@@ -10,7 +10,7 @@ import { useGetMyQuery } from "../../hooks/getUserDetails";
 import ThemeToggle from "./ThemeToggle";
 import { AiOutlineClose} from "react-icons/ai";
 import { IoCloudUploadSharp } from "react-icons/io5";
-import { MdOutlineDashboard, MdOutlineDynamicFeed, MdOutlineLeaderboard } from "react-icons/md";
+import { MdOutlineDashboard, MdOutlineDynamicFeed, MdOutlineLeaderboard, MdPlaylistPlay } from "react-icons/md";
 import { FaFire, FaRegSmile } from "react-icons/fa";
 import { LuNewspaper } from "react-icons/lu";
 import apple_icon from "../../assets/image/app-store.png"
@@ -114,6 +114,9 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
               </Link>
               {authenticated && <Link to="/studio" className="side-link-n" onClick={handleNav}>
                 <IoCloudUploadSharp className="icon" /> <span>Upload Video</span>
+              </Link>}
+              {authenticated && <Link to="/profile?tab=playlists" className="side-link-n" onClick={handleNav}>
+                <MdPlaylistPlay className="icon" /> <span>My Playlists</span>
               </Link>}
               <Link to="/firstupload" className="side-link-n" onClick={handleNav}>
                 <FaRegSmile className="icon"/> <span>First Uploads</span>

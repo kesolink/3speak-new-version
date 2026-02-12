@@ -51,6 +51,12 @@ function ProfilePage() {
     const tab = searchParams.get('tab');
     return tab === 'playlists' ? 'playlists' : 'video';
   });
+  // Sync tab state when URL search params change (e.g. navigating from sidebar)
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'playlists') setShow('playlists');
+  }, [searchParams]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistAccess, setNewPlaylistAccess] = useState('public');
