@@ -23,15 +23,11 @@ export const createAuthUserSlice = (set) => ({
   // Initialize the store on app load
   initializeAuth: () => {
     if (typeof window !== "undefined") {
-      const userId = window.localStorage.getItem(LOCAL_STORAGE_USER_ID_KEY);
-      const accessToken = window.localStorage.getItem("access_token");
-  
-      if (accessToken && userId) {
-        const existing = JSON.parse(localStorage.getItem("accountsList")) || [];
-        const filtered = existing.filter(acc => acc.username !== userId);
-        const updated = [...filtered, { username: userId, access_token: accessToken }];
-        localStorage.setItem("accountsList", JSON.stringify(updated));
-  
+      const aiohaUser = aioha.getCurrentUser();
+      const userId = aiohaUser || window.localStorage.getItem(LOCAL_STORAGE_USER_ID_KEY);
+
+      if (userId) {
+        window.localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, userId);
         set({ authenticated: true, user: userId });
       } else {
         set({ authenticated: false, user: null });

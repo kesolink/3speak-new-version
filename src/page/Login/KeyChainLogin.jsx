@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import './KeyChainLogin.scss';
-import axios from "axios";
 import logo from '../../assets/image/3S_logo.svg';
 import logoDark from '../../assets/image/3S_logodark.png';
 import keychainImg from '../../assets/image/keychain.png';
 import hiveauthImg from '../../../public/images/hiveauth.jpeg';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FEED_URL } from '../../utils/config';
-import { LOCAL_STORAGE_ACCESS_TOKEN_KEY, LOCAL_STORAGE_USER_ID_KEY } from '../../hooks/localStorageKeys';
+import { LOCAL_STORAGE_USER_ID_KEY } from '../../hooks/localStorageKeys';
 import { useAppStore } from '../../lib/store';
 import { LuLogOut } from 'react-icons/lu';
 import {  toast } from 'sonner'
@@ -17,8 +16,6 @@ import QrCode_modal from '../../components/modal/QrCode_modal';
 import aioha from "../../hive-api/aioha";
 
 function KeyChainLogin() {
-  const client = axios.create({});
-
   const { initializeAuth, setActiveUser, switchAccount, clearAccount, LogOut, user, theme } = useAppStore();
 
 console.log(theme)
@@ -70,59 +67,23 @@ console.log(hasKeychain)
       const login = await aioha.login(Providers.Keychain, username, {
         msg: `${proof}`,
         keyType: KeyTypes.Posting,
-        
       });
 
       console.log("Login response:", login);
-      if (login.error === "HiveAuth authentication request expired") {
-        toast.error("HiveAuth authentication request expired");
-        setQrCode("")
-        setShowModal(false);
-      }
 
       if (login.error && login.error !== "Already logged in") {
-        throw new Error("HiveAuth Error: " + login.error);
+        throw new Error("Login Error: " + login.error);
       }
-
-      let signedResult = login;
 
       if (login.error === "Already logged in") {
         aioha.switchUser(username);
-        signedResult = await aioha.signMessage(`${proof}`, KeyTypes.Posting);
-        if (signedResult.error) {
-          throw new Error("Signing Error: " + signedResult.error);
-        }
       }
 
-      const data = {
-        "challenge": login.result,
-        "proof": proof,
-        "publicKey": login.publicKey,
-        "username": login.username,
-      }
-
-
-      const response = await axios.post(
-      'https://studio.3speak.tv/mobile/login',
-      data,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    console.log('Login Success:', response.data);
-    const decodedMessage = response.data.token;
-      localStorage.setItem(LOCAL_STORAGE_ACCESS_TOKEN_KEY, decodedMessage);
       localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, username);
       initializeAuth();
-      // navigate back to the route user visited before opening login
       const pre = (location.state && location.state.from && location.state.from.pathname) || sessionStorage.getItem('preLoginPath') || '/';
       navigate(pre);
       toast.success("Login successful!");
-
-
 
     } catch (err) {
       console.error(err);
@@ -141,75 +102,44 @@ const handleLoginWithHiveAuth = async () => {
 
   let proof = Math.floor(new Date().getTime() / 1000);
   try {
-        const login = await aioha.login(Providers.HiveAuth, username, {
-          msg: `${proof}`,
-          keyType: KeyTypes.Posting,
-          hiveauth: {
-            cbWait: (payload) => {
-              setQrCode(payload);
-              setShowModal(true);
-            },
-          },
-        });
-        console.log("Login response:", login);
-        if (login.error === "HiveAuth authentication request expired") {
-          toast.error("HiveAuth authentication request expired");
-          setQrCode("")
-          setShowModal(false);
-        }
-  
-        if (login.error && login.error !== "Already logged in") {
-          throw new Error("HiveAuth Error: " + login.error);
-        }
-  
-        
-        let signedResult = login;
-  
-        if (login.error === "Already logged in") {
-          aioha.switchUser(username);
-          // after switching user, navigate back to previous route
-          const preSwitch = (location.state && location.state.from && location.state.from.pathname) || sessionStorage.getItem('preLoginPath') || '/';
-          navigate(preSwitch);
-          signedResult = await aioha.signMessage(`${proof}`, KeyTypes.Posting);
-          if (signedResult.error) {
-            throw new Error("Signing Error: " + signedResult.error);
-          }
-        }
-  
-        const data = {
-          "challenge": login.result,
-          "proof": proof,
-          "publicKey": login.publicKey,
-          "username": login.username,
-        }
+    const login = await aioha.login(Providers.HiveAuth, username, {
+      msg: `${proof}`,
+      keyType: KeyTypes.Posting,
+      hiveauth: {
+        cbWait: (payload) => {
+          setQrCode(payload);
+          setShowModal(true);
+        },
+      },
+    });
+    console.log("Login response:", login);
 
-        console.log(data)
-  
-  
-        const response = await axios.post(
-        'https://studio.3speak.tv/mobile/login',
-        data,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-  
-      console.log('Login Success:', response.data);
-      const decodedMessage = response.data.token;
-        localStorage.setItem(LOCAL_STORAGE_ACCESS_TOKEN_KEY, decodedMessage);
-        localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, username);
-        initializeAuth();
-        const preAuth = (location.state && location.state.from && location.state.from.pathname) || sessionStorage.getItem('preLoginPath') || '/';
-        navigate(preAuth);
-        toast.success("Login successful!");
-  
-      } catch (err) {
-        console.error(err);
-        toast.error("Login failed: " + (err.response?.data?.error || err.message));
-        
-      }
+    if (login.error === "HiveAuth authentication request expired") {
+      toast.error("HiveAuth authentication request expired");
+      setQrCode("");
+      setShowModal(false);
+      return;
+    }
+
+    if (login.error && login.error !== "Already logged in") {
+      throw new Error("HiveAuth Error: " + login.error);
+    }
+
+    if (login.error === "Already logged in") {
+      aioha.switchUser(username);
+    }
+
+    setShowModal(false);
+    localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, username);
+    initializeAuth();
+    const pre = (location.state && location.state.from && location.state.from.pathname) || sessionStorage.getItem('preLoginPath') || '/';
+    navigate(pre);
+    toast.success("Login successful!");
+
+  } catch (err) {
+    console.error(err);
+    toast.error("Login failed: " + err.message);
+  }
 };
   
 const openKeychainApp = () => {
