@@ -2,7 +2,6 @@ import React, { useEffect } from 'react'
 import "./FirstUploads.scss"
 import { useQuery } from '@apollo/client';
 import { FIRST_UPLOAD_FEED } from '../graphql/queries'
-import Cards from "../components/Cards/Cards"
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import axios from 'axios'
 import Card3 from '../components/Cards/Card3';

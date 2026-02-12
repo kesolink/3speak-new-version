@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import CardSkeleton from '../components/Cards/CardSkeleton';
 import { useQuery } from '@apollo/client';
 import { GET_TRENDING_TAGS } from '../graphql/queries';
-import Cards from '../components/Cards/Cards'
 import { useLocation, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { useInfiniteQuery } from '@tanstack/react-query';
