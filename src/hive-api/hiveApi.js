@@ -53,8 +53,9 @@ async function hiveRpc(method, params) {
 const _shortsByEmbedUrl = new Map(); // embed_url → short object
 const _shortsByPermlink = new Map(); // permlink → short object
 
-export async function fetchShortsList(page = 1, limit = 20) {
-  const url = `${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`;
+export async function fetchShortsList(page = 1, limit = 20, currentuser = null) {
+  let url = `${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`;
+  if (currentuser) url += `&currentuser=${encodeURIComponent(currentuser)}`;
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
 
@@ -599,7 +600,7 @@ export async function findShortByPermlink(permlink) {
 ------------------------------ */
 
 export async function fetchShortsWithDetails(page = 1, limit = 10, loggedInUser = null) {
-  const shortsList = await fetchShortsList(page, limit);
+  const shortsList = await fetchShortsList(page, limit, loggedInUser);
 
   if (!shortsList?.shorts) {
     throw new Error("Failed to fetch shorts list");
@@ -761,10 +762,10 @@ let _preloadPromise = null;
  * Preloads the first page of shorts in the background.
  * Safe to call multiple times — only runs once until consumed.
  */
-export function preloadShorts(limit = 5) {
+export function preloadShorts(limit = 5, currentuser = null) {
   if (_preloadedShorts || _preloadPromise) return; // already preloading or done
   regenerateShortsSeed();
-  _preloadPromise = fetchShortsWithDetails(1, limit)
+  _preloadPromise = fetchShortsWithDetails(1, limit, currentuser)
     .then((data) => {
       _preloadedShorts = data;
       _preloadPromise = null;

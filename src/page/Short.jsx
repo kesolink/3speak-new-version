@@ -4,7 +4,6 @@ import {
   Heart,
   MessageSquare,
   Share2,
-  RefreshCw,
   Music2,
   ArrowUp,
   ArrowDown,
@@ -22,7 +21,12 @@ import {
   MessageSquareText,
   Camera,
   Volume2,
-  VolumeX
+  VolumeX,
+  Repeat,
+  ChevronsUp,
+  Square,
+  RotateCcw,
+  Repeat2
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 
@@ -42,12 +46,14 @@ const HiveIcon = ({ size = 24, className = '' }) => (
 );
 import hiveApi, { regenerateShortsSeed, consumePreloadedShorts, hasShortsPreloaded, preloadShorts, fetchUserShortsWithDetails } from '../hive-api/hiveApi';
 import { useAppStore } from '../lib/store';
+import { recordWatch } from '../utils/watchHistory';
+import { recordReshare, getResharesForVideo, deleteReshare } from '../utils/reshares';
 import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { PLAYER_URL } from '../utils/config';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { fixVideoThumbnail } from '../utils/fixThumbnails';
+import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import { markByReputation } from '../utils/reputation';
 
@@ -69,7 +75,7 @@ const getRenderer = async () => {
 
 /* ================= COMPONENT ================= */
 const VideoShort = () => {
-  const { user, authenticated } = useAppStore();
+  const { user, authenticated, watchHistoryEnabled } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [videos, setVideos] = useState([]);
   const [showComments, setShowComments] = useState(false);
@@ -91,6 +97,16 @@ const VideoShort = () => {
     const cookie = document.cookie.split('; ').find(c => c.startsWith('shorts_muted='));
     return cookie ? cookie.split('=')[1] !== '0' : false;
   });
+  // Playback mode: 'auto-replay' (loop), 'auto-swipe' (next near end), 'none' (stop + replay)
+  const [playbackMode, setPlaybackMode] = useState(() => {
+    const cookie = document.cookie.split('; ').find(c => c.startsWith('shorts_playback_mode='));
+    return cookie ? cookie.split('=')[1] : 'auto-replay';
+  });
+  const playbackModeRef = useRef(playbackMode);
+  const [showModeIndicator, setShowModeIndicator] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const modeIndicatorTimeoutRef = useRef(null);
+  const autoSwipeTriggeredRef = useRef(false);
   // currentTime/duration as refs instead of state to avoid re-renders on every timeupdate (~4x/sec)
   // Progress bar is updated directly via DOM refs
   const currentTimeRef = useRef(0);
@@ -119,6 +135,11 @@ const VideoShort = () => {
 
   // Rendered comment bodies (permlink -> HTML string)
   const [renderedBodies, setRenderedBodies] = useState({});
+
+  // Reshare state
+  const [reshareCount, setReshareCount] = useState(0);
+  const [hasReshared, setHasReshared] = useState(false);
+  const [reshareUsers, setReshareUsers] = useState([]); // [{username, reshared_at}]
 
   // Reply state
   const [activeReply, setActiveReply] = useState(null);
@@ -256,6 +277,22 @@ const VideoShort = () => {
     if (muteIconTimeoutRef.current) clearTimeout(muteIconTimeoutRef.current);
     muteIconTimeoutRef.current = setTimeout(() => setShowMuteIcon(false), 600);
   }, [isMuted, sendCommand]);
+
+  // Cycle playback mode: auto-replay → auto-swipe → none → auto-replay
+  const cyclePlaybackMode = useCallback(() => {
+    const modes = ['auto-replay', 'auto-swipe', 'none'];
+    const nextMode = modes[(modes.indexOf(playbackMode) + 1) % modes.length];
+    setPlaybackMode(nextMode);
+    playbackModeRef.current = nextMode;
+    document.cookie = `shorts_playback_mode=${nextMode}; path=/; max-age=${365 * 24 * 3600}`;
+    // Reset ended state when switching modes
+    setVideoEnded(false);
+    autoSwipeTriggeredRef.current = false;
+    // Show mode indicator
+    setShowModeIndicator(true);
+    if (modeIndicatorTimeoutRef.current) clearTimeout(modeIndicatorTimeoutRef.current);
+    modeIndicatorTimeoutRef.current = setTimeout(() => setShowModeIndicator(false), 1500);
+  }, [playbackMode, videos, currentIndex]);
 
   // Pause video while vote popup is open, resume when it closes (only if was playing)
   useEffect(() => {
@@ -443,9 +480,25 @@ const VideoShort = () => {
             if (data.paused !== undefined) {
               setIsPlaying(!data.paused);
             }
-            // NOTE: We intentionally do NOT sync muted state from the player.
-            // Our React state (isMuted / isMutedRef) is the source of truth.
-            // Looping is handled natively by the player via loop=1 param.
+            // Auto-swipe: trigger swipe when near end of video
+            if (playbackModeRef.current === 'auto-swipe' && data.duration > 0 && !autoSwipeTriggeredRef.current) {
+              const remaining = data.duration - data.currentTime;
+              if (remaining <= 1.0 && remaining >= 0) {
+                autoSwipeTriggeredRef.current = true;
+                handleNext();
+              }
+            }
+            // None mode: pause video near end and show replay button
+            // Works even if iframe was loaded with loop=1 (catches it before loop restarts)
+            if (playbackModeRef.current === 'none' && data.duration > 0 && !autoSwipeTriggeredRef.current) {
+              const remaining = data.duration - data.currentTime;
+              if (remaining <= 0.3 && remaining >= 0) {
+                autoSwipeTriggeredRef.current = true; // Reuse flag to prevent multiple triggers
+                sendCommandToVideo(currentVid, 'pause');
+                setVideoEnded(true);
+                setIsPlaying(false);
+              }
+            }
           }
           break;
 
@@ -468,9 +521,10 @@ const VideoShort = () => {
           break;
 
         case '3speak-ended':
-          // Looping is handled natively by the player via loop=1 param.
-          // The player should not fire this event when loop=1 is set,
-          // but if it does, no action needed.
+          if (isFromCurrentVideo && playbackModeRef.current === 'none') {
+            setVideoEnded(true);
+            setIsPlaying(false);
+          }
           break;
 
         case '3speak-state':
@@ -507,8 +561,15 @@ const VideoShort = () => {
     // Update URL with current video (without page reload)
     updateUrlWithCurrentVideo(currentVid);
 
+    // Record watch history — use hivePermlink so WatchedView can look it up via Hive API
+    if (user && watchHistoryEnabled !== false && currentVid.author && (currentVid.hivePermlink || currentVid.permlink)) {
+      recordWatch(user, currentVid.author, currentVid.hivePermlink || currentVid.permlink, { short: true });
+    }
+
     // Reset player state
     setIsPlaying(false);
+    setVideoEnded(false);
+    autoSwipeTriggeredRef.current = false;
     currentTimeRef.current = 0;
     durationRef.current = 0;
     updateProgressBar();
@@ -648,13 +709,40 @@ const VideoShort = () => {
     })();
   }, [currentIndex, videos, user]);
 
+  // Fetch reshare data when current video changes
+  useEffect(() => {
+    const currentVid = videos[currentIndex];
+    if (!currentVid) return;
+    const author = currentVid.author;
+    const permlink = currentVid.hivePermlink || currentVid.permlink;
+    if (!author || !permlink) return;
+
+    // Reset state for new video
+    setReshareCount(0);
+    setHasReshared(false);
+    setReshareUsers([]);
+
+    (async () => {
+      try {
+        const { reshares, count } = await getResharesForVideo(author, permlink);
+        setReshareCount(count);
+        setReshareUsers(reshares);
+        if (user) {
+          setHasReshared(reshares.some(r => r.username === user));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch reshares:', err);
+      }
+    })();
+  }, [currentIndex, videos, user]);
+
   // Cleanup on unmount — preload fresh shorts for the next visit
   useEffect(() => {
     return () => {
       if (playPauseTimeoutRef.current) {
         clearTimeout(playPauseTimeoutRef.current);
       }
-      preloadShorts(10);
+      preloadShorts(10, user);
     };
   }, []);
 
@@ -785,20 +873,26 @@ const VideoShort = () => {
           }
         } else {
           // Default global feed
-          // Try preloaded data first (already fetched when the app loaded)
-          if (!hasShortsPreloaded()) {
-            setLoading(true);
+          // Only use preloaded data for guests — logged-in users need
+          // currentuser filtering to exclude already-watched shorts
+          if (!user) {
+            if (!hasShortsPreloaded()) {
+              setLoading(true);
+            }
+
+            const preloaded = await consumePreloadedShorts();
+            if (preloaded?.success) {
+              const formattedVideos = formatShorts(preloaded.shorts);
+              await applySharedVideoLogic(formattedVideos, preloaded);
+              setLoading(false);
+              return;
+            }
+          } else {
+            // Discard any stale preloaded data that lacks currentuser filtering
+            consumePreloadedShorts();
           }
 
-          const preloaded = await consumePreloadedShorts();
-          if (preloaded?.success) {
-            const formattedVideos = formatShorts(preloaded.shorts);
-            await applySharedVideoLogic(formattedVideos, preloaded);
-            setLoading(false);
-            return;
-          }
-
-          // No preload available — generate a fresh seed and fetch
+          // Fetch with currentuser parameter so watched shorts are filtered out
           setLoading(true);
           regenerateShortsSeed();
           const data = await hiveApi.fetchShortsWithDetails(1, 10, user);
@@ -1311,6 +1405,28 @@ const VideoShort = () => {
           toast.error('Failed to share');
         }
       }
+    }
+  };
+
+  /* ---------- RESHARE FUNCTIONALITY ---------- */
+  const handleReshare = async () => {
+    if (!currentVideo || !user) {
+      toast.error('Log in to reshare');
+      return;
+    }
+    if (hasReshared) return;
+
+    const author = currentVideo.author;
+    const permlink = currentVideo.hivePermlink || currentVideo.permlink;
+
+    const result = await recordReshare(user, author, permlink);
+    if (result) {
+      setHasReshared(true);
+      setReshareCount(prev => prev + 1);
+      setReshareUsers(prev => [...prev, { username: user, reshared_at: Math.floor(Date.now() / 1000) }]);
+      toast.success('Reshared!');
+    } else {
+      toast.error('Failed to reshare');
     }
   };
 
@@ -1876,6 +1992,16 @@ const VideoShort = () => {
             <div className={`heartAnimation ${showHeartAnimation ? 'visible' : ''}`}>
               <Heart size={80} fill="#ff2d55" color="#ff2d55" />
             </div>
+            {/* Playback mode toggle button */}
+            <div className="playbackModeIndicator"
+              onClick={(e) => { e.stopPropagation(); cyclePlaybackMode(); }}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); cyclePlaybackMode(); }}
+            >
+              {playbackMode === 'auto-replay' ? <Repeat size={16} /> :
+               playbackMode === 'auto-swipe' ? <ChevronsUp size={18} /> :
+               <Square size={14} />}
+            </div>
             {/* Mute/unmute toggle button */}
             <div className="muteIndicator"
               onClick={(e) => { e.stopPropagation(); toggleMute(); }}
@@ -1884,6 +2010,32 @@ const VideoShort = () => {
             >
               {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </div>
+            {/* Playback mode fading text indicator */}
+            <div className={`modeIndicatorText ${showModeIndicator ? 'visible' : ''}`}>
+              {playbackMode === 'auto-replay' ? 'Auto-Replay' :
+               playbackMode === 'auto-swipe' ? 'Auto-Swipe' :
+               'Manual'}
+            </div>
+            {/* Replay button for 'none' mode when video ends */}
+            {videoEnded && playbackMode === 'none' && (
+              <div className="replayOverlay"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setVideoEnded(false);
+                  sendCommand('seek', { time: 0 });
+                  setTimeout(() => sendCommand('play'), 100);
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setVideoEnded(false);
+                  sendCommand('seek', { time: 0 });
+                  setTimeout(() => sendCommand('play'), 100);
+                }}
+              >
+                <RotateCcw size={56} />
+              </div>
+            )}
           </div>
 
           {/* Progress bar */}
@@ -1932,7 +2084,7 @@ const VideoShort = () => {
                     {rootStep && (
                       <div className="chainRoot">
                         {rootStep.thumbnail && (
-                          <img className="chainRootThumb" src={fixVideoThumbnail({ thumbnail: rootStep.thumbnail })} alt="" onError={(e) => (e.currentTarget.src = 'https://media.3speak.tv/defaults/default_thumbnail.png')} />
+                          <img className="chainRootThumb" src={fixVideoThumbnail({ thumbnail: rootStep.thumbnail })} alt="" onError={(e) => (e.currentTarget.src = fallbackImg)} />
                         )}
                         <div className="chainRootInfo">
                           <span className="chainRootTitle">{rootStep.title || 'Original video'}</span>
@@ -2045,6 +2197,32 @@ const VideoShort = () => {
           })()}
 
           <div className="bottomOverlay">
+            {/* Reshare avatars — users who reshared (except ourselves) */}
+            {reshareUsers.filter(r => r.username !== user).length > 0 && (
+              <div className="reshareAvatars" onClick={(e) => e.stopPropagation()}>
+                {reshareUsers
+                  .filter(r => r.username !== user)
+                  .slice(0, 5)
+                  .map(r => (
+                    <div
+                      key={r.username}
+                      className="reshareAvatarWrap"
+                      title={`@${r.username}`}
+                      onClick={(e) => { e.stopPropagation(); handleProfileNavigation(r.username); }}
+                    >
+                      <img
+                        src={`https://images.hive.blog/u/${r.username}/avatar`}
+                        alt={r.username}
+                        className="reshareAvatar"
+                      />
+                      <Repeat2 size={14} className="reshareBadge" />
+                    </div>
+                  ))}
+                {reshareUsers.filter(r => r.username !== user).length > 5 && (
+                  <span className="reshareMore">+{reshareUsers.filter(r => r.username !== user).length - 5}</span>
+                )}
+              </div>
+            )}
             <div className="userRow" onClick={(e) => e.stopPropagation()}>
               <AuthorBadge
                 author={currentVideo.author}
@@ -2121,11 +2299,11 @@ const VideoShort = () => {
             <span className="actionLabel">Share</span>
           </div>
 
-          <div className="actionItem" onClick={(e) => e.stopPropagation()}>
-            <div className="actionButton">
-              <RefreshCw size={24} className="flipped" />
+          <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleReshare(); }}>
+            <div className={`actionButton ${hasReshared ? 'reshared' : ''}`}>
+              <Repeat2 size={24} />
             </div>
-            <span className="actionLabel">{currentVideo.stats.remixes || 0}</span>
+            <span className="actionLabel">{reshareCount || 0}</span>
           </div>
 
           <div className="albumArt"  onClick={(e) => {
@@ -2135,6 +2313,7 @@ const VideoShort = () => {
                   }}>
             <img src={currentVideo.albumArt} alt="" />
           </div>
+
         </div>
 
         {/* NAVIGATION */}

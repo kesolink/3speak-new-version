@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
+import { fallbackImg } from '../utils/fixThumbnails';
 
 /**
  * Fetch thumbnail URL from Hive post metadata
@@ -91,7 +92,7 @@ export function getPlaylistThumbnail(playlist) {
   }
 
   // Fallback to default
-  return 'https://media.3speak.tv/defaults/default_thumbnail.png';
+  return fallbackImg;
 }
 
 export default useUserPlaylists;

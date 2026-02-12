@@ -6,7 +6,7 @@ import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ViewCount from "../ViewCount/ViewCount";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
-import { fixVideoThumbnail } from "../../utils/fixThumbnails";
+import { fixVideoThumbnail, fallbackImg } from "../../utils/fixThumbnails";
 import AddToPlaylistButton from "../AddToPlaylistButton/AddToPlaylistButton";
 
 
@@ -30,7 +30,7 @@ function Recommended({suggestedVideos}) {
                 <img
                   src={fixVideoThumbnail(data)}
                   alt={data.title}
-                  onError={(e) => (e.currentTarget.src = 'https://media.3speak.tv/defaults/default_thumbnail.png')}
+                  onError={(e) => (e.currentTarget.src = fallbackImg)}
                 />
                 <AddToPlaylistButton
                   author={author}

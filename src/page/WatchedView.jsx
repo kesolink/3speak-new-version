@@ -10,6 +10,8 @@ import { useAppStore } from '../lib/store';
 import { getWatchHistory, deleteWatchHistoryEntry } from '../utils/watchHistory';
 import { HIVE_API_URL } from '../utils/config';
 import { toast } from 'sonner';
+import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
+import { findShortByEmbedUrl } from '../hive-api/hiveApi';
 import './WatchedView.scss';
 
 /**
@@ -42,7 +44,7 @@ async function fetchVideosFromHistory(items) {
       }
 
       // Extract thumbnail
-      let thumbnail = 'https://media.3speak.tv/defaults/default_thumbnail.png';
+      let thumbnail = null;
       if (metadata.image?.[0]) {
         thumbnail = metadata.image[0];
       }
@@ -50,13 +52,33 @@ async function fetchVideosFromHistory(items) {
       // Extract duration from video metadata
       const duration = metadata.video?.info?.duration || 0;
 
+      // Detect shorts: use API flag first, fall back to metadata heuristics
+      const isShort = item.short === true
+        || (metadata.tags || []).includes('shorts')
+        || (!!metadata.video?.platform && duration > 0 && duration <= 60);
+
+      // For shorts, look up the player/embed permlink from the shorts DB
+      let embedPermlink = null;
+      if (isShort) {
+        try {
+          const shortEntry = await findShortByEmbedUrl(post.author, post.permlink);
+          if (shortEntry) {
+            embedPermlink = shortEntry.permlink;
+          }
+        } catch (e) {
+          console.error('Failed to look up short embed permlink:', e);
+        }
+      }
+
       return {
         author: post.author,
         permlink: post.permlink,
+        embedPermlink,
         title: post.title,
         created_at: post.created,
         images: { thumbnail },
         duration,
+        isShort,
         watched_at: item.last_watched_at || item.watched_at,
         watch_count: item.watch_count || 1,
       };
@@ -76,6 +98,7 @@ function WatchedView() {
   const queryClient = useQueryClient();
   const { user: authenticatedUser, watchHistoryEnabled, setWatchHistoryEnabled } = useAppStore();
   const [deletedKeys, setDeletedKeys] = useState(new Set());
+  const [activeTab, setActiveTab] = useState('videos');
 
   // Check if viewing own watch history
   const isOwner = authenticatedUser && username?.toLowerCase() === authenticatedUser.toLowerCase();
@@ -101,7 +124,10 @@ function WatchedView() {
   });
 
   const allVideos = data?.pages.flatMap(page => page.videos) || [];
-  const videos = allVideos.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
+  const nonDeleted = allVideos.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
+  const videosList = nonDeleted.filter(v => !v.isShort);
+  const shortsList = nonDeleted.filter(v => v.isShort);
+  const videos = activeTab === 'shorts' ? shortsList : videosList;
 
   const handleDelete = useCallback(async (e, author, permlink) => {
     e.preventDefault();
@@ -161,7 +187,7 @@ function WatchedView() {
                 @{username}
               </Link>
               <span className="separator">-</span>
-              <span>{videos.length} videos</span>
+              <span>{nonDeleted.length} watched</span>
             </div>
           </div>
         </div>
@@ -183,25 +209,45 @@ function WatchedView() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="watched-tabs">
+        <button
+          className={`tab-btn ${activeTab === 'videos' ? 'active' : ''}`}
+          onClick={() => setActiveTab('videos')}
+        >
+          Videos ({videosList.length})
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'shorts' ? 'active' : ''}`}
+          onClick={() => setActiveTab('shorts')}
+        >
+          Shorts ({shortsList.length})
+        </button>
+      </div>
+
       {/* Videos List */}
       <div className="watched-videos">
         {videos.length === 0 ? (
           <div className="empty-wrap">
             <img src={icon} alt="" />
-            <span>No watched videos yet</span>
+            <span>No watched {activeTab === 'shorts' ? 'shorts' : 'videos'} yet</span>
           </div>
         ) : (
           <div className="video-list">
             {videos.map((video, index) => (
               <Link
                 key={`${video.author}-${video.permlink}`}
-                to={`/watch?v=${video.author}/${video.permlink}`}
+                to={video.isShort
+                  ? `/shorts?v=${video.author}/${video.embedPermlink || video.permlink}`
+                  : `/watch?v=${video.author}/${video.permlink}`}
                 className="video-item"
               >
                 <span className="video-position">{index + 1}</span>
                 <div className="video-thumbnail">
-                  <img src={video.images?.thumbnail} alt={video.title} />
-                  {video.duration > 0 && (
+                  <img src={fixVideoThumbnail(video)} alt={video.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
+                  {video.isShort ? (
+                    <span className="short-badge">Short</span>
+                  ) : video.duration > 0 && (
                     <span className="duration">
                       {Math.floor(video.duration / 60)}:{String(Math.floor(video.duration % 60)).padStart(2, '0')}
                     </span>

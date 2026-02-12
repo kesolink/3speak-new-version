@@ -17,7 +17,7 @@ import {
 import { toast } from 'sonner';
 import './PlaylistView.scss';
 import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
-import { fixVideoThumbnail } from '../utils/fixThumbnails';
+import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 
 dayjs.extend(relativeTime);
@@ -55,7 +55,7 @@ async function fetchVideosForPlaylist(items) {
       }
 
       // Extract thumbnail
-      let thumbnail = 'https://media.3speak.tv/defaults/default_thumbnail.png';
+      let thumbnail = null;
       if (metadata.image?.[0]) {
         thumbnail = metadata.image[0];
       }
@@ -400,7 +400,7 @@ function PlaylistView() {
                     <img
                       src={fixVideoThumbnail(video)}
                       alt={video.title}
-                      onError={(e) => (e.currentTarget.src = 'https://media.3speak.tv/defaults/default_thumbnail.png')}
+                      onError={(e) => (e.currentTarget.src = fallbackImg)}
                     />
                     {video.duration > 0 && (
                       <span className="duration">

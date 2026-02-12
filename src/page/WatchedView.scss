@@ -139,6 +139,36 @@
     }
   }
 
+  // Tabs
+  .watched-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+
+    .tab-btn {
+      padding: 8px 20px;
+      border: 1px solid var(--border-light);
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: var(--card-bg-hover, rgba(255, 255, 255, 0.05));
+        color: var(--text-primary);
+      }
+
+      &.active {
+        background: var(--accent-primary, #667eea);
+        border-color: var(--accent-primary, #667eea);
+        color: #fff;
+      }
+    }
+  }
+
   // Video List
   .watched-videos {
     .video-list {
@@ -205,6 +235,20 @@
           color: #000;
           font-size: 11px;
           border-radius: 4px;
+        }
+
+        .short-badge {
+          position: absolute;
+          bottom: 6px;
+          right: 6px;
+          padding: 2px 6px;
+          background: var(--accent-primary, #e31337);
+          color: #fff;
+          font-size: 10px;
+          font-weight: 600;
+          border-radius: 4px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
       }
 

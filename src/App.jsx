@@ -174,7 +174,9 @@ function App() {
 
   const openLoginModal = () => {
     setLoginProof(Math.floor(Date.now() / 1000)); // Fresh timestamp when modal opens
-    loginInProgress.current = true;
+    if (!aioha.isLoggedIn()) {
+      loginInProgress.current = true; // Only guard during fresh login, not account switch
+    }
     setLoginModalOpen(true);
   }
 
