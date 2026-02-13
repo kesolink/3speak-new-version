@@ -10,7 +10,8 @@ const BATCH_SIZE = 50;
  * @returns {Object} - { viewCounts, loading, getViewCount }
  */
 const useViewCounts = (videos) => {
-  const [viewCounts, setViewCounts] = useState({});
+  const viewCountsRef = useRef({});
+  const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(new Set());
 
@@ -56,12 +57,15 @@ const useViewCounts = (videos) => {
           );
 
           if (response.data.success) {
-            setViewCounts((prev) => ({ ...prev, ...response.data.data }));
+            // Update ref directly
+            Object.assign(viewCountsRef.current, response.data.data);
             // Mark as fetched
             batch.forEach((v) => {
               const author = getAuthor(v);
               fetchedRef.current.add(`${author}/${v.permlink}`);
             });
+            // Trigger re-render
+            setVersion(v => v + 1);
           }
         } catch (err) {
           console.error('Failed to fetch view counts:', err.response?.data || err.message);
@@ -76,12 +80,12 @@ const useViewCounts = (videos) => {
 
   const getViewCount = useCallback(
     (author, permlink) => {
-      return viewCounts[`${author}/${permlink}`] ?? null;
+      return viewCountsRef.current[`${author}/${permlink}`] ?? null;
     },
-    [viewCounts]
+    []
   );
 
-  return { viewCounts, loading, getViewCount };
+  return { viewCounts: viewCountsRef.current, loading, getViewCount };
 };
 
 export default useViewCounts;
