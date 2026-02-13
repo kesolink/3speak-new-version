@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { batchGetContent } from '../utils/hiveUtils';
 import { useAppStore } from '../lib/store';
 
@@ -9,7 +9,8 @@ import { useAppStore } from '../lib/store';
  */
 export function useContentBatch(videos) {
   const { user } = useAppStore();
-  const [contentData, setContentData] = useState(new Map());
+  const contentDataRef = useRef(new Map());
+  const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -44,14 +45,13 @@ export function useContentBatch(videos) {
           fetchedRef.current.add(`${post.author}/${post.permlink}`);
         }
 
-        // Merge with existing data
-        setContentData((prev) => {
-          const merged = new Map(prev);
-          for (const [key, value] of results) {
-            merged.set(key, value);
-          }
-          return merged;
-        });
+        // Merge with existing data in ref
+        for (const [key, value] of results) {
+          contentDataRef.current.set(key, value);
+        }
+        
+        // Trigger re-render without changing Map reference
+        setVersion(v => v + 1);
       } catch (err) {
         console.error('useContentBatch error:', err);
         setError(err);
@@ -69,13 +69,13 @@ export function useContentBatch(videos) {
    * @param {string} permlink
    * @returns {Object|null} - { payout, voters, isVoted } or null if not loaded
    */
-  const getContentForVideo = (author, permlink) => {
+  const getContentForVideo = useCallback((author, permlink) => {
     const key = `${author}/${permlink}`;
-    return contentData.get(key) || null;
-  };
+    return contentDataRef.current.get(key) || null;
+  }, []); // Empty deps - always stable!
 
   return {
-    contentData,
+    contentData: contentDataRef.current,
     getContentForVideo,
     loading,
     error,

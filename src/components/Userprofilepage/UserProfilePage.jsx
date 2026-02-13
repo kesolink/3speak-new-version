@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { getFollowers } from '../../hive-api/api';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import icon from "../../../public/images/stack.png"
@@ -8,7 +8,7 @@ import { Quantum } from 'ldrs/react'
 import 'ldrs/react/Quantum.css'
 import { useInfiniteQuery, useQueryClient as useReactQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { FEED_URL } from '../../utils/config';
+import { VIEWS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
 import { IoLogoRss } from 'react-icons/io5';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { useContentBatch } from '../../hooks/useContentBatch';
 import { useWatchHistory } from '../../hooks/useWatchHistory';
 import { fetchUserShortsWithDetails } from '../../hive-api/hiveApi';
+import useViewCounts from '../../hooks/useViewCounts';
 
 
 
@@ -86,24 +87,19 @@ function UserProfilePage() {
 
       // GET_TOTAL_COUNT_OF_FOLLOWING
       // const { username } = useParams();
-      useEffect(()=>{
-        getFollowersCount(user)
-      },[])
+      useEffect(() => {
+        if (user) {
+          getFollowersCount(user)
+        }
+      }, [user])
 
- const LIMIT = 100;
+ const LIMIT = 20;
 
 const fetchVideos = async ({ pageParam = 0 }) => {
-  let url;
-    if (pageParam === 0) {
-    // first 100 videos
-    url = `${FEED_URL}/apiv2/feeds/@${user}`;
-  } else {
-    // next batches
-    url = `${FEED_URL}/apiv2/feeds/@${user}/more?skip=${pageParam}`;
-  }
+  const url = `${VIEWS_URL}/api/my-videos?username=${user}&limit=${LIMIT}&offset=${pageParam}&status=published&sort=newest`;
 
   const res = await axios.get(url);
-  return res.data;
+  return res.data?.data?.videos || [];
 };
 
       
@@ -117,11 +113,11 @@ const {
   queryKey: ["UserProfilePage", user],
   queryFn: fetchVideos,
   getNextPageParam: (lastPage, allPages) => {
-    // If the last page has items, calculate next skip value
-    if (lastPage.length > 0) {
-      return allPages.flat().length; // next skip = total items loaded so far
+    // If the last page has LIMIT items, there might be more
+    if (lastPage.length === LIMIT) {
+      return allPages.flat().length; // next offset = total items loaded so far
     }
-    return undefined; // stop if no more data
+    return undefined; // stop if last page had fewer than LIMIT items
   },
 });
 
@@ -150,20 +146,22 @@ const {
             });
 
             // Flatten shorts pages and map to Card3 format
-            const shortsVideos = (shortsData?.pages || []).flatMap(page =>
-              (page?.shorts || []).map(s => ({
-                author: s.author,
-                permlink: s.permlink,
-                title: (s.caption || s.title || '').slice(0, 80),
-                images: { thumbnail: s.thumbnailUrl },
-                duration: 0,
-                stats: {
-                  total_hive_reward: parseFloat(s.stats?.payout) || 0,
-                  num_votes: s.stats?.likes || 0,
-                },
-                created_at: s.createdAt,
-              }))
-            );
+            const shortsVideos = useMemo(() => (
+              (shortsData?.pages || []).flatMap(page =>
+                (page?.shorts || []).map(s => ({
+                  author: s.author,
+                  permlink: s.permlink,
+                  title: (s.caption || s.title || '').slice(0, 80),
+                  images: { thumbnail: s.thumbnailUrl },
+                  duration: 0,
+                  stats: {
+                    total_hive_reward: parseFloat(s.stats?.payout) || 0,
+                    num_votes: s.stats?.likes || 0,
+                  },
+                  created_at: s.createdAt,
+                }))
+              )
+            ), [shortsData?.pages]);
 
         useEffect(() => {
               const handleScroll = () => {
@@ -184,13 +182,16 @@ const {
             }, [show, isFetchingNextPage, hasNextPage, fetchNextPage, isFetchingNextShortsPage, hasNextShortsPage, fetchNextShortsPage]);
 
             // Flatten all pages into a single array
-            const videos = data?.pages.flat() || [];
+            const videos = useMemo(() => data?.pages.flat() || [], [data?.pages]);
 
             // Batch fetch content data
             const { getContentForVideo } = useContentBatch(videos);
 
             // Batch check watch history
             const { isWatched } = useWatchHistory(videos);
+            
+            // Batch fetch view counts
+            const { getViewCount } = useViewCounts(videos);
 
       // const { loading, error, data } = useQuery(GET_SOCIAL_FEED_BY_CREATOR, {
       //   variables: { id: user },
@@ -204,7 +205,7 @@ const {
           const follower = await getFollowers(user)
         setFollower(follower)
         } catch (err){
-          console(err)
+          console.error(err)
         }
       }
 
@@ -290,7 +291,7 @@ const {
         <span>No Video Data Available</span>
       </div>
     ) : (
-      <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+      <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
     )
   ) : show === "shorts" ? (
     isShortsLoading ? (
@@ -301,7 +302,7 @@ const {
         <span>No Shorts Available</span>
       </div>
     ) : (
-      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} />
+      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} />
     )
   ) : show === "playlists" ? (
     <>
