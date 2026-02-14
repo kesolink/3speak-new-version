@@ -10,7 +10,8 @@ import { WATCH_HISTORY_THRESHOLD_DAYS } from '../utils/config';
  */
 export function useWatchHistory(videos) {
   const { user } = useAppStore();
-  const [watchedData, setWatchedData] = useState(new Map());
+  const watchedDataRef = useRef(new Map());
+  const [version, setVersion] = useState(0);
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(new Set());
 
@@ -58,14 +59,13 @@ export function useWatchHistory(videos) {
       try {
         const results = await batchCheckWatched(user, postsToFetch);
 
-        // Merge new results with existing data
-        setWatchedData(prev => {
-          const merged = new Map(prev);
-          results.forEach((value, key) => {
-            merged.set(key, value);
-          });
-          return merged;
+        // Merge new results with existing data in ref
+        results.forEach((value, key) => {
+          watchedDataRef.current.set(key, value);
         });
+        
+        // Trigger re-render without changing Map reference
+        setVersion(v => v + 1);
       } catch (error) {
         console.error('Error fetching watch history:', error);
       } finally {
@@ -80,17 +80,17 @@ export function useWatchHistory(videos) {
   const isWatched = useCallback((author, permlink) => {
     if (!user) return null; // null = unknown (not logged in)
     const key = `${author}/${permlink}`;
-    return watchedData.has(key);
-  }, [watchedData, user]);
+    return watchedDataRef.current.has(key);
+  }, [user]);
 
   // Helper function to get watch data for a video
   const getWatchData = useCallback((author, permlink) => {
     const key = `${author}/${permlink}`;
-    return watchedData.get(key) || null;
-  }, [watchedData]);
+    return watchedDataRef.current.get(key) || null;
+  }, []);
 
   return {
-    watchedData,
+    watchedData: watchedDataRef.current,
     isWatched,
     getWatchData,
     loading,
