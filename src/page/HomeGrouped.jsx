@@ -11,6 +11,7 @@ import Card3 from "../components/Cards/Card3";
 import { FEED_URL } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
+import useViewCounts from "../hooks/useViewCounts";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
@@ -42,7 +43,7 @@ const deduplicateVideos = (videos) => {
 };
 
 // Horizontal scrollable video row component
-const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatched }) => {
+const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatched, getViewCount }) => {
   const scrollContainerRef = useRef(null);
   const [showLeftBtn, setShowLeftBtn] = useState(false);
   const [showRightBtn, setShowRightBtn] = useState(true);
@@ -156,7 +157,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
             </div>
           ) : (
             <div className="card-container-horizontal">
-              <Card3 videos={videos.slice(0, 16)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+              <Card3 videos={videos.slice(0, 16)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
             </div>
           )}
         </div>
@@ -210,6 +211,9 @@ const HomeGrouped = () => {
   // Batch check watch history for all videos
   const { isWatched } = useWatchHistory(allVideos);
 
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(allVideos);
+
   return (
     <div className="home-grouped-container">
       <VideoRow
@@ -219,6 +223,7 @@ const HomeGrouped = () => {
         isLoading={homeLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
+        getViewCount={getViewCount}
       />
 
       <VideoRow
@@ -228,6 +233,7 @@ const HomeGrouped = () => {
         isLoading={newContentLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
+        getViewCount={getViewCount}
       />
 
       <VideoRow
@@ -237,6 +243,7 @@ const HomeGrouped = () => {
         isLoading={trendingLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
+        getViewCount={getViewCount}
       />
 
       <VideoRow
@@ -246,6 +253,7 @@ const HomeGrouped = () => {
         isLoading={firstUploadsLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
+        getViewCount={getViewCount}
       />
     </div>
   );

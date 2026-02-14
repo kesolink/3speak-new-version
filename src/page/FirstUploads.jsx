@@ -9,6 +9,7 @@ import { FEED_URL } from '../utils/config';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useContentBatch } from '../hooks/useContentBatch';
 import { useWatchHistory } from '../hooks/useWatchHistory';
+import useViewCounts from '../hooks/useViewCounts';
 
 const fetchVideos = async ({ pageParam = 1 }) => {
   const LIMIT = 300;
@@ -64,10 +65,13 @@ const FirstUploads = () => {
     // Batch check watch history
     const { isWatched } = useWatchHistory(videos);
 
+    // Batch fetch view counts
+    const { getViewCount } = useViewCounts(videos);
+
   return (
     <div className='firstupload-container'>
         <div className='headers'>FIRST TIME UPLOADS</div>
-        {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />}
+        {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />}
     {isError && <p>Error fetching videos</p>}
       {isFetchingNextPage && (
         <p style={{ textAlign: "center" }}>Loading more...</p>

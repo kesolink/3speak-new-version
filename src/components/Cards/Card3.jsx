@@ -12,18 +12,16 @@ import TimeAgo from "../TimeAgo/TimeAgo";
 import { Link, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import "./Cards.scss";
-import { useState } from "react";
+import { useState, useMemo, memo } from "react";
 import img from "../../assets/image/speak.jpg";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ProfileModal from "../modal/ProfileModal";
-import useViewCounts from "../../hooks/useViewCounts";
 
 
-function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true }) {
+function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
-  const { getViewCount } = useViewCounts(videos);
   const formatViewCount = (views) => {
     if (views === null || views === undefined) return null;
     if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
@@ -31,15 +29,20 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
     return views.toLocaleString();
   };
 
-
-
+  // Memoize video processing to prevent re-computing thumbnails on every render
+  const processedVideos = useMemo(() => {
+    return videos.map(video => ({
+      ...video,
+      _processedThumbnail: fixVideoThumbnail(video)
+    }));
+  }, [videos]);
 
   if (loading && videos.length === 0) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
   return (
     <div className="card-container">
-      {videos.map((video, index) => {
+      {processedVideos.map((video, index) => {
         const postKey = `${video.author?.username || video.author || video.owner}/${
           video.permlink
         }`;
@@ -50,15 +53,12 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
               video.permlink
             }${linkQuery}`}
             className="card"
-            // key={postKey}
-            key={`${postKey}-${index}`}
+            key={postKey}
           >
             {/* Thumbnail */}
             <div className="img-wrap">
               <img
-                // src={video.images?.thumbnail}
-                src={fixVideoThumbnail(video)}
-                // src={video.images?.thumbnail || img}
+                src={video._processedThumbnail}
                 alt="thumbnail"
                 onError={(e) => (e.currentTarget.src = img)}
                 loading="lazy"
@@ -137,7 +137,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                 noLink
                 compact
               />
-              {getViewCount(video.author?.username || video.author || video.owner, video.permlink) !== null && (
+              {getViewCount && getViewCount(video.author?.username || video.author || video.owner, video.permlink) !== null && (
                 <ViewCount
                   views={getViewCount(video.author?.username || video.author || video.owner, video.permlink)}
                   watched={isWatched?.(video.author?.username || video.author || video.owner, video.permlink) === true}
@@ -186,7 +186,8 @@ Card3.propTypes = {
   error: PropTypes.string,
   getContentForVideo: PropTypes.func,
   isWatched: PropTypes.func,
+  getViewCount: PropTypes.func,
   linkPrefix: PropTypes.string,
 };
 
-export default Card3;
+export default memo(Card3);

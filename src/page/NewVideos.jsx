@@ -6,6 +6,7 @@ import CardSkeleton from '../components/Cards/CardSkeleton'
 import Card3 from "../components/Cards/Card3";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
+import useViewCounts from "../hooks/useViewCounts";
 
 const VIDEOS_PER_PAGE = 50;
 
@@ -67,6 +68,9 @@ const NewVideos = () => {
   // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
 
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(videos);
+
   return (
     <div className='firstupload-container'>
       <div className='headers'>New VIDEOS</div>
@@ -74,7 +78,7 @@ const NewVideos = () => {
         <CardSkeleton />
       ) : (
         <>
-          <Card3 videos={videos} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+          <Card3 videos={videos} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
           {hasMore && (
             <button 
               className="load-more-btn" 

@@ -7,6 +7,7 @@ import Card3 from "../components/Cards/Card3";
 import { FEED_URL } from '../utils/config';
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
+import useViewCounts from "../hooks/useViewCounts";
 
 const LIMIT = 500;
 
@@ -74,6 +75,9 @@ const Trend = () => {
   // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
 
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(videos);
+
   return (
     <div className="firstupload-container">
       <div className="headers">TRENDING</div>
@@ -81,7 +85,7 @@ const Trend = () => {
       {isLoading ? (
         <CardSkeleton />
       ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
       )}
 
       {isError && <p>Error fetching videos</p>}

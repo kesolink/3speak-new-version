@@ -20,6 +20,7 @@ import { createPlaylist } from '../../utils/playlistOperations';
 import { toast } from 'sonner';
 import { useContentBatch } from '../../hooks/useContentBatch';
 import { useWatchHistory } from '../../hooks/useWatchHistory';
+import useViewCounts from '../../hooks/useViewCounts';
 import { fetchUserShortsWithDetails } from '../../hive-api/hiveApi';
 
 
@@ -192,6 +193,9 @@ const {
             // Batch check watch history
             const { isWatched } = useWatchHistory(videos);
 
+            // Batch fetch view counts
+            const { getViewCount } = useViewCounts(videos);
+
       // const { loading, error, data } = useQuery(GET_SOCIAL_FEED_BY_CREATOR, {
       //   variables: { id: user },
       // });
@@ -290,7 +294,7 @@ const {
         <span>No Video Data Available</span>
       </div>
     ) : (
-      <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+      <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
     )
   ) : show === "shorts" ? (
     isShortsLoading ? (
@@ -301,7 +305,7 @@ const {
         <span>No Shorts Available</span>
       </div>
     ) : (
-      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} />
+      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} />
     )
   ) : show === "playlists" ? (
     <>

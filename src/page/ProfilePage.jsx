@@ -12,6 +12,7 @@ import Follower from "../components/Userprofilepage/Follower";
 import BarLoader from "../components/Loader/BarLoader";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
+import useViewCounts from "../hooks/useViewCounts";
 
 import { FaVideo } from "react-icons/fa";
 import { IoLogoRss } from "react-icons/io5";
@@ -255,6 +256,9 @@ function ProfilePage() {
   // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
 
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(videos);
+
   /* ===============================
      SCROLL HANDLER
   =============================== */
@@ -455,7 +459,7 @@ function ProfilePage() {
               <span>No Video Data Available</span>
             </div>
           ) : (
-            <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+            <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
           )
         ) : show === "playlists" ? (
           <>
