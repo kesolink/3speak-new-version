@@ -193,9 +193,6 @@ const {
             // Batch fetch view counts
             const { getViewCount } = useViewCounts(videos);
 
-            // Batch fetch view counts
-            const { getViewCount } = useViewCounts(videos);
-
       // const { loading, error, data } = useQuery(GET_SOCIAL_FEED_BY_CREATOR, {
       //   variables: { id: user },
       // });

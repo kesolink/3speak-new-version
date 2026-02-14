@@ -8,7 +8,7 @@ import "./HomeGrouped.scss";
 import { NEW_CONTENT } from "../graphql/queries";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -26,8 +26,8 @@ const fetchFirstUploads = async () => {
 };
 
 const fetchTrending = async () => {
-  const res = await axios.get(`${FEED_URL}/apiv2/feeds/trending?limit=50`);
-  return Array.isArray(res.data) ? res.data : [];
+  const res = await axios.get(`${TRENDING_SORTED_URL}?page=1&limit=50`);
+  return res.data?.videos || [];
 };
 
 // Helper to deduplicate videos by author+permlink
