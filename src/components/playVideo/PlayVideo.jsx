@@ -23,12 +23,12 @@ import TipModal from "../../components/tip-reward/TipModal";
 import { toast } from 'sonner';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
-import { getFollowers } from "../../hive-api/api";
+import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import { FEED_URL, PLAYER_URL, HIVE_API_URL } from '../../utils/config';
-import { isLoggedIn } from "../../hive-api/aioha";
-import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney } from "react-icons/md";
+import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
+import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo } from "react-icons/md";
 import { FaHeart } from "react-icons/fa";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
@@ -38,6 +38,8 @@ import { removeFromPlaylist } from "../../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import Button from "../Button/Button";
+import { Repeat2 } from 'lucide-react';
+import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 
 dayjs.extend(relativeTime);
 
@@ -71,6 +73,12 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [communityData, setCommunityData] = useState(null);
   const [authorReputation, setAuthorReputation] = useState(null);
   const [fabOpen, setFabOpen] = useState(false);
+  const [isFollowingCreator, setIsFollowingCreator] = useState(null);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  // Reshare state
+  const [reshareCount, setReshareCount] = useState(0);
+  const [hasReshared, setHasReshared] = useState(false);
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -241,14 +249,22 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     fetchAccountData();
   }, [user, calculateVoteValue, weight]);
 
-  // Effect: Fetch speak data, followers, and reputation (only when author/permlink changes)
+  // Effect: Fetch speak data, followers, reputation, and follow status (only when author/permlink changes)
   useEffect(() => {
     if (!author || !permlink) return;
 
     speakWatchData();
     getFollowersCount(author);
     getUserReputation(author).then(rep => setAuthorReputation(rep)).catch(() => {});
-  }, [author, permlink, speakWatchData, getFollowersCount]);
+
+    // Check follow relationship for FAB button
+    if (user && author !== user) {
+      setIsFollowingCreator(null);
+      getRelationshipBetweenAccounts(user, author).then((relation) => {
+        if (relation?.follows != null) setIsFollowingCreator(relation.follows);
+      }).catch(() => {});
+    }
+  }, [author, permlink, speakWatchData, getFollowersCount, user]);
 
   // Effect: Get tooltip voters (only when author/permlink/user changes)
   useEffect(() => {
@@ -293,6 +309,40 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   }, [navigate]);
 
 
+  // Fetch reshare data
+  useEffect(() => {
+    if (!author || !permlink) return;
+    setReshareCount(0);
+    setHasReshared(false);
+    (async () => {
+      try {
+        const { reshares, count } = await getResharesForVideo(author, permlink);
+        setReshareCount(count);
+        if (user) {
+          setHasReshared(reshares.some(r => r.username === user));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch reshares:', err);
+      }
+    })();
+  }, [author, permlink, user]);
+
+  const handleReshare = useCallback(async () => {
+    if (!authenticated || !user) {
+      toast.error('Log in to reshare');
+      return;
+    }
+    if (hasReshared) return;
+    const result = await recordReshare(user, author, permlink);
+    if (result) {
+      setHasReshared(true);
+      setReshareCount(prev => prev + 1);
+      toast.success('Reshared!');
+    } else {
+      toast.error('Failed to reshare');
+    }
+  }, [authenticated, user, author, permlink, hasReshared]);
+
   const handleProfileNavigate = useCallback((userName) => {
     navigate(`/p/${userName}`);
   }, [navigate]);
@@ -323,6 +373,22 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     }
   }, [author, permlink, videoDetails?.title]);
 
+  const handleFabFollow = useCallback(async () => {
+    if (!isLoggedIn()) { toast.error('Please login to follow users'); return; }
+    if (followLoading) return;
+    setFollowLoading(true);
+    setIsFollowingCreator(true);
+    try {
+      await followWithAioha(author, true);
+      toast.success(`Followed @${author}`);
+    } catch (err) {
+      setIsFollowingCreator(false);
+      toast.error('Failed to follow: ' + err.message);
+    } finally {
+      setFollowLoading(false);
+    }
+  }, [author, followLoading]);
+
   const handleCommunityNavigate = useCallback((community) => {
     navigate(`/community/${community}`);
   }, [navigate]);
@@ -352,6 +418,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 frameBorder="0"
                 scrolling="no"
                 allowFullScreen
+                allow="picture-in-picture"
               />
               {videoControls && (
                 <>
@@ -387,6 +454,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     markers={videoControls.markers}
                     onMarkerSelect={videoControls.onMarkerSelect}
                     onReactToMoment={videoControls.onReactToMoment}
+                    onCycleReactionSize={videoControls.onCycleReactionSize}
+                    reactionSizeLabel={videoControls.reactionSizeLabel}
+                    onTogglePip={videoControls.onTogglePip}
                   />
                 </>
               )}
@@ -414,6 +484,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               reputation={authorReputation}
               followersCount={followData?.follower_count}
               showFollow
+              isFollowing={isFollowingCreator}
+              onFollow={(_, willFollow) => setIsFollowingCreator(willFollow)}
             />
             {community_id && (<div className="community-title-wrap" onClick={() => handleCommunityNavigate(community_id)}>
               <img src={`https://images.hive.blog/u/${community_id}/avatar/small`} alt="" />
@@ -468,6 +540,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </UpvoteCount>
                 {openTooltip && <ToolTip tooltipVoters={tooltipVoters} />}
               </span>
+
+              <button
+                className={`reshare-btn${hasReshared ? ' reshared' : ''}`}
+                onClick={handleReshare}
+                title={hasReshared ? 'Reshared' : 'Reshare'}
+              >
+                <Repeat2 size={16} />
+                {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
+              </button>
 
               {isInWatchLater && (
                 <button
@@ -595,6 +676,17 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </button>
               </div>
 
+              <div className="fab-action">
+                <span className="fab-action-label">Details</span>
+                <button
+                  className={`fab-action-btn${mobileDetailsExpanded ? ' fab-action-btn--active' : ''}`}
+                  onClick={() => { setMobileDetailsExpanded(prev => !prev); setFabOpen(false); }}
+                  aria-label="Toggle details"
+                >
+                  <MdInfo size={20} />
+                </button>
+              </div>
+
               {authenticated && isLoggedIn() && (
                 <div className="fab-action">
                   <span className="fab-action-label">Playlist</span>
@@ -604,6 +696,19 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     aria-label="Add to playlist"
                   >
                     <MdPlaylistAdd size={20} />
+                  </button>
+                </div>
+              )}
+
+              {authenticated && isLoggedIn() && !isFollowingCreator && author !== user && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Follow</span>
+                  <button
+                    className="fab-action-btn"
+                    onClick={() => { handleFabFollow(); setFabOpen(false); }}
+                    aria-label="Follow creator"
+                  >
+                    <MdPersonAdd size={20} />
                   </button>
                 </div>
               )}
@@ -620,6 +725,17 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   </button>
                 </div>
               )}
+
+              <div className="fab-action">
+                <span className="fab-action-label">Reshare{reshareCount > 0 ? ` (${reshareCount})` : ''}</span>
+                <button
+                  className={`fab-action-btn${hasReshared ? ' fab-action-btn--voted' : ''}`}
+                  onClick={() => { handleReshare(); setFabOpen(false); }}
+                  aria-label="Reshare"
+                >
+                  <Repeat2 size={20} />
+                </button>
+              </div>
 
               <div className="fab-action">
                 <span className="fab-action-label">Vote</span>

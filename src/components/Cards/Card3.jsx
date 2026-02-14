@@ -20,7 +20,7 @@ import ProfileModal from "../modal/ProfileModal";
 import useViewCounts from "../../hooks/useViewCounts";
 
 
-function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, linkPrefix = '/watch', linkQuery = '' }) {
+function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
   const { getViewCount } = useViewCounts(videos);
@@ -165,7 +165,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                   })()}
                 />
               </div>
-              <p><TimeAgo date={video.created_at || video.created} short /></p>
+              <p><TimeAgo date={video.created_at || video.created} short={shortTimeAgo} /></p>
             </div>
           </Link>
         );

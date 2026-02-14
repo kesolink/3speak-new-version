@@ -39,7 +39,9 @@ const CommentVoteTooltip = ({
   setAccountData,
   setActiveTooltipPermlink,
   onVoteSuccess,
-  compact
+  compact,
+  cachedDynamicProps,
+  onVoteDataRefresh
 }) => {
   const { user, authenticated } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
@@ -173,10 +175,20 @@ const CommentVoteTooltip = ({
     return () => document.removeEventListener('keydown', handleKey);
   }, [showTooltip, setShowTooltip, setActiveTooltipPermlink]);
 
-  // Fetch account + dynamic props ONCE when popup opens
+  // Use pre-cached data if available, otherwise fetch on open
   useEffect(() => {
     if (!user || !showTooltip) return;
 
+    // If parent already pre-fetched account + dynamic props, use them instantly
+    if (accountData && cachedDynamicProps) {
+      cachedAccountRef.current = accountData;
+      cachedDynamicPropsRef.current = cachedDynamicProps;
+      updateSliderDOM(weightRef.current);
+      setInitializing(false);
+      return;
+    }
+
+    // Fallback: fetch if not pre-cached (e.g. used outside Shorts)
     let cancelled = false;
     const init = async () => {
       setInitializing(true);
@@ -197,9 +209,8 @@ const CommentVoteTooltip = ({
           cachedDynamicPropsRef.current = dynProps;
         }
 
-        // Initial estimate — update DOM directly
-        if (acct && dynProps && valueRef.current) {
-          valueRef.current.textContent = `$${estimateLocal(acct, dynProps, weightRef.current)}`;
+        if (acct && dynProps) {
+          updateSliderDOM(weightRef.current);
         }
       } catch (err) {
         console.error('Error fetching vote data:', err);
@@ -260,6 +271,9 @@ const CommentVoteTooltip = ({
       if (onVoteSuccess) {
         onVoteSuccess(author, permlink, isNewVote, voteWeight);
       }
+
+      // Refresh cached vote data for next vote (account VP changed)
+      if (onVoteDataRefresh) onVoteDataRefresh();
 
       setShowTooltip(false);
       setActiveTooltipPermlink?.(null);

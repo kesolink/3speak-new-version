@@ -54,7 +54,7 @@
         }
 
         .card-container {
-          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+          grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)) !important;
           grid-row-gap: 10px !important;
 
           .card .img-wrap {
@@ -68,26 +68,41 @@
       }
     }
 
-    // Size variants for reaction player (small is default)
-    &.reaction-medium {
-      .play-video {
-        flex-basis: 50%;
-        max-width: 50%;
+    // Size variants — desktop only, mobile always uses default full-width layout
+    @media screen and (min-width: 768px) {
+      &.reaction-small {
+        .play-video {
+          flex-basis: 30%;
+          max-width: 30%;
+        }
+        .right-column {
+          flex-basis: 68%;
+          max-width: 68%;
+        }
       }
-      .right-column {
-        flex-basis: 48%;
-        max-width: 48%;
-      }
-    }
 
-    &.reaction-big {
-      .play-video {
-        flex-basis: 30%;
-        max-width: 30%;
+      &.reaction-medium {
+        .play-video {
+          flex-basis: 50%;
+          max-width: 50%;
+        }
+        .right-column {
+          flex-basis: 48%;
+          max-width: 48%;
+        }
       }
-      .right-column {
-        flex-basis: 68%;
-        max-width: 68%;
+
+      // standard = default (69/30), no override needed
+
+      &.reaction-large {
+        .play-video {
+          flex-basis: 80%;
+          max-width: 80%;
+        }
+        .right-column {
+          flex-basis: 18%;
+          max-width: 18%;
+        }
       }
     }
 

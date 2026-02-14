@@ -8,7 +8,7 @@
   position: relative;
   height: calc(100vh - 64px);
   max-height: calc(100vh - 64px);
-  background-color: var(--bg-primary);
+  background-color: #000;
 
   @media (max-width: 768px) {
     position: absolute;
@@ -125,9 +125,15 @@
     // Swipe transition animations
     &.swipe-up {
       animation: swipeUp 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      .bottomOverlay {
+        animation: bottomOverlayFadeIn 0.4s ease 0.15s both;
+      }
     }
     &.swipe-down {
       animation: swipeDown 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      .bottomOverlay {
+        animation: bottomOverlayFadeIn 0.4s ease 0.15s both;
+      }
     }
 
 
@@ -145,26 +151,13 @@
       touch-action: pan-x;
     }
 
-    iframe {
+    video {
       position: absolute !important;
-      top: 50% !important;
-      left: 0 !important;
-      transform: translateY(-50%) !important;
-      width: 100% !important;
-      aspect-ratio: 16 / 9;
-      height: auto !important;
       border: none;
       z-index: 1;
       pointer-events: none;
-
-      @media (max-width: 767px) {
-        top: 50% !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: auto !important;
-        transform: translateY(-50%) !important;
-        aspect-ratio: 16 / 9;
-      }
+      object-fit: contain;
+      background: #000;
     }
   }
 
@@ -419,6 +412,21 @@
     cursor: pointer;
     transition: height 0.15s ease;
 
+    // Invisible hit area above the visible bar for easier clicking/tapping
+    &::before {
+      content: '';
+      position: absolute;
+      top: -20px;
+      left: 0;
+      right: 0;
+      height: 20px;
+
+      @media (max-width: 768px) {
+        top: -28px;
+        height: 28px;
+      }
+    }
+
     &:hover {
       height: 5px;
 
@@ -427,7 +435,7 @@
         transform: translate(-50%, -50%) scale(1);
       }
     }
-            @media (max-width: 768px) {
+    @media (max-width: 768px) {
       bottom: 0.5rem;
     }
   }
@@ -825,7 +833,14 @@
       position: relative;
       cursor: pointer;
       margin-right: 4px;
-      transition: transform 0.15s;
+      transition: transform 0.15s, opacity 0.4s ease;
+      animation: reshareAvatarFadeIn 0.4s ease both;
+
+      @for $i from 1 through 6 {
+        &:nth-child(#{$i}) {
+          animation-delay: #{($i - 1) * 0.07}s;
+        }
+      }
 
       &:hover {
         transform: scale(1.15);
@@ -873,6 +888,28 @@
         width: 16px;
         height: 16px;
       }
+    }
+  }
+
+  @keyframes bottomOverlayFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes reshareAvatarFadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 
@@ -970,6 +1007,16 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
       margin: 0;
+    }
+
+    .captionDate {
+      font-size: 0.7rem;
+      opacity: 0.6;
+      display: none;
+    }
+
+    &--expanded .captionDate {
+      display: inline;
     }
 
     .captionMore {
@@ -1250,6 +1297,17 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  .shorts-breathe-logo {
+    color: #fff;
+    margin-bottom: 1.5rem;
+    animation: breathe 2s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.15); opacity: 1; }
   }
 
   @keyframes pulseText {

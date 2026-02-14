@@ -92,15 +92,18 @@
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
+    animation: followBtnBreathe 11.2s ease-in-out infinite;
 
     &:hover {
       opacity: 0.85;
+      animation: none;
     }
 
     &.following {
+      animation: none;
       background: transparent;
       border: 1px solid var(--border-color);
-      color: var(--text-secondary);
+      color: var(--text-primary);
 
       &:hover {
         border-color: #ef4444;
@@ -108,5 +111,16 @@
         opacity: 1;
       }
     }
+  }
+}
+
+@keyframes followBtnBreathe {
+  0%, 11%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  5.5% {
+    transform: scale(1.08);
+    opacity: 0.85;
   }
 }

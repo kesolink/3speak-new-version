@@ -11,8 +11,8 @@ import { HIVE_API_URL } from "../utils/config";
 /* -----------------------------
    Hive RPC setup
 ------------------------------ */
-const SHORTS_API = import.meta.env.VITE_SHORTS_API_URL || "https://3speak-checker.okinoko.io/shortssorted";
-const USER_SHORTS_API = import.meta.env.VITE_USER_SHORTS_API_URL || "https://3speak-checker.okinoko.io/shorts";
+const SHORTS_API = import.meta.env.VITE_SHORTS_API_URL || "https://tags.3speak.tv/shortssorted";
+const USER_SHORTS_API = import.meta.env.VITE_USER_SHORTS_API_URL || "https://tags.3speak.tv/shorts";
 
 // Random seed for shorts ordering — regenerated each time shorts are opened
 let SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
@@ -56,6 +56,7 @@ const _shortsByPermlink = new Map(); // permlink → short object
 export async function fetchShortsList(page = 1, limit = 20, currentuser = null) {
   let url = `${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`;
   if (currentuser) url += `&currentuser=${encodeURIComponent(currentuser)}`;
+  console.log('Shorts API URL:', url);
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
 
@@ -194,9 +195,11 @@ export function formatNumber(num) {
 export function timeAgo(dateString) {
   if (!dateString) return "Just now";
 
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateString + "Z")) / 1000
-  );
+  // Append "Z" only if the string has no timezone indicator already
+  const hasTimezone = /[Zz]|[+-]\d{2}:\d{2}$/.test(dateString);
+  const parsed = new Date(hasTimezone ? dateString : dateString + "Z");
+  const seconds = Math.floor((Date.now() - parsed) / 1000);
+  if (isNaN(seconds)) return "";
 
   if (seconds < 60) return "Just now";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
