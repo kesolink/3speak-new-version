@@ -1,0 +1,9 @@
+# robots.txt for 3speak.tv
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://3speak.tv/sitemap.xml
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1
