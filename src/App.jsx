@@ -81,7 +81,7 @@ function App() {
   const aiohaUserSeen = useRef(false); // Track if aiohaUser has ever been populated
 
   // Hide nav on /shorts route on mobile
-  const isShorts = location.pathname === '/shorts';
+  const isShorts = location.pathname.startsWith('/shorts');
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 767);
 
   useEffect(() => {

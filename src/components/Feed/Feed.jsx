@@ -11,6 +11,7 @@ import { useInfiniteQuery } from "@tanstack/react-query"
 import Card3 from "../Cards/Card3"
 import { useContentBatch } from "../../hooks/useContentBatch"
 import { useWatchHistory } from "../../hooks/useWatchHistory"
+import useViewCounts from "../../hooks/useViewCounts"
 
 
 
@@ -84,6 +85,9 @@ function Feed() {
     // Batch check watch history for all videos
     const { isWatched } = useWatchHistory(videos);
 
+    // Batch fetch view counts
+    const { getViewCount } = useViewCounts(videos);
+
     async function checkPostAuth(username) {
       if(!authenticated){
         return
@@ -99,7 +103,7 @@ function Feed() {
     <>
     <CommunitiesTags />
 
-    {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />}
+    {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />}
     {isError && <p>Error fetching videos</p>}
       {isFetchingNextPage && (
         <p style={{ textAlign: "center" }}>Loading more...</p>

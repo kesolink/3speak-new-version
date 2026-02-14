@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo } from 'react-icons/fa';
-import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
+import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture } from 'react-icons/tb';
 import './VideoControls.scss';
 
 function formatTime(seconds) {
@@ -31,6 +31,9 @@ function VideoControls({
   markers,
   onMarkerSelect,
   onReactToMoment,
+  onCycleReactionSize,
+  reactionSizeLabel,
+  onTogglePip,
 }) {
   const resolvedMarkers = markers || [];
 
@@ -183,6 +186,17 @@ function VideoControls({
           <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
             {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
           </button>
+          {onCycleReactionSize && (
+            <button className="vc-btn vc-btn--resize" onClick={onCycleReactionSize} title={`Player size: ${reactionSizeLabel || 'Standard'}`}>
+              <TbArrowsMaximize size={15} />
+              <span className="vc-size-label">{reactionSizeLabel || 'Standard'}</span>
+            </button>
+          )}
+          {onTogglePip && (
+            <button className="vc-btn" onClick={onTogglePip} title="Picture-in-Picture">
+              <TbPictureInPicture size={16} />
+            </button>
+          )}
           <button className="vc-btn" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
             {isFullscreen ? <FaCompress size={14} /> : <FaExpand size={14} />}
           </button>

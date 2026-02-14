@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import SearchList from "./SearchList";
 import SearchList_Sm from "./SearchList_Sm";
 import { TiThMenu } from "react-icons/ti";
-import { SiYoutubeshorts } from "react-icons/si";
+import ShortsIcon from "../icons/ShortsIcon";
 
 function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
@@ -112,6 +112,9 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
               <Link to="/" className="side-link-n" onClick={handleNav}>
                 <MdOutlineDashboard className="icon" /> <span>Home</span>
               </Link>
+              <Link to="/shorts" className="side-link-n" onClick={handleNav}>
+                <ShortsIcon className="icon" outlineWidth={30} /> <span>Shorts</span>
+              </Link>
               {authenticated && <Link to="/studio" className="side-link-n" onClick={handleNav}>
                 <IoCloudUploadSharp className="icon" /> <span>Upload Video</span>
               </Link>}
@@ -121,16 +124,13 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
               <Link to="/firstupload" className="side-link-n" onClick={handleNav}>
                 <FaRegSmile className="icon"/> <span>First Uploads</span>
               </Link>
-              
+
               <Link to="/trend" className="side-link-n" onClick={handleNav}>
                 <FaFire className="icon" /> <span>Trending Content</span>
-              </Link> 
+              </Link>
               <Link to="/new" className="side-link-n" onClick={handleNav}>
                 <LuNewspaper className="icon" /> <span>New Content</span>
               </Link>
-            <Link to="/shorts" className="side-link-n" onClick={handleNav}>
-              <SiYoutubeshorts className="icon" /> <span>Shorts</span>
-            </Link>
               <Link to="/communities" className="side-link-n" onClick={handleNav}>
                 <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>
               </Link>

@@ -19,9 +19,7 @@ import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ProfileModal from "../modal/ProfileModal";
 
 
-function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '' }) {
-  console.log('🔄 [Card3] Component re-rendered with', videos.length, 'videos');
-  
+function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
   const formatViewCount = (views) => {
@@ -167,7 +165,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                   })()}
                 />
               </div>
-              <p><TimeAgo date={video.created_at || video.created} short /></p>
+              <p><TimeAgo date={video.created_at || video.created} short={shortTimeAgo} /></p>
             </div>
           </Link>
         );

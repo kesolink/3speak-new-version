@@ -7,6 +7,7 @@ import Card3 from '../components/Cards/Card3';
 import { TAG_FEED_URL } from '../utils/config';
 import { useContentBatch } from '../hooks/useContentBatch';
 import { useWatchHistory } from '../hooks/useWatchHistory';
+import useViewCounts from '../hooks/useViewCounts';
 
 function TagFeed() {
   const { tag } = useParams(); 
@@ -73,6 +74,9 @@ function TagFeed() {
   // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
 
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(videos);
+
   return (
     <div className="firstupload-container">
       {/* <div className='headers'>{state.commuintyName}</div> */}
@@ -86,6 +90,7 @@ function TagFeed() {
           loading={isFetchingNextPage}
           getContentForVideo={getContentForVideo}
           isWatched={isWatched}
+          getViewCount={getViewCount}
         />
       )}
     </div>

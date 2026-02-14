@@ -52,10 +52,14 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { PLAYER_URL } from '../utils/config';
+import { Player, ThreeSpeakApi } from '@3speak/player-sdk';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
+import ShortsIcon from '../components/icons/ShortsIcon';
 import { markByReputation } from '../utils/reputation';
+import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
+import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 
 // Lazy-loaded Hive markdown renderer (same as CommentSection)
 let rendererPromise = null;
@@ -77,7 +81,12 @@ const getRenderer = async () => {
 const VideoShort = () => {
   const { user, authenticated, watchHistoryEnabled } = useAppStore();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
+  currentIndexRef.current = currentIndex;
+
   const [videos, setVideos] = useState([]);
+  const videosRef = useRef([]);
+  videosRef.current = videos;
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
@@ -122,6 +131,7 @@ const VideoShort = () => {
   const [showMuteIcon, setShowMuteIcon] = useState(false);
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   const [isScrubbing, setIsScrubbing] = useState(false);
+  const isScrubbingRef = useRef(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
 
@@ -132,6 +142,9 @@ const VideoShort = () => {
   const [weight, setWeight] = useState(100);
   const [voteValue, setVoteValue] = useState(0.0);
   const [accountData, setAccountData] = useState(null);
+  // Pre-cached vote data (fetched once on mount, refreshed after each vote)
+  const cachedDynamicPropsRef = useRef(null);
+  const voteDataReady = useRef(false);
 
   // Rendered comment bodies (permlink -> HTML string)
   const [renderedBodies, setRenderedBodies] = useState({});
@@ -146,6 +159,9 @@ const VideoShort = () => {
   const [replyText, setReplyText] = useState('');
   const [captionExpanded, setCaptionExpanded] = useState(false);
 
+  // Autoplay blocked fallback (iOS Low Power Mode, etc.)
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+
   // Touch/swipe state for mobile navigation
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
@@ -159,11 +175,16 @@ const VideoShort = () => {
   const playPauseTimeoutRef = useRef(null);
   const commentsFetchedRef = useRef(new Set());
   const videoContainerRef = useRef(null);
-  const iframeRefs = useRef({}); // Store refs to all iframes by video id
+  const playerRef = useRef(null); // Single persistent SDK Player instance
+  const videoElRef = useRef(null); // Single persistent <video> element ref
+  const handleNextRef = useRef(null); // Ref mirror of handleNext for use in Player event handlers
+  const sdkApiRef = useRef(new ThreeSpeakApi(PLAYER_URL)); // Shared API for prefetching
+  const prefetchedSourcesRef = useRef(new Map()); // Cache: videoId -> VideoSource (from prefetch)
+  const prefetchingRef = useRef(new Set()); // Track in-flight prefetch requests
   const keyboardRef = useRef(null); // capture keyboard events on mobile when focused
   const prevIndexRef = useRef(0); // Track previous index
   const prevVideoIdRef = useRef(null); // Track previous video id to avoid re-running play on enrichment
-  const readyPlayers = useRef(new Set()); // Track which players have sent 3speak-player-ready
+  const readyPlayers = useRef(new Set()); // Track which SDK players have fired 'ready'
   const [readyPlayerIds, setReadyPlayerIds] = useState(new Set()); // State mirror for render gating
   const pendingPlayRef = useRef(null); // Track video waiting to be played
   const chainPreloadDataRef = useRef(new Map()); // Chain short metadata for instant navigation
@@ -220,20 +241,30 @@ const VideoShort = () => {
     window.history.replaceState({}, '', newUrl);
   }, []);
 
-  /* ---------- 3SPEAK POSTMESSAGE API ---------- */
+  /* ---------- 3SPEAK SDK PLAYER API ---------- */
 
-  // Get stable iframe id for a video
-  const getPlayerId = useCallback((video) => `player-${video?.id}`, []);
+  // Get stable player id for a video
+  // Get the persistent SDK player
+  const getPlayer = useCallback(() => {
+    return playerRef.current || null;
+  }, []);
 
-  // Send command to a specific video's iframe
+  // Send command to the persistent SDK player
   const sendCommandToVideo = useCallback((video, command, data = {}) => {
     if (!video) return;
-    const iframe = iframeRefs.current[video.id];
-    if (iframe?.contentWindow) {
-      console.log(`[VideoShort] Sending "${command}" to video ${video.id}`);
-      iframe.contentWindow.postMessage({ type: command, ...data }, '*');
-    } else {
-      console.log(`[VideoShort] No iframe found for video ${video.id}`);
+    const player = playerRef.current;
+    if (!player || player.destroyed) {
+      console.log(`[VideoShort] No SDK player available`);
+      return;
+    }
+    switch (command) {
+      case 'play': player.play(); break;
+      case 'pause': player.pause(); break;
+      case 'toggle-play': player.togglePlay(); break;
+      case 'mute': player.setMuted(true); break;
+      case 'unmute': player.setMuted(false); break;
+      case 'seek': player.seek(data.time || 0); break;
+      default: console.warn(`[VideoShort] Unknown command: ${command}`);
     }
   }, []);
 
@@ -243,16 +274,20 @@ const VideoShort = () => {
     sendCommandToVideo(currentVid, command, data);
   }, [videos, currentIndex, sendCommandToVideo]);
 
-  // Play an iframe with correct mute state.
-  // mute=1 in URL doesn't survive player.load() after user activation,
-  // so we always explicitly sync mute state via postMessage before playing.
-  // Play an iframe with correct mute state.
-  // Sends mute/unmute before play so the player's intendedMuted flag is set correctly.
-  const playIframeWithMuteSync = useCallback((iframe) => {
-    if (!iframe?.contentWindow) return;
-    const muteCmd = isMutedRef.current ? 'mute' : 'unmute';
-    iframe.contentWindow.postMessage({ type: muteCmd }, '*');
-    iframe.contentWindow.postMessage({ type: 'play' }, '*');
+  // Play an SDK player with correct mute state.
+  // Always start muted so iOS allows the play(), then unmute after playback starts.
+  const playPlayerWithMuteSync = useCallback((player) => {
+    if (!player || player.destroyed) return;
+    player.setMuted(true);
+    player.play().then(() => {
+      if (!player.destroyed) {
+        player.setMuted(isMutedRef.current);
+      }
+      setAutoplayBlocked(false);
+    }).catch((err) => {
+      console.warn('[VideoShort] play() rejected:', err);
+      setAutoplayBlocked(true);
+    });
   }, []);
 
   const togglePlayPause = useCallback(() => {
@@ -262,12 +297,11 @@ const VideoShort = () => {
     playPauseTimeoutRef.current = setTimeout(() => setShowPlayPauseIcon(false), 500);
   }, [sendCommand]);
 
-  // Toggle mute: only send to current (active) iframe — background iframes ignore postMessage.
-  // Other iframes get mute synced when they become current via playIframeWithMuteSync.
+  // Toggle mute: only send to current (active) player.
+  // Other players get mute synced when they become current via playPlayerWithMuteSync.
   const toggleMute = useCallback(() => {
     const newMuted = !isMuted;
     const command = newMuted ? 'mute' : 'unmute';
-    // Only the current iframe is active and will receive this
     sendCommand(command);
     setIsMuted(newMuted);
     isMutedRef.current = newMuted;
@@ -285,6 +319,10 @@ const VideoShort = () => {
     setPlaybackMode(nextMode);
     playbackModeRef.current = nextMode;
     document.cookie = `shorts_playback_mode=${nextMode}; path=/; max-age=${365 * 24 * 3600}`;
+    // Update loop setting on the persistent SDK player
+    const shouldLoop = nextMode === 'auto-replay';
+    const player = playerRef.current;
+    if (player && !player.destroyed) player.setLoop(shouldLoop);
     // Reset ended state when switching modes
     setVideoEnded(false);
     autoSwipeTriggeredRef.current = false;
@@ -381,16 +419,18 @@ const VideoShort = () => {
   const handleProgressMouseDown = useCallback((e) => {
     e.stopPropagation();
     setIsScrubbing(true);
+    isScrubbingRef.current = true;
     handleProgressBarInteraction(e);
   }, [handleProgressBarInteraction]);
 
   const handleProgressMouseMove = useCallback((e) => {
-    if (!isScrubbing) return;
+    if (!isScrubbingRef.current) return;
     handleProgressBarInteraction(e);
-  }, [isScrubbing, handleProgressBarInteraction]);
+  }, [handleProgressBarInteraction]);
 
   const handleProgressMouseUp = useCallback(() => {
     setIsScrubbing(false);
+    isScrubbingRef.current = false;
   }, []);
 
   // Global mouse listeners for scrubbing
@@ -405,141 +445,29 @@ const VideoShort = () => {
     }
   }, [isScrubbing, handleProgressMouseUp, handleProgressMouseMove]);
 
-  // Listen for messages from iframe player
+  // SDK event subscriptions are set up once in the setupVideoElement callback.
+  // No global postMessage listener needed — the SDK communicates directly via native events.
+
+  // Pre-fetch vote data once when user is logged in
+  const fetchVoteData = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [acctResult, dynProps] = await Promise.all([
+        getVotePower(user),
+        getDynamicProps(),
+      ]);
+      const acct = acctResult?.account;
+      if (acct) setAccountData(acct);
+      if (dynProps) cachedDynamicPropsRef.current = dynProps;
+      voteDataReady.current = !!(acct && dynProps);
+    } catch (err) {
+      console.error('Error pre-fetching vote data:', err);
+    }
+  }, [user]);
+
   useEffect(() => {
-    const handleMessage = (event) => {
-      const data = event.data;
-      if (!data || !data.type) return;
-
-      // Find which iframe sent this message
-      let sourceVideoId = null;
-      for (const [videoId, iframe] of Object.entries(iframeRefs.current)) {
-        if (iframe?.contentWindow === event.source) {
-          sourceVideoId = videoId;
-          break;
-        }
-      }
-
-      const currentVid = videos[currentIndex];
-      const isFromCurrentVideo = currentVid && sourceVideoId === currentVid.id;
-
-      switch (data.type) {
-        case '3speak-player-ready':
-          console.log(`[VideoShort] Player ready for video: ${sourceVideoId}, current: ${currentVid?.id}`);
-          
-          // Mark this player as ready
-          if (sourceVideoId) {
-            readyPlayers.current.add(sourceVideoId);
-            setReadyPlayerIds(prev => {
-              if (prev.has(sourceVideoId)) return prev;
-              const next = new Set(prev);
-              next.add(sourceVideoId);
-              return next;
-            });
-            // Dismiss the initial "Loading shorts..." overlay once any player is ready
-            setFirstPlayerReady(true);
-          }
-          
-          // Apply orientation styles to the source iframe
-          const sourceIframe = sourceVideoId ? iframeRefs.current[sourceVideoId] : null;
-          if (sourceIframe && data.isVertical !== undefined) {
-            if (data.isVertical) {
-              sourceIframe.style.position = 'absolute';
-              sourceIframe.style.top = '0';
-              sourceIframe.style.left = '50%';
-              sourceIframe.style.transform = 'translateX(-50%)';
-              sourceIframe.style.width = 'auto';
-              sourceIframe.style.height = '100%';
-              sourceIframe.style.aspectRatio = '9 / 16';
-            } else {
-              sourceIframe.style.position = 'absolute';
-              sourceIframe.style.top = '50%';
-              sourceIframe.style.left = '0';
-              sourceIframe.style.transform = 'translateY(-50%)';
-              sourceIframe.style.width = '100%';
-              sourceIframe.style.height = 'auto';
-              sourceIframe.style.aspectRatio = '16 / 9';
-            }
-          }
-
-          // If this is the current video (or pending), sync mute + play.
-          // Background iframes ignore postMessage, so we only sync when becoming current.
-          if (isFromCurrentVideo || pendingPlayRef.current === sourceVideoId) {
-            console.log(`[VideoShort] Player ready - now playing: ${sourceVideoId}`);
-            pendingPlayRef.current = null;
-            setTimeout(() => playIframeWithMuteSync(sourceIframe), 50);
-          }
-          break;
-
-        case '3speak-timeupdate':
-          // Only update if from current video — use refs (not state) to avoid re-renders
-          if (isFromCurrentVideo && !isScrubbing && data.duration > 0) {
-            currentTimeRef.current = data.currentTime || 0;
-            durationRef.current = data.duration;
-            updateProgressBar(); // Direct DOM update, no React re-render
-            if (data.paused !== undefined) {
-              setIsPlaying(!data.paused);
-            }
-            // Auto-swipe: trigger swipe when near end of video
-            if (playbackModeRef.current === 'auto-swipe' && data.duration > 0 && !autoSwipeTriggeredRef.current) {
-              const remaining = data.duration - data.currentTime;
-              if (remaining <= 1.0 && remaining >= 0) {
-                autoSwipeTriggeredRef.current = true;
-                handleNext();
-              }
-            }
-            // None mode: pause video near end and show replay button
-            // Works even if iframe was loaded with loop=1 (catches it before loop restarts)
-            if (playbackModeRef.current === 'none' && data.duration > 0 && !autoSwipeTriggeredRef.current) {
-              const remaining = data.duration - data.currentTime;
-              if (remaining <= 0.3 && remaining >= 0) {
-                autoSwipeTriggeredRef.current = true; // Reuse flag to prevent multiple triggers
-                sendCommandToVideo(currentVid, 'pause');
-                setVideoEnded(true);
-                setIsPlaying(false);
-              }
-            }
-          }
-          break;
-
-        case '3speak-durationchange':
-          if (isFromCurrentVideo) {
-            durationRef.current = data.duration || 0;
-          }
-          break;
-
-        case '3speak-play':
-          if (isFromCurrentVideo) {
-            setIsPlaying(true);
-          }
-          break;
-
-        case '3speak-pause':
-          if (isFromCurrentVideo) {
-            setIsPlaying(false);
-          }
-          break;
-
-        case '3speak-ended':
-          if (isFromCurrentVideo && playbackModeRef.current === 'none') {
-            setVideoEnded(true);
-            setIsPlaying(false);
-          }
-          break;
-
-        case '3speak-state':
-          console.log(`[MuteSync] STATE from ${sourceVideoId}: muted=${data.muted}, intendedMuted=${data.intendedMuted}, paused=${data.paused}, volume=${data.volume}`);
-          break;
-
-        case '3speak-volumechange':
-          console.log(`[MuteSync] VOLUMECHANGE from ${sourceVideoId}: muted=${data.muted}, volume=${data.volume}`);
-          break;
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [isScrubbing, videos, currentIndex]);
+    fetchVoteData();
+  }, [fetchVoteData]);
 
   // Handle video change - pause previous, play current
   // Only react to actual index changes (not videos enrichment re-renders)
@@ -551,7 +479,6 @@ const VideoShort = () => {
     if (prevIndexRef.current === currentIndex && currentVid.id === prevVideoIdRef.current) return;
 
     const prevIndex = prevIndexRef.current;
-    const prevVid = videos[prevIndex];
 
     console.log(`[VideoShort] Index changed: ${prevIndex} -> ${currentIndex}, video: ${currentVid.id}`);
 
@@ -576,71 +503,56 @@ const VideoShort = () => {
     setParentCardVisible(true);
     setCaptionExpanded(false);
 
-    // Pause ALL other players (not just previous) to free up connections on mobile
-    Object.entries(iframeRefs.current).forEach(([id, iframe]) => {
-      if (id !== currentVid.id && iframe?.contentWindow) {
-        try {
-          iframe.contentWindow.postMessage({ type: 'pause' }, '*');
-        } catch (e) { /* ignore */ }
-      }
-    });
-
     // Update tracking refs
     prevIndexRef.current = currentIndex;
     prevVideoIdRef.current = currentVid.id;
 
-    // Check if the player is already ready
-    const isPlayerReady = readyPlayers.current.has(currentVid.id);
-    console.log(`[VideoShort] Player ready status for ${currentVid.id}: ${isPlayerReady}`);
+    // Reset ready state for the new video
+    readyPlayers.current.clear();
+    setReadyPlayerIds(new Set());
 
-    if (isPlayerReady) {
-      // Player is ready, play immediately (small delay for DOM to settle)
-      const iframe = iframeRefs.current[currentVid.id];
-      if (iframe?.contentWindow) {
-        console.log(`[VideoShort] Playing immediately (player ready): ${currentVid.id}`);
-        setTimeout(() => playIframeWithMuteSync(iframe), 50);
-      }
-    } else {
-      // Player not ready yet, set as pending and wait for 3speak-player-ready
-      console.log(`[VideoShort] Player not ready, setting pending play: ${currentVid.id}`);
+    // Load new video into the persistent player (reuses same <video> element + Player instance)
+    const player = playerRef.current;
+    if (player && !player.destroyed) {
       pendingPlayRef.current = currentVid.id;
+      console.log(`[VideoShort] Loading new source into persistent player: ${currentVid.id}`);
 
-      // Also set up a fallback with retries in case the ready event was missed
+      // Use prefetched source if available, otherwise fetch from API
+      const cachedSource = prefetchedSourcesRef.current.get(currentVid.id);
+      if (cachedSource) {
+        console.log(`[VideoShort] Using prefetched source for ${currentVid.id}`);
+        player.load(cachedSource).catch(err => {
+          console.error(`[VideoShort] Failed to load ${currentVid.id}:`, err);
+        });
+      } else {
+        player.load(`${currentVid.author}/${currentVid.permlink}`).catch(err => {
+          console.error(`[VideoShort] Failed to load ${currentVid.id}:`, err);
+        });
+      }
+
+      // Fallback retries in case ready event is delayed
       const timeouts = [];
       const playIfReady = (attempt) => {
-        // Check if still the current video and still pending
-        if (pendingPlayRef.current !== currentVid.id) {
-          console.log(`[VideoShort] Skipping retry - no longer pending: ${currentVid.id}`);
-          return;
-        }
-
-        // Check if player became ready
+        if (pendingPlayRef.current !== currentVid.id) return;
         if (readyPlayers.current.has(currentVid.id)) {
-          const iframe = iframeRefs.current[currentVid.id];
-          if (iframe?.contentWindow) {
-            console.log(`[VideoShort] Playing on retry ${attempt} (player now ready): ${currentVid.id}`);
-            pendingPlayRef.current = null;
-            playIframeWithMuteSync(iframe);
-          }
-        } else {
-          console.log(`[VideoShort] Retry ${attempt}: Player still not ready: ${currentVid.id}`);
+          console.log(`[VideoShort] Playing on retry ${attempt}: ${currentVid.id}`);
+          pendingPlayRef.current = null;
+          playPlayerWithMuteSync(player);
         }
       };
 
-      // Retry at longer intervals to catch late ready events
       [500, 1000, 1500, 2000, 3000, 4000, 5000].forEach((delay, idx) => {
         const timeout = setTimeout(() => playIfReady(idx + 1), delay);
         timeouts.push(timeout);
       });
 
-      // Cleanup
       return () => {
         timeouts.forEach(t => clearTimeout(t));
       };
     }
   }, [currentIndex, videos, sendCommandToVideo]);
 
-  // Force-show fallback: if the player hasn't sent ready after 6s, show it anyway and try playing
+  // Force-show fallback: if the player hasn't fired ready after 6s, show it anyway and try playing
   useEffect(() => {
     const currentVid = videos[currentIndex];
     if (!currentVid || readyPlayers.current.has(currentVid.id)) return;
@@ -655,9 +567,8 @@ const VideoShort = () => {
           return next;
         });
         setFirstPlayerReady(true);
-        // Try playing — the iframe may be functional, just didn't fire the ready event
-        const iframe = iframeRefs.current[currentVid.id];
-        playIframeWithMuteSync(iframe);
+        const player = playerRef.current;
+        if (player && !player.destroyed) playPlayerWithMuteSync(player);
       }
     }, 6000);
 
@@ -710,9 +621,15 @@ const VideoShort = () => {
   }, [currentIndex, videos, user]);
 
   // Fetch reshare data when current video changes
+  // Use video id to avoid re-fetching on videos array enrichment (which causes avatar flashing)
+  const reshareVideoIdRef = useRef(null);
   useEffect(() => {
     const currentVid = videos[currentIndex];
     if (!currentVid) return;
+    // Skip if the video identity hasn't changed (e.g. enrichment updated the videos array)
+    if (reshareVideoIdRef.current === currentVid.id) return;
+    reshareVideoIdRef.current = currentVid.id;
+
     const author = currentVid.author;
     const permlink = currentVid.hivePermlink || currentVid.permlink;
     if (!author || !permlink) return;
@@ -736,11 +653,15 @@ const VideoShort = () => {
     })();
   }, [currentIndex, videos, user]);
 
-  // Cleanup on unmount — preload fresh shorts for the next visit
+  // Cleanup on unmount — destroy player and preload fresh shorts for the next visit
   useEffect(() => {
     return () => {
       if (playPauseTimeoutRef.current) {
         clearTimeout(playPauseTimeoutRef.current);
+      }
+      if (playerRef.current && !playerRef.current.destroyed) {
+        playerRef.current.destroy();
+        playerRef.current = null;
       }
       preloadShorts(10, user);
     };
@@ -951,12 +872,12 @@ const VideoShort = () => {
       return;
     }
 
-    // Check chain preload data for instant switch (iframe already warm)
+    // Check chain preload data for instant switch (player already warm)
     const preloadKey = `${targetAuthor}-${targetPermlink}`;
     const chainData = chainPreloadDataRef.current.get(preloadKey);
 
     if (chainData) {
-      // Instant switch — create minimal entry, iframe is already loaded
+      // Instant switch — create minimal entry, player is already loaded
       const formatted = {
         id: preloadKey,
         author: chainData.author,
@@ -1222,36 +1143,31 @@ const VideoShort = () => {
       return;
     }
 
-    if (!user) {
+    if (!user || !isLoggedIn()) {
       toast.error('Please login to comment');
       return;
     }
 
     setPostingComment(true);
+    const newPermlink = `re-${parentPermlink}-${Date.now()}`;
 
     try {
-      const response = await axios.post(
-        'https://studio.3speak.tv/mobile/comment',
-        {
-          author: parentAuthor,
-          permlink: parentPermlink,
-          comment: commentText,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        }
+      const result = await commentWithAioha(
+        parentAuthor,
+        parentPermlink,
+        newPermlink,
+        '', // title (empty for comments)
+        commentText,
+        { app: '3speak/new-version' }
       );
 
-      if (response.data.success) {
+      if (result.success) {
         toast.success('Comment posted successfully!');
 
         const newCommentObj = {
-          id: `${user}-re-${parentPermlink}-${Date.now()}`,
+          id: `${user}-${newPermlink}`,
           author: user,
-          permlink: `re-${parentPermlink}-${Date.now()}`,
+          permlink: newPermlink,
           body: commentText,
           createdAt: new Date().toISOString(),
           timeAgo: 'Just now',
@@ -1269,7 +1185,6 @@ const VideoShort = () => {
         };
 
         if (isReply) {
-          // Add reply to the parent comment and increment comment count
           setVideos(prev =>
             prev.map((v, idx) => {
               if (idx !== currentIndex) return v;
@@ -1283,7 +1198,6 @@ const VideoShort = () => {
           setReplyText('');
           setActiveReply(null);
         } else {
-          // Add comment to the main video
           setVideos(prev =>
             prev.map((v, idx) => {
               if (idx !== currentIndex) return v;
@@ -1296,12 +1210,10 @@ const VideoShort = () => {
           );
           setNewComment('');
         }
-      } else {
-        toast.error(`Comment failed: ${response.data.message}`);
       }
     } catch (err) {
       console.error('Comment failed:', err);
-      toast.error('Comment failed, please try again');
+      toast.error('Comment failed: ' + (err.message || 'please try again'));
     } finally {
       setPostingComment(false);
     }
@@ -1479,23 +1391,11 @@ const VideoShort = () => {
   };
 
   // Find the nearest ready player index in a given direction, skipping up to `maxSkip` non-ready videos
-  const findNextReady = (fromIdx, direction = 1, maxSkip = 2) => {
-    let target = fromIdx + direction;
-    if (readyPlayers.current.has(videos[target]?.id)) return target;
-    for (let i = 1; i <= maxSkip; i++) {
-      const candidate = target + i * direction;
-      if (candidate < 0 || candidate >= videos.length) break;
-      if (readyPlayers.current.has(videos[candidate]?.id)) return candidate;
-    }
-    return target; // fallback to immediate next (will show thumbnail)
-  };
-
   const handlePrevious = () => {
     if (currentIndex === 0) return;
     shortHistoryRef.current = [];
     triggerSwipeAnimation('down');
-    const prevIdx = findNextReady(currentIndex, -1);
-    setCurrentIndex(Math.max(0, prevIdx));
+    setCurrentIndex(currentIndex - 1);
   };
 
   const handleNext = async () => {
@@ -1509,14 +1409,15 @@ const VideoShort = () => {
     }
     shortHistoryRef.current = [];
     triggerSwipeAnimation('up');
-    const nextIdx = findNextReady(currentIndex, 1);
-    setCurrentIndex(Math.min(videos.length - 1, nextIdx));
+    const nextIdx = currentIndex + 1;
+    setCurrentIndex(nextIdx);
 
-    // Prefetch 7 items before the end of the current page
+    // Prefetch more items before the end of the current page
     if (nextIdx >= videos.length - 7 && hasMore) {
       loadMoreVideos();
     }
   };
+  handleNextRef.current = handleNext;
 
   // Keyboard navigation: ArrowUp = previous, ArrowDown = next
   useEffect(() => {
@@ -1695,12 +1596,161 @@ const VideoShort = () => {
     return indices;
   }, [currentIndex, videos.length]);
 
-  // Store iframe ref
-  const setIframeRef = useCallback((videoId, element) => {
-    if (element) {
-      iframeRefs.current[videoId] = element;
+  // Prefetch API metadata + HLS manifest for upcoming videos (lightweight fetch, no <video> needed)
+  // iOS only allows one active <video> — so we prefetch to warm the browser cache instead.
+  const prefetchVideo = useCallback((videoId, videoAuthor, videoPermlink) => {
+    if (prefetchedSourcesRef.current.has(videoId) || prefetchingRef.current.has(videoId)) return;
+    prefetchingRef.current.add(videoId);
+    const api = sdkApiRef.current;
+    api.fetchSource(videoAuthor, videoPermlink).then(source => {
+      prefetchedSourcesRef.current.set(videoId, source);
+      prefetchingRef.current.delete(videoId);
+      // Also prefetch the HLS manifest itself to warm CDN + browser cache
+      api.prefetchManifest(source.url).catch(() => {});
+      console.log(`[VideoShort] Prefetched source for ${videoId}`);
+    }).catch(err => {
+      prefetchingRef.current.delete(videoId);
+      console.error(`[VideoShort] Prefetch failed for ${videoId}:`, err);
+    });
+  }, []);
+
+  // One-time setup: attach a persistent Player to the <video> element when it mounts.
+  // The Player is reused across all videos — only load() is called on each swipe.
+  const setupVideoElement = useCallback((element) => {
+    if (!element || videoElRef.current === element) return;
+    videoElRef.current = element;
+
+    // Destroy old player if switching elements (shouldn't happen with stable key)
+    if (playerRef.current && !playerRef.current.destroyed) {
+      playerRef.current.destroy();
+    }
+
+    const player = new Player({
+      apiBase: PLAYER_URL,
+      muted: true,
+      loop: playbackModeRef.current === 'auto-replay',
+      poster: false,
+      debug: false,
+    });
+
+    player.attach(element);
+    playerRef.current = player;
+
+    // Subscribe to SDK events — these persist for the lifetime of the player.
+    // All handlers use refs (videosRef, currentIndexRef) to get current state.
+    player.on('ready', ({ isVertical, width, height }) => {
+      const currentVid = videosRef.current[currentIndexRef.current];
+      const videoId = currentVid?.id;
+      console.log(`[VideoShort SDK] Player ready: ${videoId}, ${width}x${height}, vertical=${isVertical}`);
+
+      // Apply orientation styles to the video element
+      if (isVertical) {
+        element.style.position = 'absolute';
+        element.style.top = '0';
+        element.style.left = '50%';
+        element.style.transform = 'translateX(-50%)';
+        element.style.width = 'auto';
+        element.style.height = '100%';
+        element.style.aspectRatio = '9 / 16';
+      } else {
+        element.style.position = 'absolute';
+        element.style.top = '50%';
+        element.style.left = '0';
+        element.style.transform = 'translateY(-50%)';
+        element.style.width = '100%';
+        element.style.height = 'auto';
+        element.style.aspectRatio = '16 / 9';
+      }
+
+      // Mark this player as ready
+      if (videoId) {
+        readyPlayers.current.add(videoId);
+        setReadyPlayerIds(prev => {
+          if (prev.has(videoId)) return prev;
+          const next = new Set(prev);
+          next.add(videoId);
+          return next;
+        });
+      }
+      setFirstPlayerReady(true);
+
+      // If this is the pending video, play it now
+      if (videoId && pendingPlayRef.current === videoId) {
+        console.log(`[VideoShort SDK] Player ready - now playing: ${videoId}`);
+        pendingPlayRef.current = null;
+        playPlayerWithMuteSync(player);
+      }
+    });
+
+    player.on('timeupdate', ({ currentTime, duration, paused }) => {
+      if (isScrubbingRef.current || duration <= 0) return;
+
+      currentTimeRef.current = currentTime || 0;
+      durationRef.current = duration;
+      updateProgressBar();
+      setIsPlaying(!paused);
+
+      // Auto-swipe: trigger swipe when near end of video
+      if (playbackModeRef.current === 'auto-swipe' && !autoSwipeTriggeredRef.current) {
+        const remaining = duration - currentTime;
+        if (remaining <= 0.25) {
+          autoSwipeTriggeredRef.current = true;
+          handleNextRef.current();
+        }
+      }
+      // None mode: pause video near end and show replay button
+      if (playbackModeRef.current === 'none' && !autoSwipeTriggeredRef.current) {
+        const remaining = duration - currentTime;
+        if (remaining <= 0.3 && remaining >= 0) {
+          autoSwipeTriggeredRef.current = true;
+          player.pause();
+          setVideoEnded(true);
+          setIsPlaying(false);
+        }
+      }
+    });
+
+    player.on('play', () => {
+      setIsPlaying(true);
+      setAutoplayBlocked(false);
+    });
+
+    player.on('pause', () => {
+      setIsPlaying(false);
+    });
+
+    player.on('ended', () => {
+      if (playbackModeRef.current === 'none') {
+        setVideoEnded(true);
+        setIsPlaying(false);
+      }
+    });
+
+    player.on('error', ({ message, fatal }) => {
+      // Only log fatal errors — non-fatal ones (like bufferStalledError) are recovered automatically by hls.js
+      if (fatal) {
+        console.error(`[VideoShort SDK] Fatal error: ${message}`);
+      }
+    });
+
+    // Load the first video
+    const currentVid = videosRef.current[currentIndexRef.current];
+    if (currentVid) {
+      pendingPlayRef.current = currentVid.id;
+      const cachedSource = prefetchedSourcesRef.current.get(currentVid.id);
+      if (cachedSource) {
+        player.load(cachedSource).catch(err => {
+          console.error(`[VideoShort SDK] Failed to load initial video:`, err);
+        });
+      } else {
+        player.load(`${currentVid.author}/${currentVid.permlink}`).catch(err => {
+          console.error(`[VideoShort SDK] Failed to load initial video:`, err);
+        });
+      }
     }
   }, []);
+
+  // (Prefetch effect is below, after chainPreloadEntries declaration)
 
   // Populate chain preload data for instant navigation
   useEffect(() => {
@@ -1733,7 +1783,7 @@ const VideoShort = () => {
     }
   }, [videos, currentIndex]);
 
-  // Compute chain preload entries for iframe pre-warming
+  // Compute chain preload entries for player pre-warming
   const chainPreloadEntries = useMemo(() => {
     const cv = videos[currentIndex];
     const entries = [];
@@ -1765,33 +1815,29 @@ const VideoShort = () => {
     return entries;
   }, [videos, currentIndex]);
 
-  // Clean up old iframe refs that are no longer in preload range
-  // IMPORTANT: pause players before removing them so HLS streams stop downloading
+  // Prefetch upcoming videos when currentIndex changes
   useEffect(() => {
-    const preloadedIds = new Set(preloadedIndices.map(idx => videos[idx]?.id).filter(Boolean));
-    chainPreloadEntries.forEach(e => preloadedIds.add(e.id));
-    const removedIds = [];
-    Object.keys(iframeRefs.current).forEach(id => {
-      if (!preloadedIds.has(id)) {
-        // Pause the player to stop HLS stream download before removing
-        const iframe = iframeRefs.current[id];
-        if (iframe?.contentWindow) {
-          try {
-            iframe.contentWindow.postMessage({ type: 'pause' }, '*');
-          } catch (e) { /* iframe may already be gone */ }
-        }
-        delete iframeRefs.current[id];
-        readyPlayers.current.delete(id);
-        removedIds.push(id);
+    preloadedIndices.forEach(idx => {
+      if (idx === currentIndex) return; // Current video gets a real player, not just prefetch
+      const video = videos[idx];
+      if (video) {
+        prefetchVideo(video.id, video.author, video.permlink);
       }
     });
-    if (removedIds.length > 0) {
-      setReadyPlayerIds(prev => {
-        if (!removedIds.some(id => prev.has(id))) return prev;
-        const next = new Set(prev);
-        removedIds.forEach(id => next.delete(id));
-        return next;
-      });
+    // Also prefetch chain entries
+    chainPreloadEntries.forEach(entry => {
+      prefetchVideo(entry.id, entry.author, entry.permlink);
+    });
+  }, [currentIndex, preloadedIndices, videos, chainPreloadEntries, prefetchVideo]);
+
+  // Clean up stale prefetch caches for videos far out of range
+  useEffect(() => {
+    const keepIds = new Set(preloadedIndices.map(idx => videos[idx]?.id).filter(Boolean));
+    chainPreloadEntries.forEach(e => keepIds.add(e.id));
+    for (const id of prefetchedSourcesRef.current.keys()) {
+      if (!keepIds.has(id)) {
+        prefetchedSourcesRef.current.delete(id);
+      }
     }
   }, [preloadedIndices, videos, chainPreloadEntries]);
 
@@ -1805,7 +1851,7 @@ const VideoShort = () => {
     return (
       <main className="short-main">
         <div className="loadingState">
-          <Loader2 className="spinner" size={48} />
+          <ShortsIcon className="shorts-breathe-logo" size={72} />
           <p>Loading shorts...</p>
         </div>
       </main>
@@ -1813,7 +1859,6 @@ const VideoShort = () => {
   }
 
   // Show "Loading shorts..." overlay until the first player is ready
-  // (iframes render underneath so they can load in the background)
   const showInitialLoadingOverlay = !firstPlayerReady && videos.length > 0;
 
   if (error && videos.length === 0) {
@@ -1852,73 +1897,74 @@ const VideoShort = () => {
         <div
           className={`videoContainer${swipeDirection ? ` swipe-${swipeDirection}` : ''}`}
           ref={videoContainerRef}
-          style={swipeDragY && !swipeDirection ? { transform: `translateY(${swipeDragY * 0.3}px)`, transition: 'none' } : undefined}
+          style={swipeDragY && !swipeDirection ? { transform: `translateY(${swipeDragY * 0.6}px)`, transition: 'none' } : undefined}
         >
-          {/* Preloaded iframes for smooth playback */}
-          {preloadedIndices.map((idx) => {
-            const video = videos[idx];
-            if (!video) return null;
-            const isCurrent = idx === currentIndex;
-            const isReady = readyPlayerIds.has(video.id);
-
-            return (
-              <iframe
-                key={video.id}
-                id={getPlayerId(video)}
-                ref={(el) => setIframeRef(video.id, el)}
-                src={`${PLAYER_URL}/embed?v=${video.author}/${video.permlink}&mode=iframe&controls=0&loop=1&mute=1`}
-                width="100%"
-                height="100%"
-                frameBorder="0"
-                allow="autoplay; fullscreen"
-                allowFullScreen
-                onLoad={(e) => {
-
-                  iframeRefs.current[video.id] = e.target;
-                }}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  opacity: isCurrent && isReady ? 1 : 0,
-                  pointerEvents: 'none',
-                  zIndex: isCurrent ? 2 : 0,
-                }}
-              />
-            );
-          })}
-
-          {/* Thumbnail placeholder while player initializes */}
-          {currentVideo && !readyPlayerIds.has(currentVideo.id) && (
-            <div
+          {/* Single SDK video player — only the current video gets a <video> element.
+              Upcoming videos are prefetched (API + manifest) so they load fast on swipe.
+              iOS only allows one active <video> at a time. */}
+          {currentVideo && (
+            <video
+              key="shorts-player"
+              id="shorts-player"
+              ref={setupVideoElement}
+              autoPlay
+              playsInline
+              webkit-playsinline=""
+              muted
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '100%',
                 height: '100%',
-                zIndex: 1,
+                objectFit: 'contain',
+                pointerEvents: 'none',
+                zIndex: 2,
+                background: '#000',
+              }}
+            />
+          )}
+
+          {/* Tap-to-play fallback when iOS blocks autoplay (Low Power Mode, etc.) */}
+          {autoplayBlocked && currentVideo && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                const player = playerRef.current;
+                if (player && !player.destroyed) {
+                  player.setMuted(true);
+                  player.play().then(() => {
+                    if (!player.destroyed) player.setMuted(isMutedRef.current);
+                    setAutoplayBlocked(false);
+                    setIsPlaying(true);
+                  }).catch(() => {});
+                }
+              }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 10,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: '#000',
+                cursor: 'pointer',
+                background: 'rgba(0,0,0,0.3)',
               }}
             >
-              {currentVideo.thumbnailUrl && (
-                <img
-                  src={currentVideo.thumbnailUrl}
-                  alt=""
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                  }}
-                />
-              )}
-              <Loader2 className="spinner" size={36} style={{ position: 'relative', zIndex: 2 }} />
+              <div style={{
+                width: 72,
+                height: 72,
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Play size={36} fill="#000" color="#000" style={{ marginLeft: 4 }} />
+              </div>
             </div>
           )}
 
@@ -1939,36 +1985,12 @@ const VideoShort = () => {
                 background: '#000',
               }}
             >
-              <Loader2 className="spinner" size={48} />
+              <ShortsIcon className="shorts-breathe-logo" size={72} />
               <p style={{ color: '#fff', marginTop: 12 }}>Loading shorts...</p>
             </div>
           )}
 
-          {/* Chain preload iframes — pre-warm players for instant navigation */}
-          {chainPreloadEntries.map(entry => (
-            <iframe
-              key={entry.id}
-              ref={(el) => setIframeRef(entry.id, el)}
-              src={`${PLAYER_URL}/embed?v=${entry.author}/${entry.permlink}&mode=iframe&controls=0&loop=1&mute=1`}
-              width="100%"
-              height="100%"
-              frameBorder="0"
-              allow="autoplay; fullscreen"
-              allowFullScreen
-              onLoad={(e) => {
-                // chain iframe loaded
-                iframeRefs.current[entry.id] = e.target;
-              }}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                opacity: 0,
-                pointerEvents: 'none',
-                zIndex: 0,
-              }}
-            />
-          ))}
+          {/* Chain preload videos are prefetched via API + manifest only (no <video> elements) */}
 
           {/* Transparent overlay for gestures */}
           <div
@@ -2044,6 +2066,9 @@ const VideoShort = () => {
             ref={progressBarRef}
             onMouseDown={handleProgressMouseDown}
             onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => { e.stopPropagation(); setIsScrubbing(true); isScrubbingRef.current = true; handleProgressBarInteraction(e.touches[0]); }}
+            onTouchMove={(e) => { e.stopPropagation(); if (isScrubbingRef.current) handleProgressBarInteraction(e.touches[0]); }}
+            onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setIsScrubbing(false); isScrubbingRef.current = false; }}
           >
             <div className="videoProgressFill" ref={progressFillRef} style={{ width: '0%' }} />
             <div className="videoProgressHandle" ref={progressHandleRef} style={{ left: '0%' }} />
@@ -2229,10 +2254,14 @@ const VideoShort = () => {
                 showFollow
                 followersCount={currentVideo.user.followersCount}
                 reputation={currentVideo.user.reputation}
+                color="#fff"
               />
             </div>
             <div className={`caption${captionExpanded ? ' caption--expanded' : ''}`} onClick={(e) => { e.stopPropagation(); setCaptionExpanded(prev => !prev); }}>
               <p className="captionText">{currentVideo.caption}</p>
+              {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && (
+                <span className="captionDate">{currentVideo.timeAgo}</span>
+              )}
               {captionExpanded && currentVideo.tags?.length > 0 && (
                 <div className="captionTags">
                   {currentVideo.tags.map((tag, i) => (
@@ -2274,6 +2303,8 @@ const VideoShort = () => {
               accountData={accountData}
               setAccountData={setAccountData}
               onVoteSuccess={handlePostVoteSuccess}
+              cachedDynamicProps={cachedDynamicPropsRef.current}
+              onVoteDataRefresh={fetchVoteData}
             />
           </div>
 
@@ -2390,6 +2421,8 @@ const VideoShort = () => {
                 setVoteValue={setVoteValue}
                 accountData={accountData}
                 setAccountData={setAccountData}
+                cachedDynamicProps={cachedDynamicPropsRef.current}
+                onVoteDataRefresh={fetchVoteData}
                 activeReply={activeReply}
                 setActiveReply={setActiveReply}
                 replyText={replyText}
@@ -2450,6 +2483,8 @@ const CommentItem = ({
   setVoteValue,
   accountData,
   setAccountData,
+  cachedDynamicProps,
+  onVoteDataRefresh,
   activeReply,
   setActiveReply,
   replyText,
@@ -2534,6 +2569,8 @@ const CommentItem = ({
             setVoteValue={setVoteValue}
             accountData={accountData}
             setAccountData={setAccountData}
+            cachedDynamicProps={cachedDynamicProps}
+            onVoteDataRefresh={onVoteDataRefresh}
           />
         </div>
 
@@ -2597,6 +2634,8 @@ const CommentItem = ({
                 setVoteValue={setVoteValue}
                 accountData={accountData}
                 setAccountData={setAccountData}
+                cachedDynamicProps={cachedDynamicProps}
+                onVoteDataRefresh={onVoteDataRefresh}
                 activeReply={activeReply}
                 setActiveReply={setActiveReply}
                 replyText={replyText}

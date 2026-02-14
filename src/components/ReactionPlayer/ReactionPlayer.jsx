@@ -25,7 +25,7 @@ const getRenderer = async () => {
   return rendererPromise;
 };
 
-const SIZE_LABELS = { small: 'S', medium: 'M', big: 'L' };
+const SIZE_LABELS = { small: 'S', medium: 'M', standard: 'Std', large: 'Cin' };
 
 function stripRepliedTo(html) {
   if (!html) return '';
@@ -43,13 +43,13 @@ function strip3SpeakEmbeds(html) {
     .replace(/<iframe[^>]*src="[^"]*embed\.3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi, '');
 }
 
-function CommentNode({ comment, depth }) {
+function CommentNode({ comment, depth, collapsible = true }) {
   const [collapsed, setCollapsed] = useState(false);
   const bodyHtml = depth === 0 ? strip3SpeakEmbeds(comment.body) : stripRepliedTo(comment.body || '');
 
   if (comment.isLowReputation) return null;
 
-  if (collapsed) {
+  if (collapsible && collapsed) {
     return (
       <div className="rct-thread-comment" style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 16}px` } : undefined}>
         <div className="comment-collapsed-bar" onClick={() => setCollapsed(false)}>
@@ -66,7 +66,7 @@ function CommentNode({ comment, depth }) {
       <div className="rct-thread-header">
         <img className="rct-thread-avatar" src={comment.avatar} alt="" />
         <span className="rct-thread-author">@{comment.author}</span>
-        <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>
+        {collapsible && <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>}
       </div>
       <div className="rct-thread-body markdown-view" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
       {comment.children?.map((child, i) => (
@@ -495,7 +495,7 @@ function ReactionPlayer({
         {!isVideo && (
           <div className="rct-comment-panel">
             <div className="rct-comment-thread">
-              <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} />
+              <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} collapsible={false} />
               {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
               {nestedComments.map((reply, i) => (
                 <CommentNode key={i} comment={reply} depth={1} />
@@ -574,7 +574,7 @@ function ReactionPlayer({
       {isVideo && current.permlink && (
         <div className="rct-comment-panel rct-comment-panel--below">
           <div className="rct-comment-thread">
-            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} />
+            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} collapsible={false} />
             {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
             {nestedComments.map((reply, i) => (
               <CommentNode key={i} comment={reply} depth={1} />

@@ -265,12 +265,22 @@ function Watch() {
     }, 100);
   }, []);
 
+  const REACTION_SIZES = ['small', 'medium', 'standard', 'large'];
+  const REACTION_SIZE_LABELS = { small: 'Small', medium: 'Medium', standard: 'Standard', large: 'Cinema' };
   const cycleReactionSize = useCallback(() => {
     setReactionSize(prev => {
-      const next = prev === 'small' ? 'medium' : prev === 'medium' ? 'big' : 'small';
+      const idx = REACTION_SIZES.indexOf(prev);
+      const next = REACTION_SIZES[(idx + 1) % REACTION_SIZES.length];
       localStorage.setItem('3speak-reaction-size', next);
       return next;
     });
+  }, []);
+
+  const handleTogglePip = useCallback(() => {
+    const mainIframe = document.querySelector('.video-iframe-wrapper iframe');
+    if (mainIframe?.contentWindow) {
+      mainIframe.contentWindow.postMessage({ type: 'toggle-pip' }, '*');
+    }
   }, []);
 
   // Desktop: show controls on mouse movement, auto-hide after 3s
@@ -751,6 +761,9 @@ function Watch() {
           onReactToMoment: handleReactToMoment,
           markers: resolvedMarkers,
           onMarkerSelect: handleSelectReaction,
+          onCycleReactionSize: isReactionPlayerVisible && reactions.length > 0 ? cycleReactionSize : null,
+          reactionSizeLabel: REACTION_SIZE_LABELS[reactionSize] || reactionSize,
+          onTogglePip: handleTogglePip,
         }}
         mobileReactionPanel={
           <>
@@ -792,7 +805,6 @@ function Watch() {
             onSelectReaction={handleSelectReaction}
             onClose={() => setReactionsVisible(false)}
             size={reactionSize}
-            onCycleSize={cycleReactionSize}
             currentTime={currentTime}
             duration={videoDuration}
             mainIsPlaying={isPlaying}
@@ -813,7 +825,7 @@ function Watch() {
         {suggestedVideos.length > 0 && (
           <div className="right-column-videos">
             <h4>More videos</h4>
-            <Card3 videos={suggestedVideos} loading={false} />
+            <Card3 videos={suggestedVideos} loading={false} shortTimeAgo={false} />
           </div>
         )}
       </div>
@@ -821,7 +833,7 @@ function Watch() {
       {suggestedVideos.length > 0 && (
         <div className="mobile-recommended">
           <h4>More videos</h4>
-          <Card3 videos={suggestedVideos.slice(0, 12)} loading={false} />
+          <Card3 videos={suggestedVideos.slice(0, 12)} loading={false} shortTimeAgo={false} />
         </div>
       )}
     </div>

@@ -15,7 +15,7 @@ import { FaFire, FaRegSmile } from "react-icons/fa";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { Link } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
-import { SiYoutubeshorts } from "react-icons/si";
+import ShortsIcon from "../icons/ShortsIcon";
 
 const Sidebar = ({ sidebar }) => {
   const { authenticated, user } = useAppStore();
@@ -25,6 +25,9 @@ const Sidebar = ({ sidebar }) => {
       <div className="shortcut-links">
         <Link to="/" className="side-link" title="Home">
           <MdOutlineDashboard className="icon" /> <span>Home</span>
+        </Link>
+        <Link to="/shorts" className="side-link" title="Shorts">
+          <ShortsIcon className="icon" outlineWidth={30} /> <span>Shorts</span>
         </Link>
        {authenticated && <Link to="/studio" className="side-link" title="Upload Video">
           <IoCloudUploadSharp className="icon" /> <span>Upload Video</span>
@@ -41,9 +44,6 @@ const Sidebar = ({ sidebar }) => {
         </Link>
         <Link to="/new" className="side-link" title="New Content">
           <LuNewspaper className="icon" /> <span>New Content</span>
-        </Link>
-        <Link to="/shorts" className="side-link" title="Shorts">
-          <SiYoutubeshorts className="icon" /> <span>Shorts</span>
         </Link>
         <Link to="/communities" className="side-link" title="Communities">
           <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>
