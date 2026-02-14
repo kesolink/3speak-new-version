@@ -52,7 +52,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { PLAYER_URL } from '../utils/config';
-import { Player, ThreeSpeakApi } from '@3speak/player-sdk';
+import { Player, ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
