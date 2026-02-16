@@ -1,0 +1,166 @@
+@use "../../mixins.scss" as mix;
+
+.editor-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1100;
+}
+
+.editor-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.editor-modal-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+}
+
+.editor-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1.25rem;
+  background: #1a1a2e;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+
+  h2 {
+    font-size: 1rem;
+    color: #fff;
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .editor-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+    transition: background 150ms;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+}
+
+.editor-modal-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.editor-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #111;
+}
+
+.editor-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: rgba(17, 17, 17, 0.95);
+  z-index: 10;
+
+  span {
+    color: #94a3b8;
+    font-size: 0.9rem;
+  }
+
+  .spinner {
+    animation: editor-spin 1s linear infinite;
+    color: #e94560;
+  }
+}
+
+.render-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 17, 17, 0.9);
+  backdrop-filter: blur(4px);
+  z-index: 20;
+}
+
+.render-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem 2.5rem;
+  background: #1a1a2e;
+  border-radius: 12px;
+  border: 1px solid #2a2a4a;
+  min-width: 320px;
+
+  span {
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    text-align: center;
+  }
+
+  .spinner {
+    animation: editor-spin 1s linear infinite;
+    color: #e94560;
+  }
+
+  .render-btn {
+    padding: 0.5rem 1.5rem;
+    border: none;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    background-image: linear-gradient(90deg, rgb(141, 11, 33) 15%, rgb(227, 19, 55) 97%);
+
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+
+  &.render-error span {
+    color: #fbbf24;
+  }
+}
+
+.render-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #2a2a4a;
+  border-radius: 3px;
+  overflow: hidden;
+
+  .render-progress-fill {
+    height: 100%;
+    background: #e94560;
+    border-radius: 3px;
+    transition: width 300ms ease;
+  }
+}
+
+@keyframes editor-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -10,10 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@mantequilla-soft/3speak-player": "^0.1.0",
     "@aioha/aioha": "^1.6.0-beta.1",
     "@aioha/react-ui": "^1.6.0",
     "@apollo/client": "^3.13.5",
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/ios": "^8.1.0",
     "@ecency/render-helper": "^2.2.38",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
@@ -23,6 +26,7 @@
     "@hiveio/dhive": "^1.3.2",
     "@hiveio/hive-js": "^2.0.8",
     "@jwplayer/jwplayer-react": "^1.1.3",
+    "@mantequilla-soft/3speak-player": "^0.1.0",
     "@rajesh896/video-thumbnails-generator": "^2.3.9",
     "@reduxjs/toolkit": "^2.6.1",
     "@snapie/renderer": "^0.1.1",
@@ -107,6 +111,7 @@
     "path-browserify": "^1.0.1",
     "source-map-js": "^1.2.1",
     "url": "^0.11.4",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vite-plugin-pwa": "^1.2.0"
   }
 }

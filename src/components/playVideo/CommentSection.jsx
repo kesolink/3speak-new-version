@@ -348,7 +348,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
         const tsLabel = formatTimeInput(ts);
         const baseUrl = window.location.origin;
         const host = window.location.host;
-        body += `\n<sup>replied to [${tsLabel}](${baseUrl}/watch?v=${author}/${permlink}&t=${ts}) on [${host}](${baseUrl})</sup>`;
+        body += `\n<br><sup>replied to [${tsLabel}](${baseUrl}/watch?v=${author}/${permlink}&t=${ts}) on [${host}](${baseUrl})</sup>`;
       }
 
       // Use aioha for comment broadcasting (works with all providers: Keychain, HiveAuth, etc.)
@@ -457,10 +457,13 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
     setActiveTooltipPermlink((prev) => (prev === permlink ? null : permlink));
   };
 
-  // Count total comments including nested children
+  // Count total comments including nested children (exclude low-rep authors)
   const countComments = (comments) => {
     if (!comments || comments.length === 0) return 0;
-    return comments.reduce((sum, c) => sum + 1 + countComments(c.children || []), 0);
+    return comments.reduce((sum, c) => {
+      if (c.isLowReputation) return sum + countComments(c.children || []);
+      return sum + 1 + countComments(c.children || []);
+    }, 0);
   };
 
   return (

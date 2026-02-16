@@ -26,7 +26,8 @@ import {
   ChevronsUp,
   Square,
   RotateCcw,
-  Repeat2
+  Repeat2,
+  Scissors
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 
@@ -51,7 +52,7 @@ import { recordReshare, getResharesForVideo, deleteReshare } from '../utils/resh
 import axios from 'axios';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
-import { PLAYER_URL } from '../utils/config';
+import { PLAYER_URL, FEATURE_EDITOR } from '../utils/config';
 import { Player, ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
@@ -60,6 +61,7 @@ import ShortsIcon from '../components/icons/ShortsIcon';
 import { markByReputation } from '../utils/reputation';
 import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
+import EditorModal from '../components/modal/EditorModal';
 
 // Lazy-loaded Hive markdown renderer (same as CommentSection)
 let rendererPromise = null;
@@ -99,6 +101,11 @@ const VideoShort = () => {
   const [firstPlayerReady, setFirstPlayerReady] = useState(false);
   const shortHistoryRef = useRef([]); // Stack of {author, permlink} for back navigation
   const isNavigatingBackRef = useRef(false); // Prevents URL-change effect from pushing to history on back
+
+  // Editor modal state
+  const [showEditorModal, setShowEditorModal] = useState(false);
+  const [editorVideoUrl, setEditorVideoUrl] = useState(null);
+  const [editorVideoName, setEditorVideoName] = useState(null);
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1342,6 +1349,32 @@ const VideoShort = () => {
     }
   };
 
+  const handleRemix = useCallback(async () => {
+    const currentVid = videos[currentIndex];
+    if (!currentVid) return;
+
+    // Pause current video
+    if (playerRef.current) {
+      playerRef.current.pause();
+    }
+
+    try {
+      const source = await sdkApiRef.current.fetchSource(currentVid.author, currentVid.permlink);
+      const directUrl = source?.url;
+
+      if (directUrl) {
+        setEditorVideoUrl(directUrl);
+        setEditorVideoName(`${currentVid.author} - ${currentVid.caption || currentVid.permlink}`);
+        setShowEditorModal(true);
+      } else {
+        toast.error('Could not resolve video URL for remix');
+      }
+    } catch (err) {
+      console.error('[VideoShort] Remix URL resolve failed:', err);
+      toast.error('Failed to load video for remix');
+    }
+  }, [videos, currentIndex]);
+
   /* ---------- INTERACTIONS ---------- */
 
 
@@ -2337,6 +2370,15 @@ const VideoShort = () => {
             <span className="actionLabel">{reshareCount || 0}</span>
           </div>
 
+          {FEATURE_EDITOR && (
+            <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleRemix(); }}>
+              <div className="actionButton">
+                <Scissors size={24} />
+              </div>
+              <span className="actionLabel">Remix</span>
+            </div>
+          )}
+
           <div className="albumArt"  onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -2462,6 +2504,14 @@ const VideoShort = () => {
           </button>
         </div>
       </div>
+      {/* Editor Modal */}
+      <EditorModal
+        isOpen={showEditorModal}
+        onClose={() => setShowEditorModal(false)}
+        videoUrl={editorVideoUrl}
+        videoName={editorVideoName}
+        videoType="video"
+      />
     </main>
   );
 };
