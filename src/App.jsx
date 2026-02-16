@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes, useLocation, Navigate, useParams } from "react-router-dom";
 import { useRef } from "react";
 import "./App.css";
 // import Home from './page/Home'
@@ -63,6 +63,21 @@ import LoginModal from "./components/LoginModal/LoginModal";
 import { KeyTypes } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
+
+// Hive-like URL redirects: /@user → profile, /@user/permlink → watch
+const HiveLinkRedirect = () => {
+  const location = useLocation();
+  const path = location.pathname;
+  const match = path.match(/^\/@([^/]+)(?:\/(.+))?$/);
+  if (match) {
+    const [, user, permlink] = match;
+    if (permlink) {
+      return <Navigate to={`/watch?v=${user}/${permlink}`} replace />;
+    }
+    return <Navigate to={`/p/${user}`} replace />;
+  }
+  return <NotFound />;
+};
 
 function App() {
   const location = useLocation();
@@ -251,7 +266,7 @@ function App() {
             <Route path="/wallet/:user" element={<Wallet />} />
             <Route path="/test" element={<ProfileModal />} />
             <Route path="/image" element={<HiveImageUploader />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="*" element={<HiveLinkRedirect />} />
           </Routes>
         </div>
         {!hideNavOnMobile && (

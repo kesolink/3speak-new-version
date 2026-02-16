@@ -2379,13 +2379,6 @@ const VideoShort = () => {
             </div>
           )}
 
-          <div className="albumArt"  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleProfileNavigation(currentVideo.user.username);
-                  }}>
-            <img src={currentVideo.albumArt} alt="" />
-          </div>
 
         </div>
 
