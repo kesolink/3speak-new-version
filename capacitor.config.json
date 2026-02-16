@@ -1,5 +1,8 @@
 {
-  "appId": "tv.threespeak.app",
-  "appName": "3Speak",
-  "webDir": "dist"
+  "appId": "capacitor.threespeak.app",
+  "appName": "3Speak App",
+  "webDir": "dist",
+  "android": {
+    "webContentsDebuggingEnabled": true
+  }
 }
