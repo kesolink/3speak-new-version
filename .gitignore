@@ -25,6 +25,10 @@ dist-ssr
 echo ".env" >> .gitignore
 .env
 
+# Capacitor native projects
+android
+ios
+
 # Internal documentation (not for public repo)
 INTERNAL_*.md
 TUS_SERVER_OPTIMIZATION.md

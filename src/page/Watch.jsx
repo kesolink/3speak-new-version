@@ -3,7 +3,7 @@ import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Card3 from '../components/Cards/Card3';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
-import { GET_RELATED, GET_VIDEO_DETAILS, TRENDING_FEED, GET_AUTHOR_VIDEOS } from '../graphql/queries';
+import { GET_RELATED, GET_VIDEO_DETAILS, GET_VIDEO, TRENDING_FEED, GET_AUTHOR_VIDEOS } from '../graphql/queries';
 import { useQuery } from '@apollo/client';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
@@ -13,6 +13,7 @@ import { HIVE_API_NODES, PLAYER_URL } from '../utils/config';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
+import Hls from 'hls.js';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -120,6 +121,10 @@ function Watch() {
   const videoIsVerticalRef = useRef(false);
   const fullscreenFromButtonRef = useRef(false);
 
+  // Quality levels state
+  const [qualityLevels, setQualityLevels] = useState([]);
+  const [currentQuality, setCurrentQuality] = useState(-1); // -1 = auto
+
   // Comment-based timeline markers
   const [commentMarkers, setCommentMarkers] = useState(null);
   const [markersRefreshKey, setMarkersRefreshKey] = useState(0);
@@ -223,7 +228,7 @@ function Watch() {
     return localStorage.getItem('3speak-reactions-visible') !== 'false';
   });
   const [reactionSize, setReactionSize] = useState(() => {
-    return localStorage.getItem('3speak-reaction-size') || 'small';
+    return localStorage.getItem('3speak-reaction-size') || 'standard';
   });
 
   const setReactionsVisible = useCallback((visible) => {
@@ -265,8 +270,8 @@ function Watch() {
     }, 100);
   }, []);
 
-  const REACTION_SIZES = ['small', 'medium', 'standard', 'large'];
-  const REACTION_SIZE_LABELS = { small: 'Small', medium: 'Medium', standard: 'Standard', large: 'Cinema' };
+  const REACTION_SIZES = ['medium', 'standard', 'large'];
+  const REACTION_SIZE_LABELS = { medium: 'Medium', standard: 'Standard', large: 'Cinema' };
   const cycleReactionSize = useCallback(() => {
     setReactionSize(prev => {
       const idx = REACTION_SIZES.indexOf(prev);
@@ -276,10 +281,14 @@ function Watch() {
     });
   }, []);
 
-  const handleTogglePip = useCallback(() => {
+  // PiP refs (handler defined after videoDetails)
+  const pipVideoRef = useRef(null);
+  const pipHlsRef = useRef(null);
+
+  const handleQualityChange = useCallback((level) => {
     const mainIframe = document.querySelector('.video-iframe-wrapper iframe');
     if (mainIframe?.contentWindow) {
-      mainIframe.contentWindow.postMessage({ type: 'toggle-pip' }, '*');
+      mainIframe.contentWindow.postMessage({ type: 'setQualityLevel', level }, '*');
     }
   }, []);
 
@@ -438,7 +447,18 @@ function Watch() {
           }, 100);
           if (mainIframe?.contentWindow) {
             mainIframe.contentWindow.postMessage({ type: 'hide-controls' }, '*');
+            // Request quality levels once player is ready
+            mainIframe.contentWindow.postMessage({ type: 'getQualityLevels' }, '*');
           }
+          break;
+        case '3speak-quality-levels':
+          if (event.data.levels) {
+            setQualityLevels(event.data.levels);
+            setCurrentQuality(event.data.currentIndex ?? -1);
+          }
+          break;
+        case '3speak-quality-changed':
+          setCurrentQuality(event.data.level ?? -1);
           break;
         case '3speak-timeupdate':
           setCurrentTime(event.data.currentTime ?? 0);
@@ -495,6 +515,13 @@ function Watch() {
   const { data: videoData, loading: videoLoading, error: videoError, refetch: refetchVideo } = useQuery(GET_VIDEO_DETAILS, {
     variables: { author, permlink },
   });
+
+  // Fetch spkvideo (contains play_url) — same query PlayVideo uses
+  const { data: spkVideoData } = useQuery(GET_VIDEO, {
+    variables: { author, permlink },
+    skip: !author || !permlink,
+  });
+  const spkvideo = spkVideoData?.socialPost?.spkvideo;
 
   // Hive fallback: when GraphQL doesn't have the video, fetch directly from blockchain
   const [hiveFallback, setHiveFallback] = useState(null);
@@ -563,6 +590,93 @@ function Watch() {
   }, [videoLoading, videoData, author, permlink]);
 
   const videoDetails = videoData?.socialPost || hiveFallback;
+
+  // PiP: pre-load a hidden <video> with the HLS source so it's ready
+  // when the user clicks PiP. This avoids the user gesture expiring while
+  // waiting for HLS to buffer (cross-origin iframe can't use contentDocument).
+  const pipReadyRef = useRef(false);
+
+  useEffect(() => {
+    const playUrl = spkvideo?.play_url;
+    if (!playUrl) return;
+    let hlsUrl = playUrl;
+    if (hlsUrl.startsWith('ipfs://')) {
+      hlsUrl = `https://ipfs-3speak.b-cdn.net/ipfs/${hlsUrl.replace('ipfs://', '')}`;
+    }
+
+    // Create hidden video element
+    const vid = document.createElement('video');
+    vid.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
+    vid.playsInline = true;
+    vid.muted = true;
+    vid.preload = 'auto';
+    document.body.appendChild(vid);
+    pipVideoRef.current = vid;
+    pipReadyRef.current = false;
+
+    vid.addEventListener('leavepictureinpicture', () => {
+      vid.pause();
+      sendPlayerCommand('play');
+      setIsPlaying(true);
+    });
+
+    vid.addEventListener('canplay', () => {
+      pipReadyRef.current = true;
+    }, { once: true });
+
+    // Load HLS
+    if (Hls.isSupported()) {
+      const hls = new Hls({ startLevel: 0, maxBufferLength: 5, maxBufferSize: 2 * 1024 * 1024 });
+      pipHlsRef.current = hls;
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(vid);
+    } else if (vid.canPlayType('application/vnd.apple.mpegurl')) {
+      vid.src = hlsUrl;
+    }
+
+    return () => {
+      pipReadyRef.current = false;
+      if (pipHlsRef.current) { pipHlsRef.current.destroy(); pipHlsRef.current = null; }
+      vid.pause();
+      vid.remove();
+      pipVideoRef.current = null;
+    };
+  }, [spkvideo, sendPlayerCommand]);
+
+  const handleTogglePip = useCallback(() => {
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
+      return;
+    }
+
+    const vid = pipVideoRef.current;
+    if (!vid || !vid.requestPictureInPicture) {
+      console.warn('[PiP] No pre-loaded video element available');
+      return;
+    }
+
+    vid.muted = isMuted;
+    vid.currentTime = currentTime;
+
+    // Call requestPictureInPicture() SYNCHRONOUSLY within the user gesture.
+    // The video is pre-loaded via HLS so it has buffered data already.
+    // Do NOT chain through play().then() — that loses the transient activation.
+    vid.requestPictureInPicture().then(() => {
+      // Now in PiP — start playback and pause the iframe player
+      vid.play().catch(() => {});
+      sendPlayerCommand('pause');
+      setIsPlaying(false);
+    }).catch((err) => {
+      console.warn('[PiP] requestPictureInPicture failed:', err.message);
+      // Fallback: try play first, then retry PiP (won't have gesture but worth trying)
+      vid.play().then(() => vid.requestPictureInPicture()).then(() => {
+        sendPlayerCommand('pause');
+        setIsPlaying(false);
+      }).catch((err2) => {
+        console.warn('[PiP] Fallback also failed:', err2.message);
+      });
+    });
+  }, [currentTime, isMuted, sendPlayerCommand]);
 
   // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
@@ -643,32 +757,33 @@ function Watch() {
   // Build reactions from comment markers: video reactions use the embed URL from metadata
   const reactions = useMemo(() => {
     if (!commentMarkers) return [];
-    return commentMarkers.map((m, i) => {
-      const base = {
-        id: `reaction-${i}`,
-        author: m.label,
-        avatar: m.avatar,
-        replyCount: m.replyCount,
-        pct: m.pct,
-        pctIsSeconds: m.pctIsSeconds,
-        isLowReputation: m.isLowReputation ?? false,
-      };
-      if (m.isVideo && m.videoUrl) {
+    return commentMarkers
+      .filter(m => !m.isLowReputation)
+      .map((m, i) => {
+        const base = {
+          id: `reaction-${i}`,
+          author: m.label,
+          avatar: m.avatar,
+          replyCount: m.replyCount,
+          pct: m.pct,
+          pctIsSeconds: m.pctIsSeconds,
+        };
+        if (m.isVideo && m.videoUrl) {
+          return {
+            ...base,
+            type: 'video',
+            videoUrl: m.videoUrl,
+            permlink: m.permlink,
+            body: m.body,
+          };
+        }
         return {
           ...base,
-          type: 'video',
-          videoUrl: m.videoUrl,
-          permlink: m.permlink,
+          type: 'comment',
           body: m.body,
+          permlink: m.permlink,
         };
-      }
-      return {
-        ...base,
-        type: 'comment',
-        body: m.body,
-        permlink: m.permlink,
-      };
-    });
+      });
   }, [commentMarkers]);
 
   const reactionCountLabel = useMemo(() => {
@@ -764,6 +879,9 @@ function Watch() {
           onCycleReactionSize: isReactionPlayerVisible && reactions.length > 0 ? cycleReactionSize : null,
           reactionSizeLabel: REACTION_SIZE_LABELS[reactionSize] || reactionSize,
           onTogglePip: handleTogglePip,
+          qualityLevels,
+          currentQuality,
+          onQualityChange: handleQualityChange,
         }}
         mobileReactionPanel={
           <>

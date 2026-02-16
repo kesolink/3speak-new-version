@@ -239,6 +239,48 @@
     white-space: nowrap;
     user-select: none;
   }
+
+  // Quality picker
+  .vc-quality-wrap {
+    position: relative;
+  }
+
+  .vc-quality-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 6px;
+    background: rgba(20, 20, 20, 0.95);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 100px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 20;
+  }
+
+  .vc-quality-item {
+    display: block;
+    width: 100%;
+    padding: 6px 14px;
+    border: none;
+    background: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    &.active {
+      color: var(--accent-primary, #e53935);
+      font-weight: 700;
+    }
+  }
 }
 
 // Mobile controls layout

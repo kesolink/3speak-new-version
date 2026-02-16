@@ -1,3 +1,5 @@
+@use "../../mixins.scss" as mix;
+
 .video-playlists {
   margin-top: 16px;
   padding: 16px;
@@ -5,18 +7,39 @@
   border-radius: 12px;
   border: 1px solid var(--border-light, #333);
 
-  h4 {
+  .playlists-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
     margin: 0 0 12px;
     font-size: 14px;
     font-weight: 600;
     color: var(--text-primary, #fff);
 
-    svg {
-      font-size: 20px;
-      color: var(--accent-primary, #e53935);
+    @include mix.respond(phone) {
+      cursor: pointer;
+      margin: 0;
+    }
+
+    .playlists-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      svg {
+        font-size: 20px;
+        color: var(--accent-primary, #e53935);
+      }
+    }
+
+    .playlists-toggle {
+      display: none;
+      color: var(--text-secondary);
+
+      @include mix.respond(phone) {
+        display: flex;
+        align-items: center;
+      }
     }
   }
 
@@ -24,6 +47,10 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+
+    @include mix.respond(phone) {
+      display: none;
+    }
 
     .playlist-chip {
       display: flex;
@@ -52,6 +79,14 @@
         font-size: 11px;
         color: var(--text-secondary, #aaa);
       }
+    }
+  }
+
+  // When expanded on mobile, show the chips
+  &.expanded .playlist-chips {
+    @include mix.respond(phone) {
+      display: flex;
+      margin-top: 12px;
     }
   }
 }

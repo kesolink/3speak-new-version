@@ -8,16 +8,22 @@ import "./HomeGrouped.scss";
 import { NEW_CONTENT } from "../graphql/queries";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL, TRENDING_SORTED_URL } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
+import { useAppStore } from "../lib/store";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
   const res = await axios.get(`${FEED_URL}/apiv2/feeds/home?page=0`);
   const data = res.data.trends || res.data;
   return Array.isArray(data) ? data : [];
+};
+
+const fetchFollowFeed = async (username) => {
+  const res = await axios.get(`${FOLLOW_FEED_URL}/${username}?page=1&limit=50`);
+  return res.data?.videos || [];
 };
 
 const fetchFirstUploads = async () => {
@@ -111,6 +117,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 
   const iconsByTitle = {
     "Home Feed": <TrendingIcon />,
+    "Follow Feed": <TrendingIcon />,
     "New Content": <NewContentIcon />,
     "First Time Uploads": <FirstUploadIcon />,
     "Trending": <TrendingIcon />
@@ -173,9 +180,11 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 };
 
 const HomeGrouped = () => {
+  const { authenticated, user } = useAppStore();
+
   const { data: homeData, isLoading: homeLoading } = useQuery({
-    queryKey: ["home-grouped"],
-    queryFn: fetchHome,
+    queryKey: authenticated ? ["follow-feed", user] : ["home-grouped"],
+    queryFn: authenticated ? () => fetchFollowFeed(user) : fetchHome,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -217,7 +226,7 @@ const HomeGrouped = () => {
   return (
     <div className="home-grouped-container">
       <VideoRow
-        title="Home Feed"
+        title={authenticated ? "Follow Feed" : "Home Feed"}
         videos={homeData || []}
         linkTo="/home-feed"
         isLoading={homeLoading}

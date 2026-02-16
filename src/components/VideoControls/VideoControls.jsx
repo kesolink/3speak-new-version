@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo } from 'react-icons/fa';
+import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo, FaCog } from 'react-icons/fa';
 import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture } from 'react-icons/tb';
 import './VideoControls.scss';
 
@@ -34,10 +34,15 @@ function VideoControls({
   onCycleReactionSize,
   reactionSizeLabel,
   onTogglePip,
+  qualityLevels,
+  currentQuality,
+  onQualityChange,
 }) {
   const resolvedMarkers = markers || [];
 
   const [hovering, setHovering] = useState(false);
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const qualityMenuRef = useRef(null);
   const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const trackRef = useRef(null);
@@ -104,6 +109,18 @@ function VideoControls({
       document.removeEventListener('touchend', handleUp);
     };
   }, [seekFromEvent]);
+
+  // Close quality menu when clicking outside
+  useEffect(() => {
+    if (!qualityMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (qualityMenuRef.current && !qualityMenuRef.current.contains(e.target)) {
+        setQualityMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [qualityMenuOpen]);
 
   const handleMarkerClick = useCallback((e, time, index) => {
     e.stopPropagation();
@@ -192,10 +209,36 @@ function VideoControls({
               <span className="vc-size-label">{reactionSizeLabel || 'Standard'}</span>
             </button>
           )}
-          {onTogglePip && (
+          {/* {onTogglePip && (
             <button className="vc-btn" onClick={onTogglePip} title="Picture-in-Picture">
               <TbPictureInPicture size={16} />
             </button>
+          )} */}
+          {qualityLevels && qualityLevels.length > 0 && (
+            <div className="vc-quality-wrap" ref={qualityMenuRef}>
+              <button className="vc-btn" onClick={() => setQualityMenuOpen(o => !o)} title="Quality">
+                <FaCog size={14} />
+              </button>
+              {qualityMenuOpen && (
+                <div className="vc-quality-menu">
+                  <button
+                    className={`vc-quality-item${currentQuality === -1 ? ' active' : ''}`}
+                    onClick={() => { onQualityChange?.(-1); setQualityMenuOpen(false); }}
+                  >
+                    Auto
+                  </button>
+                  {qualityLevels.map((q) => (
+                    <button
+                      key={q.index}
+                      className={`vc-quality-item${currentQuality === q.index ? ' active' : ''}`}
+                      onClick={() => { onQualityChange?.(q.index); setQualityMenuOpen(false); }}
+                    >
+                      {q.label || `${q.height}p`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
           <button className="vc-btn" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
             {isFullscreen ? <FaCompress size={14} /> : <FaExpand size={14} />}

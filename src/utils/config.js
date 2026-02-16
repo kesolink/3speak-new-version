@@ -12,6 +12,12 @@ const TAG_FEED_URL = import.meta.env.VITE_THREESPEAK_TAG_FEED_URL || 'https://le
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 
 const TRENDING_SORTED_URL = import.meta.env.VITE_TRENDING_SORTED_URL || 'https://tags.3speak.tv/feeds/trendingSorted';
+const FOLLOW_FEED_URL = import.meta.env.VITE_FOLLOW_FEED_URL || 'https://tags.3speak.tv/feed';
+
+const EDITOR_URL = import.meta.env.VITE_EDITOR_URL || 'https://editor.3speak.tv';
+
+// Feature flags
+const FEATURE_EDITOR = import.meta.env.VITE_FEATURE_EDITOR === 'true';
 
 // 3Speak Embed upload (for video reactions)
 const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed.3speak.tv/uploads';
@@ -45,4 +51,7 @@ export {
   EMBED_API_URL,
   EMBED_API_KEY,
   TRENDING_SORTED_URL,
+  FOLLOW_FEED_URL,
+  EDITOR_URL,
+  FEATURE_EDITOR,
 };
