@@ -3,7 +3,7 @@ import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Card3 from '../components/Cards/Card3';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
-import { GET_RELATED, GET_VIDEO_DETAILS, GET_VIDEO, TRENDING_FEED, GET_AUTHOR_VIDEOS } from '../graphql/queries';
+import { GET_RELATED, GET_VIDEO_DETAILS, TRENDING_FEED, GET_AUTHOR_VIDEOS } from '../graphql/queries';
 import { useQuery } from '@apollo/client';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
@@ -13,7 +13,7 @@ import { HIVE_API_NODES, PLAYER_URL } from '../utils/config';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
-import Hls from 'hls.js';
+import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -35,6 +35,8 @@ const getRenderer = async () => {
 
 // Number of author videos to show at the top of recommendations
 const AUTHOR_VIDEOS_COUNT = 4;
+const QUALITY_STORAGE_KEY = '3speak-quality-pref';
+const GLOW_STORAGE_KEY = '3speak-ambient-glow';
 
 // Filter out videos older than December 2023 (old videos may not exist on CDN)
 const MIN_VIDEO_DATE = new Date('2023-12-01T00:00:00.000Z');
@@ -44,14 +46,14 @@ function filterValidVideos(videos) {
   return videos.filter(video => {
     // Must have created_at date
     if (!video?.created_at) return false;
-    
+
     // Filter out old videos
     const videoDate = new Date(video.created_at);
     if (videoDate < MIN_VIDEO_DATE) return false;
-    
+
     // Filter out videos without a valid play_url (likely deleted)
     if (!video?.spkvideo?.play_url) return false;
-    
+
     return true;
   });
 }
@@ -98,32 +100,231 @@ function Watch() {
     }
   }, [posParam]);
 
-  // Send command to the player iframe
-  const sendPlayerCommand = useCallback((command) => {
-    const iframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage({ type: command }, '*');
-    }
-  }, []);
+  // --- SDK Player ---
+  const wrapperRef = useRef(null);
+  const videoIsVerticalRef = useRef(false);
+  const fullscreenFromButtonRef = useRef(false);
 
-  const triggerPlay = useCallback(() => {
-    sendPlayerCommand('play');
-  }, [sendPlayerCommand]);
-
-  // Video playback state for custom controls
-  const [currentTime, setCurrentTime] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const hideTimerRef = useRef(null);
-  const videoIsVerticalRef = useRef(false);
-  const fullscreenFromButtonRef = useRef(false);
+  const [videoEnded, setVideoEnded] = useState(false);
+
+  // Ambient glow mode: 'off' | 'page'
+  const [glowMode, setGlowMode] = useState(() => {
+    const stored = localStorage.getItem(GLOW_STORAGE_KEY);
+    if (stored === 'page' || stored === '1' || stored === 'card') return 'page';
+    return 'off';
+  });
+
+  const toggleGlow = useCallback(() => {
+    setGlowMode(prev => {
+      const next = prev === 'off' ? 'page' : 'off';
+      localStorage.setItem(GLOW_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
 
   // Quality levels state
   const [qualityLevels, setQualityLevels] = useState([]);
   const [currentQuality, setCurrentQuality] = useState(-1); // -1 = auto
+
+  const {
+    ref: sdkVideoRef,
+    state: playerState,
+    player,
+    load: loadVideo,
+    pause,
+    togglePlay,
+    seek,
+    setMuted,
+    togglePip,
+    setQuality: sdkSetQuality,
+  } = usePlayer({
+    apiBase: PLAYER_URL,
+    muted: false,
+    loop: false,
+    poster: true,
+    resume: false,
+    hlsConfig: {
+      maxBufferLength: 600,      // buffer up to 10 min ahead
+      maxMaxBufferLength: 600,
+      maxBufferSize: 60 * 1000 * 1000, // 60 MB
+    },
+  });
+
+  // Track when the <video> element is mounted and attached to the Player
+  const [videoAttached, setVideoAttached] = useState(false);
+  const videoRef = useCallback((element) => {
+    sdkVideoRef(element); // pass to usePlayer's internal attach
+    setVideoAttached(!!element);
+  }, [sdkVideoRef]);
+
+  // Refs synced on every render so event handlers avoid stale closures
+  const playlistDataRef = useRef(playlistData);
+  playlistDataRef.current = playlistData;
+  const showPlaylistRef = useRef(showPlaylist);
+  showPlaylistRef.current = showPlaylist;
+
+  // Navigate to next video in playlist
+  const navigateToNextVideo = useCallback(() => {
+    if (!playlistData || !playlistData.videos || playlistData.videos.length === 0) {
+      return;
+    }
+
+    const { playlist, videos, currentIndex } = playlistData;
+    const nextIndex = currentIndex + 1;
+
+    // Check if there's a next video
+    if (nextIndex < videos.length) {
+      const nextVideo = videos[nextIndex];
+      navigate(`/watch?v=${nextVideo.author}/${nextVideo.permlink}&playlist=${playlist.id}&pos=${nextIndex}`, {
+        state: { playlist, videos, currentIndex: nextIndex },
+      });
+    }
+  }, [playlistData, navigate]);
+
+  const navigateToNextVideoRef = useRef(navigateToNextVideo);
+  navigateToNextVideoRef.current = navigateToNextVideo;
+
+  // Load video when author/permlink changes (wait for video element to be attached)
+  useEffect(() => {
+    if (!author || !permlink || author === 'unknown' || !player || !videoAttached) return;
+    setVideoEnded(false);
+    loadVideo(`${author}/${permlink}`).catch(err => {
+      console.error('[Watch] Failed to load video:', err);
+    });
+  }, [author, permlink, player, loadVideo, videoAttached]);
+
+  // Subscribe to player events (stable effect — uses refs for mutable values)
+  useEffect(() => {
+    if (!player) return;
+
+    const unsubReady = player.on('ready', ({ isVertical }) => {
+      videoIsVerticalRef.current = isVertical;
+      wrapperRef.current?.classList.toggle('vertical-video', isVertical);
+
+      // Auto-play
+      player.play().catch(() => {});
+
+      // Seek to timestamp if ?t= parameter is present
+      const startTime = parseInt(new URLSearchParams(window.location.search).get('t'), 10);
+      if (startTime > 0) {
+        setTimeout(() => player.seek(startTime), 200);
+      }
+
+      // Fetch quality levels and apply stored preference
+      const levels = player.getQualities();
+      setQualityLevels(levels);
+
+      const storedPref = localStorage.getItem(QUALITY_STORAGE_KEY);
+      if (storedPref && storedPref !== 'auto' && levels.length > 0) {
+        const preferredHeight = parseInt(storedPref, 10);
+        // Find exact match or nearest available level at or below the stored height
+        let best = null;
+        for (const l of levels) {
+          if (l.height === preferredHeight) { best = l; break; }
+          if (l.height < preferredHeight && (!best || l.height > best.height)) {
+            best = l;
+          }
+        }
+        if (best) {
+          player.setQuality(best.index);
+          setCurrentQuality(best.index);
+        } else {
+          // All levels are above stored height — pick the lowest available
+          const lowest = levels.reduce((a, b) => a.height < b.height ? a : b);
+          player.setQuality(lowest.index);
+          setCurrentQuality(lowest.index);
+        }
+      } else {
+        setCurrentQuality(player.getCurrentQuality());
+      }
+    });
+
+    const unsubQuality = player.on('qualitychange', (level) => {
+      setCurrentQuality(level.index);
+    });
+
+    const unsubEnded = player.on('ended', () => {
+      if (playlistDataRef.current && showPlaylistRef.current) {
+        navigateToNextVideoRef.current();
+      } else {
+        setVideoEnded(true);
+      }
+    });
+
+    const unsubPlay = player.on('play', () => {
+      setVideoEnded(false);
+    });
+
+    return () => {
+      unsubReady();
+      unsubQuality();
+      unsubEnded();
+      unsubPlay();
+    };
+  }, [player]);
+
+  // Ambient glow: draw video frames to a tiny canvas, CSS blur does the rest
+  const pageGlowRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = pageGlowRef.current;
+    if (!canvas) return;
+
+    if (glowMode === 'off') {
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    const video = player?.element;
+    if (!video) return;
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+    if (!ctx) return;
+
+    canvas.width = 32;
+    canvas.height = 18;
+
+    let rafId = null;
+    let lastDraw = 0;
+    const FPS_INTERVAL = 1000 / 4;
+
+    const draw = (now) => {
+      rafId = requestAnimationFrame(draw);
+      if (now - lastDraw < FPS_INTERVAL) return;
+      lastDraw = now;
+      if (video.readyState >= 2 && !video.paused) {
+        ctx.drawImage(video, 0, 0, 32, 18);
+      }
+    };
+
+    rafId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(rafId);
+  }, [player, videoAttached, glowMode]);
+
+  // Handle quality change with optimistic UI update + persist preference
+  const handleQualityChange = useCallback((level) => {
+    setCurrentQuality(level);
+    sdkSetQuality(level);
+    // Persist: store the height for cross-video matching, or 'auto'
+    if (level === -1) {
+      localStorage.setItem(QUALITY_STORAGE_KEY, 'auto');
+    } else {
+      const match = qualityLevels.find(q => q.index === level);
+      if (match) localStorage.setItem(QUALITY_STORAGE_KEY, String(match.height));
+    }
+  }, [sdkSetQuality, qualityLevels]);
+
+  // Handle replay (when video ended)
+  const handleReplay = useCallback(() => {
+    if (!player) return;
+    player.seek(0);
+    player.play().catch(() => {});
+    setVideoEnded(false);
+  }, [player]);
 
   // Comment-based timeline markers
   const [commentMarkers, setCommentMarkers] = useState(null);
@@ -210,7 +411,7 @@ function Watch() {
 
   // Resolve markers with actual time values when duration is known
   const resolvedMarkers = useMemo(() => {
-    if (!commentMarkers || videoDuration <= 0) return undefined;
+    if (!commentMarkers || playerState.duration <= 0) return undefined;
     return commentMarkers
       .filter(m => m.pct !== null)
       .map(m => ({
@@ -220,7 +421,7 @@ function Watch() {
         replyCount: m.replyCount,
         isVideo: m.isVideo,
       }));
-  }, [commentMarkers, videoDuration]);
+  }, [commentMarkers, playerState.duration]);
 
   // Reaction player state
   const [selectedReactionIndex, setSelectedReactionIndex] = useState(0);
@@ -246,16 +447,12 @@ function Watch() {
 
   const handleReactToMoment = useCallback(() => {
     // Exit fullscreen first if active
-    const wrapper = document.querySelector('.video-iframe-wrapper');
+    const wrapper = wrapperRef.current;
     if (document.fullscreenElement) {
       document.exitFullscreen?.();
     } else if (wrapper?.classList.contains('landscape-fullscreen')) {
       wrapper.classList.remove('landscape-fullscreen');
       setIsFullscreen(false);
-      const iframe = wrapper.querySelector('iframe');
-      if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
-      }
     }
 
     // Activate the React tab in the comment section
@@ -281,17 +478,6 @@ function Watch() {
     });
   }, []);
 
-  // PiP refs (handler defined after videoDetails)
-  const pipVideoRef = useRef(null);
-  const pipHlsRef = useRef(null);
-
-  const handleQualityChange = useCallback((level) => {
-    const mainIframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (mainIframe?.contentWindow) {
-      mainIframe.contentWindow.postMessage({ type: 'setQualityLevel', level }, '*');
-    }
-  }, []);
-
   // Desktop: show controls on mouse movement, auto-hide after 3s
   const showControlsTemporarily = useCallback(() => {
     setControlsVisible(true);
@@ -309,54 +495,14 @@ function Watch() {
     });
   }, []);
 
-  const pauseMainPlayer = useCallback(() => {
-    sendPlayerCommand('pause');
-    setIsPlaying(false);
-  }, [sendPlayerCommand]);
-
-  const handleTogglePlay = useCallback(() => {
-    sendPlayerCommand('toggle-play');
-    setIsPlaying(prev => !prev);
-  }, [sendPlayerCommand]);
-
-  const handleToggleMute = useCallback(() => {
-    sendPlayerCommand('toggleMute');
-    setIsMuted(prev => !prev);
-  }, [sendPlayerCommand]);
-
-  const handleSeekBackward = useCallback(() => {
-    const iframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'seekBackward', seconds: 10 }, '*');
-    }
-  }, []);
-
-  const handleSeekForward = useCallback(() => {
-    const iframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'seekForward', seconds: 10 }, '*');
-    }
-  }, []);
-
-  const handleSeek = useCallback((time) => {
-    const iframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'seek', time }, '*');
-    }
-  }, []);
-
   const handleToggleFullscreen = useCallback(() => {
-    const wrapper = document.querySelector('.video-iframe-wrapper');
+    const wrapper = wrapperRef.current;
     if (!wrapper) return;
 
     // If currently in CSS landscape-fullscreen, exit that first
     if (wrapper.classList.contains('landscape-fullscreen')) {
       wrapper.classList.remove('landscape-fullscreen');
       setIsFullscreen(false);
-      const iframe = wrapper.querySelector('iframe');
-      if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
-      }
       return;
     }
 
@@ -377,24 +523,16 @@ function Watch() {
       // Don't interfere when real fullscreen is active (triggered by button)
       if (document.fullscreenElement) return;
 
-      const wrapper = document.querySelector('.video-iframe-wrapper');
+      const wrapper = wrapperRef.current;
       if (!wrapper) return;
 
       const isLandscape = screen.orientation.type.startsWith('landscape');
       if (isLandscape && !videoIsVerticalRef.current) {
         wrapper.classList.add('landscape-fullscreen');
         setIsFullscreen(true);
-        const iframe = wrapper.querySelector('iframe');
-        if (iframe?.contentWindow) {
-          iframe.contentWindow.postMessage({ type: 'fullscreen-entered' }, '*');
-        }
       } else if (wrapper.classList.contains('landscape-fullscreen')) {
         wrapper.classList.remove('landscape-fullscreen');
         setIsFullscreen(false);
-        const iframe = wrapper.querySelector('iframe');
-        if (iframe?.contentWindow) {
-          iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
-        }
       }
     };
 
@@ -402,95 +540,11 @@ function Watch() {
     return () => screen.orientation.removeEventListener('change', handleOrientationChange);
   }, []);
 
-  // Navigate to next video in playlist
-  const navigateToNextVideo = useCallback(() => {
-    if (!playlistData || !playlistData.videos || playlistData.videos.length === 0) {
-      return;
-    }
-
-    const { playlist, videos, currentIndex } = playlistData;
-    const nextIndex = currentIndex + 1;
-
-    // Check if there's a next video
-    if (nextIndex < videos.length) {
-      const nextVideo = videos[nextIndex];
-      navigate(`/watch?v=${nextVideo.author}/${nextVideo.permlink}&playlist=${playlist.id}&pos=${nextIndex}`, {
-        state: { playlist, videos, currentIndex: nextIndex },
-      });
-    }
-  }, [playlistData, navigate]);
-
-  // Listen for player messages (only from main player iframe, not reaction player)
+  // Fullscreen change handler (orientation lock)
   useEffect(() => {
-    const handleMessage = (event) => {
-      if (!event.data || !event.data.type) return;
-
-      // Only handle messages from the main video player, ignore reaction player iframes
-      const mainIframe = document.querySelector('.video-iframe-wrapper iframe');
-      if (event.source && mainIframe && event.source !== mainIframe.contentWindow) return;
-
-      switch (event.data.type) {
-        case '3speak-player-ready':
-          videoIsVerticalRef.current = !!event.data.isVertical;
-          mainIframe?.closest('.video-iframe-wrapper')?.classList
-            .toggle('vertical-video', !!event.data.isVertical);
-          setTimeout(() => {
-            triggerPlay();
-            setIsPlaying(true);
-            // Seek to timestamp if ?t= parameter is present
-            const startTime = parseInt(searchParams.get('t'), 10);
-            if (startTime > 0 && mainIframe?.contentWindow) {
-              setTimeout(() => {
-                mainIframe.contentWindow.postMessage({ type: 'seek', time: startTime }, '*');
-              }, 200);
-            }
-          }, 100);
-          if (mainIframe?.contentWindow) {
-            mainIframe.contentWindow.postMessage({ type: 'hide-controls' }, '*');
-            // Request quality levels once player is ready
-            mainIframe.contentWindow.postMessage({ type: 'getQualityLevels' }, '*');
-          }
-          break;
-        case '3speak-quality-levels':
-          if (event.data.levels) {
-            setQualityLevels(event.data.levels);
-            setCurrentQuality(event.data.currentIndex ?? -1);
-          }
-          break;
-        case '3speak-quality-changed':
-          setCurrentQuality(event.data.level ?? -1);
-          break;
-        case '3speak-timeupdate':
-          setCurrentTime(event.data.currentTime ?? 0);
-          if (event.data.duration) setVideoDuration(event.data.duration);
-          break;
-        case '3speak-playstate':
-          setIsPlaying(event.data.isPlaying ?? false);
-          break;
-        case '3speak-durationchange':
-          setVideoDuration(event.data.duration ?? 0);
-          break;
-        case '3speak-ended':
-          setIsPlaying(false);
-          if (playlistData && showPlaylist) {
-            navigateToNextVideo();
-          }
-          break;
-      }
-    };
-
     const handleFullscreenChange = () => {
       const isNowFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isNowFullscreen);
-
-      // Tell the iframe player to switch to/from fill mode
-      const mainIframeEl = document.querySelector('.video-iframe-wrapper iframe');
-      if (mainIframeEl?.contentWindow) {
-        mainIframeEl.contentWindow.postMessage(
-          { type: isNowFullscreen ? 'fullscreen-entered' : 'fullscreen-exited' },
-          '*',
-        );
-      }
 
       // Lock screen orientation only when fullscreen was triggered by the button
       if (screen.orientation?.lock && fullscreenFromButtonRef.current) {
@@ -504,24 +558,18 @@ function Watch() {
       fullscreenFromButtonRef.current = false;
     };
 
-    window.addEventListener('message', handleMessage);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, [triggerPlay, playlistData, showPlaylist, navigateToNextVideo]);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // PiP handler — SDK operates directly on the native <video> element
+  const handleTogglePip = useCallback(() => {
+    togglePip();
+  }, [togglePip]);
 
   const { data: videoData, loading: videoLoading, error: videoError, refetch: refetchVideo } = useQuery(GET_VIDEO_DETAILS, {
     variables: { author, permlink },
   });
-
-  // Fetch spkvideo (contains play_url) — same query PlayVideo uses
-  const { data: spkVideoData } = useQuery(GET_VIDEO, {
-    variables: { author, permlink },
-    skip: !author || !permlink,
-  });
-  const spkvideo = spkVideoData?.socialPost?.spkvideo;
 
   // Hive fallback: when GraphQL doesn't have the video, fetch directly from blockchain
   const [hiveFallback, setHiveFallback] = useState(null);
@@ -591,93 +639,6 @@ function Watch() {
 
   const videoDetails = videoData?.socialPost || hiveFallback;
 
-  // PiP: pre-load a hidden <video> with the HLS source so it's ready
-  // when the user clicks PiP. This avoids the user gesture expiring while
-  // waiting for HLS to buffer (cross-origin iframe can't use contentDocument).
-  const pipReadyRef = useRef(false);
-
-  useEffect(() => {
-    const playUrl = spkvideo?.play_url;
-    if (!playUrl) return;
-    let hlsUrl = playUrl;
-    if (hlsUrl.startsWith('ipfs://')) {
-      hlsUrl = `https://ipfs-3speak.b-cdn.net/ipfs/${hlsUrl.replace('ipfs://', '')}`;
-    }
-
-    // Create hidden video element
-    const vid = document.createElement('video');
-    vid.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
-    vid.playsInline = true;
-    vid.muted = true;
-    vid.preload = 'auto';
-    document.body.appendChild(vid);
-    pipVideoRef.current = vid;
-    pipReadyRef.current = false;
-
-    vid.addEventListener('leavepictureinpicture', () => {
-      vid.pause();
-      sendPlayerCommand('play');
-      setIsPlaying(true);
-    });
-
-    vid.addEventListener('canplay', () => {
-      pipReadyRef.current = true;
-    }, { once: true });
-
-    // Load HLS
-    if (Hls.isSupported()) {
-      const hls = new Hls({ startLevel: 0, maxBufferLength: 5, maxBufferSize: 2 * 1024 * 1024 });
-      pipHlsRef.current = hls;
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(vid);
-    } else if (vid.canPlayType('application/vnd.apple.mpegurl')) {
-      vid.src = hlsUrl;
-    }
-
-    return () => {
-      pipReadyRef.current = false;
-      if (pipHlsRef.current) { pipHlsRef.current.destroy(); pipHlsRef.current = null; }
-      vid.pause();
-      vid.remove();
-      pipVideoRef.current = null;
-    };
-  }, [spkvideo, sendPlayerCommand]);
-
-  const handleTogglePip = useCallback(() => {
-    if (document.pictureInPictureElement) {
-      document.exitPictureInPicture().catch(() => {});
-      return;
-    }
-
-    const vid = pipVideoRef.current;
-    if (!vid || !vid.requestPictureInPicture) {
-      console.warn('[PiP] No pre-loaded video element available');
-      return;
-    }
-
-    vid.muted = isMuted;
-    vid.currentTime = currentTime;
-
-    // Call requestPictureInPicture() SYNCHRONOUSLY within the user gesture.
-    // The video is pre-loaded via HLS so it has buffered data already.
-    // Do NOT chain through play().then() — that loses the transient activation.
-    vid.requestPictureInPicture().then(() => {
-      // Now in PiP — start playback and pause the iframe player
-      vid.play().catch(() => {});
-      sendPlayerCommand('pause');
-      setIsPlaying(false);
-    }).catch((err) => {
-      console.warn('[PiP] requestPictureInPicture failed:', err.message);
-      // Fallback: try play first, then retry PiP (won't have gesture but worth trying)
-      vid.play().then(() => vid.requestPictureInPicture()).then(() => {
-        sendPlayerCommand('pause');
-        setIsPlaying(false);
-      }).catch((err2) => {
-        console.warn('[PiP] Fallback also failed:', err2.message);
-      });
-    });
-  }, [currentTime, isMuted, sendPlayerCommand]);
-
   // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
     if (!user || !author || !permlink || author === 'unknown' || watchHistoryEnabled === false) {
@@ -717,11 +678,11 @@ function Watch() {
     const authorItems = authorVideosData?.socialFeed?.items || [];
     const relatedItems = suggestionsData?.relatedFeed?.items || [];
     const trendingItems = trendingData?.trendingFeed?.items || [];
-    
+
     // Track permlinks to avoid duplicates
     const usedPermlinks = new Set();
     usedPermlinks.add(permlink); // Exclude current video
-    
+
     // 1. Get up to AUTHOR_VIDEOS_COUNT valid videos from the same author
     const authorVideos = filterValidVideos(authorItems)
       .filter(v => {
@@ -730,7 +691,7 @@ function Watch() {
         return true;
       })
       .slice(0, AUTHOR_VIDEOS_COUNT);
-    
+
     // 2. Get related/recommended videos (excluding author's videos and current)
     let recommendations = filterValidVideos(relatedItems)
       .filter(v => {
@@ -738,7 +699,7 @@ function Watch() {
         usedPermlinks.add(v.permlink);
         return true;
       });
-    
+
     // 3. If not enough related videos, supplement with trending
     if (recommendations.length < 5) {
       const validTrending = filterValidVideos(trendingItems);
@@ -749,7 +710,7 @@ function Watch() {
         }
       }
     }
-    
+
     // Combine: author videos first, then recommendations
     return [...authorVideos, ...recommendations];
   }, [authorVideosData, suggestionsData, trendingData, author, permlink]);
@@ -804,10 +765,10 @@ function Watch() {
     setReactionsVisible(true);
     // Seek main video to this reaction's timeline position
     const reaction = reactions[index];
-    if (reaction && videoDuration > 0) {
-      handleSeek(reaction.pct);
+    if (reaction && playerState.duration > 0) {
+      seek(reaction.pct);
     }
-  }, [reactions, videoDuration, handleSeek]);
+  }, [reactions, playerState.duration, seek]);
 
   // When loading with ?t= parameter and reactions are available, select the closest reaction
   const initialReactionSetRef = useRef(false);
@@ -850,38 +811,47 @@ function Watch() {
 
   return (
     <div className={`play-container${isReactionPlayerVisible && reactions.length > 0 ? ` reaction-${reactionSize}` : ''}`}>
+      {/* Page-level ambient glow canvas — lives outside .play-video so it can cover the full page background */}
+      <canvas className={`page-glow-canvas${glowMode === 'page' ? ' active' : ''}`} ref={pageGlowRef} aria-hidden="true" />
       <PlayVideo
         videoDetails={videoDetails}
         author={author}
         permlink={permlink}
+        videoRef={videoRef}
+        wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
         onClosePlaylist={() => setShowPlaylist(false)}
         videoControls={{
-          currentTime,
-          duration: videoDuration,
-          isPlaying,
-          isMuted,
+          currentTime: playerState.currentTime,
+          duration: playerState.duration,
+          buffered: playerState.buffered,
+          isPlaying: !playerState.paused,
+          isMuted: playerState.muted,
           isFullscreen,
           isVisible: controlsVisible,
-          onTogglePlay: handleTogglePlay,
-          onToggleMute: handleToggleMute,
-          onSeekBackward: handleSeekBackward,
-          onSeekForward: handleSeekForward,
-          onSeek: handleSeek,
+          onTogglePlay: togglePlay,
+          onToggleMute: () => setMuted(!playerState.muted),
+          onSeekBackward: () => seek(Math.max(0, playerState.currentTime - 10)),
+          onSeekForward: () => seek(Math.min(playerState.duration, playerState.currentTime + 10)),
+          onSeek: seek,
           onRefreshReactions: refreshMarkers,
           onToggleFullscreen: handleToggleFullscreen,
           onMouseMove: showControlsTemporarily,
           onToggleControls: toggleControlsVisibility,
-          onPause: pauseMainPlayer,
+          onPause: pause,
           onReactToMoment: handleReactToMoment,
           markers: resolvedMarkers,
           onMarkerSelect: handleSelectReaction,
           onCycleReactionSize: isReactionPlayerVisible && reactions.length > 0 ? cycleReactionSize : null,
           reactionSizeLabel: REACTION_SIZE_LABELS[reactionSize] || reactionSize,
           onTogglePip: handleTogglePip,
+          videoEnded,
+          onReplay: handleReplay,
           qualityLevels,
           currentQuality,
           onQualityChange: handleQualityChange,
+          glowMode,
+          onToggleGlow: toggleGlow,
         }}
         mobileReactionPanel={
           <>
@@ -893,10 +863,10 @@ function Watch() {
                 onClose={() => setReactionsVisible(false)}
                 size={reactionSize}
                 onCycleSize={cycleReactionSize}
-                currentTime={currentTime}
-                duration={videoDuration}
-                mainIsPlaying={isPlaying}
-                onReactionPlay={pauseMainPlayer}
+                currentTime={playerState.currentTime}
+                duration={playerState.duration}
+                mainIsPlaying={!playerState.paused}
+                onReactionPlay={pause}
                 mobile
               />
             )}
@@ -923,10 +893,10 @@ function Watch() {
             onSelectReaction={handleSelectReaction}
             onClose={() => setReactionsVisible(false)}
             size={reactionSize}
-            currentTime={currentTime}
-            duration={videoDuration}
-            mainIsPlaying={isPlaying}
-            onReactionPlay={pauseMainPlayer}
+            currentTime={playerState.currentTime}
+            duration={playerState.duration}
+            mainIsPlaying={!playerState.paused}
+            onReactionPlay={pause}
           />
         )}
         {!isReactionPlayerVisible && reactions.length > 0 && (

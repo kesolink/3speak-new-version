@@ -8,7 +8,37 @@
   position: relative;
   height: calc(100vh - 64px);
   max-height: calc(100vh - 64px);
-  background-color: #000;
+  background-color: transparent;
+
+  // Page-level ambient glow canvas
+  .page-glow-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    filter: blur(90px) saturate(3) brightness(0.6);
+    opacity: 0;
+    z-index: 0;
+    pointer-events: none;
+    image-rendering: auto;
+    transition: opacity 0.6s ease;
+
+    &.active {
+      opacity: 0.8;
+    }
+
+    :root:not([data-theme="dark"]) & {
+      filter: blur(90px) saturate(6) brightness(1.8) contrast(0.6);
+      &.active {
+        opacity: 0.5;
+      }
+    }
+
+    @media (max-width: 768px) {
+      display: none;
+    }
+  }
 
   @media (max-width: 768px) {
     position: absolute;
@@ -74,6 +104,7 @@
 
   .videoWrapper {
     position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -281,53 +312,50 @@
     }
   }
 
-  .muteIndicator {
+  .muteIndicator,
+  .playbackModeIndicator,
+  .glowIndicator {
     position: absolute;
     top: 12px;
-    right: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.35);
     pointer-events: auto;
     cursor: pointer;
     z-index: 6;
-    transition: background 0.2s;
+    transition: background 0.2s, color 0.2s;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(0, 0, 0, 0.55);
     }
 
     svg {
-      color: #fff;
+      color: rgba(255, 255, 255, 0.85);
     }
+
+  }
+
+  .muteIndicator {
+    right: 12px;
   }
 
   .playbackModeIndicator {
-    position: absolute;
-    top: 12px;
     right: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.2);
-    pointer-events: auto;
-    cursor: pointer;
-    z-index: 6;
-    transition: background 0.2s;
+  }
 
-    &:hover {
-      background: rgba(0, 0, 0, 0.4);
+  .glowIndicator {
+    right: 100px;
+    // Only show on desktop
+    @media (max-width: 768px) {
+      display: none;
     }
 
-    svg {
-      color: #fff;
+    &.active svg {
+      color: #fbbf24;
     }
   }
 
@@ -1122,12 +1150,20 @@
     border: none;
     cursor: pointer;
 
+    :root:not([data-theme="dark"]) & {
+      background-color: rgba(0, 0, 0, 0.12);
+    }
+
     [data-theme="dark"] & {
       background-color: rgba(39, 39, 39, 0.8);
     }
 
     &:hover {
       background-color: var(--bg-elevated);
+
+      :root:not([data-theme="dark"]) & {
+        background-color: rgba(0, 0, 0, 0.18);
+      }
 
       [data-theme="dark"] & {
         background-color: #3f3f3f;
@@ -1207,6 +1243,10 @@
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--text-primary);
+
+    :root:not([data-theme="dark"]) & {
+      color: var(--text-secondary);
+    }
 
     @media (max-width: 768px) {
       font-size: 0.75rem;
@@ -1300,7 +1340,7 @@
   }
 
   .shorts-breathe-logo {
-    color: #fff;
+    color: var(--text-primary, #fff);
     margin-bottom: 1.5rem;
     animation: breathe 2s ease-in-out infinite;
   }
