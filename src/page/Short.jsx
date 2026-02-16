@@ -27,7 +27,9 @@ import {
   Square,
   RotateCcw,
   Repeat2,
-  Scissors
+  Scissors,
+  Moon,
+  Lightbulb,
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 
@@ -106,6 +108,22 @@ const VideoShort = () => {
   const [showEditorModal, setShowEditorModal] = useState(false);
   const [editorVideoUrl, setEditorVideoUrl] = useState(null);
   const [editorVideoName, setEditorVideoName] = useState(null);
+
+  // Ambient glow (desktop only)
+  const GLOW_STORAGE_KEY = '3speak-ambient-glow';
+  const pageGlowRef = useRef(null);
+  const [glowMode, setGlowMode] = useState(() => {
+    const stored = localStorage.getItem(GLOW_STORAGE_KEY);
+    if (stored === 'page' || stored === '1' || stored === 'card') return 'page';
+    return 'off';
+  });
+  const toggleGlow = useCallback(() => {
+    setGlowMode(prev => {
+      const next = prev === 'off' ? 'page' : 'off';
+      localStorage.setItem(GLOW_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1878,6 +1896,43 @@ const VideoShort = () => {
     navigate(`/p/${username}`);
   };
 
+  // Ambient glow: draw video frames to a tiny canvas (desktop only)
+  useEffect(() => {
+    const canvas = pageGlowRef.current;
+    if (!canvas) return;
+
+    if (glowMode === 'off') {
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    const video = videoElRef.current;
+    if (!video) return;
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+    if (!ctx) return;
+
+    canvas.width = 32;
+    canvas.height = 18;
+
+    let rafId = null;
+    let lastDraw = 0;
+    const FPS_INTERVAL = 1000 / 4;
+
+    const draw = (now) => {
+      rafId = requestAnimationFrame(draw);
+      if (now - lastDraw < FPS_INTERVAL) return;
+      lastDraw = now;
+      if (video.readyState >= 2 && !video.paused) {
+        ctx.drawImage(video, 0, 0, 32, 18);
+      }
+    };
+
+    rafId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(rafId);
+  }, [glowMode, currentIndex]);
+
   /* ---------- RENDER ---------- */
 
   if (loading && videos.length === 0) {
@@ -1917,6 +1972,7 @@ const VideoShort = () => {
 
   return (
     <main className="short-main">
+      <canvas className={`page-glow-canvas${glowMode === 'page' ? ' active' : ''}`} ref={pageGlowRef} aria-hidden="true" />
       <div
         tabIndex={0}
         ref={keyboardRef}
@@ -2046,6 +2102,15 @@ const VideoShort = () => {
             {/* Heart animation (double tap feedback) */}
             <div className={`heartAnimation ${showHeartAnimation ? 'visible' : ''}`}>
               <Heart size={80} fill="#ff2d55" color="#ff2d55" />
+            </div>
+            {/* Ambient glow toggle (desktop only) */}
+            <div className={`glowIndicator${glowMode === 'page' ? ' active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); toggleGlow(); }}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); toggleGlow(); }}
+              title={glowMode === 'off' ? 'Ambient light on' : 'Ambient light off'}
+            >
+              {glowMode === 'off' ? <Moon size={16} /> : <Lightbulb size={16} />}
             </div>
             {/* Playback mode toggle button */}
             <div className="playbackModeIndicator"

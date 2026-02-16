@@ -3,6 +3,7 @@ import "./PlayVideo.scss";
 import VideoControls from "../VideoControls/VideoControls";
 import ViewCount from "../ViewCount/ViewCount";
 import { LuTimer } from "react-icons/lu";
+import { MdReplay } from "react-icons/md";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
@@ -26,7 +27,7 @@ import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
-import { FEED_URL, PLAYER_URL, HIVE_API_URL, EDITOR_URL, FEATURE_EDITOR } from '../../utils/config';
+import { FEED_URL, HIVE_API_URL, EDITOR_URL, FEATURE_EDITOR } from '../../utils/config';
 import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
 import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo } from "react-icons/md";
 import { FaHeart } from "react-icons/fa";
@@ -44,7 +45,7 @@ import EditorModal from '../modal/EditorModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, videoRef, wrapperRef }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -485,23 +486,27 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       <div className="play-video">
         <div className="top-container">
           {(author && permlink) ? (
-            <div className="video-iframe-wrapper">
-              <iframe
-                src={`${PLAYER_URL}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe&controls=0`}
+            <div className="video-iframe-wrapper" ref={wrapperRef}>
+              <video
+                ref={videoRef}
                 style={{
                   position: "absolute",
                   top: 0,
                   left: 0,
                   width: "100%",
                   height: "100%",
-                  border: "0",
-                  overflow: "hidden",
+                  objectFit: "contain",
+                  background: "#000",
                 }}
-                frameBorder="0"
-                scrolling="no"
-                allowFullScreen
-                allow="picture-in-picture"
+                playsInline
               />
+              {videoControls?.videoEnded && (
+                <div className="video-replay-overlay" onClick={videoControls.onReplay}>
+                  <button className="video-replay-btn" title="Replay">
+                    <MdReplay size={48} />
+                  </button>
+                </div>
+              )}
               {videoControls && (
                 <>
                   <div
@@ -523,6 +528,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   <VideoControls
                     currentTime={videoControls.currentTime}
                     duration={videoControls.duration}
+                    buffered={videoControls.buffered}
                     isPlaying={videoControls.isPlaying}
                     isMuted={videoControls.isMuted}
                     isFullscreen={videoControls.isFullscreen}
@@ -542,6 +548,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     qualityLevels={videoControls.qualityLevels}
                     currentQuality={videoControls.currentQuality}
                     onQualityChange={videoControls.onQualityChange}
+                    glowMode={videoControls.glowMode}
+                    onToggleGlow={videoControls.onToggleGlow}
                   />
                 </>
               )}
@@ -957,6 +965,8 @@ PlayVideo.propTypes = {
   }),
   onClosePlaylist: PropTypes.func,
   mobileReactionPanel: PropTypes.node,
+  videoRef: PropTypes.oneOfType([PropTypes.func, PropTypes.object]),
+  wrapperRef: PropTypes.oneOfType([PropTypes.func, PropTypes.object]),
 };
 
 export default PlayVideo;

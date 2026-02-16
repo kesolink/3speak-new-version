@@ -27,6 +27,7 @@ function Preview() {
     prevVideoFile,
     community,
     declineRewards,
+    rewardPowerup,
     beneficiaries,
     selectedThumbnail,
     thumbnailFile,
@@ -239,6 +240,7 @@ function Preview() {
           originalFilename: videoFile.name,
           community,
           declineRewards,
+          rewardPowerup,
           beneficiaries: parsedBeneficiaries,
           ...schedulingParams
         },
