@@ -4,7 +4,9 @@ import './BlogContent.scss';
 import { BiDislike } from 'react-icons/bi';
 import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
-import { MdVideocam, MdComment, MdKeyboardArrowUp } from 'react-icons/md';
+import { MdVideocam, MdComment, MdKeyboardArrowUp, MdTranslate } from 'react-icons/md';
+import useTranslation from '../../hooks/useTranslation';
+import TranslateButton from '../TranslateButton/TranslateButton';
 import ReactVideoTab from '../ReactVideoModal/ReactVideoModal';
 import dayjs from 'dayjs';
 import { useAppStore } from '../../lib/store';
@@ -64,6 +66,7 @@ function parseTimeInput(str) {
 
 function CommentSection({ videoDetails, author, permlink, currentTime, duration, onSeek, onPause, onRefreshReactions }) {
   const { user } = useAppStore();
+  const { translate, getTranslation, clearTranslation, translating } = useTranslation();
   const [commentInfo, setCommentInfo] = useState('');
   const [activeTab, setActiveTab] = useState('comment'); // 'comment' | 'react'
   const [replyText, setReplyText] = useState("");
@@ -582,7 +585,10 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
       currentTime={currentTime}
       duration={duration}
       onRefreshReactions={onRefreshReactions}
-
+      onTranslate={translate}
+      getTranslation={getTranslation}
+      clearTranslation={clearTranslation}
+      translating={translating}
         />
       )) )}
     </div>
@@ -621,10 +627,32 @@ function Comment({
       currentTime,
       duration,
       onRefreshReactions,
+      onTranslate,
+      getTranslation,
+      clearTranslation,
+      translating,
 }) {
   const isReplying = activeReply === comment.permlink;
   const [replyTab, setReplyTab] = useState('comment');
   const [collapsed, setCollapsed] = useState(false);
+  const [translatedText, setTranslatedText] = useState(null);
+  const [translateError, setTranslateError] = useState(false);
+
+  const handleTranslate = async (langCode) => {
+    if (!comment?.body) return;
+    setTranslateError(false);
+    try {
+      const result = await onTranslate?.(comment.permlink, comment.body, langCode);
+      if (result) setTranslatedText(result);
+    } catch {
+      setTranslateError(true);
+    }
+  };
+
+  const handleDismissTranslation = () => {
+    setTranslatedText(null);
+    clearTranslation?.(comment.permlink);
+  };
 
   // Inherit timestamp from the parent comment (not editable)
   const replyTimestamp = comment?.parentTimestamp ?? null;
@@ -660,6 +688,21 @@ function Comment({
             <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>
           </div>
           <div className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '', comment?.permlink) }} />
+          {translatedText && (
+            <div className="comment-translation">
+              <div className="comment-translation-header">
+                <MdTranslate size={13} />
+                <span>Translation</span>
+                <button className="comment-translation-dismiss" onClick={handleDismissTranslation}>&times;</button>
+              </div>
+              <p>{translatedText}</p>
+            </div>
+          )}
+          {translateError && (
+            <div className="comment-translation comment-translation--error">
+              <p>Translation failed. Is the translation service running?</p>
+            </div>
+          )}
           <div className="comment-action">
             <UpvoteCount
               count={comment?.stats?.num_likes ?? 0}
@@ -668,6 +711,10 @@ function Comment({
             />
             <PayoutAmount amount={comment?.stats?.total_hive_reward} />
             <div className="comment-action-right">
+              <TranslateButton
+                onTranslate={handleTranslate}
+                isTranslating={!!translating?.[comment.permlink]}
+              />
               {comment.hasVideo && (
                 <Link
                   to={`/shorts?v=${comment.shortAuthor || comment.author?.username}/${comment.shortPermlink || comment.permlink}`}
@@ -794,6 +841,10 @@ function Comment({
       currentTime={currentTime}
       duration={duration}
       onRefreshReactions={onRefreshReactions}
+      onTranslate={onTranslate}
+      getTranslation={getTranslation}
+      clearTranslation={clearTranslation}
+      translating={translating}
             />
           ))}
         </div>

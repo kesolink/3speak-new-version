@@ -1,0 +1,81 @@
+// Shared translate button + translation block styles
+.comment-translate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  font-family: inherit;
+  color: var(--text-secondary, #aaa);
+  background: none;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    color: var(--text-primary, #fff);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .spinner {
+    animation: translate-spin 1s linear infinite;
+  }
+}
+
+.comment-translation {
+  margin: 6px 0 4px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent-primary, #e53935);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0 6px 6px 0;
+
+  .comment-translation-header {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary, #aaa);
+    margin-bottom: 4px;
+  }
+
+  .comment-translation-dismiss {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-secondary, #aaa);
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 2px;
+
+    &:hover {
+      color: var(--text-primary, #fff);
+    }
+  }
+
+  p {
+    font-size: 13px;
+    color: var(--text-primary, #fff);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  &--error p {
+    color: var(--accent-primary, #e53935);
+    font-size: 12px;
+  }
+}
+
+@keyframes translate-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

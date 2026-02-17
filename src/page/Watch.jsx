@@ -7,13 +7,14 @@ import { GET_RELATED, GET_VIDEO_DETAILS, TRENDING_FEED, GET_AUTHOR_VIDEOS } from
 import { useQuery } from '@apollo/client';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
-import { recordWatch } from '../utils/watchHistory';
+import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, PLAYER_URL } from '../utils/config';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
+import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -36,7 +37,6 @@ const getRenderer = async () => {
 // Number of author videos to show at the top of recommendations
 const AUTHOR_VIDEOS_COUNT = 4;
 const QUALITY_STORAGE_KEY = '3speak-quality-pref';
-const GLOW_STORAGE_KEY = '3speak-ambient-glow';
 
 // Filter out videos older than December 2023 (old videos may not exist on CDN)
 const MIN_VIDEO_DATE = new Date('2023-12-01T00:00:00.000Z');
@@ -70,6 +70,14 @@ function Watch() {
 
   // Track which videos we've recorded to avoid duplicate API calls
   const recordedWatchRef = useRef(new Set());
+
+  // Track videos played in this autoplay session to avoid loops
+  const playedVideosRef = useRef(new Set());
+
+  // Watched status from backend (Map of "author/permlink" → watch data)
+  const [watchedMap, setWatchedMap] = useState(new Map());
+  const watchedMapRef = useRef(watchedMap);
+  watchedMapRef.current = watchedMap;
 
   // Get playlist data from location state (passed from PlaylistView)
   const [playlistData, setPlaylistData] = useState(null);
@@ -109,21 +117,28 @@ function Watch() {
   const [controlsVisible, setControlsVisible] = useState(false);
   const hideTimerRef = useRef(null);
   const [videoEnded, setVideoEnded] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
 
-  // Ambient glow mode: 'off' | 'page'
-  const [glowMode, setGlowMode] = useState(() => {
-    const stored = localStorage.getItem(GLOW_STORAGE_KEY);
-    if (stored === 'page' || stored === '1' || stored === 'card') return 'page';
-    return 'off';
-  });
-
-  const toggleGlow = useCallback(() => {
-    setGlowMode(prev => {
-      const next = prev === 'off' ? 'page' : 'off';
-      localStorage.setItem(GLOW_STORAGE_KEY, next);
+  // Autoplay next video preference
+  const AUTOPLAY_STORAGE_KEY = '3speak-autoplay';
+  const [autoplayNext, setAutoplayNext] = useState(() => localStorage.getItem('3speak-autoplay') !== '0');
+  const autoplayNextRef = useRef(autoplayNext);
+  autoplayNextRef.current = autoplayNext;
+  const toggleAutoplayNext = useCallback(() => {
+    setAutoplayNext(prev => {
+      const next = !prev;
+      localStorage.setItem(AUTOPLAY_STORAGE_KEY, next ? '1' : '0');
       return next;
     });
   }, []);
+
+  const { glowMode, toggleGlow } = useAmbientGlow();
+
+  // Persist mute/volume preference across video navigations
+  const MUTE_STORAGE_KEY = '3speak-muted';
+  const VOLUME_STORAGE_KEY = '3speak-volume';
+  const storedMuted = localStorage.getItem(MUTE_STORAGE_KEY) === '1';
+  const storedVolume = parseFloat(localStorage.getItem(VOLUME_STORAGE_KEY)) || 1;
 
   // Quality levels state
   const [qualityLevels, setQualityLevels] = useState([]);
@@ -137,12 +152,13 @@ function Watch() {
     pause,
     togglePlay,
     seek,
-    setMuted,
+    setMuted: sdkSetMuted,
+    setVolume: sdkSetVolume,
     togglePip,
     setQuality: sdkSetQuality,
   } = usePlayer({
     apiBase: PLAYER_URL,
-    muted: false,
+    muted: storedMuted,
     loop: false,
     poster: true,
     resume: false,
@@ -153,10 +169,26 @@ function Watch() {
     },
   });
 
+  // Wrap setMuted/setVolume to persist to localStorage
+  const setMuted = useCallback((muted) => {
+    sdkSetMuted(muted);
+    localStorage.setItem(MUTE_STORAGE_KEY, muted ? '1' : '0');
+  }, [sdkSetMuted]);
+
+  const setVolume = useCallback((vol) => {
+    sdkSetVolume(vol);
+    localStorage.setItem(VOLUME_STORAGE_KEY, String(vol));
+  }, [sdkSetVolume]);
+
   // Track when the <video> element is mounted and attached to the Player
   const [videoAttached, setVideoAttached] = useState(false);
   const videoRef = useCallback((element) => {
     sdkVideoRef(element); // pass to usePlayer's internal attach
+    if (element) {
+      // Apply stored volume immediately after attach (SDK has no volume config option)
+      const savedVol = parseFloat(localStorage.getItem('3speak-volume'));
+      if (!isNaN(savedVol)) element.volume = savedVol;
+    }
     setVideoAttached(!!element);
   }, [sdkVideoRef]);
 
@@ -191,26 +223,60 @@ function Watch() {
   useEffect(() => {
     if (!author || !permlink || author === 'unknown' || !player || !videoAttached) return;
     setVideoEnded(false);
+    // Record this video as played in the current session
+    playedVideosRef.current.add(`${author}/${permlink}`);
+    // Reset playhead to 0 immediately so the UI doesn't show the old video's position
+    seek(0);
     loadVideo(`${author}/${permlink}`).catch(err => {
       console.error('[Watch] Failed to load video:', err);
     });
-  }, [author, permlink, player, loadVideo, videoAttached]);
+  }, [author, permlink, player, loadVideo, videoAttached, seek]);
 
   // Subscribe to player events (stable effect — uses refs for mutable values)
   useEffect(() => {
     if (!player) return;
 
+    let canPlayCleanup = null;
+
     const unsubReady = player.on('ready', ({ isVertical }) => {
       videoIsVerticalRef.current = isVertical;
       wrapperRef.current?.classList.toggle('vertical-video', isVertical);
-
-      // Auto-play
-      player.play().catch(() => {});
 
       // Seek to timestamp if ?t= parameter is present
       const startTime = parseInt(new URLSearchParams(window.location.search).get('t'), 10);
       if (startTime > 0) {
         setTimeout(() => player.seek(startTime), 200);
+      }
+
+      // Restore persisted mute/volume preference on each video load
+      const shouldMute = localStorage.getItem('3speak-muted') === '1';
+      player.setMuted(shouldMute);
+      const savedVol = parseFloat(localStorage.getItem('3speak-volume'));
+      if (!isNaN(savedVol)) player.setVolume(savedVol);
+
+      // Autoplay: wait for canplay (enough data buffered) instead of playing
+      // immediately on metadata load, which fails on slow connections.
+      const videoEl = player.element;
+      const tryAutoplay = () => {
+        player.play().then(() => {
+          setAutoplayBlocked(false);
+        }).catch((err) => {
+          if (err?.name === 'NotAllowedError') {
+            setAutoplayBlocked(true);
+          }
+        });
+      };
+      if (videoEl) {
+        // Clean up any previous canplay listener
+        if (canPlayCleanup) { canPlayCleanup(); canPlayCleanup = null; }
+
+        if (videoEl.readyState >= 3) {
+          tryAutoplay();
+        } else {
+          const onCanPlay = () => tryAutoplay();
+          videoEl.addEventListener('canplay', onCanPlay, { once: true });
+          canPlayCleanup = () => videoEl.removeEventListener('canplay', onCanPlay);
+        }
       }
 
       // Fetch quality levels and apply stored preference
@@ -249,6 +315,20 @@ function Watch() {
     const unsubEnded = player.on('ended', () => {
       if (playlistDataRef.current && showPlaylistRef.current) {
         navigateToNextVideoRef.current();
+      } else if (autoplayNextRef.current && suggestedVideosRef.current?.length > 0) {
+        // Find the first suggested video not already watched (backend) or played (session)
+        const next = suggestedVideosRef.current.find(v => {
+          const a = v?.author?.username || v?.author?.id || v?.author || v?.owner;
+          if (!a || !v.permlink) return false;
+          const key = `${a}/${v.permlink}`;
+          return !playedVideosRef.current.has(key) && !watchedMapRef.current.has(key);
+        });
+        if (next) {
+          const nextAuthor = next?.author?.username || next?.author?.id || next?.author || next?.owner;
+          navigate(`/watch?v=${nextAuthor}/${next.permlink}`);
+        } else {
+          setVideoEnded(true);
+        }
       } else {
         setVideoEnded(true);
       }
@@ -256,6 +336,7 @@ function Watch() {
 
     const unsubPlay = player.on('play', () => {
       setVideoEnded(false);
+      setAutoplayBlocked(false);
     });
 
     return () => {
@@ -263,47 +344,9 @@ function Watch() {
       unsubQuality();
       unsubEnded();
       unsubPlay();
+      if (canPlayCleanup) canPlayCleanup();
     };
   }, [player]);
-
-  // Ambient glow: draw video frames to a tiny canvas, CSS blur does the rest
-  const pageGlowRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = pageGlowRef.current;
-    if (!canvas) return;
-
-    if (glowMode === 'off') {
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
-
-    const video = player?.element;
-    if (!video) return;
-
-    const ctx = canvas.getContext('2d', { willReadFrequently: false });
-    if (!ctx) return;
-
-    canvas.width = 32;
-    canvas.height = 18;
-
-    let rafId = null;
-    let lastDraw = 0;
-    const FPS_INTERVAL = 1000 / 4;
-
-    const draw = (now) => {
-      rafId = requestAnimationFrame(draw);
-      if (now - lastDraw < FPS_INTERVAL) return;
-      lastDraw = now;
-      if (video.readyState >= 2 && !video.paused) {
-        ctx.drawImage(video, 0, 0, 32, 18);
-      }
-    };
-
-    rafId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(rafId);
-  }, [player, videoAttached, glowMode]);
 
   // Handle quality change with optimistic UI update + persist preference
   const handleQualityChange = useCallback((level) => {
@@ -429,7 +472,10 @@ function Watch() {
     return localStorage.getItem('3speak-reactions-visible') !== 'false';
   });
   const [reactionSize, setReactionSize] = useState(() => {
-    return localStorage.getItem('3speak-reaction-size') || 'standard';
+    const stored = localStorage.getItem('3speak-reaction-size');
+    // Migrate legacy 'large' → 'big'
+    if (stored === 'large') return 'big';
+    return stored || 'standard';
   });
 
   const setReactionsVisible = useCallback((visible) => {
@@ -467,8 +513,8 @@ function Watch() {
     }, 100);
   }, []);
 
-  const REACTION_SIZES = ['medium', 'standard', 'large'];
-  const REACTION_SIZE_LABELS = { medium: 'Medium', standard: 'Standard', large: 'Cinema' };
+  const REACTION_SIZES = ['medium', 'standard', 'big', 'cinema'];
+  const REACTION_SIZE_LABELS = { medium: 'Medium', standard: 'Standard', big: 'Big', cinema: 'Cinema' };
   const cycleReactionSize = useCallback(() => {
     setReactionSize(prev => {
       const idx = REACTION_SIZES.indexOf(prev);
@@ -638,7 +684,6 @@ function Watch() {
   }, [videoLoading, videoData, author, permlink]);
 
   const videoDetails = videoData?.socialPost || hiveFallback;
-
   // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
     if (!user || !author || !permlink || author === 'unknown' || watchHistoryEnabled === false) {
@@ -714,6 +759,28 @@ function Watch() {
     // Combine: author videos first, then recommendations
     return [...authorVideos, ...recommendations];
   }, [authorVideosData, suggestionsData, trendingData, author, permlink]);
+
+  const suggestedVideosRef = useRef(suggestedVideos);
+  suggestedVideosRef.current = suggestedVideos;
+
+  // Batch-check which suggested videos the user has already watched
+  useEffect(() => {
+    if (!user || suggestedVideos.length === 0) {
+      setWatchedMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    const videos = suggestedVideos.map(v => ({
+      author: v?.author?.username || v?.author?.id || v?.author || v?.owner,
+      permlink: v.permlink,
+    })).filter(v => v.author && v.permlink);
+
+    batchCheckWatched(user, videos).then(result => {
+      if (!cancelled) setWatchedMap(result);
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [user, suggestedVideos]);
 
   // Build reactions from comment markers: video reactions use the embed URL from metadata
   const reactions = useMemo(() => {
@@ -811,8 +878,7 @@ function Watch() {
 
   return (
     <div className={`play-container${isReactionPlayerVisible && reactions.length > 0 ? ` reaction-${reactionSize}` : ''}`}>
-      {/* Page-level ambient glow canvas — lives outside .play-video so it can cover the full page background */}
-      <canvas className={`page-glow-canvas${glowMode === 'page' ? ' active' : ''}`} ref={pageGlowRef} aria-hidden="true" />
+      <AmbientGlow getVideoEl={() => player?.element} glowMode={glowMode} />
       <PlayVideo
         videoDetails={videoDetails}
         author={author}
@@ -827,10 +893,19 @@ function Watch() {
           buffered: playerState.buffered,
           isPlaying: !playerState.paused,
           isMuted: playerState.muted,
+          volume: playerState.volume,
           isFullscreen,
           isVisible: controlsVisible,
           onTogglePlay: togglePlay,
           onToggleMute: () => setMuted(!playerState.muted),
+          onVolumeChange: (val) => {
+            setVolume(val);
+            if (val === 0) {
+              setMuted(true);
+            } else if (playerState.muted) {
+              setMuted(false);
+            }
+          },
           onSeekBackward: () => seek(Math.max(0, playerState.currentTime - 10)),
           onSeekForward: () => seek(Math.min(playerState.duration, playerState.currentTime + 10)),
           onSeek: seek,
@@ -847,6 +922,17 @@ function Watch() {
           onTogglePip: handleTogglePip,
           videoEnded,
           onReplay: handleReplay,
+          autoplayBlocked,
+          onAutoplayTap: togglePlay,
+          autoplayNext,
+          onToggleAutoplay: toggleAutoplayNext,
+          endSuggestions: suggestedVideos
+            .filter(v => {
+              const a = v?.author?.username || v?.author?.id || v?.author || v?.owner;
+              const key = `${a}/${v.permlink}`;
+              return !playedVideosRef.current.has(key) && !watchedMap.has(key);
+            })
+            .slice(0, 5),
           qualityLevels,
           currentQuality,
           onQualityChange: handleQualityChange,
@@ -882,6 +968,34 @@ function Watch() {
             )}
           </>
         }
+        cinemaReactionPanel={reactionSize === 'cinema' ? (
+          <>
+            {isReactionPlayerVisible && reactions.length > 0 && (
+              <ReactionPlayer
+                reactions={reactions}
+                selectedIndex={selectedReactionIndex}
+                onSelectReaction={handleSelectReaction}
+                onClose={() => setReactionsVisible(false)}
+                size={reactionSize}
+                onCycleSize={cycleReactionSize}
+                currentTime={playerState.currentTime}
+                duration={playerState.duration}
+                mainIsPlaying={!playerState.paused}
+                onReactionPlay={pause}
+              />
+            )}
+            {!isReactionPlayerVisible && reactions.length > 0 && (
+              <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
+                Show Reactions ({reactionCountLabel})
+              </button>
+            )}
+            {reactions.length === 0 && (
+              <button className="show-reactions-btn" onClick={handleAddReaction}>
+                Add Reaction
+              </button>
+            )}
+          </>
+        ) : null}
       />
 
       {/* Right column: Reaction Player + Recommended */}
