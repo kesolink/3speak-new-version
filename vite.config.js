@@ -144,6 +144,6 @@ export default defineConfig({
   },
 
   server: {
-     allowedHosts: ["3speak.okinoko.io"],
-   },
+    allowedHosts: ["3speak.okinoko.io"],
+  },
 });

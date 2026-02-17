@@ -27,9 +27,15 @@ import {
   Square,
   RotateCcw,
   Repeat2,
-  Scissors
+  WandSparkles,
+  Moon,
+  Lightbulb,
+  Sun,
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
+import { MdTranslate } from 'react-icons/md';
+import useTranslation from '../hooks/useTranslation';
+import TranslateButton from '../components/TranslateButton/TranslateButton';
 
 // Custom Hive Icon Component
 const HiveIcon = ({ size = 24, className = '' }) => (
@@ -61,6 +67,7 @@ import ShortsIcon from '../components/icons/ShortsIcon';
 import { markByReputation } from '../utils/reputation';
 import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
+import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import EditorModal from '../components/modal/EditorModal';
 
 // Lazy-loaded Hive markdown renderer (same as CommentSection)
@@ -82,6 +89,7 @@ const getRenderer = async () => {
 /* ================= COMPONENT ================= */
 const VideoShort = () => {
   const { user, authenticated, watchHistoryEnabled } = useAppStore();
+  const { translate: onTranslate, getTranslation, clearTranslation, translating } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentIndexRef = useRef(0);
   currentIndexRef.current = currentIndex;
@@ -107,9 +115,15 @@ const VideoShort = () => {
   const [editorVideoUrl, setEditorVideoUrl] = useState(null);
   const [editorVideoName, setEditorVideoName] = useState(null);
 
+  // Ambient glow
+  const { glowMode, toggleGlow } = useAmbientGlow();
+
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(() => {
+    const stored = localStorage.getItem('3speak-muted');
+    if (stored !== null) return stored === '1';
+    // Fallback: read legacy cookie
     const cookie = document.cookie.split('; ').find(c => c.startsWith('shorts_muted='));
     return cookie ? cookie.split('=')[1] !== '0' : false;
   });
@@ -312,6 +326,7 @@ const VideoShort = () => {
     sendCommand(command);
     setIsMuted(newMuted);
     isMutedRef.current = newMuted;
+    localStorage.setItem('3speak-muted', newMuted ? '1' : '0');
     document.cookie = `shorts_muted=${newMuted ? '1' : '0'}; path=/; max-age=${365 * 24 * 3600}`;
     // Show mute/unmute icon feedback
     setShowMuteIcon(true);
@@ -389,7 +404,13 @@ const VideoShort = () => {
     e.stopPropagation();
     // Skip click if it was synthesized from a recent touch (touch handler already processed it)
     if (recentTouchRef.current) return;
-    if (showComments || mouseLongPressHandledRef.current) return;
+    if (mouseLongPressHandledRef.current) return;
+
+    // When comments panel is open, allow simple play/pause but skip double-tap gestures
+    if (showComments) {
+      togglePlayPause();
+      return;
+    }
 
     tapCountRef.current += 1;
     if (tapCountRef.current === 1) {
@@ -1590,7 +1611,13 @@ const VideoShort = () => {
     touchStartYRef.current = null;
 
     // Gesture tap detection — only if it wasn't a swipe or long press
-    if (wasSwipe || gestureHandledRef.current || showComments) return;
+    if (wasSwipe || gestureHandledRef.current) return;
+
+    // When comments panel is open, allow simple play/pause but skip double-tap gestures
+    if (showComments) {
+      togglePlayPause();
+      return;
+    }
 
     tapCountRef.current += 1;
     if (tapCountRef.current === 1) {
@@ -1917,6 +1944,7 @@ const VideoShort = () => {
 
   return (
     <main className="short-main">
+      <AmbientGlow getVideoEl={() => videoElRef.current} glowMode={glowMode} />
       <div
         tabIndex={0}
         ref={keyboardRef}
@@ -2046,6 +2074,17 @@ const VideoShort = () => {
             {/* Heart animation (double tap feedback) */}
             <div className={`heartAnimation ${showHeartAnimation ? 'visible' : ''}`}>
               <Heart size={80} fill="#ff2d55" color="#ff2d55" />
+            </div>
+            {/* Ambient glow toggle */}
+            <div className={`glowIndicator${glowMode !== 'off' ? ' active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); toggleGlow(); }}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); toggleGlow(); }}
+              title={glowMode === 'off' ? 'Ambient light: subtle' : glowMode === 'page' ? 'Ambient light: vivid' : 'Ambient light: off'}
+            >
+              {glowMode === 'off' && <Moon size={16} />}
+              {glowMode === 'page' && <Lightbulb size={16} />}
+              {glowMode === 'vivid' && <Sun size={16} />}
             </div>
             {/* Playback mode toggle button */}
             <div className="playbackModeIndicator"
@@ -2370,22 +2409,15 @@ const VideoShort = () => {
             <span className="actionLabel">{reshareCount || 0}</span>
           </div>
 
-          {FEATURE_EDITOR && (
+          {FEATURE_EDITOR && authenticated && (
             <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleRemix(); }}>
               <div className="actionButton">
-                <Scissors size={24} />
+                <WandSparkles size={24} />
               </div>
               <span className="actionLabel">Remix</span>
             </div>
           )}
 
-          <div className="albumArt"  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleProfileNavigation(currentVideo.user.username);
-                  }}>
-            <img src={currentVideo.albumArt} alt="" />
-          </div>
 
         </div>
 
@@ -2424,9 +2456,6 @@ const VideoShort = () => {
           <span className="commentsTitle">Comments</span>
           <span className="commentsCount">{currentVideo.stats.comments}</span>
           <div className="commentsHeaderActions">
-            {/* <button className="headerBtn">
-              <SlidersHorizontal size={20} />
-            </button> */}
             <button className="headerBtn" onClick={handleToggleComments}>
               <X size={20} />
             </button>
@@ -2473,6 +2502,10 @@ const VideoShort = () => {
                 postingComment={postingComment}
                 user={user}
                 renderedBodies={renderedBodies}
+                onTranslate={onTranslate}
+                getTranslation={getTranslation}
+                clearTranslation={clearTranslation}
+                translating={translating}
               />
             ))
           )}
@@ -2542,11 +2575,26 @@ const CommentItem = ({
   handlePostComment,
   postingComment,
   user,
-  renderedBodies
+  renderedBodies,
+  onTranslate,
+  getTranslation,
+  clearTranslation,
+  translating,
 }) => {
   const [showReplies, setShowReplies] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [translatedText, setTranslatedText] = useState(null);
+  const [translateError, setTranslateError] = useState(false);
   const maxDepth = 3;
+
+  const handleTranslate = async (langCode) => {
+    if (!comment?.body) return;
+    setTranslateError(false);
+    try {
+      const result = await onTranslate?.(comment.permlink, comment.body, langCode);
+      if (result) setTranslatedText(result);
+    } catch { setTranslateError(true); }
+  };
 
   const isReplying = activeReply === comment.permlink;
 
@@ -2585,7 +2633,19 @@ const CommentItem = ({
           <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><ChevronUp size={16} /></span>
         </div>
         <div className="commentText markdown-view" dangerouslySetInnerHTML={{ __html: getCommentHtml() }} />
+        {translatedText && (
+          <div className="comment-translation">
+            <div className="comment-translation-header">
+              <MdTranslate size={12} />
+              <span>Translation</span>
+              <button className="comment-translation-dismiss" onClick={() => { setTranslatedText(null); clearTranslation?.(comment.permlink); }}>&times;</button>
+            </div>
+            <p>{translatedText}</p>
+          </div>
+        )}
+        {translateError && <div className="comment-translation comment-translation--error"><p>Translation failed</p></div>}
         <div className="commentActions">
+          <TranslateButton onTranslate={handleTranslate} isTranslating={!!translating?.[comment.permlink]} compact />
           <button
             className={`commentActionBtn ${comment.has_voted ? 'liked' : ''}`}
             onClick={() => toggleVoteTooltip(comment.author, comment.permlink)}
@@ -2694,6 +2754,10 @@ const CommentItem = ({
                 postingComment={postingComment}
                 user={user}
                 renderedBodies={renderedBodies}
+                onTranslate={onTranslate}
+                getTranslation={getTranslation}
+                clearTranslation={clearTranslation}
+                translating={translating}
               />
             ))}
           </div>

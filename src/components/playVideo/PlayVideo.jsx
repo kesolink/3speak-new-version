@@ -3,6 +3,7 @@ import "./PlayVideo.scss";
 import VideoControls from "../VideoControls/VideoControls";
 import ViewCount from "../ViewCount/ViewCount";
 import { LuTimer } from "react-icons/lu";
+import { MdReplay, MdPlayArrow } from "react-icons/md";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
@@ -26,7 +27,8 @@ import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
-import { FEED_URL, PLAYER_URL, HIVE_API_URL, EDITOR_URL, FEATURE_EDITOR } from '../../utils/config';
+import { FEED_URL, HIVE_API_URL, FEATURE_EDITOR } from '../../utils/config';
+import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
 import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo } from "react-icons/md";
 import { FaHeart } from "react-icons/fa";
@@ -38,13 +40,13 @@ import { removeFromPlaylist } from "../../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import Button from "../Button/Button";
-import { Repeat2, Scissors, Film } from 'lucide-react';
+import { Repeat2, Scissors, Tornado } from 'lucide-react';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -485,27 +487,60 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       <div className="play-video">
         <div className="top-container">
           {(author && permlink) ? (
-            <div className="video-iframe-wrapper">
-              <iframe
-                src={`${PLAYER_URL}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe&controls=0`}
+            <div className="video-iframe-wrapper" ref={wrapperRef}>
+              <video
+                ref={videoRef}
                 style={{
                   position: "absolute",
                   top: 0,
                   left: 0,
                   width: "100%",
                   height: "100%",
-                  border: "0",
-                  overflow: "hidden",
+                  objectFit: "contain",
+                  background: "#000",
                 }}
-                frameBorder="0"
-                scrolling="no"
-                allowFullScreen
-                allow="picture-in-picture"
+                playsInline
               />
+              {videoControls?.videoEnded && (
+                <div className="video-ended-overlay">
+                  <button className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
+                    <MdReplay size={48} />
+                  </button>
+                  {!videoControls.autoplayNext && videoControls.endSuggestions?.length > 0 && (
+                    <div className="video-ended-suggestions">
+                      {videoControls.endSuggestions.map((v, i) => {
+                        const vAuthor = v?.author?.username || v?.author?.id || v?.author || v?.owner;
+                        return (
+                          <a
+                            key={`${vAuthor}-${v.permlink}-${i}`}
+                            className="video-ended-card"
+                            href={`/watch?v=${vAuthor}/${v.permlink}`}
+                            onClick={(e) => { e.preventDefault(); navigate(`/watch?v=${vAuthor}/${v.permlink}`); }}
+                          >
+                            <img src={fixVideoThumbnail(v)} alt={v.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
+                            <div className="video-ended-card-info">
+                              <span className="video-ended-card-title">{v.title?.length > 40 ? v.title.slice(0, 40) + '...' : v.title}</span>
+                              <span className="video-ended-card-author">@{vAuthor}</span>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {videoControls?.autoplayBlocked && !videoControls?.videoEnded && (
+                <div className="video-replay-overlay" onClick={videoControls.onAutoplayTap}>
+                  <button className="video-replay-btn" title="Play">
+                    <MdPlayArrow size={48} />
+                  </button>
+                </div>
+              )}
               {videoControls && (
                 <>
                   <div
                     className="video-interact-overlay"
+                    style={showTooltip ? { pointerEvents: 'none' } : undefined}
                     onMouseMove={() => {
                       if (window.innerWidth > 767) videoControls.onMouseMove();
                     }}
@@ -523,12 +558,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   <VideoControls
                     currentTime={videoControls.currentTime}
                     duration={videoControls.duration}
+                    buffered={videoControls.buffered}
                     isPlaying={videoControls.isPlaying}
                     isMuted={videoControls.isMuted}
+                    volume={videoControls.volume}
                     isFullscreen={videoControls.isFullscreen}
                     isVisible={videoControls.isVisible}
                     onTogglePlay={videoControls.onTogglePlay}
                     onToggleMute={videoControls.onToggleMute}
+                    onVolumeChange={videoControls.onVolumeChange}
                     onSeekBackward={videoControls.onSeekBackward}
                     onSeekForward={videoControls.onSeekForward}
                     onSeek={videoControls.onSeek}
@@ -542,6 +580,10 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     qualityLevels={videoControls.qualityLevels}
                     currentQuality={videoControls.currentQuality}
                     onQualityChange={videoControls.onQualityChange}
+                    glowMode={videoControls.glowMode}
+                    onToggleGlow={videoControls.onToggleGlow}
+                    autoplayNext={videoControls.autoplayNext}
+                    onToggleAutoplay={videoControls.onToggleAutoplay}
                   />
                 </>
               )}
@@ -704,18 +746,19 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               <button
                 className="remix-btn"
                 onClick={handleRemix}
-                title={videoControls?.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
-                disabled={videoControls?.duration > 60}
+                title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
+                disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
               >
-                <Scissors size={16} />
+                <Tornado size={16} />
                 <span className="tools-row-label">Remix</span>
               </button>
               <button
                 className={`clip-btn${clipMode ? ' active' : ''}`}
                 onClick={clipMode ? handleCancelClip : handleStartClipMode}
-                title={clipMode ? 'Cancel clip' : 'Clip video'}
+                title={!authenticated ? 'Log in to clip' : clipMode ? 'Cancel clip' : 'Clip video'}
+                disabled={!authenticated}
               >
-                <Film size={16} />
+                <Scissors size={16} />
                 <span className="tools-row-label">Clip</span>
               </button>
             </div>
@@ -725,7 +768,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         {FEATURE_EDITOR && clipMode && (
           <div className="clip-bar">
             <div className="clip-bar-info">
-              <Film size={16} />
+              <Scissors size={16} />
               <span className="clip-bar-label">
                 {clipMode === 'start' && 'Seek to the start of your clip'}
                 {clipMode === 'end' && `Start: ${formatTime(clipStart)} — Now seek to the end`}
@@ -779,6 +822,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         {mobileReactionPanel && (
           <div className="mobile-reactions-slot">
             {mobileReactionPanel}
+          </div>
+        )}
+
+        {/* Cinema mode reactions slot — between description and comments (desktop) */}
+        {cinemaReactionPanel && (
+          <div className="cinema-reactions-slot">
+            {cinemaReactionPanel}
           </div>
         )}
 
@@ -957,6 +1007,9 @@ PlayVideo.propTypes = {
   }),
   onClosePlaylist: PropTypes.func,
   mobileReactionPanel: PropTypes.node,
+  cinemaReactionPanel: PropTypes.node,
+  videoRef: PropTypes.oneOfType([PropTypes.func, PropTypes.object]),
+  wrapperRef: PropTypes.oneOfType([PropTypes.func, PropTypes.object]),
 };
 
 export default PlayVideo;

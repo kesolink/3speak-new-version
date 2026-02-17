@@ -295,6 +295,7 @@ export function LegacyUploadProvider({ children }) {
         originalFilename: videoFile.name,
         community,
         declineRewards,
+        rewardPowerup,
         beneficiaries: parsedBeneficiaries,
       }
       

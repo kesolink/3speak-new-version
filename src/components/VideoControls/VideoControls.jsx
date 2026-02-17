@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo, FaCog } from 'react-icons/fa';
-import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture } from 'react-icons/tb';
+import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture, TbBulbFilled, TbMoonFilled, TbSunFilled, TbPlayerTrackNextFilled } from 'react-icons/tb';
 import './VideoControls.scss';
 
 function formatTime(seconds) {
@@ -18,13 +18,16 @@ function formatTime(seconds) {
 function VideoControls({
   currentTime,
   duration,
+  buffered,
   isPlaying,
   isMuted,
+  volume,
   isFullscreen,
   onSeekBackward,
   onSeekForward,
   onTogglePlay,
   onToggleMute,
+  onVolumeChange,
   onToggleFullscreen,
   onSeek,
   isVisible,
@@ -37,6 +40,10 @@ function VideoControls({
   qualityLevels,
   currentQuality,
   onQualityChange,
+  glowMode,
+  onToggleGlow,
+  autoplayNext,
+  onToggleAutoplay,
 }) {
   const resolvedMarkers = markers || [];
 
@@ -46,7 +53,23 @@ function VideoControls({
   const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const trackRef = useRef(null);
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const [dragProgress, setDragProgress] = useState(null); // non-null while dragging
+
+  // Volume slider — fully ref-driven to avoid React re-render lag
+  const volSliderRef = useRef(null);
+  const volDraggingRef = useRef(false);
+
+  // Sync slider from prop only when user is NOT dragging
+  useEffect(() => {
+    if (volDraggingRef.current || !volSliderRef.current) return;
+    const displayVol = isMuted ? 0 : (volume ?? 1);
+    volSliderRef.current.value = displayVol;
+    const pct = (displayVol * 100).toFixed(0);
+    volSliderRef.current.style.background =
+      `linear-gradient(to right, var(--accent-primary, #e53935) ${pct}%, rgba(255,255,255,0.3) ${pct}%)`;
+  }, [volume, isMuted]);
+  const progress = dragProgress !== null ? dragProgress : (duration > 0 ? (currentTime / duration) * 100 : 0);
+  const bufferedPercent = (buffered || 0) * 100;
 
   // Build a heatmap gradient showing where reactions cluster
   const heatmapStyle = duration > 0 && resolvedMarkers.length > 0 ? (() => {
@@ -68,34 +91,55 @@ function VideoControls({
     return { background: `linear-gradient(to right, ${gradient.join(', ')})` };
   })() : null;
 
-  // Seek to the position under a pointer/touch event
-  const seekFromEvent = useCallback((e) => {
-    if (!trackRef.current || !duration) return;
+  // Get fraction (0-1) from a pointer/touch event relative to the track
+  const fractionFromEvent = useCallback((e) => {
+    if (!trackRef.current || !duration) return null;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const rect = trackRef.current.getBoundingClientRect();
-    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    onSeek?.(fraction * duration);
-  }, [duration, onSeek]);
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }, [duration]);
 
-  // Drag/scrub support: track whether user is dragging the progress bar
+  // Drag/scrub support — visual progress updates instantly, seeks throttled to ~150ms
   const isDraggingRef = useRef(false);
+  const dragFractionRef = useRef(0);
+  const lastSeekTimeRef = useRef(0);
+  const SEEK_THROTTLE_MS = 150;
 
   const handleTrackPointerDown = useCallback((e) => {
-    // Ignore right-clicks
     if (e.button && e.button !== 0) return;
+    const fraction = fractionFromEvent(e);
+    if (fraction === null) return;
     isDraggingRef.current = true;
-    seekFromEvent(e);
-    e.preventDefault(); // prevent text selection / touch scroll
-  }, [seekFromEvent]);
+    dragFractionRef.current = fraction;
+    setDragProgress(fraction * 100);
+    onSeek?.(fraction * duration);
+    lastSeekTimeRef.current = Date.now();
+    e.preventDefault();
+  }, [fractionFromEvent, duration, onSeek]);
 
   useEffect(() => {
     const handleMove = (e) => {
-      if (!isDraggingRef.current) return;
+      if (!isDraggingRef.current || !trackRef.current || !duration) return;
       e.preventDefault();
-      seekFromEvent(e);
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const rect = trackRef.current.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      dragFractionRef.current = fraction;
+      setDragProgress(fraction * 100);
+      // Throttle actual seeks so HLS can keep up
+      const now = Date.now();
+      if (now - lastSeekTimeRef.current >= SEEK_THROTTLE_MS) {
+        onSeek?.(fraction * duration);
+        lastSeekTimeRef.current = now;
+      }
     };
     const handleUp = () => {
+      if (isDraggingRef.current && duration) {
+        // Final precise seek on release
+        onSeek?.(dragFractionRef.current * duration);
+      }
       isDraggingRef.current = false;
+      setDragProgress(null);
     };
 
     document.addEventListener('mousemove', handleMove);
@@ -108,7 +152,7 @@ function VideoControls({
       document.removeEventListener('touchmove', handleMove);
       document.removeEventListener('touchend', handleUp);
     };
-  }, [seekFromEvent]);
+  }, [duration, onSeek]);
 
   // Close quality menu when clicking outside
   useEffect(() => {
@@ -140,6 +184,7 @@ function VideoControls({
       <div className="vc-progress-row">
         <div className="vc-progress-track" ref={trackRef} onMouseDown={handleTrackPointerDown} onTouchStart={handleTrackPointerDown}>
           {heatmapStyle && <div className="vc-heatmap" style={heatmapStyle} />}
+          <div className="vc-buffered-fill" style={{ width: `${bufferedPercent}%` }} />
           <div className="vc-progress-fill" style={{ width: `${progress}%` }} />
 
           {/* Timeline markers */}
@@ -200,9 +245,35 @@ function VideoControls({
               <FaVideo size={13} />
             </button>
           )}
-          <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
-            {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
-          </button>
+          <div className="vc-volume-group">
+            <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
+              {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
+            </button>
+            {onVolumeChange && (
+              <div className="vc-volume-slider-wrap">
+                <input
+                  ref={volSliderRef}
+                  type="range"
+                  className="vc-volume-slider"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  defaultValue={isMuted ? 0 : (volume ?? 1)}
+                  onPointerDown={() => { volDraggingRef.current = true; }}
+                  onPointerUp={() => { volDraggingRef.current = false; }}
+                  onInput={(e) => {
+                    const val = parseFloat(e.target.value);
+                    const pct = (val * 100).toFixed(0);
+                    e.target.style.background =
+                      `linear-gradient(to right, var(--accent-primary, #e53935) ${pct}%, rgba(255,255,255,0.3) ${pct}%)`;
+                    if (val > 0 && isMuted) onToggleMute();
+                    onVolumeChange(val);
+                  }}
+                  onChange={() => {}}
+                />
+              </div>
+            )}
+          </div>
           {onCycleReactionSize && (
             <button className="vc-btn vc-btn--resize" onClick={onCycleReactionSize} title={`Player size: ${reactionSizeLabel || 'Standard'}`}>
               <TbArrowsMaximize size={15} />
@@ -214,6 +285,26 @@ function VideoControls({
               <TbPictureInPicture size={16} />
             </button>
           )} */}
+          {onToggleAutoplay && (
+            <button
+              className={`vc-btn vc-btn--autoplay${autoplayNext ? ' active' : ''}`}
+              onClick={onToggleAutoplay}
+              title={autoplayNext ? 'Autoplay: on' : 'Autoplay: off'}
+            >
+              <TbPlayerTrackNextFilled size={15} />
+            </button>
+          )}
+          {onToggleGlow && (
+            <button
+              className={`vc-btn vc-btn--glow${glowMode !== 'off' ? ' active' : ''}`}
+              onClick={onToggleGlow}
+              title={glowMode === 'off' ? 'Ambient light: subtle' : glowMode === 'page' ? 'Ambient light: vivid' : 'Ambient light: off'}
+            >
+              {glowMode === 'off' && <TbMoonFilled size={15} />}
+              {glowMode === 'page' && <TbBulbFilled size={15} />}
+              {glowMode === 'vivid' && <TbSunFilled size={15} />}
+            </button>
+          )}
           {qualityLevels && qualityLevels.length > 0 && (
             <div className="vc-quality-wrap" ref={qualityMenuRef}>
               <button className="vc-btn" onClick={() => setQualityMenuOpen(o => !o)} title="Quality">
