@@ -25,7 +25,11 @@ function SearchList({searchTerm, setSearchTerm, setIsDropdownOpen, isDropdownOpe
 
       useEffect(() => {
           if (searchTerm.trim().length < 2) {
-            setSearchResults({ users: [], tags: [], communities: [] });
+            setSearchResults(prev =>
+              (prev.users.length === 0 && prev.tags.length === 0 && prev.communities.length === 0)
+                ? prev
+                : { users: [], tags: [], communities: [] }
+            );
             return;
           }
       

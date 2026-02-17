@@ -2,8 +2,9 @@ import { Buffer } from "buffer";
 import bs58 from "bs58";
 import fallbackImg from "../assets/image/speak.jpg";
 
-const APP_BUNNY_IPFS_CDN = "https://ipfs-3speak.b-cdn.net";
+const APP_BUNNY_IPFS_CDN = "https://hotipfs-3speak-1.b-cdn.net";
 const APP_IMAGE_CDN_DOMAIN = "https://media.3speak.tv";
+const FALLBACK_THUMBNAIL = "/images/speak.jpg"; // Local fallback image
 
 export { fallbackImg };
 
@@ -36,15 +37,19 @@ export function fixVideoThumbnail(video) {
     return `${APP_BUNNY_IPFS_CDN}/ipfs/${ipfsHash}`;
   }
 
-  // 🧠 If already using images.hive.blog, return as-is (avoid double-proxying)
-  if (cleanThumbnail.includes("images.hive.blog")) {
+  // 🔄 Replace deprecated CDN with new CDN
+  if (cleanThumbnail.includes("ipfs-3speak.b-cdn.net")) {
+    return cleanThumbnail.replace("https://ipfs-3speak.b-cdn.net", APP_BUNNY_IPFS_CDN);
+  }
+
+  // ✅ Already using Hive proxy - return as-is (already optimized)
+  if (cleanThumbnail.includes("images.hive.blog") || cleanThumbnail.includes("files.peakd.com")) {
     return cleanThumbnail;
   }
 
-  // 🧠 Handle media.3speak.tv URLs with Hive proxy
+  // ⚠️ media.3speak.tv doesn't exist anymore - use fallback
   if (cleanThumbnail.includes(APP_IMAGE_CDN_DOMAIN)) {
-    const encoded = bs58.encode(Buffer.from(cleanThumbnail));
-    return `https://images.hive.blog/p/${encoded}?format=jpeg&mode=cover&width=340&height=191`;
+    return FALLBACK_THUMBNAIL;
   }
 
   // 🧠 Handle regular HTTP URLs with Hive proxy

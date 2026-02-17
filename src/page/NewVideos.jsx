@@ -19,7 +19,13 @@ const NewVideos = () => {
     fetchPolicy: 'network-only', // Prevent cache from causing duplicate onCompleted calls
     onCompleted: (newData) => {
       const newItems = newData?.socialFeed?.items || [];
-      
+
+      // Filter out internal re-encoding account
+      const filteredItems = newItems.filter(item => {
+        const author = item.author?.username || item.author;
+        return author !== 'threespeak-fixer';
+      });
+
       // Helper to deduplicate items by author+permlink
       const deduplicateItems = (items) => {
         const seen = new Set();
@@ -33,12 +39,12 @@ const NewVideos = () => {
       
       if (skip === 0) {
         // Deduplicate even the first batch (API returns duplicates)
-        setAllVideos(deduplicateItems(newItems));
+        setAllVideos(deduplicateItems(filteredItems));
       } else {
         // Deduplicate against existing + new items
         setAllVideos(prev => {
           const existingKeys = new Set(prev.map(v => `${v.author?.username || v.author}-${v.permlink}`));
-          const uniqueNew = newItems.filter(item => {
+          const uniqueNew = filteredItems.filter(item => {
             const key = `${item.author?.username || item.author}-${item.permlink}`;
             return !existingKeys.has(key);
           });
