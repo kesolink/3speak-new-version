@@ -162,7 +162,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     const url = spkvideo.play_url;
     if (url.startsWith("ipfs://")) {
       const ipfsHash = url.replace("ipfs://", "");
-      return `https://ipfs-3speak.b-cdn.net/ipfs/${ipfsHash}`;
+      return `https://hotipfs-3speak-1.b-cdn.net/ipfs/${ipfsHash}`;
     }
     return url;
   }, [spkvideo?.play_url]);
