@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo, FaCog } from 'react-icons/fa';
-import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture, TbBulbFilled, TbMoonFilled } from 'react-icons/tb';
+import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture, TbBulbFilled, TbMoonFilled, TbSunFilled, TbPlayerTrackNextFilled } from 'react-icons/tb';
 import './VideoControls.scss';
 
 function formatTime(seconds) {
@@ -21,11 +21,13 @@ function VideoControls({
   buffered,
   isPlaying,
   isMuted,
+  volume,
   isFullscreen,
   onSeekBackward,
   onSeekForward,
   onTogglePlay,
   onToggleMute,
+  onVolumeChange,
   onToggleFullscreen,
   onSeek,
   isVisible,
@@ -40,6 +42,8 @@ function VideoControls({
   onQualityChange,
   glowMode,
   onToggleGlow,
+  autoplayNext,
+  onToggleAutoplay,
 }) {
   const resolvedMarkers = markers || [];
 
@@ -50,6 +54,20 @@ function VideoControls({
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const trackRef = useRef(null);
   const [dragProgress, setDragProgress] = useState(null); // non-null while dragging
+
+  // Volume slider — fully ref-driven to avoid React re-render lag
+  const volSliderRef = useRef(null);
+  const volDraggingRef = useRef(false);
+
+  // Sync slider from prop only when user is NOT dragging
+  useEffect(() => {
+    if (volDraggingRef.current || !volSliderRef.current) return;
+    const displayVol = isMuted ? 0 : (volume ?? 1);
+    volSliderRef.current.value = displayVol;
+    const pct = (displayVol * 100).toFixed(0);
+    volSliderRef.current.style.background =
+      `linear-gradient(to right, var(--accent-primary, #e53935) ${pct}%, rgba(255,255,255,0.3) ${pct}%)`;
+  }, [volume, isMuted]);
   const progress = dragProgress !== null ? dragProgress : (duration > 0 ? (currentTime / duration) * 100 : 0);
   const bufferedPercent = (buffered || 0) * 100;
 
@@ -227,9 +245,35 @@ function VideoControls({
               <FaVideo size={13} />
             </button>
           )}
-          <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
-            {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
-          </button>
+          <div className="vc-volume-group">
+            <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
+              {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
+            </button>
+            {onVolumeChange && (
+              <div className="vc-volume-slider-wrap">
+                <input
+                  ref={volSliderRef}
+                  type="range"
+                  className="vc-volume-slider"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  defaultValue={isMuted ? 0 : (volume ?? 1)}
+                  onPointerDown={() => { volDraggingRef.current = true; }}
+                  onPointerUp={() => { volDraggingRef.current = false; }}
+                  onInput={(e) => {
+                    const val = parseFloat(e.target.value);
+                    const pct = (val * 100).toFixed(0);
+                    e.target.style.background =
+                      `linear-gradient(to right, var(--accent-primary, #e53935) ${pct}%, rgba(255,255,255,0.3) ${pct}%)`;
+                    if (val > 0 && isMuted) onToggleMute();
+                    onVolumeChange(val);
+                  }}
+                  onChange={() => {}}
+                />
+              </div>
+            )}
+          </div>
           {onCycleReactionSize && (
             <button className="vc-btn vc-btn--resize" onClick={onCycleReactionSize} title={`Player size: ${reactionSizeLabel || 'Standard'}`}>
               <TbArrowsMaximize size={15} />
@@ -241,13 +285,24 @@ function VideoControls({
               <TbPictureInPicture size={16} />
             </button>
           )} */}
+          {onToggleAutoplay && (
+            <button
+              className={`vc-btn vc-btn--autoplay${autoplayNext ? ' active' : ''}`}
+              onClick={onToggleAutoplay}
+              title={autoplayNext ? 'Autoplay: on' : 'Autoplay: off'}
+            >
+              <TbPlayerTrackNextFilled size={15} />
+            </button>
+          )}
           {onToggleGlow && (
             <button
-              className={`vc-btn vc-btn--glow${glowMode === 'page' ? ' active' : ''}`}
+              className={`vc-btn vc-btn--glow${glowMode !== 'off' ? ' active' : ''}`}
               onClick={onToggleGlow}
-              title={glowMode === 'off' ? 'Ambient light on' : 'Ambient light off'}
+              title={glowMode === 'off' ? 'Ambient light: subtle' : glowMode === 'page' ? 'Ambient light: vivid' : 'Ambient light: off'}
             >
-              {glowMode === 'off' ? <TbMoonFilled size={15} /> : <TbBulbFilled size={15} />}
+              {glowMode === 'off' && <TbMoonFilled size={15} />}
+              {glowMode === 'page' && <TbBulbFilled size={15} />}
+              {glowMode === 'vivid' && <TbSunFilled size={15} />}
             </button>
           )}
           {qualityLevels && qualityLevels.length > 0 && (

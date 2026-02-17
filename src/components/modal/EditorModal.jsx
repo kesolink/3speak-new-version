@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Loader2 } from 'lucide-react';
-import { EDITOR_URL } from '../../utils/config';
+import { getEditorUrl } from '../../utils/config';
 import { useAppStore } from '../../lib/store';
 import './EditorModal.scss';
 
@@ -14,6 +14,34 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
   const [renderedVideoUrl, setRenderedVideoUrl] = useState(null);
   const pollIntervalRef = useRef(null);
 
+  // Resolved editor URL (picked from the configured list on each open)
+  const [resolvedUrl, setResolvedUrl] = useState(null);
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState(false);
+
+  // Resolve a working editor URL when the modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setResolving(true);
+    setResolveError(false);
+    setResolvedUrl(null);
+    setEditorReady(false);
+    mediaLoadedRef.current = false;
+
+    getEditorUrl().then(url => {
+      if (cancelled) return;
+      if (url) {
+        setResolvedUrl(url);
+      } else {
+        setResolveError(true);
+      }
+      setResolving(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
   // Lock body scroll when open
   useEffect(() => {
     if (isOpen) {
@@ -26,10 +54,10 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
 
   // Send message to editor iframe
   const sendToEditor = useCallback((message) => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(message, new URL(EDITOR_URL).origin);
+    if (iframeRef.current?.contentWindow && resolvedUrl) {
+      iframeRef.current.contentWindow.postMessage(message, new URL(resolvedUrl).origin);
     }
-  }, []);
+  }, [resolvedUrl]);
 
   // Send theme to editor when ready or when theme changes
   useEffect(() => {
@@ -40,12 +68,12 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
 
   // Listen for messages from editor iframe
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !resolvedUrl) return;
 
     const handleMessage = (event) => {
       // Validate origin
       try {
-        const editorOrigin = new URL(EDITOR_URL).origin;
+        const editorOrigin = new URL(resolvedUrl).origin;
         if (event.origin !== editorOrigin) return;
       } catch {
         return;
@@ -84,7 +112,7 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isOpen, videoUrl, videoName, videoType, clipStart, clipEnd, sendToEditor]);
+  }, [isOpen, resolvedUrl, videoUrl, videoName, videoType, clipStart, clipEnd, sendToEditor]);
 
   // Handle render request from editor
   const handleRenderRequest = async (timeline) => {
@@ -160,13 +188,15 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
   }, []);
 
   const handleClose = () => {
-    if (!window.confirm('Are you sure you want to close the editor? Unsaved changes will be lost.')) {
+    if (editorReady && !window.confirm('Are you sure you want to close the editor? Unsaved changes will be lost.')) {
       return;
     }
     setEditorReady(false);
     setRenderStatus(null);
     setRenderProgress(0);
     setRenderedVideoUrl(null);
+    setResolvedUrl(null);
+    setResolveError(false);
     mediaLoadedRef.current = false;
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     onClose();
@@ -186,19 +216,32 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
       <div className="editor-modal-overlay" onClick={handleClose}></div>
       <div className="editor-modal-content">
         <div className="editor-modal-body">
-          <iframe
-            ref={iframeRef}
-            src={EDITOR_URL}
-            className="editor-iframe"
-            allow="cross-origin-isolated; camera; microphone"
-            title="3Speak Video Editor"
-          />
+          {/* Show iframe only after a working URL is resolved */}
+          {resolvedUrl && (
+            <iframe
+              ref={iframeRef}
+              src={resolvedUrl}
+              className="editor-iframe"
+              allow="cross-origin-isolated; camera; microphone"
+              title="3Speak Video Editor"
+            />
+          )}
 
-          {/* Loading overlay */}
-          {!editorReady && (
+          {/* Loading overlay — resolving URL or waiting for editor ready */}
+          {(resolving || (!editorReady && !resolveError)) && (
             <div className="editor-loading-overlay">
               <Loader2 size={40} className="spinner" />
-              <span>Loading editor...</span>
+              <span>{resolving ? 'Finding available editor...' : 'Loading editor...'}</span>
+            </div>
+          )}
+
+          {/* Error: no editor available */}
+          {resolveError && (
+            <div className="editor-loading-overlay">
+              <span>No editor server is currently available. Please try again later.</span>
+              <button className="render-btn" onClick={handleClose} style={{ marginTop: 16 }}>
+                Close
+              </button>
             </div>
           )}
 

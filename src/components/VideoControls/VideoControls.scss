@@ -216,6 +216,12 @@
       transform: scale(0.92);
     }
 
+    &--autoplay {
+      &.active {
+        color: var(--accent-primary, #e53935);
+      }
+    }
+
     &--glow {
       &.active {
         color: #fbbf24;
@@ -257,6 +263,67 @@
     margin-left: 8px;
     white-space: nowrap;
     user-select: none;
+  }
+
+  // Volume group — icon + slider on hover (desktop only)
+  .vc-volume-group {
+    display: flex;
+    align-items: center;
+    position: relative;
+
+    .vc-volume-slider-wrap {
+      width: 0;
+      overflow: hidden;
+      transition: width 0.2s ease;
+    }
+
+    &:hover .vc-volume-slider-wrap {
+      width: 80px;
+    }
+
+    .vc-volume-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 70px;
+      height: 4px;
+      margin: 0 5px;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+      // background is set inline via style prop for dynamic fill color
+
+      &::-webkit-slider-runnable-track {
+        height: 4px;
+        background: transparent;
+        border-radius: 2px;
+      }
+
+      &::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 12px;
+        height: 12px;
+        margin-top: -4px;
+        border-radius: 50%;
+        background: #fff;
+        cursor: pointer;
+      }
+
+      &::-moz-range-track {
+        height: 4px;
+        background: transparent;
+        border-radius: 2px;
+      }
+
+      &::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        border: none;
+        cursor: pointer;
+      }
+    }
   }
 
   // Quality picker
@@ -394,10 +461,15 @@
       z-index: 1;
     }
 
-    // Hide resize and glow buttons on mobile
+    // Hide resize, glow, autoplay, and volume slider on mobile
     .vc-btn--resize,
-    .vc-btn--glow {
+    .vc-btn--glow,
+    .vc-btn--autoplay {
       display: none;
+    }
+
+    .vc-volume-slider-wrap {
+      display: none !important;
     }
 
     // When visible: show gradient + controls (not progress bar — already visible)

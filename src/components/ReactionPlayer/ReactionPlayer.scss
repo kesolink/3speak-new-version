@@ -1,4 +1,5 @@
 @use "../../mixins.scss" as mix;
+@import '../LanguageSelector/translate-common';
 
 .reaction-player {
   background: var(--card-bg, #1a1a2e);

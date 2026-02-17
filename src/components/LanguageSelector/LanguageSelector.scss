@@ -1,0 +1,26 @@
+.language-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary, #9ca3af);
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  select {
+    background: var(--bg-secondary, #1a1a2e);
+    color: var(--text-primary, #fff);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+
+    &:focus {
+      border-color: var(--accent-primary, #e53935);
+    }
+  }
+}
