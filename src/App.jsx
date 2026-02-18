@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation, Navigate, useParams } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate, Navigate, useParams } from "react-router-dom";
 import { useRef } from "react";
 import "./App.css";
 // import Home from './page/Home'
@@ -14,8 +14,7 @@ import NewVideos from "./page/NewVideos";
 import HomeGrouped from "./page/HomeGrouped";
 import UploadVideo from "./page/UploadVideo";
 import Login from "./page/Login/Login";
-// import KeyChainLogin from './page/Login/KeyChainLogin'
-import KeyChainLogin from "./page/Login/KeyChainLogin";
+// KeyChainLogin replaced by LoginRedirect (opens aioha modal)
 import LoginNew from "./page/Login/LoginNew";
 import { useAppStore } from "./lib/store";
 import { useEffect } from "react";
@@ -79,6 +78,17 @@ const HiveLinkRedirect = () => {
   return <NotFound />;
 };
 
+// /login and /auth/login open the aioha modal and redirect to home
+const LoginRedirect = ({ openLoginModal }) => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    // Replace /login in history with home, then open modal on next tick
+    navigate('/', { replace: true });
+    setTimeout(() => openLoginModal(), 0);
+  }, []);
+  return null;
+};
+
 function App() {
   const location = useLocation();
   const { initializeAuth, authenticated, LogOut, switchAccount, setUser, user: appUser } = useAppStore();
@@ -139,11 +149,15 @@ function App() {
       console.log("Aioha logged out, logging out of 3Speak");
       LogOut(appUser);
       toast.success("Logged out successfully");
-    } else if (aiohaUser && aiohaUser !== appUser) {
-      // Aioha user changed - update 3Speak user
-      console.log("Aioha user changed to:", aiohaUser);
+    } else if (aiohaUser && aiohaUser !== appUser && loginModalOpen) {
+      // Account switch: modal is open and user clicked an existing account
+      // Only sync aiohaUser when modal is open — when closed, handleAiohaLogin
+      // is the sole authority, preventing aioha's stale user reports from overriding
+      console.log("Aioha account switched:", aiohaUser);
       localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, aiohaUser);
       setUser(aiohaUser);
+      setLoginModalOpen(false);
+      toast.success("Login successful!");
     }
   }, [aiohaUser]);
 
@@ -239,7 +253,8 @@ function App() {
             <Route path="/firstupload" element={<FirstUploads />} />
             <Route path="/trend" element={<Trend />} />
             <Route path="/new" element={<NewVideos />} />
-            <Route path="/login" element={<KeyChainLogin />} />
+            <Route path="/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
+            <Route path="/auth/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
              <Route path="/auth/callback" element={<AuthCallback />} />
             {/* <Route path="/email" element={<Email/>} />  */}
             <Route path="/newlogin" element={<LoginNew />} />
@@ -261,6 +276,7 @@ function App() {
             <Route path="/leaderboard" element={<LeaderBoard />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/p/:user" element={<UserProfilePage />} />
+            <Route path="/user/:user" element={<UserProfilePage />} />
             <Route path="/playlist/:playlistId" element={<PlaylistView />} />
             <Route path="/watched/:username" element={<WatchedView />} />
             <Route path="/wallet/:user" element={<Wallet />} />

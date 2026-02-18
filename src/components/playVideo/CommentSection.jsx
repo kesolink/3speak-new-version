@@ -33,7 +33,7 @@ const getRenderer = async () => {
   if (!rendererPromise) {
     rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
       return createHiveRenderer({
-        ipfsGateway: 'https://ipfs-3speak.b-cdn.net',
+        ipfsGateway: 'https://hotipfs-3speak-1.b-cdn.net',
         convertHiveUrls: true,
         usertagUrlFn: (account) => `/p/${account}`,
         hashtagUrlFn: (tag) => `/t/${tag}`,

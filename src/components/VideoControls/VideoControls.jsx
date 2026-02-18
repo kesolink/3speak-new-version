@@ -1,7 +1,31 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo, FaCog } from 'react-icons/fa';
+import { MdClosedCaption, MdClosedCaptionOff } from 'react-icons/md';
 import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture, TbBulbFilled, TbMoonFilled, TbSunFilled, TbPlayerTrackNextFilled } from 'react-icons/tb';
+import { SUPPORTED_LANGUAGES } from '../../utils/translate';
+import { SUBTITLE_FONTS } from '../SubtitleOverlay/SubtitleOverlay';
 import './VideoControls.scss';
+
+const FONT_OPTIONS = [
+  { key: 'sans-serif', label: 'Sans-serif' },
+  { key: 'serif', label: 'Serif' },
+  { key: 'monospace', label: 'Monospace' },
+  { key: 'arial', label: 'Arial' },
+  { key: 'verdana', label: 'Verdana' },
+  { key: 'georgia', label: 'Georgia' },
+  { key: 'times', label: 'Times' },
+  { key: 'courier', label: 'Courier' },
+  { key: 'comic-sans', label: 'Comic Sans' },
+  { key: 'impact', label: 'Impact' },
+];
+
+function PortalIf({ condition, children }) {
+  if (condition && typeof document !== 'undefined') {
+    return createPortal(children, document.body);
+  }
+  return children;
+}
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -44,15 +68,25 @@ function VideoControls({
   onToggleGlow,
   autoplayNext,
   onToggleAutoplay,
+  subtitleLanguages,
+  selectedSubtitleLang,
+  onSubtitleChange,
+  subtitleLoading,
+  subtitleStyle,
+  onSubtitleStyleChange,
 }) {
   const resolvedMarkers = markers || [];
 
   const [hovering, setHovering] = useState(false);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const qualityMenuRef = useRef(null);
+  const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const subtitleMenuRef = useRef(null);
   const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const trackRef = useRef(null);
+  const subtitlePortalRef = useRef(null);
+  const qualityPortalRef = useRef(null);
   const [dragProgress, setDragProgress] = useState(null); // non-null while dragging
 
   // Volume slider — fully ref-driven to avoid React re-render lag
@@ -158,13 +192,48 @@ function VideoControls({
   useEffect(() => {
     if (!qualityMenuOpen) return;
     const handleClickOutside = (e) => {
-      if (qualityMenuRef.current && !qualityMenuRef.current.contains(e.target)) {
+      const inWrap = qualityMenuRef.current?.contains(e.target);
+      const inPortal = qualityPortalRef.current?.contains(e.target);
+      if (!inWrap && !inPortal) {
         setQualityMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [qualityMenuOpen]);
+
+  // Close subtitle menu when clicking outside
+  useEffect(() => {
+    if (!subtitleMenuOpen) return;
+    const handleClickOutside = (e) => {
+      const inWrap = subtitleMenuRef.current?.contains(e.target);
+      const inPortal = subtitlePortalRef.current?.contains(e.target);
+      if (!inWrap && !inPortal) {
+        setSubtitleMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [subtitleMenuOpen]);
+
+  // On mobile, compute fixed position for menus to escape overflow:hidden
+  const getPortalStyle = useCallback((wrapRef) => {
+    if (typeof window === 'undefined' || window.innerWidth > 767) return null;
+    if (!wrapRef.current) return null;
+    const rect = wrapRef.current.getBoundingClientRect();
+    return {
+      position: 'fixed',
+      top: rect.bottom + 6,
+      bottom: 'auto',
+      right: Math.max(8, window.innerWidth - rect.right),
+      marginBottom: 0,
+      maxHeight: '60vh',
+      zIndex: 10000,
+    };
+  }, []);
+
+  const subtitlePortalStyle = subtitleMenuOpen ? getPortalStyle(subtitleMenuRef) : null;
+  const qualityPortalStyle = qualityMenuOpen ? getPortalStyle(qualityMenuRef) : null;
 
   const handleMarkerClick = useCallback((e, time, index) => {
     e.stopPropagation();
@@ -305,13 +374,142 @@ function VideoControls({
               {glowMode === 'vivid' && <TbSunFilled size={15} />}
             </button>
           )}
+          {subtitleLanguages && subtitleLanguages.length > 0 && (
+            <div className="vc-subtitle-wrap" ref={subtitleMenuRef}>
+              <button
+                className={`vc-btn vc-btn--subtitle${selectedSubtitleLang ? ' active' : ''}`}
+                onClick={() => { setSubtitleMenuOpen(o => !o); setQualityMenuOpen(false); }}
+                title="Subtitles"
+              >
+                {selectedSubtitleLang ? <MdClosedCaption size={18} /> : <MdClosedCaptionOff size={18} />}
+              </button>
+              {subtitleMenuOpen && (
+                <PortalIf condition={!!subtitlePortalStyle}>
+                <div
+                  className="vc-subtitle-menu"
+                  ref={subtitlePortalStyle ? subtitlePortalRef : undefined}
+                  style={subtitlePortalStyle || undefined}
+                >
+                  <button
+                    className={`vc-subtitle-item${!selectedSubtitleLang ? ' active' : ''}`}
+                    onClick={() => { onSubtitleChange?.(null); setSubtitleMenuOpen(false); }}
+                  >
+                    Off
+                  </button>
+                  {subtitleLanguages.map((sub) => {
+                    const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === sub.lang);
+                    const label = langInfo ? langInfo.native : sub.lang;
+                    return (
+                      <button
+                        key={sub.lang}
+                        className={`vc-subtitle-item${selectedSubtitleLang === sub.lang ? ' active' : ''}`}
+                        onClick={() => { onSubtitleChange?.(sub.lang); setSubtitleMenuOpen(false); }}
+                      >
+                        {label}
+                        {subtitleLoading && selectedSubtitleLang === sub.lang && ' ...'}
+                      </button>
+                    );
+                  })}
+                  {subtitleStyle && onSubtitleStyleChange && (
+                    <div className="vc-subtitle-style">
+                      <div className="vc-subtitle-style-label">Font</div>
+                      <div className="vc-subtitle-font-list">
+                        {FONT_OPTIONS.map(f => (
+                          <button
+                            key={f.key}
+                            className={`vc-subtitle-font-btn${subtitleStyle.fontFamily === f.key ? ' active' : ''}`}
+                            style={{ fontFamily: SUBTITLE_FONTS[f.key] }}
+                            onClick={() => onSubtitleStyleChange({ fontFamily: f.key })}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="vc-subtitle-style-label">Size</div>
+                      <div className="vc-subtitle-style-row">
+                        {[
+                          { key: 'small', label: 'A' },
+                          { key: 'medium', label: 'A' },
+                          { key: 'large', label: 'A' },
+                          { key: 'x-large', label: 'A' },
+                          { key: 'xx-large', label: 'A' },
+                        ].map(s => (
+                          <button
+                            key={s.key}
+                            className={`vc-subtitle-size-btn${subtitleStyle.fontSize === s.key ? ' active' : ''}`}
+                            onClick={() => onSubtitleStyleChange({ fontSize: s.key })}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="vc-subtitle-style-label">Text Color</div>
+                      <div className="vc-subtitle-style-row">
+                        <input
+                          type="color"
+                          className="vc-subtitle-color-input"
+                          value={subtitleStyle.color || '#ffffff'}
+                          onChange={(e) => onSubtitleStyleChange({ color: e.target.value })}
+                        />
+                        <span className="vc-subtitle-color-hex">{subtitleStyle.color || '#ffffff'}</span>
+                      </div>
+                      <div className="vc-subtitle-style-label">Text Border</div>
+                      <div className="vc-subtitle-style-row">
+                        {[0, 2, 4, 8].map(w => (
+                          <button
+                            key={w}
+                            className={`vc-subtitle-bg-btn${subtitleStyle.borderWidth === w ? ' active' : ''}`}
+                            onClick={() => onSubtitleStyleChange({ borderWidth: w })}
+                          >
+                            {w === 0 ? 'Off' : `${w}px`}
+                          </button>
+                        ))}
+                      </div>
+                      {subtitleStyle.borderWidth > 0 && (
+                        <>
+                          <div className="vc-subtitle-style-label">Border Color</div>
+                          <div className="vc-subtitle-style-row">
+                            <input
+                              type="color"
+                              className="vc-subtitle-color-input"
+                              value={subtitleStyle.borderColor || '#000000'}
+                              onChange={(e) => onSubtitleStyleChange({ borderColor: e.target.value })}
+                            />
+                            <span className="vc-subtitle-color-hex">{subtitleStyle.borderColor || '#000000'}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="vc-subtitle-style-label">Background</div>
+                      <div className="vc-subtitle-style-row">
+                        {[0, 0.5, 0.7, 1].map(o => (
+                          <button
+                            key={o}
+                            className={`vc-subtitle-bg-btn${subtitleStyle.bgOpacity === o ? ' active' : ''}`}
+                            onClick={() => onSubtitleStyleChange({ bgOpacity: o })}
+                          >
+                            {o === 0 ? 'None' : `${Math.round(o * 100)}%`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                </PortalIf>
+              )}
+            </div>
+          )}
           {qualityLevels && qualityLevels.length > 0 && (
             <div className="vc-quality-wrap" ref={qualityMenuRef}>
-              <button className="vc-btn" onClick={() => setQualityMenuOpen(o => !o)} title="Quality">
+              <button className="vc-btn" onClick={() => { setQualityMenuOpen(o => !o); setSubtitleMenuOpen(false); }} title="Quality">
                 <FaCog size={14} />
               </button>
               {qualityMenuOpen && (
-                <div className="vc-quality-menu">
+                <PortalIf condition={!!qualityPortalStyle}>
+                <div
+                  className="vc-quality-menu"
+                  ref={qualityPortalStyle ? qualityPortalRef : undefined}
+                  style={qualityPortalStyle || undefined}
+                >
                   <button
                     className={`vc-quality-item${currentQuality === -1 ? ' active' : ''}`}
                     onClick={() => { onQualityChange?.(-1); setQualityMenuOpen(false); }}
@@ -328,6 +526,7 @@ function VideoControls({
                     </button>
                   ))}
                 </div>
+                </PortalIf>
               )}
             </div>
           )}

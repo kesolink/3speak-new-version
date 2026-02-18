@@ -33,9 +33,12 @@ import {
   Sun,
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
-import { MdTranslate } from 'react-icons/md';
+import { MdTranslate, MdClosedCaption, MdClosedCaptionOff } from 'react-icons/md';
 import useTranslation from '../hooks/useTranslation';
 import TranslateButton from '../components/TranslateButton/TranslateButton';
+import useSubtitles from '../hooks/useSubtitles';
+import SubtitleOverlay from '../components/SubtitleOverlay/SubtitleOverlay';
+import { SUPPORTED_LANGUAGES } from '../utils/translate';
 
 // Custom Hive Icon Component
 const HiveIcon = ({ size = 24, className = '' }) => (
@@ -69,6 +72,18 @@ import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import EditorModal from '../components/modal/EditorModal';
+
+// Thin wrapper: reads currentTime from a ref via polling to avoid re-rendering the whole Shorts page
+function ShortsSubtitleOverlay({ timeRef, cues, style }) {
+  const [time, setTime] = useState(0);
+  useEffect(() => {
+    if (!cues || cues.length === 0) return;
+    const id = setInterval(() => setTime(timeRef.current), 250);
+    return () => clearInterval(id);
+  }, [timeRef, cues]);
+  if (!cues || cues.length === 0) return null;
+  return <SubtitleOverlay currentTime={time} cues={cues} style={style} />;
+}
 
 // Lazy-loaded Hive markdown renderer (same as CommentSection)
 let rendererPromise = null;
@@ -179,6 +194,7 @@ const VideoShort = () => {
   const [activeReply, setActiveReply] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [translatedCaption, setTranslatedCaption] = useState(null);
 
   // Autoplay blocked fallback (iOS Low Power Mode, etc.)
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
@@ -530,6 +546,7 @@ const VideoShort = () => {
     updateProgressBar();
     setParentCardVisible(true);
     setCaptionExpanded(false);
+    setTranslatedCaption(null);
 
     // Update tracking refs
     prevIndexRef.current = currentIndex;
@@ -1150,6 +1167,41 @@ const VideoShort = () => {
   }, [showComments, currentIndex, videos, fetchComments]);
 
   const currentVideo = videos[currentIndex];
+
+  /* ---------- SUBTITLES ---------- */
+  const {
+    availableLanguages: subtitleLanguages,
+    selectedLang: selectedSubtitleLang,
+    selectLanguage: selectSubtitleLang,
+    cues: subtitleCues,
+    loading: subtitleLoading,
+    subtitleStyle,
+  } = useSubtitles(currentVideo?.author, currentVideo?.permlink);
+  const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const subtitleMenuRef = useRef(null);
+
+  // Close subtitle menu on outside click
+  useEffect(() => {
+    if (!subtitleMenuOpen) return;
+    const handler = (e) => {
+      if (subtitleMenuRef.current && !subtitleMenuRef.current.contains(e.target)) {
+        setSubtitleMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [subtitleMenuOpen]);
+
+  /* ---------- CAPTION TRANSLATE ---------- */
+  const handleCaptionTranslate = useCallback(async (langCode) => {
+    if (!currentVideo) return;
+    const result = await onTranslate(currentVideo.permlink, currentVideo.caption, langCode);
+    if (result) setTranslatedCaption(result);
+  }, [currentVideo, onTranslate]);
 
   /* ---------- VOTE TOOLTIP ---------- */
   const toggleVoteTooltip = (author, permlink) => {
@@ -2075,6 +2127,45 @@ const VideoShort = () => {
             <div className={`heartAnimation ${showHeartAnimation ? 'visible' : ''}`}>
               <Heart size={80} fill="#ff2d55" color="#ff2d55" />
             </div>
+            {/* Subtitle/CC toggle */}
+            {subtitleLanguages && subtitleLanguages.length > 0 && (
+              <div className={`subtitleIndicator${selectedSubtitleLang ? ' active' : ''}`}
+                ref={subtitleMenuRef}
+                onClick={(e) => { e.stopPropagation(); setSubtitleMenuOpen(o => !o); }}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setSubtitleMenuOpen(o => !o); }}
+              >
+                {selectedSubtitleLang ? <MdClosedCaption size={18} /> : <MdClosedCaptionOff size={18} />}
+                {subtitleMenuOpen && (
+                  <div className="shortsSubtitleMenu"
+                    onClick={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      className={`shortsSubtitleItem${!selectedSubtitleLang ? ' active' : ''}`}
+                      onClick={() => { selectSubtitleLang(null); setSubtitleMenuOpen(false); }}
+                    >
+                      Off
+                    </button>
+                    {subtitleLanguages.map((sub) => {
+                      const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === sub.lang);
+                      const label = langInfo ? langInfo.native : sub.lang;
+                      return (
+                        <button
+                          key={sub.lang}
+                          className={`shortsSubtitleItem${selectedSubtitleLang === sub.lang ? ' active' : ''}`}
+                          onClick={() => { selectSubtitleLang(sub.lang); setSubtitleMenuOpen(false); }}
+                        >
+                          {label}
+                          {subtitleLoading && selectedSubtitleLang === sub.lang && ' ...'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             {/* Ambient glow toggle */}
             <div className={`glowIndicator${glowMode !== 'off' ? ' active' : ''}`}
               onClick={(e) => { e.stopPropagation(); toggleGlow(); }}
@@ -2294,6 +2385,10 @@ const VideoShort = () => {
           })()}
 
           <div className="bottomOverlay">
+            {/* Subtitle overlay — anchored above user badge, moves with bottomOverlay */}
+            {subtitleCues.length > 0 && (
+              <ShortsSubtitleOverlay timeRef={currentTimeRef} cues={subtitleCues} style={subtitleStyle} />
+            )}
             {/* Reshare avatars — users who reshared (except ourselves) */}
             {reshareUsers.filter(r => r.username !== user).length > 0 && (
               <div className="reshareAvatars" onClick={(e) => e.stopPropagation()}>
@@ -2330,9 +2425,25 @@ const VideoShort = () => {
               />
             </div>
             <div className={`caption${captionExpanded ? ' caption--expanded' : ''}`} onClick={(e) => { e.stopPropagation(); setCaptionExpanded(prev => !prev); }}>
-              <p className="captionText">{currentVideo.caption}</p>
+              <p className="captionText">{translatedCaption || currentVideo.caption}</p>
               {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && (
                 <span className="captionDate">{currentVideo.timeAgo}</span>
+              )}
+              {captionExpanded && (
+                <div className="captionActions" onClick={(e) => e.stopPropagation()}>
+                  {translatedCaption ? (
+                    <button className="captionDismissTranslation" onClick={() => setTranslatedCaption(null)}>
+                      <MdTranslate size={12} />
+                      <span>Show original</span>
+                    </button>
+                  ) : (
+                    <TranslateButton
+                      compact
+                      onTranslate={handleCaptionTranslate}
+                      isTranslating={!!translating?.[currentVideo.permlink]}
+                    />
+                  )}
+                </div>
               )}
               {captionExpanded && currentVideo.tags?.length > 0 && (
                 <div className="captionTags">

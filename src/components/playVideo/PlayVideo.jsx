@@ -43,6 +43,7 @@ import Button from "../Button/Button";
 import { Repeat2, Scissors, Tornado } from 'lucide-react';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
+import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
 
 dayjs.extend(relativeTime);
 
@@ -162,7 +163,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     const url = spkvideo.play_url;
     if (url.startsWith("ipfs://")) {
       const ipfsHash = url.replace("ipfs://", "");
-      return `https://ipfs-3speak.b-cdn.net/ipfs/${ipfsHash}`;
+      return `https://hotipfs-3speak-1.b-cdn.net/ipfs/${ipfsHash}`;
     }
     return url;
   }, [spkvideo?.play_url]);
@@ -501,6 +502,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 }}
                 playsInline
               />
+              {videoControls?.subtitleCues?.length > 0 && (
+                <SubtitleOverlay
+                  currentTime={videoControls.subtitleCurrentTime}
+                  cues={videoControls.subtitleCues}
+                  style={videoControls.subtitleStyle}
+                />
+              )}
               {videoControls?.videoEnded && (
                 <div className="video-ended-overlay">
                   <button className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
@@ -584,6 +592,12 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     onToggleGlow={videoControls.onToggleGlow}
                     autoplayNext={videoControls.autoplayNext}
                     onToggleAutoplay={videoControls.onToggleAutoplay}
+                    subtitleLanguages={videoControls.subtitleLanguages}
+                    selectedSubtitleLang={videoControls.selectedSubtitleLang}
+                    onSubtitleChange={videoControls.onSubtitleChange}
+                    subtitleLoading={videoControls.subtitleLoading}
+                    subtitleStyle={videoControls.subtitleStyle}
+                    onSubtitleStyleChange={videoControls.onSubtitleStyleChange}
                   />
                 </>
               )}

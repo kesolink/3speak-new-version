@@ -1,6 +1,7 @@
 {
-    "rewrites": [
-      { "source": "/(.*)", "destination": "/index.html" }
-    ]
-  }
+  "rewrites": [
+    { "source": "/hivesigner.html", "destination": "/hivesigner.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
   
