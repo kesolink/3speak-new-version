@@ -1,0 +1,54 @@
+.subtitle-overlay {
+  position: absolute;
+  bottom: 60px; // above video controls bar
+  left: 0;
+  right: 0;
+  z-index: 8; // above video, below controls (z-index 10)
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  padding: 0 16px;
+
+  .subtitle-overlay-text {
+    display: inline-block;
+    max-width: 80%;
+    padding: 4px 12px;
+    font-size: var(--sub-font-size, 18px);
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--sub-color, #fff);
+    background: var(--sub-bg, rgba(0, 0, 0, 0.7));
+    border-radius: 4px;
+    text-align: center;
+    white-space: pre-wrap;
+    font-family: var(--sub-font-family, system-ui, sans-serif);
+    -webkit-text-stroke: var(--sub-stroke-width, 0px) var(--sub-stroke-color, transparent);
+    paint-order: stroke fill;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+}
+
+// Mobile: smaller font, closer to bottom
+@media (max-width: 767px) {
+  .subtitle-overlay {
+    bottom: 20px;
+    padding: 0 8px;
+
+    .subtitle-overlay-text {
+      font-size: var(--sub-font-size-mobile, 14px);
+      max-width: 90%;
+      padding: 3px 8px;
+    }
+  }
+}
+
+// Fullscreen: larger text
+:fullscreen .subtitle-overlay,
+.landscape-fullscreen .subtitle-overlay {
+  bottom: 80px;
+
+  .subtitle-overlay-text {
+    font-size: var(--sub-font-size-fullscreen, 24px);
+    padding: 6px 16px;
+  }
+}
