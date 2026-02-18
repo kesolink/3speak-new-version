@@ -15,6 +15,7 @@ import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
+import useSubtitles from '../hooks/useSubtitles';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -133,6 +134,17 @@ function Watch() {
   }, []);
 
   const { glowMode, toggleGlow } = useAmbientGlow();
+
+  // Subtitles
+  const {
+    availableLanguages: subtitleLanguages,
+    selectedLang: selectedSubtitleLang,
+    selectLanguage: selectSubtitleLang,
+    cues: subtitleCues,
+    loading: subtitleLoading,
+    subtitleStyle,
+    updateStyle: updateSubtitleStyle,
+  } = useSubtitles(author, permlink);
 
   // Persist mute/volume preference across video navigations
   const MUTE_STORAGE_KEY = '3speak-muted';
@@ -938,6 +950,14 @@ function Watch() {
           onQualityChange: handleQualityChange,
           glowMode,
           onToggleGlow: toggleGlow,
+          subtitleLanguages,
+          selectedSubtitleLang,
+          onSubtitleChange: selectSubtitleLang,
+          subtitleLoading,
+          subtitleCues,
+          subtitleCurrentTime: playerState.currentTime,
+          subtitleStyle,
+          onSubtitleStyleChange: updateSubtitleStyle,
         }}
         mobileReactionPanel={
           <>
