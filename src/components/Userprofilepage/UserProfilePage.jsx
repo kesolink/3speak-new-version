@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react'
 import { getFollowers } from '../../hive-api/api';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { GET_SOCIAL_FEED_BY_CREATOR } from '../../graphql/queries';
-import Cards from '../Cards/Cards';
 import icon from "../../../public/images/stack.png"
 import "./UserProfilePage.scss"
 import BarLoader from '../Loader/BarLoader';
