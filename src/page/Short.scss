@@ -1,3 +1,5 @@
+@import '../components/LanguageSelector/translate-common';
+
 .short-main {
   flex: 1;
   display: flex;
@@ -8,7 +10,7 @@
   position: relative;
   height: calc(100vh - 64px);
   max-height: calc(100vh - 64px);
-  background-color: var(--bg-primary);
+  background-color: transparent;
 
   @media (max-width: 768px) {
     position: absolute;
@@ -74,6 +76,7 @@
 
   .videoWrapper {
     position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -125,9 +128,15 @@
     // Swipe transition animations
     &.swipe-up {
       animation: swipeUp 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      .bottomOverlay {
+        animation: bottomOverlayFadeIn 0.4s ease 0.15s both;
+      }
     }
     &.swipe-down {
       animation: swipeDown 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      .bottomOverlay {
+        animation: bottomOverlayFadeIn 0.4s ease 0.15s both;
+      }
     }
 
 
@@ -145,27 +154,15 @@
       touch-action: pan-x;
     }
 
-    iframe {
+    video {
       position: absolute !important;
-      top: 50% !important;
-      left: 0 !important;
-      transform: translateY(-50%) !important;
-      width: 100% !important;
-      aspect-ratio: 16 / 9;
-      height: auto !important;
       border: none;
       z-index: 1;
       pointer-events: none;
-
-      @media (max-width: 767px) {
-        top: 50% !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: auto !important;
-        transform: translateY(-50%) !important;
-        aspect-ratio: 16 / 9;
-      }
+      object-fit: contain;
+      background: #000;
     }
+
   }
 
   /* Thumbnail preload while video loads */
@@ -288,53 +285,114 @@
     }
   }
 
-  .muteIndicator {
+  .muteIndicator,
+  .playbackModeIndicator,
+  .glowIndicator {
     position: absolute;
     top: 12px;
-    right: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.35);
     pointer-events: auto;
     cursor: pointer;
     z-index: 6;
-    transition: background 0.2s;
+    transition: background 0.2s, color 0.2s;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(0, 0, 0, 0.55);
     }
 
     svg {
-      color: #fff;
+      color: rgba(255, 255, 255, 0.85);
     }
+
+  }
+
+  .muteIndicator {
+    right: 12px;
   }
 
   .playbackModeIndicator {
+    right: 56px;
+  }
+
+  .subtitleIndicator {
     position: absolute;
     top: 12px;
-    right: 56px;
+    right: 144px;
     display: flex;
     align-items: center;
     justify-content: center;
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.35);
     pointer-events: auto;
     cursor: pointer;
     z-index: 6;
-    transition: background 0.2s;
+    transition: background 0.2s, color 0.2s;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(0, 0, 0, 0.55);
     }
 
     svg {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    &.active svg {
+      color: var(--accent-primary, #e53935);
+    }
+  }
+
+  .shortsSubtitleMenu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    background: rgba(20, 20, 20, 0.95);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 120px;
+    max-height: 280px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 20;
+  }
+
+  .shortsSubtitleItem {
+    display: block;
+    width: 100%;
+    padding: 6px 14px;
+    border: none;
+    background: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
       color: #fff;
+    }
+
+    &.active {
+      color: var(--accent-primary, #e53935);
+      font-weight: 700;
+    }
+  }
+
+  .glowIndicator {
+    right: 100px;
+
+    &.active svg {
+      color: #fbbf24;
     }
   }
 
@@ -419,6 +477,21 @@
     cursor: pointer;
     transition: height 0.15s ease;
 
+    // Invisible hit area above the visible bar for easier clicking/tapping
+    &::before {
+      content: '';
+      position: absolute;
+      top: -20px;
+      left: 0;
+      right: 0;
+      height: 20px;
+
+      @media (max-width: 768px) {
+        top: -28px;
+        height: 28px;
+      }
+    }
+
     &:hover {
       height: 5px;
 
@@ -427,7 +500,7 @@
         transform: translate(-50%, -50%) scale(1);
       }
     }
-            @media (max-width: 768px) {
+    @media (max-width: 768px) {
       bottom: 0.5rem;
     }
   }
@@ -505,10 +578,10 @@
       padding: 8px;
       background: rgba(0, 0, 0, 0.2);
       box-shadow: none;
-      // Position left of playback mode toggle (top-right: back | mode | mute)
+      // Top-left corner
       top: 12px;
-      left: auto;
-      right: 100px;
+      left: 12px;
+      right: auto;
 
       @media (max-width: 767px) {
         display: flex;
@@ -807,6 +880,15 @@
       pointer-events: auto;
     }
 
+    // Subtitle overlay inside bottomOverlay — flows with content, stays above user badge
+    .subtitle-overlay {
+      position: relative;
+      bottom: auto;
+      margin-bottom: 8px;
+      padding: 0;
+      pointer-events: none;
+    }
+
     @media (max-width: 768px) {
       padding-right: 5rem;
       padding-bottom: 1.25rem;
@@ -825,7 +907,14 @@
       position: relative;
       cursor: pointer;
       margin-right: 4px;
-      transition: transform 0.15s;
+      transition: transform 0.15s, opacity 0.4s ease;
+      animation: reshareAvatarFadeIn 0.4s ease both;
+
+      @for $i from 1 through 6 {
+        &:nth-child(#{$i}) {
+          animation-delay: #{($i - 1) * 0.07}s;
+        }
+      }
 
       &:hover {
         transform: scale(1.15);
@@ -873,6 +962,28 @@
         width: 16px;
         height: 16px;
       }
+    }
+  }
+
+  @keyframes bottomOverlayFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes reshareAvatarFadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 
@@ -972,6 +1083,16 @@
       margin: 0;
     }
 
+    .captionDate {
+      font-size: 0.7rem;
+      opacity: 0.6;
+      display: none;
+    }
+
+    &--expanded .captionDate {
+      display: inline;
+    }
+
     .captionMore {
       font-weight: 600;
       opacity: 0.8;
@@ -982,6 +1103,40 @@
       display: block;
       -webkit-line-clamp: unset;
       overflow: visible;
+    }
+
+    .captionActions {
+      margin-top: 6px;
+      pointer-events: auto;
+
+      .comment-translate-btn {
+        color: rgba(255, 255, 255, 0.7);
+        border-color: rgba(255, 255, 255, 0.2);
+
+        &:hover {
+          color: #fff;
+          background: rgba(255, 255, 255, 0.12);
+        }
+      }
+    }
+
+    .captionDismissTranslation {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      color: rgba(255, 255, 255, 0.7);
+      background: none;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      padding: 3px 10px;
+      cursor: pointer;
+
+      &:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.12);
+      }
     }
 
     .captionTags {
@@ -1075,12 +1230,20 @@
     border: none;
     cursor: pointer;
 
+    :root:not([data-theme="dark"]) & {
+      background-color: rgba(0, 0, 0, 0.12);
+    }
+
     [data-theme="dark"] & {
       background-color: rgba(39, 39, 39, 0.8);
     }
 
     &:hover {
       background-color: var(--bg-elevated);
+
+      :root:not([data-theme="dark"]) & {
+        background-color: rgba(0, 0, 0, 0.18);
+      }
 
       [data-theme="dark"] & {
         background-color: #3f3f3f;
@@ -1136,6 +1299,11 @@
       background-color: rgba(0, 0, 0, 0.20);
       pointer-events: auto;
 
+      // Force same style in both themes on mobile (always over dark video)
+      :root:not([data-theme="dark"]) & {
+        background-color: rgba(0, 0, 0, 0.20);
+      }
+
       [data-theme="dark"] & {
         background-color: rgba(0, 0, 0, 0.20);
       }
@@ -1143,15 +1311,13 @@
       svg {
         width: 22px;
         height: 22px;
-        color: white;
+        color: white !important;
         filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
       }
 
-      &.reward {
-        svg {
-          color: white;
-          filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
-        }
+      &.reward svg {
+        color: white !important;
+        filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
       }
     }
   }
@@ -1161,10 +1327,19 @@
     font-weight: 500;
     color: var(--text-primary);
 
+    :root:not([data-theme="dark"]) & {
+      color: var(--text-secondary);
+    }
+
     @media (max-width: 768px) {
       font-size: 0.75rem;
       color: white;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+
+      // Override light-theme color on mobile (always over dark video)
+      :root:not([data-theme="dark"]) & {
+        color: white;
+      }
     }
   }
 
@@ -1250,6 +1425,17 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  .shorts-breathe-logo {
+    color: var(--text-primary, #fff);
+    margin-bottom: 1.5rem;
+    animation: breathe 2s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.15); opacity: 1; }
   }
 
   @keyframes pulseText {

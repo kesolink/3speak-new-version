@@ -1,0 +1,8 @@
+{
+  "appId": "capacitor.threespeak.app",
+  "appName": "3Speak App",
+  "webDir": "dist",
+  "android": {
+    "webContentsDebuggingEnabled": true
+  }
+}

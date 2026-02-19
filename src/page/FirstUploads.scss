@@ -1,5 +1,10 @@
 @use "../mixins.scss" as mix;
 .firstupload-container{
+    .card-container .card .img-wrap img {
+        height: auto;
+        aspect-ratio: 16 / 9;
+    }
+
     .headers{
         padding: 15px 15px;
         // background-color: rgba(0, 0, 0, 0.05);

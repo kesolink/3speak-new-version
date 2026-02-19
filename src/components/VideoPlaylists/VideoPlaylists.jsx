@@ -1,18 +1,25 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MdPlaylistPlay } from 'react-icons/md';
+import { MdPlaylistPlay, MdKeyboardArrowDown, MdKeyboardArrowUp } from 'react-icons/md';
 import { useVideoPlaylists } from '../../hooks/useVideoPlaylists';
 import './VideoPlaylists.scss';
 
 function VideoPlaylists({ author, permlink }) {
   const { data: playlists = [], isLoading } = useVideoPlaylists(author, permlink);
+  const [expanded, setExpanded] = useState(false);
 
   // Don't render anything if loading or no playlists
   if (isLoading || playlists.length === 0) return null;
 
   return (
-    <div className="video-playlists">
-      <h4>
-        <MdPlaylistPlay /> Included in {playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
+    <div className={`video-playlists${expanded ? ' expanded' : ''}`}>
+      <h4 className="playlists-header" onClick={() => setExpanded(prev => !prev)}>
+        <span className="playlists-header-left">
+          <MdPlaylistPlay /> Included in {playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
+        </span>
+        <span className="playlists-toggle">
+          {expanded ? <MdKeyboardArrowUp size={18} /> : <MdKeyboardArrowDown size={18} />}
+        </span>
       </h4>
       <div className="playlist-chips">
         {playlists.map((playlist, index) => (

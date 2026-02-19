@@ -1,11 +1,13 @@
 import { Fragment, useRef, useState, useEffect, useCallback } from 'react';
-import { MdChevronLeft, MdChevronRight, MdClose, MdAspectRatio, MdVideocam, MdComment, MdKeyboardArrowDown, MdKeyboardArrowUp } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdClose, MdAspectRatio, MdVideocam, MdComment, MdKeyboardArrowDown, MdKeyboardArrowUp, MdTranslate } from 'react-icons/md';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES } from '../../utils/config';
 import './ReactionPlayer.scss';
 import { markByReputation } from '../../utils/reputation';
+import { translateText, getTargetLanguage } from '../../utils/translate';
+import TranslateButton from '../TranslateButton/TranslateButton';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -25,7 +27,7 @@ const getRenderer = async () => {
   return rendererPromise;
 };
 
-const SIZE_LABELS = { small: 'S', medium: 'M', big: 'L' };
+const SIZE_LABELS = { small: 'S', medium: 'M', standard: 'Std', big: 'Big', cinema: 'Cin' };
 
 function stripRepliedTo(html) {
   if (!html) return '';
@@ -43,13 +45,27 @@ function strip3SpeakEmbeds(html) {
     .replace(/<iframe[^>]*src="[^"]*embed\.3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi, '');
 }
 
-function CommentNode({ comment, depth }) {
+function CommentNode({ comment, depth, collapsible = true }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [translatedText, setTranslatedText] = useState(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState(false);
   const bodyHtml = depth === 0 ? strip3SpeakEmbeds(comment.body) : stripRepliedTo(comment.body || '');
+
+  const handleTranslate = async (langCode) => {
+    if (!comment.body) return;
+    setTranslateError(false);
+    setIsTranslating(true);
+    try {
+      const result = await translateText(comment.body, langCode || getTargetLanguage());
+      if (result) setTranslatedText(result);
+    } catch { setTranslateError(true); }
+    finally { setIsTranslating(false); }
+  };
 
   if (comment.isLowReputation) return null;
 
-  if (collapsed) {
+  if (collapsible && collapsed) {
     return (
       <div className="rct-thread-comment" style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 16}px` } : undefined}>
         <div className="comment-collapsed-bar" onClick={() => setCollapsed(false)}>
@@ -66,9 +82,21 @@ function CommentNode({ comment, depth }) {
       <div className="rct-thread-header">
         <img className="rct-thread-avatar" src={comment.avatar} alt="" />
         <span className="rct-thread-author">@{comment.author}</span>
-        <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>
+        {collapsible && <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>}
       </div>
       <div className="rct-thread-body markdown-view" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+      {translatedText && (
+        <div className="comment-translation">
+          <div className="comment-translation-header">
+            <MdTranslate size={12} />
+            <span>Translation</span>
+            <button className="comment-translation-dismiss" onClick={() => setTranslatedText(null)}>&times;</button>
+          </div>
+          <p>{translatedText}</p>
+        </div>
+      )}
+      {translateError && <div className="comment-translation comment-translation--error"><p>Translation failed</p></div>}
+      <TranslateButton onTranslate={handleTranslate} isTranslating={isTranslating} compact />
       {comment.children?.map((child, i) => (
         <CommentNode key={i} comment={child} depth={depth + 1} />
       ))}
@@ -495,7 +523,7 @@ function ReactionPlayer({
         {!isVideo && (
           <div className="rct-comment-panel">
             <div className="rct-comment-thread">
-              <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} />
+              <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} collapsible={false} />
               {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
               {nestedComments.map((reply, i) => (
                 <CommentNode key={i} comment={reply} depth={1} />
@@ -574,7 +602,7 @@ function ReactionPlayer({
       {isVideo && current.permlink && (
         <div className="rct-comment-panel rct-comment-panel--below">
           <div className="rct-comment-thread">
-            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} />
+            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} collapsible={false} />
             {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
             {nestedComments.map((reply, i) => (
               <CommentNode key={i} comment={reply} depth={1} />

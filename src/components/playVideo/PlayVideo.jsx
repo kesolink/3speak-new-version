@@ -3,6 +3,7 @@ import "./PlayVideo.scss";
 import VideoControls from "../VideoControls/VideoControls";
 import ViewCount from "../ViewCount/ViewCount";
 import { LuTimer } from "react-icons/lu";
+import { MdReplay, MdPlayArrow } from "react-icons/md";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
@@ -23,12 +24,13 @@ import TipModal from "../../components/tip-reward/TipModal";
 import { toast } from 'sonner';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
-import { getFollowers } from "../../hive-api/api";
+import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
-import { FEED_URL, PLAYER_URL, HIVE_API_URL } from '../../utils/config';
-import { isLoggedIn } from "../../hive-api/aioha";
-import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney } from "react-icons/md";
+import { FEED_URL, HIVE_API_URL, FEATURE_EDITOR } from '../../utils/config';
+import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
+import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
+import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo } from "react-icons/md";
 import { FaHeart } from "react-icons/fa";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
@@ -38,10 +40,14 @@ import { removeFromPlaylist } from "../../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import Button from "../Button/Button";
+import { Repeat2, Scissors, Tornado } from 'lucide-react';
+import { recordReshare, getResharesForVideo } from '../../utils/reshares';
+import EditorModal from '../modal/EditorModal';
+import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -71,6 +77,24 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [communityData, setCommunityData] = useState(null);
   const [authorReputation, setAuthorReputation] = useState(null);
   const [fabOpen, setFabOpen] = useState(false);
+  const [isFollowingCreator, setIsFollowingCreator] = useState(null);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  // Reshare state
+  const [reshareCount, setReshareCount] = useState(0);
+  const [hasReshared, setHasReshared] = useState(false);
+
+  // Editor modal state
+  const [showEditorModal, setShowEditorModal] = useState(false);
+  const [editorVideoUrl, setEditorVideoUrl] = useState(null);
+  const [editorVideoName, setEditorVideoName] = useState(null);
+  const [editorClipStart, setEditorClipStart] = useState(null);
+  const [editorClipEnd, setEditorClipEnd] = useState(null);
+
+  // Clip mode state
+  const [clipMode, setClipMode] = useState(false); // false | 'start' | 'end' | 'done'
+  const [clipStart, setClipStart] = useState(null);
+  const [clipEnd, setClipEnd] = useState(null);
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -139,7 +163,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     const url = spkvideo.play_url;
     if (url.startsWith("ipfs://")) {
       const ipfsHash = url.replace("ipfs://", "");
-      return `https://ipfs-3speak.b-cdn.net/ipfs/${ipfsHash}`;
+      return `https://hotipfs-3speak-1.b-cdn.net/ipfs/${ipfsHash}`;
     }
     return url;
   }, [spkvideo?.play_url]);
@@ -241,14 +265,22 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     fetchAccountData();
   }, [user, calculateVoteValue, weight]);
 
-  // Effect: Fetch speak data, followers, and reputation (only when author/permlink changes)
+  // Effect: Fetch speak data, followers, reputation, and follow status (only when author/permlink changes)
   useEffect(() => {
     if (!author || !permlink) return;
 
     speakWatchData();
     getFollowersCount(author);
     getUserReputation(author).then(rep => setAuthorReputation(rep)).catch(() => {});
-  }, [author, permlink, speakWatchData, getFollowersCount]);
+
+    // Check follow relationship for FAB button
+    if (user && author !== user) {
+      setIsFollowingCreator(null);
+      getRelationshipBetweenAccounts(user, author).then((relation) => {
+        if (relation?.follows != null) setIsFollowingCreator(relation.follows);
+      }).catch(() => {});
+    }
+  }, [author, permlink, speakWatchData, getFollowersCount, user]);
 
   // Effect: Get tooltip voters (only when author/permlink/user changes)
   useEffect(() => {
@@ -293,6 +325,107 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   }, [navigate]);
 
 
+  // Fetch reshare data
+  useEffect(() => {
+    if (!author || !permlink) return;
+    setReshareCount(0);
+    setHasReshared(false);
+    (async () => {
+      try {
+        const { reshares, count } = await getResharesForVideo(author, permlink);
+        setReshareCount(count);
+        if (user) {
+          setHasReshared(reshares.some(r => r.username === user));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch reshares:', err);
+      }
+    })();
+  }, [author, permlink, user]);
+
+  const handleReshare = useCallback(async () => {
+    if (!authenticated || !user) {
+      toast.error('Log in to reshare');
+      return;
+    }
+    if (hasReshared) return;
+    const result = await recordReshare(user, author, permlink);
+    if (result) {
+      setHasReshared(true);
+      setReshareCount(prev => prev + 1);
+      toast.success('Reshared!');
+    } else {
+      toast.error('Failed to reshare');
+    }
+  }, [authenticated, user, author, permlink, hasReshared]);
+
+  const handleRemix = useCallback(() => {
+    if (!videoUrlSelected) {
+      toast.error('Could not resolve video URL for remix');
+      return;
+    }
+    setEditorVideoUrl(videoUrlSelected);
+    setEditorVideoName(`${author} - ${videoDetails?.title || permlink}`);
+    setEditorClipStart(null);
+    setEditorClipEnd(null);
+    setShowEditorModal(true);
+  }, [videoUrlSelected, author, permlink, videoDetails?.title]);
+
+  // Clip mode helpers
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const handleStartClipMode = useCallback(() => {
+    setClipMode('start');
+    setClipStart(null);
+    setClipEnd(null);
+    toast.info('Seek to the start of your clip, then click "Set Start"');
+  }, []);
+
+  const handleSetClipStart = useCallback(() => {
+    const time = Math.floor(videoControls?.currentTime || 0);
+    setClipStart(time);
+    setClipMode('end');
+    toast.info('Now seek to the end of your clip and click "Set End"');
+  }, [videoControls?.currentTime]);
+
+  const handleSetClipEnd = useCallback(() => {
+    const time = Math.floor(videoControls?.currentTime || 0);
+    if (clipStart !== null && time <= clipStart) {
+      toast.error('End time must be after start time');
+      return;
+    }
+    if (clipStart !== null && time - clipStart > 30) {
+      toast.error('Clip cannot be longer than 30 seconds');
+      return;
+    }
+    setClipEnd(time);
+    setClipMode('done');
+    toast.success(`Clip set: ${formatTime(clipStart)} – ${formatTime(time)}`);
+  }, [videoControls?.currentTime, clipStart]);
+
+  const handleCancelClip = useCallback(() => {
+    setClipMode(false);
+    setClipStart(null);
+    setClipEnd(null);
+  }, []);
+
+  const handleCreateClip = useCallback(() => {
+    if (!videoUrlSelected) {
+      toast.error('Could not resolve video URL');
+      return;
+    }
+    setEditorVideoUrl(videoUrlSelected);
+    setEditorVideoName(`${author} - ${videoDetails?.title || permlink} (clip)`);
+    setEditorClipStart(clipStart);
+    setEditorClipEnd(clipEnd);
+    setShowEditorModal(true);
+    setClipMode(false);
+  }, [videoUrlSelected, author, permlink, videoDetails?.title, clipStart, clipEnd]);
+
   const handleProfileNavigate = useCallback((userName) => {
     navigate(`/p/${userName}`);
   }, [navigate]);
@@ -302,7 +435,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   }, []);
 
   const handleShare = useCallback(async () => {
-    const shareUrl = `${window.location.origin}/watch?v=${author}/${permlink}`;
+    const time = Math.floor(videoControls?.currentTime || 0);
+    const timeParam = time > 0 ? `&t=${time}` : '';
+    const shareUrl = `${window.location.origin}/watch?v=${author}/${permlink}${timeParam}`;
     const shareData = { title: videoDetails?.title || '3Speak Video', url: shareUrl };
     try {
       if (navigator.share && navigator.canShare?.(shareData)) {
@@ -321,7 +456,23 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         }
       }
     }
-  }, [author, permlink, videoDetails?.title]);
+  }, [author, permlink, videoDetails?.title, videoControls?.currentTime]);
+
+  const handleFabFollow = useCallback(async () => {
+    if (!isLoggedIn()) { toast.error('Please login to follow users'); return; }
+    if (followLoading) return;
+    setFollowLoading(true);
+    setIsFollowingCreator(true);
+    try {
+      await followWithAioha(author, true);
+      toast.success(`Followed @${author}`);
+    } catch (err) {
+      setIsFollowingCreator(false);
+      toast.error('Failed to follow: ' + err.message);
+    } finally {
+      setFollowLoading(false);
+    }
+  }, [author, followLoading]);
 
   const handleCommunityNavigate = useCallback((community) => {
     navigate(`/community/${community}`);
@@ -337,26 +488,67 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       <div className="play-video">
         <div className="top-container">
           {(author && permlink) ? (
-            <div className="video-iframe-wrapper">
-              <iframe
-                src={`${PLAYER_URL}/watch?v=${author}/${permlink}&layout=desktop&mode=iframe&controls=0`}
+            <div className="video-iframe-wrapper" ref={wrapperRef}>
+              <video
+                ref={videoRef}
                 style={{
                   position: "absolute",
                   top: 0,
                   left: 0,
                   width: "100%",
                   height: "100%",
-                  border: "0",
-                  overflow: "hidden",
+                  objectFit: "contain",
+                  background: "#000",
                 }}
-                frameBorder="0"
-                scrolling="no"
-                allowFullScreen
+                playsInline
               />
+              {videoControls?.subtitleCues?.length > 0 && (
+                <SubtitleOverlay
+                  currentTime={videoControls.subtitleCurrentTime}
+                  cues={videoControls.subtitleCues}
+                  style={videoControls.subtitleStyle}
+                />
+              )}
+              {videoControls?.videoEnded && (
+                <div className="video-ended-overlay">
+                  <button className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
+                    <MdReplay size={48} />
+                  </button>
+                  {!videoControls.autoplayNext && videoControls.endSuggestions?.length > 0 && (
+                    <div className="video-ended-suggestions">
+                      {videoControls.endSuggestions.map((v, i) => {
+                        const vAuthor = v?.author?.username || v?.author?.id || v?.author || v?.owner;
+                        return (
+                          <a
+                            key={`${vAuthor}-${v.permlink}-${i}`}
+                            className="video-ended-card"
+                            href={`/watch?v=${vAuthor}/${v.permlink}`}
+                            onClick={(e) => { e.preventDefault(); navigate(`/watch?v=${vAuthor}/${v.permlink}`); }}
+                          >
+                            <img src={fixVideoThumbnail(v)} alt={v.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
+                            <div className="video-ended-card-info">
+                              <span className="video-ended-card-title">{v.title?.length > 40 ? v.title.slice(0, 40) + '...' : v.title}</span>
+                              <span className="video-ended-card-author">@{vAuthor}</span>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {videoControls?.autoplayBlocked && !videoControls?.videoEnded && (
+                <div className="video-replay-overlay" onClick={videoControls.onAutoplayTap}>
+                  <button className="video-replay-btn" title="Play">
+                    <MdPlayArrow size={48} />
+                  </button>
+                </div>
+              )}
               {videoControls && (
                 <>
                   <div
                     className="video-interact-overlay"
+                    style={showTooltip ? { pointerEvents: 'none' } : undefined}
                     onMouseMove={() => {
                       if (window.innerWidth > 767) videoControls.onMouseMove();
                     }}
@@ -374,12 +566,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   <VideoControls
                     currentTime={videoControls.currentTime}
                     duration={videoControls.duration}
+                    buffered={videoControls.buffered}
                     isPlaying={videoControls.isPlaying}
                     isMuted={videoControls.isMuted}
+                    volume={videoControls.volume}
                     isFullscreen={videoControls.isFullscreen}
                     isVisible={videoControls.isVisible}
                     onTogglePlay={videoControls.onTogglePlay}
                     onToggleMute={videoControls.onToggleMute}
+                    onVolumeChange={videoControls.onVolumeChange}
                     onSeekBackward={videoControls.onSeekBackward}
                     onSeekForward={videoControls.onSeekForward}
                     onSeek={videoControls.onSeek}
@@ -387,6 +582,22 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     markers={videoControls.markers}
                     onMarkerSelect={videoControls.onMarkerSelect}
                     onReactToMoment={videoControls.onReactToMoment}
+                    onCycleReactionSize={videoControls.onCycleReactionSize}
+                    reactionSizeLabel={videoControls.reactionSizeLabel}
+                    onTogglePip={videoControls.onTogglePip}
+                    qualityLevels={videoControls.qualityLevels}
+                    currentQuality={videoControls.currentQuality}
+                    onQualityChange={videoControls.onQualityChange}
+                    glowMode={videoControls.glowMode}
+                    onToggleGlow={videoControls.onToggleGlow}
+                    autoplayNext={videoControls.autoplayNext}
+                    onToggleAutoplay={videoControls.onToggleAutoplay}
+                    subtitleLanguages={videoControls.subtitleLanguages}
+                    selectedSubtitleLang={videoControls.selectedSubtitleLang}
+                    onSubtitleChange={videoControls.onSubtitleChange}
+                    subtitleLoading={videoControls.subtitleLoading}
+                    subtitleStyle={videoControls.subtitleStyle}
+                    onSubtitleStyleChange={videoControls.onSubtitleStyleChange}
                   />
                 </>
               )}
@@ -398,7 +609,24 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           )}
 
           <div className="video-title-row">
-            <h3>{videoDetails?.title}</h3>
+            <div className="video-title-col">
+              <h3>{videoDetails?.title}</h3>
+              <div className="mobile-title-meta">
+                <AuthorBadge
+                  author={videoDetails?.author?.id}
+                  reputation={authorReputation}
+                  followersCount={followData?.follower_count}
+                />
+                {community_id && (
+                  <div className="community-title-wrap" onClick={() => handleCommunityNavigate(community_id)}>
+                    <img src={`https://images.hive.blog/u/${community_id}/avatar/small`} alt="" />
+                    <div className="community-text">
+                      <span className="community-name">{comunity_name}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
             <button
               className="mobile-title-toggle"
               onClick={() => setMobileDetailsExpanded(prev => !prev)}
@@ -414,6 +642,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               reputation={authorReputation}
               followersCount={followData?.follower_count}
               showFollow
+              isFollowing={isFollowingCreator}
+              onFollow={(_, willFollow) => setIsFollowingCreator(willFollow)}
             />
             {community_id && (<div className="community-title-wrap" onClick={() => handleCommunityNavigate(community_id)}>
               <img src={`https://images.hive.blog/u/${community_id}/avatar/small`} alt="" />
@@ -427,12 +657,6 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           </div>
 
           <div className="community-tags-row">
-            {community_id && (<div className="community-title-wrap mobile-only" onClick={() => handleCommunityNavigate(community_id)}>
-              <img src={`https://images.hive.blog/u/${community_id}/avatar/small`} alt="" />
-              <div className="community-text">
-                <span className="community-name">{comunity_name}</span>
-              </div>
-            </div>)}
             <div className="tag-wrapper">
               {tags.map((tag, index) => (
                 <span key={index} onClick={() => handleSelectTag(tag)}>{tag}</span>
@@ -441,33 +665,52 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           </div>
 
           <div className="play-video-info">
-            <div className="wrap-left">
-              <ViewCount views={view} author={author} permlink={permlink} size={13} />
-              <div className="wrap">
-                <LuTimer />
-                <span>{formatRelativeTime(videoDetails?.created_at)}</span>
+            <div className="info-stats-row">
+              <div className="wrap-left">
+                <ViewCount views={view} author={author} permlink={permlink} size={13} />
+                <div className="wrap">
+                  <LuTimer />
+                  <span>{formatRelativeTime(videoDetails?.created_at)}</span>
+                </div>
+              </div>
+              <div className="wrap-right-stats">
+                <PayoutAmount amount={videoDetails?.stats?.total_hive_reward ?? 0} size={13} onClick={toggleTooltip} />
+                <span className="wrap">
+                  <UpvoteCount
+                    count={optimisticVoteCount}
+                    voted={isVoted}
+                    onClick={toggleTooltip}
+                    loading={isLoading}
+                    onCountEnter={() => setOpenToolTip(true)}
+                    onCountLeave={() => setOpenToolTip(false)}
+                    size={13}
+                  >
+                    <div className="loader-circle">
+                      <TailChase className="loader-circle" size="15" speed="1.5" color="red" />
+                    </div>
+                  </UpvoteCount>
+                  {openTooltip && <ToolTip tooltipVoters={tooltipVoters} />}
+                </span>
               </div>
             </div>
-            
-            <div className="wrap-right">
-              <PayoutAmount amount={videoDetails?.stats?.total_hive_reward ?? 0} size={13} onClick={toggleTooltip} />
 
-              <span className="wrap">
-                <UpvoteCount
-                  count={optimisticVoteCount}
-                  voted={isVoted}
-                  onClick={toggleTooltip}
-                  loading={isLoading}
-                  onCountEnter={() => setOpenToolTip(true)}
-                  onCountLeave={() => setOpenToolTip(false)}
-                  size={13}
-                >
-                  <div className="loader-circle">
-                    <TailChase className="loader-circle" size="15" speed="1.5" color="red" />
-                  </div>
-                </UpvoteCount>
-                {openTooltip && <ToolTip tooltipVoters={tooltipVoters} />}
-              </span>
+            <div className="info-buttons-row">
+              <button
+                className="share-btn"
+                onClick={handleShare}
+                title="Share with timestamp"
+              >
+                <MdShare size={16} />
+              </button>
+
+              <button
+                className={`reshare-btn${hasReshared ? ' reshared' : ''}`}
+                onClick={handleReshare}
+                title={hasReshared ? 'Reshared' : 'Reshare'}
+              >
+                <Repeat2 size={16} />
+                {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
+              </button>
 
               {isInWatchLater && (
                 <button
@@ -512,6 +755,55 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
           </div>
 
+          {FEATURE_EDITOR && (
+            <div className="tools-row">
+              <button
+                className="remix-btn"
+                onClick={handleRemix}
+                title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
+                disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
+              >
+                <Tornado size={16} />
+                <span className="tools-row-label">Remix</span>
+              </button>
+              <button
+                className={`clip-btn${clipMode ? ' active' : ''}`}
+                onClick={clipMode ? handleCancelClip : handleStartClipMode}
+                title={!authenticated ? 'Log in to clip' : clipMode ? 'Cancel clip' : 'Clip video'}
+                disabled={!authenticated}
+              >
+                <Scissors size={16} />
+                <span className="tools-row-label">Clip</span>
+              </button>
+            </div>
+          )}
+
+        {/* Clip mode bar */}
+        {FEATURE_EDITOR && clipMode && (
+          <div className="clip-bar">
+            <div className="clip-bar-info">
+              <Scissors size={16} />
+              <span className="clip-bar-label">
+                {clipMode === 'start' && 'Seek to the start of your clip'}
+                {clipMode === 'end' && `Start: ${formatTime(clipStart)} — Now seek to the end`}
+                {clipMode === 'done' && `Clip: ${formatTime(clipStart)} – ${formatTime(clipEnd)}`}
+              </span>
+            </div>
+            <div className="clip-bar-actions">
+              {clipMode === 'start' && (
+                <button className="clip-action-btn" onClick={handleSetClipStart}>Set Start</button>
+              )}
+              {clipMode === 'end' && (
+                <button className="clip-action-btn" onClick={handleSetClipEnd}>Set End</button>
+              )}
+              {clipMode === 'done' && (
+                <button className="clip-action-btn" onClick={handleCreateClip}>Create Clip</button>
+              )}
+              <button className="clip-cancel-btn" onClick={handleCancelClip}>Cancel</button>
+            </div>
+          </div>
+        )}
+
         {/* Show PlaylistBar when watching from a playlist, otherwise show VideoPlaylists */}
         {playlistData ? (
           <PlaylistBar
@@ -534,7 +826,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             className="description-toggle-btn"
             onClick={() => setDescriptionExpanded(prev => !prev)}
           >
-            {descriptionExpanded ? 'Show less' : 'Show more'}
+            {descriptionExpanded ? 'Hide description' : 'Show description'}
           </button>
         </div>
         </div>{/* end video-details-collapsible */}
@@ -544,6 +836,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         {mobileReactionPanel && (
           <div className="mobile-reactions-slot">
             {mobileReactionPanel}
+          </div>
+        )}
+
+        {/* Cinema mode reactions slot — between description and comments (desktop) */}
+        {cinemaReactionPanel && (
+          <div className="cinema-reactions-slot">
+            {cinemaReactionPanel}
           </div>
         )}
 
@@ -576,6 +875,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         videoTitle={videoDetails?.title}
       />
 
+      <EditorModal
+        isOpen={showEditorModal}
+        onClose={() => setShowEditorModal(false)}
+        videoUrl={editorVideoUrl}
+        videoName={editorVideoName}
+        clipStart={editorClipStart}
+        clipEnd={editorClipEnd}
+      />
+
       {/* Mobile FAB — speed-dial for quick actions */}
       {!videoControls?.isFullscreen && fabOpen && (
         <div className="fab-backdrop" onClick={() => setFabOpen(false)} />
@@ -595,6 +903,17 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </button>
               </div>
 
+              <div className="fab-action">
+                <span className="fab-action-label">Details</span>
+                <button
+                  className={`fab-action-btn${mobileDetailsExpanded ? ' fab-action-btn--active' : ''}`}
+                  onClick={() => { setMobileDetailsExpanded(prev => !prev); setFabOpen(false); }}
+                  aria-label="Toggle details"
+                >
+                  <MdInfo size={20} />
+                </button>
+              </div>
+
               {authenticated && isLoggedIn() && (
                 <div className="fab-action">
                   <span className="fab-action-label">Playlist</span>
@@ -604,6 +923,19 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     aria-label="Add to playlist"
                   >
                     <MdPlaylistAdd size={20} />
+                  </button>
+                </div>
+              )}
+
+              {authenticated && isLoggedIn() && !isFollowingCreator && author !== user && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Follow</span>
+                  <button
+                    className="fab-action-btn"
+                    onClick={() => { handleFabFollow(); setFabOpen(false); }}
+                    aria-label="Follow creator"
+                  >
+                    <MdPersonAdd size={20} />
                   </button>
                 </div>
               )}
@@ -620,6 +952,17 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   </button>
                 </div>
               )}
+
+              <div className="fab-action">
+                <span className="fab-action-label">Reshare{reshareCount > 0 ? ` (${reshareCount})` : ''}</span>
+                <button
+                  className={`fab-action-btn${hasReshared ? ' fab-action-btn--voted' : ''}`}
+                  onClick={() => { handleReshare(); setFabOpen(false); }}
+                  aria-label="Reshare"
+                >
+                  <Repeat2 size={20} />
+                </button>
+              </div>
 
               <div className="fab-action">
                 <span className="fab-action-label">Vote</span>
@@ -678,6 +1021,9 @@ PlayVideo.propTypes = {
   }),
   onClosePlaylist: PropTypes.func,
   mobileReactionPanel: PropTypes.node,
+  cinemaReactionPanel: PropTypes.node,
+  videoRef: PropTypes.oneOfType([PropTypes.func, PropTypes.object]),
+  wrapperRef: PropTypes.oneOfType([PropTypes.func, PropTypes.object]),
 };
 
 export default PlayVideo;

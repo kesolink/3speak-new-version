@@ -10,6 +10,7 @@ import CardSkeleton from "../Cards/CardSkeleton";
 import Com_PageSke_Loader from "./Com_PageSke_Loader";
 import { useContentBatch } from "../../hooks/useContentBatch";
 import { useWatchHistory } from "../../hooks/useWatchHistory";
+import useViewCounts from "../../hooks/useViewCounts";
 
 // Hive client
 const client = new Client(HIVE_API_NODES);
@@ -106,6 +107,9 @@ function CommunityPage() {
   // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
 
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(videos);
+
   return (
     <div className="community-page-wrap">
       <div className="com-profile-img-wrap">
@@ -150,7 +154,7 @@ function CommunityPage() {
       ) : isError ? (
         <p>Error fetching videos</p>
       ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
       )}
 
       {isFetchingNextPage && <p style={{ textAlign: "center" }}>Loading more...</p>}

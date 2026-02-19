@@ -8,9 +8,11 @@ import "./HomeGrouped.scss";
 import { NEW_CONTENT } from "../graphql/queries";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
+import useViewCounts from "../hooks/useViewCounts";
+import { useAppStore } from "../lib/store";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
@@ -19,14 +21,19 @@ const fetchHome = async () => {
   return Array.isArray(data) ? data : [];
 };
 
+const fetchFollowFeed = async (username) => {
+  const res = await axios.get(`${FOLLOW_FEED_URL}/${username}?page=1&limit=50`);
+  return res.data?.videos || [];
+};
+
 const fetchFirstUploads = async () => {
   const res = await axios.get(`${FEED_URL}/apiv2/feeds/firstUploads?page=1`);
   return Array.isArray(res.data) ? res.data : [];
 };
 
 const fetchTrending = async () => {
-  const res = await axios.get(`${FEED_URL}/apiv2/feeds/trending?limit=50`);
-  return Array.isArray(res.data) ? res.data : [];
+  const res = await axios.get(`${TRENDING_SORTED_URL}?page=1&limit=50`);
+  return res.data?.videos || [];
 };
 
 // Helper to deduplicate videos by author+permlink
@@ -42,7 +49,7 @@ const deduplicateVideos = (videos) => {
 };
 
 // Horizontal scrollable video row component
-const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatched }) => {
+const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatched, getViewCount }) => {
   const scrollContainerRef = useRef(null);
   const [showLeftBtn, setShowLeftBtn] = useState(false);
   const [showRightBtn, setShowRightBtn] = useState(true);
@@ -110,6 +117,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 
   const iconsByTitle = {
     "Home Feed": <TrendingIcon />,
+    "Follow Feed": <TrendingIcon />,
     "New Content": <NewContentIcon />,
     "First Time Uploads": <FirstUploadIcon />,
     "Trending": <TrendingIcon />
@@ -156,7 +164,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
             </div>
           ) : (
             <div className="card-container-horizontal">
-              <Card3 videos={videos.slice(0, 16)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+              <Card3 videos={videos.slice(0, 16)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
             </div>
           )}
         </div>
@@ -172,9 +180,11 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 };
 
 const HomeGrouped = () => {
+  const { authenticated, user } = useAppStore();
+
   const { data: homeData, isLoading: homeLoading } = useQuery({
-    queryKey: ["home-grouped"],
-    queryFn: fetchHome,
+    queryKey: authenticated ? ["follow-feed", user] : ["home-grouped"],
+    queryFn: authenticated ? () => fetchFollowFeed(user) : fetchHome,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -210,15 +220,19 @@ const HomeGrouped = () => {
   // Batch check watch history for all videos
   const { isWatched } = useWatchHistory(allVideos);
 
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(allVideos);
+
   return (
     <div className="home-grouped-container">
       <VideoRow
-        title="Home Feed"
+        title={authenticated ? "Follow Feed" : "Home Feed"}
         videos={homeData || []}
         linkTo="/home-feed"
         isLoading={homeLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
+        getViewCount={getViewCount}
       />
 
       <VideoRow
@@ -228,6 +242,7 @@ const HomeGrouped = () => {
         isLoading={newContentLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
+        getViewCount={getViewCount}
       />
 
       <VideoRow
@@ -237,6 +252,7 @@ const HomeGrouped = () => {
         isLoading={trendingLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
+        getViewCount={getViewCount}
       />
 
       <VideoRow
@@ -246,6 +262,7 @@ const HomeGrouped = () => {
         isLoading={firstUploadsLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
+        getViewCount={getViewCount}
       />
     </div>
   );

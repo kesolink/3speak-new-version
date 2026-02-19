@@ -7,12 +7,15 @@ import { GET_RELATED, GET_VIDEO_DETAILS, TRENDING_FEED, GET_AUTHOR_VIDEOS } from
 import { useQuery } from '@apollo/client';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
-import { recordWatch } from '../utils/watchHistory';
+import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, PLAYER_URL } from '../utils/config';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
+import { usePlayer } from '@mantequilla-soft/3speak-player/react';
+import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
+import useSubtitles from '../hooks/useSubtitles';
 
 const hiveClient = new Client(HIVE_API_NODES);
 
@@ -34,6 +37,7 @@ const getRenderer = async () => {
 
 // Number of author videos to show at the top of recommendations
 const AUTHOR_VIDEOS_COUNT = 4;
+const QUALITY_STORAGE_KEY = '3speak-quality-pref';
 
 // Filter out videos older than December 2023 (old videos may not exist on CDN)
 const MIN_VIDEO_DATE = new Date('2023-12-01T00:00:00.000Z');
@@ -43,14 +47,14 @@ function filterValidVideos(videos) {
   return videos.filter(video => {
     // Must have created_at date
     if (!video?.created_at) return false;
-    
+
     // Filter out old videos
     const videoDate = new Date(video.created_at);
     if (videoDate < MIN_VIDEO_DATE) return false;
-    
+
     // Filter out videos without a valid play_url (likely deleted)
     if (!video?.spkvideo?.play_url) return false;
-    
+
     return true;
   });
 }
@@ -67,6 +71,14 @@ function Watch() {
 
   // Track which videos we've recorded to avoid duplicate API calls
   const recordedWatchRef = useRef(new Set());
+
+  // Track videos played in this autoplay session to avoid loops
+  const playedVideosRef = useRef(new Set());
+
+  // Watched status from backend (Map of "author/permlink" → watch data)
+  const [watchedMap, setWatchedMap] = useState(new Map());
+  const watchedMapRef = useRef(watchedMap);
+  watchedMapRef.current = watchedMap;
 
   // Get playlist data from location state (passed from PlaylistView)
   const [playlistData, setPlaylistData] = useState(null);
@@ -97,28 +109,277 @@ function Watch() {
     }
   }, [posParam]);
 
-  // Send command to the player iframe
-  const sendPlayerCommand = useCallback((command) => {
-    const iframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage({ type: command }, '*');
-    }
-  }, []);
+  // --- SDK Player ---
+  const wrapperRef = useRef(null);
+  const videoIsVerticalRef = useRef(false);
+  const fullscreenFromButtonRef = useRef(false);
 
-  const triggerPlay = useCallback(() => {
-    sendPlayerCommand('play');
-  }, [sendPlayerCommand]);
-
-  // Video playback state for custom controls
-  const [currentTime, setCurrentTime] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const hideTimerRef = useRef(null);
-  const videoIsVerticalRef = useRef(false);
-  const fullscreenFromButtonRef = useRef(false);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+
+  // Autoplay next video preference
+  const AUTOPLAY_STORAGE_KEY = '3speak-autoplay';
+  const [autoplayNext, setAutoplayNext] = useState(() => localStorage.getItem('3speak-autoplay') !== '0');
+  const autoplayNextRef = useRef(autoplayNext);
+  autoplayNextRef.current = autoplayNext;
+  const toggleAutoplayNext = useCallback(() => {
+    setAutoplayNext(prev => {
+      const next = !prev;
+      localStorage.setItem(AUTOPLAY_STORAGE_KEY, next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
+  const { glowMode, toggleGlow } = useAmbientGlow();
+
+  // Subtitles
+  const {
+    availableLanguages: subtitleLanguages,
+    selectedLang: selectedSubtitleLang,
+    selectLanguage: selectSubtitleLang,
+    cues: subtitleCues,
+    loading: subtitleLoading,
+    subtitleStyle,
+    updateStyle: updateSubtitleStyle,
+  } = useSubtitles(author, permlink);
+
+  // Persist mute/volume preference across video navigations
+  const MUTE_STORAGE_KEY = '3speak-muted';
+  const VOLUME_STORAGE_KEY = '3speak-volume';
+  const storedMuted = localStorage.getItem(MUTE_STORAGE_KEY) === '1';
+  const storedVolume = parseFloat(localStorage.getItem(VOLUME_STORAGE_KEY)) || 1;
+
+  // Quality levels state
+  const [qualityLevels, setQualityLevels] = useState([]);
+  const [currentQuality, setCurrentQuality] = useState(-1); // -1 = auto
+
+  const {
+    ref: sdkVideoRef,
+    state: playerState,
+    player,
+    load: loadVideo,
+    pause,
+    togglePlay,
+    seek,
+    setMuted: sdkSetMuted,
+    setVolume: sdkSetVolume,
+    togglePip,
+    setQuality: sdkSetQuality,
+  } = usePlayer({
+    apiBase: PLAYER_URL,
+    muted: storedMuted,
+    loop: false,
+    poster: true,
+    resume: false,
+    hlsConfig: {
+      maxBufferLength: 600,      // buffer up to 10 min ahead
+      maxMaxBufferLength: 600,
+      maxBufferSize: 60 * 1000 * 1000, // 60 MB
+    },
+  });
+
+  // Wrap setMuted/setVolume to persist to localStorage
+  const setMuted = useCallback((muted) => {
+    sdkSetMuted(muted);
+    localStorage.setItem(MUTE_STORAGE_KEY, muted ? '1' : '0');
+  }, [sdkSetMuted]);
+
+  const setVolume = useCallback((vol) => {
+    sdkSetVolume(vol);
+    localStorage.setItem(VOLUME_STORAGE_KEY, String(vol));
+  }, [sdkSetVolume]);
+
+  // Track when the <video> element is mounted and attached to the Player
+  const [videoAttached, setVideoAttached] = useState(false);
+  const videoRef = useCallback((element) => {
+    sdkVideoRef(element); // pass to usePlayer's internal attach
+    if (element) {
+      // Apply stored volume immediately after attach (SDK has no volume config option)
+      const savedVol = parseFloat(localStorage.getItem('3speak-volume'));
+      if (!isNaN(savedVol)) element.volume = savedVol;
+    }
+    setVideoAttached(!!element);
+  }, [sdkVideoRef]);
+
+  // Refs synced on every render so event handlers avoid stale closures
+  const playlistDataRef = useRef(playlistData);
+  playlistDataRef.current = playlistData;
+  const showPlaylistRef = useRef(showPlaylist);
+  showPlaylistRef.current = showPlaylist;
+
+  // Navigate to next video in playlist
+  const navigateToNextVideo = useCallback(() => {
+    if (!playlistData || !playlistData.videos || playlistData.videos.length === 0) {
+      return;
+    }
+
+    const { playlist, videos, currentIndex } = playlistData;
+    const nextIndex = currentIndex + 1;
+
+    // Check if there's a next video
+    if (nextIndex < videos.length) {
+      const nextVideo = videos[nextIndex];
+      navigate(`/watch?v=${nextVideo.author}/${nextVideo.permlink}&playlist=${playlist.id}&pos=${nextIndex}`, {
+        state: { playlist, videos, currentIndex: nextIndex },
+      });
+    }
+  }, [playlistData, navigate]);
+
+  const navigateToNextVideoRef = useRef(navigateToNextVideo);
+  navigateToNextVideoRef.current = navigateToNextVideo;
+
+  // Load video when author/permlink changes (wait for video element to be attached)
+  useEffect(() => {
+    if (!author || !permlink || author === 'unknown' || !player || !videoAttached) return;
+    setVideoEnded(false);
+    // Record this video as played in the current session
+    playedVideosRef.current.add(`${author}/${permlink}`);
+    // Reset playhead to 0 immediately so the UI doesn't show the old video's position
+    seek(0);
+    loadVideo(`${author}/${permlink}`).catch(err => {
+      console.error('[Watch] Failed to load video:', err);
+    });
+  }, [author, permlink, player, loadVideo, videoAttached, seek]);
+
+  // Subscribe to player events (stable effect — uses refs for mutable values)
+  useEffect(() => {
+    if (!player) return;
+
+    let canPlayCleanup = null;
+
+    const unsubReady = player.on('ready', ({ isVertical }) => {
+      videoIsVerticalRef.current = isVertical;
+      wrapperRef.current?.classList.toggle('vertical-video', isVertical);
+
+      // Seek to timestamp if ?t= parameter is present
+      const startTime = parseInt(new URLSearchParams(window.location.search).get('t'), 10);
+      if (startTime > 0) {
+        setTimeout(() => player.seek(startTime), 200);
+      }
+
+      // Restore persisted mute/volume preference on each video load
+      const shouldMute = localStorage.getItem('3speak-muted') === '1';
+      player.setMuted(shouldMute);
+      const savedVol = parseFloat(localStorage.getItem('3speak-volume'));
+      if (!isNaN(savedVol)) player.setVolume(savedVol);
+
+      // Autoplay: wait for canplay (enough data buffered) instead of playing
+      // immediately on metadata load, which fails on slow connections.
+      const videoEl = player.element;
+      const tryAutoplay = () => {
+        player.play().then(() => {
+          setAutoplayBlocked(false);
+        }).catch((err) => {
+          if (err?.name === 'NotAllowedError') {
+            setAutoplayBlocked(true);
+          }
+        });
+      };
+      if (videoEl) {
+        // Clean up any previous canplay listener
+        if (canPlayCleanup) { canPlayCleanup(); canPlayCleanup = null; }
+
+        if (videoEl.readyState >= 3) {
+          tryAutoplay();
+        } else {
+          const onCanPlay = () => tryAutoplay();
+          videoEl.addEventListener('canplay', onCanPlay, { once: true });
+          canPlayCleanup = () => videoEl.removeEventListener('canplay', onCanPlay);
+        }
+      }
+
+      // Fetch quality levels and apply stored preference
+      const levels = player.getQualities();
+      setQualityLevels(levels);
+
+      const storedPref = localStorage.getItem(QUALITY_STORAGE_KEY);
+      if (storedPref && storedPref !== 'auto' && levels.length > 0) {
+        const preferredHeight = parseInt(storedPref, 10);
+        // Find exact match or nearest available level at or below the stored height
+        let best = null;
+        for (const l of levels) {
+          if (l.height === preferredHeight) { best = l; break; }
+          if (l.height < preferredHeight && (!best || l.height > best.height)) {
+            best = l;
+          }
+        }
+        if (best) {
+          player.setQuality(best.index);
+          setCurrentQuality(best.index);
+        } else {
+          // All levels are above stored height — pick the lowest available
+          const lowest = levels.reduce((a, b) => a.height < b.height ? a : b);
+          player.setQuality(lowest.index);
+          setCurrentQuality(lowest.index);
+        }
+      } else {
+        setCurrentQuality(player.getCurrentQuality());
+      }
+    });
+
+    const unsubQuality = player.on('qualitychange', (level) => {
+      setCurrentQuality(level.index);
+    });
+
+    const unsubEnded = player.on('ended', () => {
+      if (playlistDataRef.current && showPlaylistRef.current) {
+        navigateToNextVideoRef.current();
+      } else if (autoplayNextRef.current && suggestedVideosRef.current?.length > 0) {
+        // Find the first suggested video not already watched (backend) or played (session)
+        const next = suggestedVideosRef.current.find(v => {
+          const a = v?.author?.username || v?.author?.id || v?.author || v?.owner;
+          if (!a || !v.permlink) return false;
+          const key = `${a}/${v.permlink}`;
+          return !playedVideosRef.current.has(key) && !watchedMapRef.current.has(key);
+        });
+        if (next) {
+          const nextAuthor = next?.author?.username || next?.author?.id || next?.author || next?.owner;
+          navigate(`/watch?v=${nextAuthor}/${next.permlink}`);
+        } else {
+          setVideoEnded(true);
+        }
+      } else {
+        setVideoEnded(true);
+      }
+    });
+
+    const unsubPlay = player.on('play', () => {
+      setVideoEnded(false);
+      setAutoplayBlocked(false);
+    });
+
+    return () => {
+      unsubReady();
+      unsubQuality();
+      unsubEnded();
+      unsubPlay();
+      if (canPlayCleanup) canPlayCleanup();
+    };
+  }, [player]);
+
+  // Handle quality change with optimistic UI update + persist preference
+  const handleQualityChange = useCallback((level) => {
+    setCurrentQuality(level);
+    sdkSetQuality(level);
+    // Persist: store the height for cross-video matching, or 'auto'
+    if (level === -1) {
+      localStorage.setItem(QUALITY_STORAGE_KEY, 'auto');
+    } else {
+      const match = qualityLevels.find(q => q.index === level);
+      if (match) localStorage.setItem(QUALITY_STORAGE_KEY, String(match.height));
+    }
+  }, [sdkSetQuality, qualityLevels]);
+
+  // Handle replay (when video ended)
+  const handleReplay = useCallback(() => {
+    if (!player) return;
+    player.seek(0);
+    player.play().catch(() => {});
+    setVideoEnded(false);
+  }, [player]);
 
   // Comment-based timeline markers
   const [commentMarkers, setCommentMarkers] = useState(null);
@@ -205,7 +466,7 @@ function Watch() {
 
   // Resolve markers with actual time values when duration is known
   const resolvedMarkers = useMemo(() => {
-    if (!commentMarkers || videoDuration <= 0) return undefined;
+    if (!commentMarkers || playerState.duration <= 0) return undefined;
     return commentMarkers
       .filter(m => m.pct !== null)
       .map(m => ({
@@ -215,7 +476,7 @@ function Watch() {
         replyCount: m.replyCount,
         isVideo: m.isVideo,
       }));
-  }, [commentMarkers, videoDuration]);
+  }, [commentMarkers, playerState.duration]);
 
   // Reaction player state
   const [selectedReactionIndex, setSelectedReactionIndex] = useState(0);
@@ -223,7 +484,10 @@ function Watch() {
     return localStorage.getItem('3speak-reactions-visible') !== 'false';
   });
   const [reactionSize, setReactionSize] = useState(() => {
-    return localStorage.getItem('3speak-reaction-size') || 'small';
+    const stored = localStorage.getItem('3speak-reaction-size');
+    // Migrate legacy 'large' → 'big'
+    if (stored === 'large') return 'big';
+    return stored || 'standard';
   });
 
   const setReactionsVisible = useCallback((visible) => {
@@ -241,16 +505,12 @@ function Watch() {
 
   const handleReactToMoment = useCallback(() => {
     // Exit fullscreen first if active
-    const wrapper = document.querySelector('.video-iframe-wrapper');
+    const wrapper = wrapperRef.current;
     if (document.fullscreenElement) {
       document.exitFullscreen?.();
     } else if (wrapper?.classList.contains('landscape-fullscreen')) {
       wrapper.classList.remove('landscape-fullscreen');
       setIsFullscreen(false);
-      const iframe = wrapper.querySelector('iframe');
-      if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
-      }
     }
 
     // Activate the React tab in the comment section
@@ -265,9 +525,12 @@ function Watch() {
     }, 100);
   }, []);
 
+  const REACTION_SIZES = ['medium', 'standard', 'big', 'cinema'];
+  const REACTION_SIZE_LABELS = { medium: 'Medium', standard: 'Standard', big: 'Big', cinema: 'Cinema' };
   const cycleReactionSize = useCallback(() => {
     setReactionSize(prev => {
-      const next = prev === 'small' ? 'medium' : prev === 'medium' ? 'big' : 'small';
+      const idx = REACTION_SIZES.indexOf(prev);
+      const next = REACTION_SIZES[(idx + 1) % REACTION_SIZES.length];
       localStorage.setItem('3speak-reaction-size', next);
       return next;
     });
@@ -290,54 +553,14 @@ function Watch() {
     });
   }, []);
 
-  const pauseMainPlayer = useCallback(() => {
-    sendPlayerCommand('pause');
-    setIsPlaying(false);
-  }, [sendPlayerCommand]);
-
-  const handleTogglePlay = useCallback(() => {
-    sendPlayerCommand('toggle-play');
-    setIsPlaying(prev => !prev);
-  }, [sendPlayerCommand]);
-
-  const handleToggleMute = useCallback(() => {
-    sendPlayerCommand('toggleMute');
-    setIsMuted(prev => !prev);
-  }, [sendPlayerCommand]);
-
-  const handleSeekBackward = useCallback(() => {
-    const iframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'seekBackward', seconds: 10 }, '*');
-    }
-  }, []);
-
-  const handleSeekForward = useCallback(() => {
-    const iframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'seekForward', seconds: 10 }, '*');
-    }
-  }, []);
-
-  const handleSeek = useCallback((time) => {
-    const iframe = document.querySelector('.video-iframe-wrapper iframe');
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'seek', time }, '*');
-    }
-  }, []);
-
   const handleToggleFullscreen = useCallback(() => {
-    const wrapper = document.querySelector('.video-iframe-wrapper');
+    const wrapper = wrapperRef.current;
     if (!wrapper) return;
 
     // If currently in CSS landscape-fullscreen, exit that first
     if (wrapper.classList.contains('landscape-fullscreen')) {
       wrapper.classList.remove('landscape-fullscreen');
       setIsFullscreen(false);
-      const iframe = wrapper.querySelector('iframe');
-      if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
-      }
       return;
     }
 
@@ -358,24 +581,16 @@ function Watch() {
       // Don't interfere when real fullscreen is active (triggered by button)
       if (document.fullscreenElement) return;
 
-      const wrapper = document.querySelector('.video-iframe-wrapper');
+      const wrapper = wrapperRef.current;
       if (!wrapper) return;
 
       const isLandscape = screen.orientation.type.startsWith('landscape');
       if (isLandscape && !videoIsVerticalRef.current) {
         wrapper.classList.add('landscape-fullscreen');
         setIsFullscreen(true);
-        const iframe = wrapper.querySelector('iframe');
-        if (iframe?.contentWindow) {
-          iframe.contentWindow.postMessage({ type: 'fullscreen-entered' }, '*');
-        }
       } else if (wrapper.classList.contains('landscape-fullscreen')) {
         wrapper.classList.remove('landscape-fullscreen');
         setIsFullscreen(false);
-        const iframe = wrapper.querySelector('iframe');
-        if (iframe?.contentWindow) {
-          iframe.contentWindow.postMessage({ type: 'fullscreen-exited' }, '*');
-        }
       }
     };
 
@@ -383,84 +598,11 @@ function Watch() {
     return () => screen.orientation.removeEventListener('change', handleOrientationChange);
   }, []);
 
-  // Navigate to next video in playlist
-  const navigateToNextVideo = useCallback(() => {
-    if (!playlistData || !playlistData.videos || playlistData.videos.length === 0) {
-      return;
-    }
-
-    const { playlist, videos, currentIndex } = playlistData;
-    const nextIndex = currentIndex + 1;
-
-    // Check if there's a next video
-    if (nextIndex < videos.length) {
-      const nextVideo = videos[nextIndex];
-      navigate(`/watch?v=${nextVideo.author}/${nextVideo.permlink}&playlist=${playlist.id}&pos=${nextIndex}`, {
-        state: { playlist, videos, currentIndex: nextIndex },
-      });
-    }
-  }, [playlistData, navigate]);
-
-  // Listen for player messages (only from main player iframe, not reaction player)
+  // Fullscreen change handler (orientation lock)
   useEffect(() => {
-    const handleMessage = (event) => {
-      if (!event.data || !event.data.type) return;
-
-      // Only handle messages from the main video player, ignore reaction player iframes
-      const mainIframe = document.querySelector('.video-iframe-wrapper iframe');
-      if (event.source && mainIframe && event.source !== mainIframe.contentWindow) return;
-
-      switch (event.data.type) {
-        case '3speak-player-ready':
-          videoIsVerticalRef.current = !!event.data.isVertical;
-          mainIframe?.closest('.video-iframe-wrapper')?.classList
-            .toggle('vertical-video', !!event.data.isVertical);
-          setTimeout(() => {
-            triggerPlay();
-            setIsPlaying(true);
-            // Seek to timestamp if ?t= parameter is present
-            const startTime = parseInt(searchParams.get('t'), 10);
-            if (startTime > 0 && mainIframe?.contentWindow) {
-              setTimeout(() => {
-                mainIframe.contentWindow.postMessage({ type: 'seek', time: startTime }, '*');
-              }, 200);
-            }
-          }, 100);
-          if (mainIframe?.contentWindow) {
-            mainIframe.contentWindow.postMessage({ type: 'hide-controls' }, '*');
-          }
-          break;
-        case '3speak-timeupdate':
-          setCurrentTime(event.data.currentTime ?? 0);
-          if (event.data.duration) setVideoDuration(event.data.duration);
-          break;
-        case '3speak-playstate':
-          setIsPlaying(event.data.isPlaying ?? false);
-          break;
-        case '3speak-durationchange':
-          setVideoDuration(event.data.duration ?? 0);
-          break;
-        case '3speak-ended':
-          setIsPlaying(false);
-          if (playlistData && showPlaylist) {
-            navigateToNextVideo();
-          }
-          break;
-      }
-    };
-
     const handleFullscreenChange = () => {
       const isNowFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isNowFullscreen);
-
-      // Tell the iframe player to switch to/from fill mode
-      const mainIframeEl = document.querySelector('.video-iframe-wrapper iframe');
-      if (mainIframeEl?.contentWindow) {
-        mainIframeEl.contentWindow.postMessage(
-          { type: isNowFullscreen ? 'fullscreen-entered' : 'fullscreen-exited' },
-          '*',
-        );
-      }
 
       // Lock screen orientation only when fullscreen was triggered by the button
       if (screen.orientation?.lock && fullscreenFromButtonRef.current) {
@@ -474,13 +616,14 @@ function Watch() {
       fullscreenFromButtonRef.current = false;
     };
 
-    window.addEventListener('message', handleMessage);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, [triggerPlay, playlistData, showPlaylist, navigateToNextVideo]);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // PiP handler — SDK operates directly on the native <video> element
+  const handleTogglePip = useCallback(() => {
+    togglePip();
+  }, [togglePip]);
 
   const { data: videoData, loading: videoLoading, error: videoError, refetch: refetchVideo } = useQuery(GET_VIDEO_DETAILS, {
     variables: { author, permlink },
@@ -553,7 +696,6 @@ function Watch() {
   }, [videoLoading, videoData, author, permlink]);
 
   const videoDetails = videoData?.socialPost || hiveFallback;
-
   // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
     if (!user || !author || !permlink || author === 'unknown' || watchHistoryEnabled === false) {
@@ -593,11 +735,11 @@ function Watch() {
     const authorItems = authorVideosData?.socialFeed?.items || [];
     const relatedItems = suggestionsData?.relatedFeed?.items || [];
     const trendingItems = trendingData?.trendingFeed?.items || [];
-    
+
     // Track permlinks to avoid duplicates
     const usedPermlinks = new Set();
     usedPermlinks.add(permlink); // Exclude current video
-    
+
     // 1. Get up to AUTHOR_VIDEOS_COUNT valid videos from the same author
     const authorVideos = filterValidVideos(authorItems)
       .filter(v => {
@@ -606,7 +748,7 @@ function Watch() {
         return true;
       })
       .slice(0, AUTHOR_VIDEOS_COUNT);
-    
+
     // 2. Get related/recommended videos (excluding author's videos and current)
     let recommendations = filterValidVideos(relatedItems)
       .filter(v => {
@@ -614,7 +756,7 @@ function Watch() {
         usedPermlinks.add(v.permlink);
         return true;
       });
-    
+
     // 3. If not enough related videos, supplement with trending
     if (recommendations.length < 5) {
       const validTrending = filterValidVideos(trendingItems);
@@ -625,40 +767,63 @@ function Watch() {
         }
       }
     }
-    
+
     // Combine: author videos first, then recommendations
     return [...authorVideos, ...recommendations];
   }, [authorVideosData, suggestionsData, trendingData, author, permlink]);
 
+  const suggestedVideosRef = useRef(suggestedVideos);
+  suggestedVideosRef.current = suggestedVideos;
+
+  // Batch-check which suggested videos the user has already watched
+  useEffect(() => {
+    if (!user || suggestedVideos.length === 0) {
+      setWatchedMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    const videos = suggestedVideos.map(v => ({
+      author: v?.author?.username || v?.author?.id || v?.author || v?.owner,
+      permlink: v.permlink,
+    })).filter(v => v.author && v.permlink);
+
+    batchCheckWatched(user, videos).then(result => {
+      if (!cancelled) setWatchedMap(result);
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [user, suggestedVideos]);
+
   // Build reactions from comment markers: video reactions use the embed URL from metadata
   const reactions = useMemo(() => {
     if (!commentMarkers) return [];
-    return commentMarkers.map((m, i) => {
-      const base = {
-        id: `reaction-${i}`,
-        author: m.label,
-        avatar: m.avatar,
-        replyCount: m.replyCount,
-        pct: m.pct,
-        pctIsSeconds: m.pctIsSeconds,
-        isLowReputation: m.isLowReputation ?? false,
-      };
-      if (m.isVideo && m.videoUrl) {
+    return commentMarkers
+      .filter(m => !m.isLowReputation)
+      .map((m, i) => {
+        const base = {
+          id: `reaction-${i}`,
+          author: m.label,
+          avatar: m.avatar,
+          replyCount: m.replyCount,
+          pct: m.pct,
+          pctIsSeconds: m.pctIsSeconds,
+        };
+        if (m.isVideo && m.videoUrl) {
+          return {
+            ...base,
+            type: 'video',
+            videoUrl: m.videoUrl,
+            permlink: m.permlink,
+            body: m.body,
+          };
+        }
         return {
           ...base,
-          type: 'video',
-          videoUrl: m.videoUrl,
-          permlink: m.permlink,
+          type: 'comment',
           body: m.body,
+          permlink: m.permlink,
         };
-      }
-      return {
-        ...base,
-        type: 'comment',
-        body: m.body,
-        permlink: m.permlink,
-      };
-    });
+      });
   }, [commentMarkers]);
 
   const reactionCountLabel = useMemo(() => {
@@ -679,10 +844,10 @@ function Watch() {
     setReactionsVisible(true);
     // Seek main video to this reaction's timeline position
     const reaction = reactions[index];
-    if (reaction && videoDuration > 0) {
-      handleSeek(reaction.pct);
+    if (reaction && playerState.duration > 0) {
+      seek(reaction.pct);
     }
-  }, [reactions, videoDuration, handleSeek]);
+  }, [reactions, playerState.duration, seek]);
 
   // When loading with ?t= parameter and reactions are available, select the closest reaction
   const initialReactionSetRef = useRef(false);
@@ -725,32 +890,74 @@ function Watch() {
 
   return (
     <div className={`play-container${isReactionPlayerVisible && reactions.length > 0 ? ` reaction-${reactionSize}` : ''}`}>
+      <AmbientGlow getVideoEl={() => player?.element} glowMode={glowMode} />
       <PlayVideo
         videoDetails={videoDetails}
         author={author}
         permlink={permlink}
+        videoRef={videoRef}
+        wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
         onClosePlaylist={() => setShowPlaylist(false)}
         videoControls={{
-          currentTime,
-          duration: videoDuration,
-          isPlaying,
-          isMuted,
+          currentTime: playerState.currentTime,
+          duration: playerState.duration,
+          buffered: playerState.buffered,
+          isPlaying: !playerState.paused,
+          isMuted: playerState.muted,
+          volume: playerState.volume,
           isFullscreen,
           isVisible: controlsVisible,
-          onTogglePlay: handleTogglePlay,
-          onToggleMute: handleToggleMute,
-          onSeekBackward: handleSeekBackward,
-          onSeekForward: handleSeekForward,
-          onSeek: handleSeek,
+          onTogglePlay: togglePlay,
+          onToggleMute: () => setMuted(!playerState.muted),
+          onVolumeChange: (val) => {
+            setVolume(val);
+            if (val === 0) {
+              setMuted(true);
+            } else if (playerState.muted) {
+              setMuted(false);
+            }
+          },
+          onSeekBackward: () => seek(Math.max(0, playerState.currentTime - 10)),
+          onSeekForward: () => seek(Math.min(playerState.duration, playerState.currentTime + 10)),
+          onSeek: seek,
           onRefreshReactions: refreshMarkers,
           onToggleFullscreen: handleToggleFullscreen,
           onMouseMove: showControlsTemporarily,
           onToggleControls: toggleControlsVisibility,
-          onPause: pauseMainPlayer,
+          onPause: pause,
           onReactToMoment: handleReactToMoment,
           markers: resolvedMarkers,
           onMarkerSelect: handleSelectReaction,
+          onCycleReactionSize: isReactionPlayerVisible && reactions.length > 0 ? cycleReactionSize : null,
+          reactionSizeLabel: REACTION_SIZE_LABELS[reactionSize] || reactionSize,
+          onTogglePip: handleTogglePip,
+          videoEnded,
+          onReplay: handleReplay,
+          autoplayBlocked,
+          onAutoplayTap: togglePlay,
+          autoplayNext,
+          onToggleAutoplay: toggleAutoplayNext,
+          endSuggestions: suggestedVideos
+            .filter(v => {
+              const a = v?.author?.username || v?.author?.id || v?.author || v?.owner;
+              const key = `${a}/${v.permlink}`;
+              return !playedVideosRef.current.has(key) && !watchedMap.has(key);
+            })
+            .slice(0, 5),
+          qualityLevels,
+          currentQuality,
+          onQualityChange: handleQualityChange,
+          glowMode,
+          onToggleGlow: toggleGlow,
+          subtitleLanguages,
+          selectedSubtitleLang,
+          onSubtitleChange: selectSubtitleLang,
+          subtitleLoading,
+          subtitleCues,
+          subtitleCurrentTime: playerState.currentTime,
+          subtitleStyle,
+          onSubtitleStyleChange: updateSubtitleStyle,
         }}
         mobileReactionPanel={
           <>
@@ -762,10 +969,10 @@ function Watch() {
                 onClose={() => setReactionsVisible(false)}
                 size={reactionSize}
                 onCycleSize={cycleReactionSize}
-                currentTime={currentTime}
-                duration={videoDuration}
-                mainIsPlaying={isPlaying}
-                onReactionPlay={pauseMainPlayer}
+                currentTime={playerState.currentTime}
+                duration={playerState.duration}
+                mainIsPlaying={!playerState.paused}
+                onReactionPlay={pause}
                 mobile
               />
             )}
@@ -781,6 +988,34 @@ function Watch() {
             )}
           </>
         }
+        cinemaReactionPanel={reactionSize === 'cinema' ? (
+          <>
+            {isReactionPlayerVisible && reactions.length > 0 && (
+              <ReactionPlayer
+                reactions={reactions}
+                selectedIndex={selectedReactionIndex}
+                onSelectReaction={handleSelectReaction}
+                onClose={() => setReactionsVisible(false)}
+                size={reactionSize}
+                onCycleSize={cycleReactionSize}
+                currentTime={playerState.currentTime}
+                duration={playerState.duration}
+                mainIsPlaying={!playerState.paused}
+                onReactionPlay={pause}
+              />
+            )}
+            {!isReactionPlayerVisible && reactions.length > 0 && (
+              <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
+                Show Reactions ({reactionCountLabel})
+              </button>
+            )}
+            {reactions.length === 0 && (
+              <button className="show-reactions-btn" onClick={handleAddReaction}>
+                Add Reaction
+              </button>
+            )}
+          </>
+        ) : null}
       />
 
       {/* Right column: Reaction Player + Recommended */}
@@ -792,11 +1027,10 @@ function Watch() {
             onSelectReaction={handleSelectReaction}
             onClose={() => setReactionsVisible(false)}
             size={reactionSize}
-            onCycleSize={cycleReactionSize}
-            currentTime={currentTime}
-            duration={videoDuration}
-            mainIsPlaying={isPlaying}
-            onReactionPlay={pauseMainPlayer}
+            currentTime={playerState.currentTime}
+            duration={playerState.duration}
+            mainIsPlaying={!playerState.paused}
+            onReactionPlay={pause}
           />
         )}
         {!isReactionPlayerVisible && reactions.length > 0 && (
@@ -813,7 +1047,7 @@ function Watch() {
         {suggestedVideos.length > 0 && (
           <div className="right-column-videos">
             <h4>More videos</h4>
-            <Card3 videos={suggestedVideos} loading={false} />
+            <Card3 videos={suggestedVideos} loading={false} shortTimeAgo={false} />
           </div>
         )}
       </div>
@@ -821,7 +1055,7 @@ function Watch() {
       {suggestedVideos.length > 0 && (
         <div className="mobile-recommended">
           <h4>More videos</h4>
-          <Card3 videos={suggestedVideos.slice(0, 12)} loading={false} />
+          <Card3 videos={suggestedVideos.slice(0, 12)} loading={false} shortTimeAgo={false} />
         </div>
       )}
     </div>

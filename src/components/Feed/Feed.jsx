@@ -6,22 +6,28 @@ import { has3SpeakPostAuth } from '../../utils/hiveUtils';
 import { useAppStore } from '../../lib/store';
 import CardSkeleton from "../Cards/CardSkeleton"
 import axios from "axios"
-import { FEED_URL } from '../../utils/config'
+import { FEED_URL, FOLLOW_FEED_URL } from '../../utils/config'
 import { useInfiniteQuery } from "@tanstack/react-query"
 import Card3 from "../Cards/Card3"
 import { useContentBatch } from "../../hooks/useContentBatch"
 import { useWatchHistory } from "../../hooks/useWatchHistory"
+import useViewCounts from "../../hooks/useViewCounts"
 
 
 
-const fetchVideos = async ({ pageParam = 0 }) => {
+const FOLLOW_LIMIT = 50;
+
+const fetchFollowFeedVideos = async ({ pageParam = 1 }, username) => {
+  const res = await axios.get(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${FOLLOW_LIMIT}`);
+  return res.data;
+};
+
+const fetchHomeVideos = async ({ pageParam = 0 }) => {
   let url;
 
   if (pageParam === 0) {
-    // 🧩 First load
     url = `${FEED_URL}/apiv2/feeds/home?page=${pageParam}`;
   } else {
-    // 🧩 Only two "more" pages are available: 64 and 128
     url = `${FEED_URL}/api/feed/more?skip=${pageParam}`;
   }
 
@@ -45,18 +51,21 @@ function Feed() {
   isLoading,
   isError,
 } = useInfiniteQuery({
-  queryKey: ["home"],
-  queryFn: fetchVideos,
-  getNextPageParam: (lastPage, allPages) => {
-    // 🧠 Available skip values
-    const nextSkips = [64, 128];
-
-    // Determine next skip value
-    const next = nextSkips[allPages.length - 1];
-
-    // Stop after 128
-    return next || undefined;
-  },
+  queryKey: authenticated ? ["follow-feed", user] : ["home"],
+  queryFn: authenticated
+    ? (ctx) => fetchFollowFeedVideos(ctx, user)
+    : fetchHomeVideos,
+  getNextPageParam: authenticated
+    ? (lastPage) => {
+        if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;
+        return lastPage.page + 1;
+      }
+    : (lastPage, allPages) => {
+        const nextSkips = [64, 128];
+        const next = nextSkips[allPages.length - 1];
+        return next || undefined;
+      },
+  initialPageParam: authenticated ? 1 : 0,
 });
 
   useEffect(() => {
@@ -76,13 +85,18 @@ function Feed() {
     }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
   
     // Flatten all pages into a single array
-    const videos = data?.pages.flat() || [];
+    const videos = authenticated
+      ? data?.pages.flatMap(page => page.videos || []) || []
+      : data?.pages.flat() || [];
 
     // Batch fetch content data (payout, voters) for all videos
     const { getContentForVideo } = useContentBatch(videos);
 
     // Batch check watch history for all videos
     const { isWatched } = useWatchHistory(videos);
+
+    // Batch fetch view counts
+    const { getViewCount } = useViewCounts(videos);
 
     async function checkPostAuth(username) {
       if(!authenticated){
@@ -99,7 +113,7 @@ function Feed() {
     <>
     <CommunitiesTags />
 
-    {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />}
+    {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />}
     {isError && <p>Error fetching videos</p>}
       {isFetchingNextPage && (
         <p style={{ textAlign: "center" }}>Loading more...</p>

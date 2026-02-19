@@ -4,27 +4,16 @@ import { useEffect } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL } from '../utils/config';
+import { TRENDING_SORTED_URL } from '../utils/config';
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
+import useViewCounts from "../hooks/useViewCounts";
 
-const LIMIT = 500;
+const LIMIT = 50;
 
-const fetchVideos = async ({ pageParam = 0 }) => {
-  let url;
-
-  // On first load, use /feeds/trending
-  if (pageParam === 0) {
-    url = `${FEED_URL}/apiv2/feeds/trending?limit=${LIMIT}`;
-  } 
-  // On later loads, use /feeds/trending/more with skip
-  else {
-    url = `${FEED_URL}/apiv2/feeds/trending/more?skip=${pageParam}`;
-  }
-
-  const res = await axios.get(url);
-  // Notice: trending returns an array, while /more returns { trends: [...] }
-  return res.data.trends || res.data;
+const fetchVideos = async ({ pageParam = 1 }) => {
+  const res = await axios.get(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}`);
+  return res.data;
 };
 
 const Trend = () => {
@@ -38,15 +27,11 @@ const Trend = () => {
   } = useInfiniteQuery({
     queryKey: ["trending"],
     queryFn: fetchVideos,
-    getNextPageParam: (lastPage, allPages) => {
-      // If lastPage returned data, calculate new skip
-      const currentTotal = allPages.flat().length;
-      if (lastPage && lastPage.length > 0) return currentTotal;
-      return undefined; // Stop when no more data
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;
+      return lastPage.page + 1;
     },
   });
-
-  console.log(data)
 
   // Infinite scroll effect
   useEffect(() => {
@@ -66,13 +51,16 @@ const Trend = () => {
   }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
 
   // Flatten all pages into one list
-  const videos = data?.pages.flat() || [];
+  const videos = data?.pages.flatMap(page => page.videos || []) || [];
 
   // Batch fetch content data
   const { getContentForVideo } = useContentBatch(videos);
 
   // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
+
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(videos);
 
   return (
     <div className="firstupload-container">
@@ -81,7 +69,7 @@ const Trend = () => {
       {isLoading ? (
         <CardSkeleton />
       ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
       )}
 
       {isError && <p>Error fetching videos</p>}

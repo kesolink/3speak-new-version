@@ -6,6 +6,7 @@ import CardSkeleton from '../components/Cards/CardSkeleton'
 import Card3 from "../components/Cards/Card3";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
+import useViewCounts from "../hooks/useViewCounts";
 
 const VIDEOS_PER_PAGE = 50;
 
@@ -18,7 +19,13 @@ const NewVideos = () => {
     fetchPolicy: 'network-only', // Prevent cache from causing duplicate onCompleted calls
     onCompleted: (newData) => {
       const newItems = newData?.socialFeed?.items || [];
-      
+
+      // Filter out internal re-encoding account
+      const filteredItems = newItems.filter(item => {
+        const author = item.author?.username || item.author;
+        return author !== 'threespeak-fixer';
+      });
+
       // Helper to deduplicate items by author+permlink
       const deduplicateItems = (items) => {
         const seen = new Set();
@@ -32,12 +39,12 @@ const NewVideos = () => {
       
       if (skip === 0) {
         // Deduplicate even the first batch (API returns duplicates)
-        setAllVideos(deduplicateItems(newItems));
+        setAllVideos(deduplicateItems(filteredItems));
       } else {
         // Deduplicate against existing + new items
         setAllVideos(prev => {
           const existingKeys = new Set(prev.map(v => `${v.author?.username || v.author}-${v.permlink}`));
-          const uniqueNew = newItems.filter(item => {
+          const uniqueNew = filteredItems.filter(item => {
             const key = `${item.author?.username || item.author}-${item.permlink}`;
             return !existingKeys.has(key);
           });
@@ -67,6 +74,9 @@ const NewVideos = () => {
   // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
 
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(videos);
+
   return (
     <div className='firstupload-container'>
       <div className='headers'>New VIDEOS</div>
@@ -74,7 +84,7 @@ const NewVideos = () => {
         <CardSkeleton />
       ) : (
         <>
-          <Card3 videos={videos} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} />
+          <Card3 videos={videos} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
           {hasMore && (
             <button 
               className="load-more-btn" 

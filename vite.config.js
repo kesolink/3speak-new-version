@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
@@ -32,6 +33,57 @@ export default defineConfig({
       // Override to ensure proper Buffer implementation
       overrides: {
         fs: "memfs",
+      },
+    }),
+    VitePWA({
+      registerType: "autoUpdate",
+      devOptions: { enabled: true },
+      manifest: {
+        name: "3Speak",
+        short_name: "3Speak",
+        description: "3Speak - Decentralized Video Platform",
+        theme_color: "#1a1a2e",
+        background_color: "#1a1a2e",
+        display: "standalone",
+        start_url: "/",
+        icons: [
+          {
+            src: "/pwa-192x192.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: "/pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+          {
+            src: "/pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
+          },
+        ],
+      },
+      workbox: {
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/hivesigner\.html/],
+        globPatterns: ["**/*.html"],
+        runtimeCaching: [
+          {
+            urlPattern: /\.(?:js|css|woff2?)$/i,
+            handler: "StaleWhileRevalidate",
+            options: { cacheName: "static-assets" },
+          },
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|svg|webp)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "images",
+              expiration: { maxEntries: 50, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
+        ],
       },
     }),
   ],
@@ -93,6 +145,6 @@ export default defineConfig({
   },
 
   server: {
-     allowedHosts: ["3speak.okinoko.io"],
-   },
+    allowedHosts: ["3speak.okinoko.io"],
+  },
 });

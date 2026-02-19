@@ -1,7 +1,31 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo } from 'react-icons/fa';
-import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
+import { createPortal } from 'react-dom';
+import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo, FaCog } from 'react-icons/fa';
+import { MdClosedCaption, MdClosedCaptionOff } from 'react-icons/md';
+import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture, TbBulbFilled, TbMoonFilled, TbSunFilled, TbPlayerTrackNextFilled } from 'react-icons/tb';
+import { SUPPORTED_LANGUAGES } from '../../utils/translate';
+import { SUBTITLE_FONTS } from '../SubtitleOverlay/SubtitleOverlay';
 import './VideoControls.scss';
+
+const FONT_OPTIONS = [
+  { key: 'sans-serif', label: 'Sans-serif' },
+  { key: 'serif', label: 'Serif' },
+  { key: 'monospace', label: 'Monospace' },
+  { key: 'arial', label: 'Arial' },
+  { key: 'verdana', label: 'Verdana' },
+  { key: 'georgia', label: 'Georgia' },
+  { key: 'times', label: 'Times' },
+  { key: 'courier', label: 'Courier' },
+  { key: 'comic-sans', label: 'Comic Sans' },
+  { key: 'impact', label: 'Impact' },
+];
+
+function PortalIf({ condition, children }) {
+  if (condition && typeof document !== 'undefined') {
+    return createPortal(children, document.body);
+  }
+  return children;
+}
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -18,27 +42,68 @@ function formatTime(seconds) {
 function VideoControls({
   currentTime,
   duration,
+  buffered,
   isPlaying,
   isMuted,
+  volume,
   isFullscreen,
   onSeekBackward,
   onSeekForward,
   onTogglePlay,
   onToggleMute,
+  onVolumeChange,
   onToggleFullscreen,
   onSeek,
   isVisible,
   markers,
   onMarkerSelect,
   onReactToMoment,
+  onCycleReactionSize,
+  reactionSizeLabel,
+  onTogglePip,
+  qualityLevels,
+  currentQuality,
+  onQualityChange,
+  glowMode,
+  onToggleGlow,
+  autoplayNext,
+  onToggleAutoplay,
+  subtitleLanguages,
+  selectedSubtitleLang,
+  onSubtitleChange,
+  subtitleLoading,
+  subtitleStyle,
+  onSubtitleStyleChange,
 }) {
   const resolvedMarkers = markers || [];
 
   const [hovering, setHovering] = useState(false);
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const qualityMenuRef = useRef(null);
+  const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const subtitleMenuRef = useRef(null);
   const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const trackRef = useRef(null);
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const subtitlePortalRef = useRef(null);
+  const qualityPortalRef = useRef(null);
+  const [dragProgress, setDragProgress] = useState(null); // non-null while dragging
+
+  // Volume slider — fully ref-driven to avoid React re-render lag
+  const volSliderRef = useRef(null);
+  const volDraggingRef = useRef(false);
+
+  // Sync slider from prop only when user is NOT dragging
+  useEffect(() => {
+    if (volDraggingRef.current || !volSliderRef.current) return;
+    const displayVol = isMuted ? 0 : (volume ?? 1);
+    volSliderRef.current.value = displayVol;
+    const pct = (displayVol * 100).toFixed(0);
+    volSliderRef.current.style.background =
+      `linear-gradient(to right, var(--accent-primary, #e53935) ${pct}%, rgba(255,255,255,0.3) ${pct}%)`;
+  }, [volume, isMuted]);
+  const progress = dragProgress !== null ? dragProgress : (duration > 0 ? (currentTime / duration) * 100 : 0);
+  const bufferedPercent = (buffered || 0) * 100;
 
   // Build a heatmap gradient showing where reactions cluster
   const heatmapStyle = duration > 0 && resolvedMarkers.length > 0 ? (() => {
@@ -60,34 +125,55 @@ function VideoControls({
     return { background: `linear-gradient(to right, ${gradient.join(', ')})` };
   })() : null;
 
-  // Seek to the position under a pointer/touch event
-  const seekFromEvent = useCallback((e) => {
-    if (!trackRef.current || !duration) return;
+  // Get fraction (0-1) from a pointer/touch event relative to the track
+  const fractionFromEvent = useCallback((e) => {
+    if (!trackRef.current || !duration) return null;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const rect = trackRef.current.getBoundingClientRect();
-    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    onSeek?.(fraction * duration);
-  }, [duration, onSeek]);
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }, [duration]);
 
-  // Drag/scrub support: track whether user is dragging the progress bar
+  // Drag/scrub support — visual progress updates instantly, seeks throttled to ~150ms
   const isDraggingRef = useRef(false);
+  const dragFractionRef = useRef(0);
+  const lastSeekTimeRef = useRef(0);
+  const SEEK_THROTTLE_MS = 150;
 
   const handleTrackPointerDown = useCallback((e) => {
-    // Ignore right-clicks
     if (e.button && e.button !== 0) return;
+    const fraction = fractionFromEvent(e);
+    if (fraction === null) return;
     isDraggingRef.current = true;
-    seekFromEvent(e);
-    e.preventDefault(); // prevent text selection / touch scroll
-  }, [seekFromEvent]);
+    dragFractionRef.current = fraction;
+    setDragProgress(fraction * 100);
+    onSeek?.(fraction * duration);
+    lastSeekTimeRef.current = Date.now();
+    e.preventDefault();
+  }, [fractionFromEvent, duration, onSeek]);
 
   useEffect(() => {
     const handleMove = (e) => {
-      if (!isDraggingRef.current) return;
+      if (!isDraggingRef.current || !trackRef.current || !duration) return;
       e.preventDefault();
-      seekFromEvent(e);
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const rect = trackRef.current.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      dragFractionRef.current = fraction;
+      setDragProgress(fraction * 100);
+      // Throttle actual seeks so HLS can keep up
+      const now = Date.now();
+      if (now - lastSeekTimeRef.current >= SEEK_THROTTLE_MS) {
+        onSeek?.(fraction * duration);
+        lastSeekTimeRef.current = now;
+      }
     };
     const handleUp = () => {
+      if (isDraggingRef.current && duration) {
+        // Final precise seek on release
+        onSeek?.(dragFractionRef.current * duration);
+      }
       isDraggingRef.current = false;
+      setDragProgress(null);
     };
 
     document.addEventListener('mousemove', handleMove);
@@ -100,7 +186,54 @@ function VideoControls({
       document.removeEventListener('touchmove', handleMove);
       document.removeEventListener('touchend', handleUp);
     };
-  }, [seekFromEvent]);
+  }, [duration, onSeek]);
+
+  // Close quality menu when clicking outside
+  useEffect(() => {
+    if (!qualityMenuOpen) return;
+    const handleClickOutside = (e) => {
+      const inWrap = qualityMenuRef.current?.contains(e.target);
+      const inPortal = qualityPortalRef.current?.contains(e.target);
+      if (!inWrap && !inPortal) {
+        setQualityMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [qualityMenuOpen]);
+
+  // Close subtitle menu when clicking outside
+  useEffect(() => {
+    if (!subtitleMenuOpen) return;
+    const handleClickOutside = (e) => {
+      const inWrap = subtitleMenuRef.current?.contains(e.target);
+      const inPortal = subtitlePortalRef.current?.contains(e.target);
+      if (!inWrap && !inPortal) {
+        setSubtitleMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [subtitleMenuOpen]);
+
+  // On mobile, compute fixed position for menus to escape overflow:hidden
+  const getPortalStyle = useCallback((wrapRef) => {
+    if (typeof window === 'undefined' || window.innerWidth > 767) return null;
+    if (!wrapRef.current) return null;
+    const rect = wrapRef.current.getBoundingClientRect();
+    return {
+      position: 'fixed',
+      top: rect.bottom + 6,
+      bottom: 'auto',
+      right: Math.max(8, window.innerWidth - rect.right),
+      marginBottom: 0,
+      maxHeight: '60vh',
+      zIndex: 10000,
+    };
+  }, []);
+
+  const subtitlePortalStyle = subtitleMenuOpen ? getPortalStyle(subtitleMenuRef) : null;
+  const qualityPortalStyle = qualityMenuOpen ? getPortalStyle(qualityMenuRef) : null;
 
   const handleMarkerClick = useCallback((e, time, index) => {
     e.stopPropagation();
@@ -120,6 +253,7 @@ function VideoControls({
       <div className="vc-progress-row">
         <div className="vc-progress-track" ref={trackRef} onMouseDown={handleTrackPointerDown} onTouchStart={handleTrackPointerDown}>
           {heatmapStyle && <div className="vc-heatmap" style={heatmapStyle} />}
+          <div className="vc-buffered-fill" style={{ width: `${bufferedPercent}%` }} />
           <div className="vc-progress-fill" style={{ width: `${progress}%` }} />
 
           {/* Timeline markers */}
@@ -180,9 +314,222 @@ function VideoControls({
               <FaVideo size={13} />
             </button>
           )}
-          <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
-            {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
-          </button>
+          <div className="vc-volume-group">
+            <button className="vc-btn" onClick={onToggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
+              {isMuted ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
+            </button>
+            {onVolumeChange && (
+              <div className="vc-volume-slider-wrap">
+                <input
+                  ref={volSliderRef}
+                  type="range"
+                  className="vc-volume-slider"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  defaultValue={isMuted ? 0 : (volume ?? 1)}
+                  onPointerDown={() => { volDraggingRef.current = true; }}
+                  onPointerUp={() => { volDraggingRef.current = false; }}
+                  onInput={(e) => {
+                    const val = parseFloat(e.target.value);
+                    const pct = (val * 100).toFixed(0);
+                    e.target.style.background =
+                      `linear-gradient(to right, var(--accent-primary, #e53935) ${pct}%, rgba(255,255,255,0.3) ${pct}%)`;
+                    if (val > 0 && isMuted) onToggleMute();
+                    onVolumeChange(val);
+                  }}
+                  onChange={() => {}}
+                />
+              </div>
+            )}
+          </div>
+          {onCycleReactionSize && (
+            <button className="vc-btn vc-btn--resize" onClick={onCycleReactionSize} title={`Player size: ${reactionSizeLabel || 'Standard'}`}>
+              <TbArrowsMaximize size={15} />
+              <span className="vc-size-label">{reactionSizeLabel || 'Standard'}</span>
+            </button>
+          )}
+          {/* {onTogglePip && (
+            <button className="vc-btn" onClick={onTogglePip} title="Picture-in-Picture">
+              <TbPictureInPicture size={16} />
+            </button>
+          )} */}
+          {onToggleAutoplay && (
+            <button
+              className={`vc-btn vc-btn--autoplay${autoplayNext ? ' active' : ''}`}
+              onClick={onToggleAutoplay}
+              title={autoplayNext ? 'Autoplay: on' : 'Autoplay: off'}
+            >
+              <TbPlayerTrackNextFilled size={15} />
+            </button>
+          )}
+          {onToggleGlow && (
+            <button
+              className={`vc-btn vc-btn--glow${glowMode !== 'off' ? ' active' : ''}`}
+              onClick={onToggleGlow}
+              title={glowMode === 'off' ? 'Ambient light: subtle' : glowMode === 'page' ? 'Ambient light: vivid' : 'Ambient light: off'}
+            >
+              {glowMode === 'off' && <TbMoonFilled size={15} />}
+              {glowMode === 'page' && <TbBulbFilled size={15} />}
+              {glowMode === 'vivid' && <TbSunFilled size={15} />}
+            </button>
+          )}
+          {subtitleLanguages && subtitleLanguages.length > 0 && (
+            <div className="vc-subtitle-wrap" ref={subtitleMenuRef}>
+              <button
+                className={`vc-btn vc-btn--subtitle${selectedSubtitleLang ? ' active' : ''}`}
+                onClick={() => { setSubtitleMenuOpen(o => !o); setQualityMenuOpen(false); }}
+                title="Subtitles"
+              >
+                {selectedSubtitleLang ? <MdClosedCaption size={18} /> : <MdClosedCaptionOff size={18} />}
+              </button>
+              {subtitleMenuOpen && (
+                <PortalIf condition={!!subtitlePortalStyle}>
+                <div
+                  className="vc-subtitle-menu"
+                  ref={subtitlePortalStyle ? subtitlePortalRef : undefined}
+                  style={subtitlePortalStyle || undefined}
+                >
+                  <button
+                    className={`vc-subtitle-item${!selectedSubtitleLang ? ' active' : ''}`}
+                    onClick={() => { onSubtitleChange?.(null); setSubtitleMenuOpen(false); }}
+                  >
+                    Off
+                  </button>
+                  {subtitleLanguages.map((sub) => {
+                    const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === sub.lang);
+                    const label = langInfo ? langInfo.native : sub.lang;
+                    return (
+                      <button
+                        key={sub.lang}
+                        className={`vc-subtitle-item${selectedSubtitleLang === sub.lang ? ' active' : ''}`}
+                        onClick={() => { onSubtitleChange?.(sub.lang); setSubtitleMenuOpen(false); }}
+                      >
+                        {label}
+                        {subtitleLoading && selectedSubtitleLang === sub.lang && ' ...'}
+                      </button>
+                    );
+                  })}
+                  {subtitleStyle && onSubtitleStyleChange && (
+                    <div className="vc-subtitle-style">
+                      <div className="vc-subtitle-style-label">Font</div>
+                      <div className="vc-subtitle-font-list">
+                        {FONT_OPTIONS.map(f => (
+                          <button
+                            key={f.key}
+                            className={`vc-subtitle-font-btn${subtitleStyle.fontFamily === f.key ? ' active' : ''}`}
+                            style={{ fontFamily: SUBTITLE_FONTS[f.key] }}
+                            onClick={() => onSubtitleStyleChange({ fontFamily: f.key })}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="vc-subtitle-style-label">Size</div>
+                      <div className="vc-subtitle-style-row">
+                        {[
+                          { key: 'small', label: 'A' },
+                          { key: 'medium', label: 'A' },
+                          { key: 'large', label: 'A' },
+                          { key: 'x-large', label: 'A' },
+                          { key: 'xx-large', label: 'A' },
+                        ].map(s => (
+                          <button
+                            key={s.key}
+                            className={`vc-subtitle-size-btn${subtitleStyle.fontSize === s.key ? ' active' : ''}`}
+                            onClick={() => onSubtitleStyleChange({ fontSize: s.key })}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="vc-subtitle-style-label">Text Color</div>
+                      <div className="vc-subtitle-style-row">
+                        <input
+                          type="color"
+                          className="vc-subtitle-color-input"
+                          value={subtitleStyle.color || '#ffffff'}
+                          onChange={(e) => onSubtitleStyleChange({ color: e.target.value })}
+                        />
+                        <span className="vc-subtitle-color-hex">{subtitleStyle.color || '#ffffff'}</span>
+                      </div>
+                      <div className="vc-subtitle-style-label">Text Border</div>
+                      <div className="vc-subtitle-style-row">
+                        {[0, 2, 4, 8].map(w => (
+                          <button
+                            key={w}
+                            className={`vc-subtitle-bg-btn${subtitleStyle.borderWidth === w ? ' active' : ''}`}
+                            onClick={() => onSubtitleStyleChange({ borderWidth: w })}
+                          >
+                            {w === 0 ? 'Off' : `${w}px`}
+                          </button>
+                        ))}
+                      </div>
+                      {subtitleStyle.borderWidth > 0 && (
+                        <>
+                          <div className="vc-subtitle-style-label">Border Color</div>
+                          <div className="vc-subtitle-style-row">
+                            <input
+                              type="color"
+                              className="vc-subtitle-color-input"
+                              value={subtitleStyle.borderColor || '#000000'}
+                              onChange={(e) => onSubtitleStyleChange({ borderColor: e.target.value })}
+                            />
+                            <span className="vc-subtitle-color-hex">{subtitleStyle.borderColor || '#000000'}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="vc-subtitle-style-label">Background</div>
+                      <div className="vc-subtitle-style-row">
+                        {[0, 0.5, 0.7, 1].map(o => (
+                          <button
+                            key={o}
+                            className={`vc-subtitle-bg-btn${subtitleStyle.bgOpacity === o ? ' active' : ''}`}
+                            onClick={() => onSubtitleStyleChange({ bgOpacity: o })}
+                          >
+                            {o === 0 ? 'None' : `${Math.round(o * 100)}%`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                </PortalIf>
+              )}
+            </div>
+          )}
+          {qualityLevels && qualityLevels.length > 0 && (
+            <div className="vc-quality-wrap" ref={qualityMenuRef}>
+              <button className="vc-btn" onClick={() => { setQualityMenuOpen(o => !o); setSubtitleMenuOpen(false); }} title="Quality">
+                <FaCog size={14} />
+              </button>
+              {qualityMenuOpen && (
+                <PortalIf condition={!!qualityPortalStyle}>
+                <div
+                  className="vc-quality-menu"
+                  ref={qualityPortalStyle ? qualityPortalRef : undefined}
+                  style={qualityPortalStyle || undefined}
+                >
+                  <button
+                    className={`vc-quality-item${currentQuality === -1 ? ' active' : ''}`}
+                    onClick={() => { onQualityChange?.(-1); setQualityMenuOpen(false); }}
+                  >
+                    Auto
+                  </button>
+                  {qualityLevels.map((q) => (
+                    <button
+                      key={q.index}
+                      className={`vc-quality-item${currentQuality === q.index ? ' active' : ''}`}
+                      onClick={() => { onQualityChange?.(q.index); setQualityMenuOpen(false); }}
+                    >
+                      {q.label || `${q.height}p`}
+                    </button>
+                  ))}
+                </div>
+                </PortalIf>
+              )}
+            </div>
+          )}
           <button className="vc-btn" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
             {isFullscreen ? <FaCompress size={14} /> : <FaExpand size={14} />}
           </button>

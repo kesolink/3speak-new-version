@@ -6,7 +6,7 @@ import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
 import './AuthorBadge.scss';
 
-function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing: isFollowingProp, onFollow, noLink, compact, reputation }) {
+function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing: isFollowingProp, onFollow, noLink, compact, reputation, color }) {
   const navigate = useNavigate();
   const { user } = useAppStore();
   const [localFollowers, setLocalFollowers] = useState(null);
@@ -112,6 +112,7 @@ function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFoll
           className={`follow-btn ${following ? 'following' : ''}`}
           onClick={handleFollow}
           disabled={followLoading}
+          style={color && following ? { color } : undefined}
         >
           {followLoading ? '...' : following ? 'Following' : 'Follow'}
         </button>
