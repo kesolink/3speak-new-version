@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import "./HomeGrouped.scss";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL, FIRST_UPLOADS_URL } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -25,8 +25,8 @@ const fetchFollowFeed = async (username) => {
 };
 
 const fetchFirstUploads = async () => {
-  const res = await axios.get(`${FEED_URL}/apiv2/feeds/firstUploads?page=1`);
-  return Array.isArray(res.data) ? res.data : [];
+  const res = await axios.get(`${FIRST_UPLOADS_URL}?page=1&limit=50`);
+  return res.data?.videos || [];
 };
 
 const fetchTrending = async () => {
