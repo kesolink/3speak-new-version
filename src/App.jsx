@@ -56,7 +56,14 @@ import HiveImageUploader from "./page/HiveImageUploader";
 import PlaylistView from "./page/PlaylistView";
 import WatchedView from "./page/WatchedView";
 import { LegacyUploadProvider } from "./context/LegacyUploadContext";
+import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
+
+// Embed studio pages
+import EmbedStudioPage from "./components/embed-studio/EmbedStudioPage";
+import EmbedThumbnail from "./components/embed-studio/EmbedThumbnail";
+import EmbedDetails from "./components/embed-studio/EmbedDetails";
+import EmbedPreview from "./components/embed-studio/EmbedPreview";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
 import { KeyTypes } from "@aioha/aioha";
@@ -234,6 +241,7 @@ function App() {
   return (
     <HiveAuthProvider>
     <LegacyUploadProvider>
+    <EmbedUploadProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
       <Toaster richColors position="top-right" />
       <ShortsPreloader />
@@ -262,6 +270,11 @@ function App() {
             <Route path="/studio/thumbnail" element={<Thumbnail />} />
             <Route path="/studio/details" element={<Details />} />
             <Route path="/studio/preview" element={<Preview />} />
+            {/* Embed studio (uses embed.okinoko.io upload service) */}
+            <Route path="/embed-studio" element={<EmbedStudioPage />} />
+            <Route path="/embed-studio/thumbnail" element={<EmbedThumbnail />} />
+            <Route path="/embed-studio/details" element={<EmbedDetails />} />
+            <Route path="/embed-studio/preview" element={<EmbedPreview />} />
             {/* <Route path="/studio2" element={<StudioPage2 />} /> */}
             <Route path="/draft" element={<DraftStudio />} />
             <Route path="/editvideo/:d" element={<EditVideo />} />
@@ -302,6 +315,7 @@ function App() {
       </div>
     </div>
 
+    </EmbedUploadProvider>
     </LegacyUploadProvider>
     </HiveAuthProvider>
   );

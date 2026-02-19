@@ -168,6 +168,7 @@ function Watch() {
     setVolume: sdkSetVolume,
     togglePip,
     setQuality: sdkSetQuality,
+    setPlaybackRate,
   } = usePlayer({
     apiBase: PLAYER_URL,
     muted: storedMuted,
@@ -958,6 +959,8 @@ function Watch() {
           subtitleCurrentTime: playerState.currentTime,
           subtitleStyle,
           onSubtitleStyleChange: updateSubtitleStyle,
+          playbackRate: playerState.playbackRate,
+          onPlaybackRateChange: setPlaybackRate,
         }}
         mobileReactionPanel={
           <>

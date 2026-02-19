@@ -489,7 +489,16 @@ const startTusUpload = async (file) => {
     if (!result.success) throw new Error(result.error || "Upload init failed");
 
     const upload_id = result.data.upload_id;
-    const tus_endpoint = result.data.tus_endpoint;
+    let tus_endpoint = result.data.tus_endpoint;
+
+    // If UPLOAD_URL is a proxy path (starts with /), rewrite the absolute TUS
+    // endpoint to go through the same proxy to avoid CORS issues.
+    if (UPLOAD_URL.startsWith('/') && tus_endpoint.startsWith('http')) {
+      try {
+        const parsed = new URL(tus_endpoint);
+        tus_endpoint = UPLOAD_URL + parsed.pathname;
+      } catch { /* keep original if URL parsing fails */ }
+    }
 
     setUploadId(upload_id);
 

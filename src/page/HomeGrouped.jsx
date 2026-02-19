@@ -1,14 +1,12 @@
 import { useRef, useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useQuery as useApolloQuery } from "@apollo/client";
 import axios from "axios";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import "./HomeGrouped.scss";
-import { NEW_CONTENT } from "../graphql/queries";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL, FIRST_UPLOADS_URL } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -27,12 +25,17 @@ const fetchFollowFeed = async (username) => {
 };
 
 const fetchFirstUploads = async () => {
-  const res = await axios.get(`${FEED_URL}/apiv2/feeds/firstUploads?page=1`);
-  return Array.isArray(res.data) ? res.data : [];
+  const res = await axios.get(`${FIRST_UPLOADS_URL}?page=1&limit=50`);
+  return res.data?.videos || [];
 };
 
 const fetchTrending = async () => {
   const res = await axios.get(`${TRENDING_SORTED_URL}?page=1&limit=50`);
+  return res.data?.videos || [];
+};
+
+const fetchNewContent = async () => {
+  const res = await axios.get(`${NEW_CONTENT_URL}?page=1&limit=50`);
   return res.data?.videos || [];
 };
 
@@ -203,14 +206,17 @@ const HomeGrouped = () => {
     gcTime: 10 * 60 * 1000,
   });
 
-  const { data: newContentData, loading: newContentLoading } = useApolloQuery(NEW_CONTENT, {
-    variables: { limit: 50, skip: 0 },
+  const { data: newContentData, isLoading: newContentLoading } = useQuery({
+    queryKey: ["newcontent-grouped"],
+    queryFn: fetchNewContent,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Combine all videos for batch content loading
   const allVideos = useMemo(() => [
     ...(homeData || []).slice(0, 16),
-    ...deduplicateVideos(newContentData?.socialFeed?.items || []).slice(0, 16),
+    ...deduplicateVideos(newContentData || []).slice(0, 16),
     ...(trendingData || []).slice(0, 16),
     ...(firstUploadsData || []).slice(0, 16),
   ], [homeData, newContentData, trendingData, firstUploadsData]);
@@ -237,7 +243,7 @@ const HomeGrouped = () => {
 
       <VideoRow
         title="New Content"
-        videos={deduplicateVideos(newContentData?.socialFeed?.items || [])}
+        videos={deduplicateVideos(newContentData || [])}
         linkTo="/new"
         isLoading={newContentLoading}
         getContentForVideo={getContentForVideo}

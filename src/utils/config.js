@@ -8,11 +8,14 @@ const PLAYER_URL = import.meta.env.VITE_PLAYER_URL;
 const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://techcoderx.com';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
 const VIEWS_URL = import.meta.env.VITE_VIEWS_URL || 'https://views.3speak.tv';
+const MY_VIDEOS_URL = import.meta.env.VITE_MY_VIDEOS_URL || 'https://views.3speak.tv';
 const TAG_FEED_URL = import.meta.env.VITE_THREESPEAK_TAG_FEED_URL || 'https://legacy.3speak.tv';
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 
 const TRENDING_SORTED_URL = import.meta.env.VITE_TRENDING_SORTED_URL || 'https://tags.3speak.tv/feeds/trendingSorted';
 const FOLLOW_FEED_URL = import.meta.env.VITE_FOLLOW_FEED_URL || 'https://tags.3speak.tv/feed';
+const NEW_CONTENT_URL = import.meta.env.VITE_NEW_CONTENT_URL || 'https://tags.3speak.tv/feeds/new';
+const FIRST_UPLOADS_URL = import.meta.env.VITE_FIRST_UPLOADS_URL || 'https://tags.3speak.tv/feeds/firstUploads';
 
 // Editor URLs — comma-separated list; a random reachable one is selected at runtime
 const EDITOR_URLS = (import.meta.env.VITE_EDITOR_URLS || import.meta.env.VITE_EDITOR_URL || 'https://editor.3speak.tv')
@@ -71,6 +74,7 @@ export {
   TAG_FEED_URL,
   FEED_URL,
   VIEWS_URL,
+  MY_VIDEOS_URL,
   PLAYER_URL,
   PLAYLISTS_API_URL,
   WATCH_HISTORY_THRESHOLD_DAYS,
@@ -80,6 +84,8 @@ export {
   TRANSLATE_API_URL,
   TRENDING_SORTED_URL,
   FOLLOW_FEED_URL,
+  NEW_CONTENT_URL,
+  FIRST_UPLOADS_URL,
   EDITOR_URLS,
   getEditorUrl,
   FEATURE_EDITOR,

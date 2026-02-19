@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useAppStore } from "../lib/store";
 import { getFollowers } from "../hive-api/api";
+import { MY_VIDEOS_URL } from "../utils/config";
 
 import Card3 from "../components/Cards/Card3";
 import Follower from "../components/Userprofilepage/Follower";
@@ -194,7 +195,7 @@ function ProfilePage() {
 
     try {
       // Use new reliable API endpoint with server-side pagination
-      const res = await axios.get('https://views.3speak.tv/api/my-videos', {
+      const res = await axios.get(`${MY_VIDEOS_URL}/api/my-videos`, {
         params: {
           username: user,
           limit: pageSize,

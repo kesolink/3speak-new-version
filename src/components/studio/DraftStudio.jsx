@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import BarLoader from '../Loader/BarLoader';
 import { useAppStore } from '../../lib/store';
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { MY_VIDEOS_URL } from '../../utils/config';
 
 const DraftStudio = () => {
   const { user, authenticated } = useAppStore();
@@ -30,7 +31,7 @@ const DraftStudio = () => {
         : filter;
 
     try {
-      const res = await axios.get('https://views.3speak.tv/api/my-videos', {
+      const res = await axios.get(`${MY_VIDEOS_URL}/api/my-videos`, {
         params: {
           username: user,
           limit: pageSize,

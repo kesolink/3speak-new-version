@@ -370,6 +370,59 @@
   }
 }
 
+// Speed picker — mirrors quality picker
+.vc-speed-wrap {
+  position: relative;
+}
+
+.vc-btn--speed {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 28px;
+  letter-spacing: -0.02em;
+
+  &.active {
+    color: var(--accent-primary, #e53935);
+  }
+}
+
+.vc-speed-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 6px;
+  background: rgba(20, 20, 20, 0.95);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 100px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+.vc-speed-item {
+  display: block;
+  width: 100%;
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+  }
+
+  &.active {
+    color: var(--accent-primary, #e53935);
+    font-weight: 700;
+  }
+}
+
 // Subtitle picker — mirrors quality picker
 .vc-subtitle-wrap {
   position: relative;
@@ -698,9 +751,10 @@
       }
     }
 
-    // Subtitle & quality menus — open downward on mobile
+    // Subtitle, quality & speed menus — open downward on mobile
     .vc-subtitle-menu,
-    .vc-quality-menu {
+    .vc-quality-menu,
+    .vc-speed-menu {
       bottom: auto;
       top: 100%;
       margin-bottom: 0;

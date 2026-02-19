@@ -74,12 +74,17 @@ function VideoControls({
   subtitleLoading,
   subtitleStyle,
   onSubtitleStyleChange,
+  playbackRate,
+  onPlaybackRateChange,
 }) {
   const resolvedMarkers = markers || [];
 
   const [hovering, setHovering] = useState(false);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const qualityMenuRef = useRef(null);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const speedMenuRef = useRef(null);
+  const speedPortalRef = useRef(null);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
   const subtitleMenuRef = useRef(null);
   const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
@@ -202,6 +207,20 @@ function VideoControls({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [qualityMenuOpen]);
 
+  // Close speed menu when clicking outside
+  useEffect(() => {
+    if (!speedMenuOpen) return;
+    const handleClickOutside = (e) => {
+      const inWrap = speedMenuRef.current?.contains(e.target);
+      const inPortal = speedPortalRef.current?.contains(e.target);
+      if (!inWrap && !inPortal) {
+        setSpeedMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [speedMenuOpen]);
+
   // Close subtitle menu when clicking outside
   useEffect(() => {
     if (!subtitleMenuOpen) return;
@@ -234,6 +253,7 @@ function VideoControls({
 
   const subtitlePortalStyle = subtitleMenuOpen ? getPortalStyle(subtitleMenuRef) : null;
   const qualityPortalStyle = qualityMenuOpen ? getPortalStyle(qualityMenuRef) : null;
+  const speedPortalStyle = speedMenuOpen ? getPortalStyle(speedMenuRef) : null;
 
   const handleMarkerClick = useCallback((e, time, index) => {
     e.stopPropagation();
@@ -493,6 +513,36 @@ function VideoControls({
                       </div>
                     </div>
                   )}
+                </div>
+                </PortalIf>
+              )}
+            </div>
+          )}
+          {onPlaybackRateChange && (
+            <div className="vc-speed-wrap" ref={speedMenuRef}>
+              <button
+                className={`vc-btn vc-btn--speed${playbackRate !== 1 ? ' active' : ''}`}
+                onClick={() => { setSpeedMenuOpen(o => !o); setQualityMenuOpen(false); setSubtitleMenuOpen(false); }}
+                title="Playback speed"
+              >
+                {playbackRate !== 1 ? `${playbackRate}x` : '1x'}
+              </button>
+              {speedMenuOpen && (
+                <PortalIf condition={!!speedPortalStyle}>
+                <div
+                  className="vc-speed-menu"
+                  ref={speedPortalStyle ? speedPortalRef : undefined}
+                  style={speedPortalStyle || undefined}
+                >
+                  {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                    <button
+                      key={rate}
+                      className={`vc-speed-item${playbackRate === rate ? ' active' : ''}`}
+                      onClick={() => { onPlaybackRateChange(rate); setSpeedMenuOpen(false); }}
+                    >
+                      {rate === 1 ? 'Normal' : `${rate}x`}
+                    </button>
+                  ))}
                 </div>
                 </PortalIf>
               )}
