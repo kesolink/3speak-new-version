@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/sitemap-videos.xml", "destination": "/api/sitemap-videos.xml" },
+    { "source": "/sitemap-channels.xml", "destination": "/api/sitemap-channels.xml" },
     { "source": "/hivesigner.html", "destination": "/hivesigner.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
