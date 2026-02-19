@@ -146,5 +146,32 @@ export default defineConfig({
 
   server: {
     allowedHosts: ["3speak.okinoko.io"],
+    proxy: {
+      // Proxy upload API calls to video.3speak.tv to avoid CORS issues in dev.
+      // In production, VITE_UPLOAD_URL should point directly to video.3speak.tv.
+      '/upload-api': {
+        target: 'https://video.3speak.tv',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/upload-api/, ''),
+        configure: (proxy) => {
+          // Strip Origin header so video.3speak.tv doesn't reject the request
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('origin');
+          });
+          // Rewrite Location headers (TUS protocol returns absolute URLs)
+          // so the TUS client continues through the proxy
+          proxy.on('proxyRes', (proxyRes) => {
+            const location = proxyRes.headers['location'];
+            if (location && location.includes('video.3speak.tv')) {
+              proxyRes.headers['location'] = location.replace(
+                /https?:\/\/video\.3speak\.tv/,
+                '/upload-api'
+              );
+            }
+          });
+        },
+      },
+    },
   },
 });

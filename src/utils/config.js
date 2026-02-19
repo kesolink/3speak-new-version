@@ -8,6 +8,7 @@ const PLAYER_URL = import.meta.env.VITE_PLAYER_URL;
 const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://techcoderx.com';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
 const VIEWS_URL = import.meta.env.VITE_VIEWS_URL || 'https://views.3speak.tv';
+const MY_VIDEOS_URL = import.meta.env.VITE_MY_VIDEOS_URL || 'https://views.3speak.tv';
 const TAG_FEED_URL = import.meta.env.VITE_THREESPEAK_TAG_FEED_URL || 'https://legacy.3speak.tv';
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 
@@ -73,6 +74,7 @@ export {
   TAG_FEED_URL,
   FEED_URL,
   VIEWS_URL,
+  MY_VIDEOS_URL,
   PLAYER_URL,
   PLAYLISTS_API_URL,
   WATCH_HISTORY_THRESHOLD_DAYS,

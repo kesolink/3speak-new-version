@@ -296,10 +296,29 @@
             .info-buttons-row {
                 display: flex;
                 align-items: center;
-                justify-content: flex-end;
+                justify-content: space-between;
                 gap: 7px;
                 @include mix.respond(phone) {
                     gap: 5px;
+                }
+
+                .info-buttons-left {
+                    display: flex;
+                    align-items: center;
+                    gap: 7px;
+
+                    @include mix.respond(phone) {
+                        display: none;
+                    }
+                }
+
+                .info-buttons-right {
+                    display: flex;
+                    align-items: center;
+                    gap: 7px;
+                    @include mix.respond(phone) {
+                        gap: 5px;
+                    }
                 }
             }
 
@@ -428,69 +447,110 @@
 
     }
 
+    .tools-row-label {
+        display: none;
+    }
+
+    .remix-btn,
+    .clip-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 4px 8px;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--text-secondary);
+        border: none;
+        border-radius: 5px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background-color: var(--accent-primary);
+          color: var(--text-inverse);
+        }
+
+        &.active {
+          color: var(--accent-primary);
+          background-color: rgba(var(--accent-primary-rgb, 255, 0, 0), 0.15);
+        }
+
+        &:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+          &:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+          }
+        }
+
+        @include mix.respond(phone) {
+            flex: 1;
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 13px;
+        }
+    }
+
     .tools-row {
         display: flex;
         align-items: center;
         gap: 7px;
         margin-top: 8px;
 
-        .tools-row-label {
+        &.mobile-only {
             display: none;
-        }
-
-        @include mix.respond(phone) {
-            gap: 8px;
-
-            .tools-row-label {
-                display: inline;
-            }
-        }
-
-        .remix-btn,
-        .clip-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            padding: 4px 8px;
-            background-color: rgba(255, 255, 255, 0.1);
-            color: var(--text-secondary);
-            border: none;
-            border-radius: 5px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-
-            &:hover {
-              background-color: var(--accent-primary);
-              color: var(--text-inverse);
-            }
-
-            &.active {
-              color: var(--accent-primary);
-              background-color: rgba(var(--accent-primary-rgb, 255, 0, 0), 0.15);
-            }
-
-            &:disabled {
-              opacity: 0.35;
-              cursor: not-allowed;
-              &:hover {
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
-              }
-            }
 
             @include mix.respond(phone) {
-                flex: 1;
-                padding: 6px 14px;
-                border-radius: 16px;
-                font-size: 13px;
+                display: flex;
+                gap: 8px;
+
+                .tools-row-label {
+                    display: inline;
+                }
             }
         }
     }
 
-    .clip-bar {
+    .clip-bar-inline {
       display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .clip-bar-inline-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .clip-action-btn {
+        padding: 4px 10px;
+        background-color: var(--accent-primary);
+        color: var(--text-inverse);
+        border: none;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: opacity 0.2s;
+
+        &:hover { opacity: 0.85; }
+      }
+
+      @include mix.respond(phone) {
+        display: none;
+      }
+    }
+
+    .clip-bar {
+      display: none;
+
+      @include mix.respond(phone) {
+        display: flex;
+      }
+
       align-items: center;
       justify-content: space-between;
       gap: 12px;

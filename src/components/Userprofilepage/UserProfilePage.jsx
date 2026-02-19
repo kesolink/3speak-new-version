@@ -8,7 +8,7 @@ import { Quantum } from 'ldrs/react'
 import 'ldrs/react/Quantum.css'
 import { useInfiniteQuery, useQueryClient as useReactQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { VIEWS_URL } from '../../utils/config';
+import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
 import { IoLogoRss } from 'react-icons/io5';
@@ -96,7 +96,7 @@ function UserProfilePage() {
  const LIMIT = 20;
 
 const fetchVideos = async ({ pageParam = 0 }) => {
-  const url = `${VIEWS_URL}/api/my-videos?username=${user}&limit=${LIMIT}&offset=${pageParam}&status=published&sort=newest`;
+  const url = `${MY_VIDEOS_URL}/api/my-videos?username=${user}&limit=${LIMIT}&offset=${pageParam}&status=published&sort=newest`;
 
   const res = await axios.get(url);
   return res.data?.data?.videos || [];

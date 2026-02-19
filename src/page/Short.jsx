@@ -129,6 +129,8 @@ const VideoShort = () => {
   const [showEditorModal, setShowEditorModal] = useState(false);
   const [editorVideoUrl, setEditorVideoUrl] = useState(null);
   const [editorVideoName, setEditorVideoName] = useState(null);
+  const [editorOriginalAuthor, setEditorOriginalAuthor] = useState(null);
+  const [editorOriginalPermlink, setEditorOriginalPermlink] = useState(null);
 
   // Ambient glow
   const { glowMode, toggleGlow } = useAmbientGlow();
@@ -1438,6 +1440,8 @@ const VideoShort = () => {
       if (directUrl) {
         setEditorVideoUrl(directUrl);
         setEditorVideoName(`${currentVid.author} - ${currentVid.caption || currentVid.permlink}`);
+        setEditorOriginalAuthor(currentVid.author);
+        setEditorOriginalPermlink(currentVid.permlink);
         setShowEditorModal(true);
       } else {
         toast.error('Could not resolve video URL for remix');
@@ -2655,6 +2659,8 @@ const VideoShort = () => {
         videoUrl={editorVideoUrl}
         videoName={editorVideoName}
         videoType="video"
+        originalAuthor={editorOriginalAuthor}
+        originalPermlink={editorOriginalPermlink}
       />
     </main>
   );
