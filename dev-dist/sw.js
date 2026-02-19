@@ -79,11 +79,12 @@ define(['./workbox-96fc63c4'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "/index.html",
-    "revision": "0.5b2kua321co"
+    "revision": "0.ahpufjno4ko"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {
-    allowlist: [/^\/$/]
+    allowlist: [/^\/$/],
+    denylist: [/^\/hivesigner\.html/]
   }));
   workbox.registerRoute(/\.(?:js|css|woff2?)$/i, new workbox.StaleWhileRevalidate({
     "cacheName": "static-assets",
