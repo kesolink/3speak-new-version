@@ -42,6 +42,7 @@ import Details from "./components/legacy-studio/Details";
 import Preview from "./components/legacy-studio/Preview";
 import Test from "./page/Test";
 import Short from "./page/Short";
+import ShortsStoryFeed from "./page/ShortsStoryFeed";
 import ShortsPreloader from "./components/ShortsPreloader";
 // import Email from "./page/Login/Email"
 // import AuthCallback from "./page/Login/AuthCallback";
@@ -280,6 +281,7 @@ function App() {
             <Route path="/editvideo/:d" element={<EditVideo />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/shorts/stories" element={<ShortsStoryFeed />} />
             <Route path="/shorts" element={<Short />} />
             <Route
               path="/community/:communityName"

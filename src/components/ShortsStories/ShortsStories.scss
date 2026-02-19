@@ -1,0 +1,317 @@
+@use "../../mixins.scss" as *;
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.shorts-stories {
+  margin-bottom: 16px;
+  padding: 0 10px;
+
+  @include respond(phone) {
+    margin-bottom: 10px;
+    padding: 0 6px;
+  }
+
+  .story-username {
+    font-size: 11px;
+    color: var(--text-primary);
+    text-align: center;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.2;
+
+    @include respond(phone) {
+      font-size: 10px;
+    }
+  }
+
+  // Hidden on mobile variant (for shorts player — swipe used instead)
+  &--hidden-mobile {
+    @include respond(phone) {
+      display: none;
+    }
+  }
+
+  // Compact variant (for shorts player context)
+  &--compact {
+    margin-bottom: 0;
+    padding: 2px 0 4px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    border-radius: 0 0 12px 12px;
+
+    .stories-row,
+    .stories-skeleton-row {
+      gap: 10px;
+      padding: 2px 2px;
+    }
+
+    .story-item {
+      width: 64px;
+    }
+
+    .story-avatar-wrap {
+      width: 52px;
+      height: 52px;
+      padding: 2px;
+
+      .count-badge {
+        font-size: 9px;
+        min-width: 15px;
+        height: 15px;
+        border-width: 1.5px;
+      }
+
+      .add-badge {
+        width: 16px;
+        height: 16px;
+        border-width: 1.5px;
+
+        svg {
+          font-size: 7px;
+        }
+      }
+    }
+
+    .story-username {
+      font-size: 10px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+
+    .stories-scroll-btn {
+      width: 26px;
+      height: 26px;
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #fff;
+
+      &:hover {
+        background: var(--accent-primary);
+      }
+    }
+  }
+
+  .stories-scroll-wrapper {
+    position: relative;
+
+    .stories-scroll-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-60%);
+      z-index: 5;
+      background: var(--card-bg);
+      border: 1px solid var(--border-light);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      color: var(--text-primary);
+
+      &:hover {
+        background: var(--accent-primary);
+        color: white;
+        transform: translateY(-60%) scale(1.1);
+      }
+
+      &.left {
+        left: -10px;
+      }
+
+      &.right {
+        right: -10px;
+      }
+
+      @include respond(phone) {
+        display: none;
+      }
+
+      svg {
+        font-size: 12px;
+      }
+    }
+  }
+
+  .stories-scroll-container {
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .stories-row,
+  .stories-skeleton-row {
+    display: flex;
+    gap: 14px;
+    padding: 6px 2px;
+
+    @include respond(phone) {
+      gap: 10px;
+    }
+  }
+
+  .story-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    width: 72px;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+
+    @include respond(phone) {
+      width: 62px;
+    }
+
+    &:hover {
+      transform: scale(1.05);
+    }
+
+    &:active {
+      transform: scale(0.97);
+    }
+
+    // Active creator highlight — replaces the followed/unfollowed border
+    &--active {
+      .story-avatar-wrap {
+        border-color: rgba(255, 255, 255, 0.85) !important;
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.35), 0 0 16px rgba(255, 255, 255, 0.12);
+      }
+
+      .story-username {
+        color: #fff;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .story-avatar-wrap {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    padding: 2.5px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+
+    @include respond(phone) {
+      width: 50px;
+      height: 50px;
+      padding: 2px;
+    }
+
+    &.border-primary {
+      border: 2.5px solid var(--accent-primary);
+    }
+
+    &.border-foreground {
+      border: 2.5px solid var(--text-primary);
+    }
+
+    .story-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--bg-tertiary);
+    }
+
+    .count-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      background: var(--accent-primary);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      border: 2px solid var(--bg-primary);
+      line-height: 1;
+
+      @include respond(phone) {
+        font-size: 9px;
+        min-width: 16px;
+        height: 16px;
+      }
+    }
+
+    .add-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      background: var(--accent-primary);
+      color: #fff;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--bg-primary);
+
+      svg {
+        font-size: 9px;
+      }
+
+      @include respond(phone) {
+        width: 18px;
+        height: 18px;
+
+        svg {
+          font-size: 8px;
+        }
+      }
+    }
+  }
+
+  // Skeleton states
+  .skeleton-story {
+    .story-avatar-wrap {
+      border: 2.5px solid transparent;
+    }
+  }
+
+  .skeleton {
+    animation: shimmer 2s infinite linear;
+    background: linear-gradient(to right, var(--bg-tertiary) 4%, var(--border-light) 25%, var(--bg-tertiary) 36%);
+    background-size: 1000px 100%;
+    border-radius: 4px;
+  }
+
+  .story-avatar-skeleton {
+    width: 100%;
+    height: 100%;
+    border-radius: 50% !important;
+  }
+
+  .story-name-skeleton {
+    width: 48px;
+    height: 10px;
+    border-radius: 4px;
+  }
+}

@@ -20,6 +20,7 @@ function EmbedThumbnail() {
     setSelectedThumbnail,
     selectedIndex,
     setSelectedIndex,
+    fromStories,
   } = useEmbedUpload();
 
   const [customfile, setCustomFile] = useState([]);
@@ -100,8 +101,7 @@ function EmbedThumbnail() {
     <>
       <div className="studio-main-container">
         <div className="studio-page-header">
-          <h1>Upload Video</h1>
-          <p>Follow the steps below to upload and publish your video</p>
+          <h1>{fromStories ? "Share a Short" : "Share a Video"}</h1>
         </div>
 
         <StepProgress step={step} />

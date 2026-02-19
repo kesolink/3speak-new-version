@@ -239,6 +239,15 @@
         height: 400px;
         min-height: 300px;
         margin-bottom: 3px;
+
+        .markdown-composer {
+          min-height: unset;
+        }
+
+        &--short {
+          height: 240px;
+          min-height: 180px;
+        }
       }
       .wrap {
         display: flex;
@@ -593,7 +602,7 @@
         padding: 10px 20px;
         border-radius: 5px;
         border: none;
-        background-color: #4ba1d3;
+        background-color: var(--accent-primary, #e53935);
         color: #fff;
         cursor: pointer;
       }

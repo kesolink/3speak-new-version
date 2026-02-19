@@ -16,6 +16,7 @@ const TRENDING_SORTED_URL = import.meta.env.VITE_TRENDING_SORTED_URL || 'https:/
 const FOLLOW_FEED_URL = import.meta.env.VITE_FOLLOW_FEED_URL || 'https://tags.3speak.tv/feed';
 const NEW_CONTENT_URL = import.meta.env.VITE_NEW_CONTENT_URL || 'https://tags.3speak.tv/feeds/new';
 const FIRST_UPLOADS_URL = import.meta.env.VITE_FIRST_UPLOADS_URL || 'https://tags.3speak.tv/feeds/firstUploads';
+const SHORTS_STORIES_URL = import.meta.env.VITE_SHORTS_STORIES_URL || 'https://tags.3speak.tv/shorts/stories';
 
 // Editor URLs — comma-separated list; a random reachable one is selected at runtime
 const EDITOR_URLS = (import.meta.env.VITE_EDITOR_URLS || import.meta.env.VITE_EDITOR_URL || 'https://editor.3speak.tv')
@@ -86,6 +87,7 @@ export {
   FOLLOW_FEED_URL,
   NEW_CONTENT_URL,
   FIRST_UPLOADS_URL,
+  SHORTS_STORIES_URL,
   EDITOR_URLS,
   getEditorUrl,
   FEATURE_EDITOR,

@@ -29,7 +29,8 @@ function EmbedDetails() {
         benficaryOpen, setBeneficiaryOpen,
         selectedThumbnail,
         isScheduled, setIsScheduled,
-        scheduleDateTime, setScheduleDateTime
+        scheduleDateTime, setScheduleDateTime,
+        fromStories,
       } = useEmbedUpload();
 
 
@@ -67,7 +68,7 @@ function EmbedDetails() {
     }
 
   const process = () => {
-    if (!title?.trim()) {
+    if (!fromStories && !title?.trim()) {
       toast.error("Title is required");
       return;
     }
@@ -110,22 +111,23 @@ const handleTagChange = (e) => {
     <>
     <div className="studio-main-container">
       <div className="studio-page-header">
-        <h1>Upload Video</h1>
-        <p>Follow the steps below to upload and publish your video</p>
+        <h1>{fromStories ? "Share a Short" : "Share a Video"}</h1>
       </div>
       <StepProgress step={step} />
       <div className="studio-page-content">
 
         <div className="video-detail-wrap">
         <div className="video-items">
+        {!fromStories && (
         <div className="input-group">
           <label htmlFor="">Title</label>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
+        )}
         <div className="input-group">
           <label htmlFor="">Description</label>
-          <div className="wrap-dec">
-          <MarkdownComposer value={description} onChange={setDescription} placeholder="Write your video description here... Supports markdown formatting!" />
+          <div className={`wrap-dec${fromStories ? ' wrap-dec--short' : ''}`}>
+          <MarkdownComposer value={description} onChange={setDescription} placeholder={fromStories ? "Describe your short..." : "Write your video description here... Supports markdown formatting!"} />
           </div>
         </div>
 
@@ -145,6 +147,7 @@ const handleTagChange = (e) => {
     ))}</span>}
         </div>
         </div>
+        {!fromStories && (
         <div className="community-box-wrap">
         <div className="community-wrap" onClick={openCommunityModal}>
             {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar`} alt="" /><span></span>{community.title}</div> }</span> : <span> Select Community </span> }
@@ -152,6 +155,7 @@ const handleTagChange = (e) => {
           </div>
           <span>Select Community </span>
           </div>
+        )}
 
         <div className="advance-option">
           <div className="beneficiary-wrap mb">
@@ -180,39 +184,7 @@ const handleTagChange = (e) => {
           </div>
         </div>
 
-        <div className="scheduling-wrap">
-          <div className="scheduling-header">
-            <label className="schedule-checkbox-label">
-              <input
-                type="checkbox"
-                checked={isScheduled}
-                onChange={(e) => {
-                  setIsScheduled(e.target.checked);
-                  if (!e.target.checked) {
-                    setScheduleDateTime('');
-                  }
-                }}
-              />
-              <span>Schedule for Later</span>
-            </label>
-            <small>Schedule this post to be published at a specific date and time</small>
-          </div>
-
-          {isScheduled && (
-            <div className="schedule-datetime-group">
-              <label htmlFor="schedule-datetime">Publish Date & Time</label>
-              <input
-                type="datetime-local"
-                id="schedule-datetime"
-                value={scheduleDateTime}
-                onChange={(e) => setScheduleDateTime(e.target.value)}
-                min={getMinMaxDates().minFormatted}
-                max={getMinMaxDates().maxFormatted}
-              />
-              <small>Must be at least 1 hour in future, maximum 90 days</small>
-            </div>
-          )}
-        </div>
+        {/* Schedule section hidden for now */}
 
         <div className="submit-btn-wrap">
           <button

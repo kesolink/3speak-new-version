@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { Upload } from "lucide-react";
 import "../legacy-studio/VideoUploadStep1.scss"
 import { generateVideoThumbnails } from "@rajesh896/video-thumbnails-generator";
@@ -16,21 +16,35 @@ function EmbedVideoUploadStep1() {
     setVideoFile,
     setPrevVideoFile,
     setGeneratedThumbnail,
+    fromStories,
   } = useEmbedUpload()
 
   const [loading, setLoading] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 767px)');
+    const onChange = (e) => setIsMobile(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
 
   const videoInputRef = useRef(null);
 
-  const calculateVideoDuration = (file) => {
+  const getVideoMetadata = (file) => {
     return new Promise((resolve) => {
       const video = document.createElement("video");
       video.preload = "metadata";
 
       video.onloadedmetadata = () => {
+        const meta = {
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        };
         window.URL.revokeObjectURL(video.src);
-        resolve(video.duration);
+        resolve(meta);
       };
 
       video.src = URL.createObjectURL(file);
@@ -49,8 +63,21 @@ function EmbedVideoUploadStep1() {
     setLoading(true);
 
     try {
-      // Calculate duration
-      const duration = await calculateVideoDuration(file);
+      const { duration, width, height } = await getVideoMetadata(file);
+
+      // Shorts: enforce max 60 seconds
+      if (fromStories && duration > 60) {
+        toast.error("Shorts must be 60 seconds or less. Your video is " + Math.round(duration) + "s.");
+        setLoading(false);
+        return;
+      }
+
+      // Shorts: reject horizontal video
+      if (fromStories && width > height) {
+        toast.error("Shorts must be recorded in vertical (portrait) format. Your video appears to be horizontal.");
+        setLoading(false);
+        return;
+      }
 
       // Generate Thumbnails
       const thumbs = await generateVideoThumbnails(file, 2, "url");
@@ -96,10 +123,15 @@ function EmbedVideoUploadStep1() {
 
               {!videoFile && (
                 <div className="text">
-                  <h3 className="title">Choose a video file</h3>
+                  <h3 className="title">{isMobile ? "Pick or Record a Video" : "Choose a video file"}</h3>
                   <p className="formats">
                     Supports: MP4, AVI, MOV, WMV (Max size: 5GB)
                   </p>
+                  {fromStories && (
+                    <p className="formats short-hint">
+                      Shorts must be under 60 seconds and recorded vertically.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -123,12 +155,17 @@ function EmbedVideoUploadStep1() {
                 <TailChase size="30" speed="1.75" color="red" />
               ) : !videoFile ? (
                 <label htmlFor="embed-video-upload" className="button">
-                  Browse Files
+                  {isMobile ? "Select a Video" : "Browse Files"}
                 </label>
               ) : (
-                <label onClick={uploadVideo} className="button">
-                  Proceed to Thumbnails
-                </label>
+                <div className="button-group">
+                  <label onClick={uploadVideo} className="button">
+                    Proceed to Thumbnails
+                  </label>
+                  <label htmlFor="embed-video-upload" className="button button--outline">
+                    Replace Video
+                  </label>
+                </div>
               )}
             </div>
           </div>

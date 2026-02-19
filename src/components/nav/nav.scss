@@ -108,6 +108,24 @@
   .nav-right {
     gap: 8px;
 
+    .nav-upload-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background-color: var(--accent-primary, #e53935);
+      color: #fff;
+      cursor: pointer;
+      transition: filter 0.2s ease;
+      text-decoration: none;
+
+      &:hover {
+        filter: brightness(0.9);
+      }
+    }
+
     span {
       padding: 5px 20px;
       border-radius: 15px;

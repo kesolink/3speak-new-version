@@ -2,9 +2,10 @@ import React, { createContext, useContext, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
-import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY } from '../utils/config';
+import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL } from '../utils/config';
 import { commentWithAioha } from '../hive-api/aioha';
 import { useAppStore } from '../lib/store';
+import axios from 'axios';
 
 const EmbedUploadContext = createContext(null);
 
@@ -54,6 +55,9 @@ export function EmbedUploadProvider({ children }) {
   const [list, setList] = useState([]);
   const [remaingPercent, setRemaingPercent] = useState(100);
 
+  // Entry origin (stories → "Share a Short", default → "Share a Video")
+  const [fromStories, setFromStories] = useState(false);
+
   // Original video attribution (for remix/clip)
   const [originalAuthor, setOriginalAuthor] = useState(null);
   const [originalPermlink, setOriginalPermlink] = useState(null);
@@ -95,6 +99,7 @@ export function EmbedUploadProvider({ children }) {
     setRewardPowerup(false);
     setIsScheduled(false);
     setScheduleDateTime('');
+    setFromStories(false);
     setOriginalAuthor(null);
     setOriginalPermlink(null);
     setUploading(false);
@@ -119,7 +124,7 @@ export function EmbedUploadProvider({ children }) {
       toast.error('No video file or user not logged in');
       return;
     }
-    if (!title?.trim()) {
+    if (!fromStories && !title?.trim()) {
       toast.error('Title is required');
       return;
     }
@@ -154,7 +159,7 @@ export function EmbedUploadProvider({ children }) {
             filetype: videoFile.type,
             frontend_app: '3speak-tv',
             owner: user,
-            short: 'false',
+            short: fromStories ? 'true' : 'false',
             duration: String(Math.round(videoDuration)),
           },
           onError: (err) => {
@@ -238,12 +243,38 @@ export function EmbedUploadProvider({ children }) {
         extensions: [[0, { beneficiaries: allBeneficiaries }]],
       };
 
-      // For a root post: parentAuthor='', parentPermlink=community
+      // Determine parent: shorts reply to @peak.snaps latest post, regular = root post
+      let parentAuthor = '';
+      let parentPermlink = communityTag;
+
+      if (fromStories) {
+        addMessage('Finding snaps container post...');
+        try {
+          const snapsRes = await axios.post(HIVE_API_URL, {
+            jsonrpc: '2.0',
+            method: 'bridge.get_account_posts',
+            params: { sort: 'posts', account: 'peak.snaps', start_author: '', start_permlink: '', limit: 1 },
+            id: 1,
+          });
+          const latestSnap = snapsRes.data?.result?.[0];
+          if (latestSnap) {
+            parentAuthor = latestSnap.author;
+            parentPermlink = latestSnap.permlink;
+            addMessage(`Replying to @${parentAuthor}/${parentPermlink}`);
+          } else {
+            throw new Error('No posts found from @peak.snaps');
+          }
+        } catch (snapErr) {
+          console.error('Failed to fetch snaps container:', snapErr);
+          throw new Error('Could not find a snaps container post to reply to');
+        }
+      }
+
       const result = await commentWithAioha(
-        '',              // parentAuthor (empty = root post)
-        communityTag,    // parentPermlink (community)
+        parentAuthor,    // parentAuthor (empty = root post, or snaps author for shorts)
+        parentPermlink,  // parentPermlink (community or snaps post permlink)
         hivePermlink,    // permlink
-        title,           // title
+        fromStories ? '' : title, // title (empty for replies/shorts)
         postBody,        // body
         jsonMetadata,    // json_metadata
         commentOptions   // comment_options with beneficiaries
@@ -271,7 +302,7 @@ export function EmbedUploadProvider({ children }) {
             body: JSON.stringify({
               hive_author: user,
               hive_permlink: hivePermlink,
-              hive_title: title,
+              hive_title: fromStories ? '' : title,
               hive_body: postBody,
               hive_tags: ['3speak', ...tagsPreview],
             }),
@@ -337,6 +368,8 @@ export function EmbedUploadProvider({ children }) {
     statusText, setStatusText,
     statusMessages, setStatusMessages,
     embedUrl, setEmbedUrl,
+    // Entry origin
+    fromStories, setFromStories,
     // Original video attribution
     originalAuthor, setOriginalAuthor,
     originalPermlink, setOriginalPermlink,
