@@ -1,10 +1,10 @@
 @use "../../mixins.scss" as mix;
-$primary: #ef4444;
+$primary: var(--accent-primary, #e53935);
 $danger: #ef4444;
-$text-dark: #0f172a;
-$text-muted: #64748b;
-$border: #e5e7eb;
-$bg: #ffffff;
+$text-dark: var(--text-primary, #0f172a);
+$text-muted: var(--text-secondary, #64748b);
+$border: var(--border-color, #e5e7eb);
+$bg: var(--bg-primary, #ffffff);
 
 
 $overlay: rgba(15, 23, 42, 0.6);
@@ -14,14 +14,10 @@ $overlay: rgba(15, 23, 42, 0.6);
   align-items: center;
   width: 100%;
   padding: 20px;
-  background-color: #f8f9fc;
+  background-color: var(--bg-secondary, #f8f9fc);
   border-radius: 10px;
   margin-top: 20px;
-  
-  [data-theme="dark"] & {
-    background-color: #0f0f0f;
-  }
-  
+
   @include mix.respond(phone) {
     width: 95%;
     padding: 0px;
@@ -30,16 +26,11 @@ $overlay: rgba(15, 23, 42, 0.6);
 
   .preview {
     width: 70%;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border-color, #ccc);
     padding: 16px;
     border-radius: 12px;
-    background-color: #fff;
+    background-color: var(--bg-primary, #fff);
     font-family: "Nunito", sans-serif;
-    
-    [data-theme="dark"] & {
-      background-color: #1a1a1a;
-      border-color: #3d3d3d;
-    }
 
     @media (max-width: 768px) {
       width: 100%;
@@ -47,14 +38,10 @@ $overlay: rgba(15, 23, 42, 0.6);
     }
 
     h3 {
-      color: #4b5563;
+      color: var(--text-secondary, #4b5563);
       font-size: 18px;
       margin-bottom: 16px;
-      
-      [data-theme="dark"] & {
-        color: #f1f1f1;
-      }
-      
+
       @media (max-width: 768px) {
         font-size: 14px;
         margin-bottom: 5px;
@@ -68,13 +55,9 @@ $overlay: rgba(15, 23, 42, 0.6);
         display: block;
         font-size: 14px;
         font-weight: 600;
-        color: #6b7280;
+        color: var(--text-secondary, #6b7280);
         margin-bottom: 5px;
-        
-        [data-theme="dark"] & {
-          color: #aaaaaa;
-        }
-        
+
         @media (max-width: 768px) {
           font-size: 14px;
           margin-bottom: 1px;
@@ -90,11 +73,7 @@ $overlay: rgba(15, 23, 42, 0.6);
       .preview-description {
         font-size: 15px;
         font-weight: 500;
-        color: #374151;
-        
-        [data-theme="dark"] & {
-          color: #f1f1f1;
-        }
+        color: var(--text-primary, #374151);
       }
     }
 
@@ -112,15 +91,11 @@ $overlay: rgba(15, 23, 42, 0.6);
 
       .tag-item {
         padding: 4px 10px;
-        background-color: #d1d5db;
+        background-color: var(--bg-tertiary, #d1d5db);
         border-radius: 12px;
         font-size: 13px;
         font-weight: 500;
-        
-        [data-theme="dark"] & {
-          background-color: #3d3d3d;
-          color: #f1f1f1;
-        }
+        color: var(--text-primary, #374151);
       }
     }
   }
@@ -133,7 +108,7 @@ $overlay: rgba(15, 23, 42, 0.6);
     gap: 12px;
 
     button {
-      background-color: #1c64e0;
+      background-color: var(--accent-primary, #e53935);
       color: white;
       padding: 10px 20px;
       font-weight: 600;
@@ -142,23 +117,23 @@ $overlay: rgba(15, 23, 42, 0.6);
       cursor: pointer;
 
       &:disabled {
-        background-color: #a1a1aa;
+        background-color: var(--text-muted, #a1a1aa);
         cursor: not-allowed;
       }
     }
 
     .edit-btn {
       background-color: transparent;
-      border: 2px solid #1c64e0;
-      color: #1c64e0;
+      border: 2px solid var(--accent-primary, #e53935);
+      color: var(--accent-primary, #e53935);
 
       &:hover:not(:disabled) {
-        background-color: rgba(28, 100, 224, 0.1);
+        background-color: rgba(229, 57, 53, 0.1);
       }
 
       &:disabled {
-        border-color: #a1a1aa;
-        color: #a1a1aa;
+        border-color: var(--text-muted, #a1a1aa);
+        color: var(--text-muted, #a1a1aa);
       }
     }
 
@@ -277,7 +252,8 @@ $overlay: rgba(15, 23, 42, 0.6);
         
 
         &:hover {
-          background: darken($primary, 6%);
+          background: var(--accent-primary, #e53935);
+          filter: brightness(0.9);
         }
       }
     }

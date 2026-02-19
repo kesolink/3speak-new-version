@@ -11,6 +11,7 @@ import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
+import ShortsStories from "../components/ShortsStories/ShortsStories";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
@@ -231,6 +232,8 @@ const HomeGrouped = () => {
 
   return (
     <div className="home-grouped-container">
+      <ShortsStories />
+
       <VideoRow
         title={authenticated ? "Follow Feed" : "Home Feed"}
         videos={homeData || []}

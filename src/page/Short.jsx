@@ -67,6 +67,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import ShortsIcon from '../components/icons/ShortsIcon';
+import ShortsLoadingScreen from '../components/ShortsLoadingScreen/ShortsLoadingScreen';
 import { markByReputation } from '../utils/reputation';
 import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
@@ -1966,10 +1967,7 @@ const VideoShort = () => {
   if (loading && videos.length === 0) {
     return (
       <main className="short-main">
-        <div className="loadingState">
-          <ShortsIcon className="shorts-breathe-logo" size={72} />
-          <p>Loading shorts...</p>
-        </div>
+        <ShortsLoadingScreen />
       </main>
     );
   }
@@ -2087,24 +2085,7 @@ const VideoShort = () => {
 
           {/* Full "Loading shorts..." overlay for the very first video until its player is ready */}
           {showInitialLoadingOverlay && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                zIndex: 10,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#000',
-              }}
-            >
-              <ShortsIcon className="shorts-breathe-logo" size={72} />
-              <p style={{ color: '#fff', marginTop: 12 }}>Loading shorts...</p>
-            </div>
+            <ShortsLoadingScreen overlay />
           )}
 
           {/* Chain preload videos are prefetched via API + manifest only (no <video> elements) */}

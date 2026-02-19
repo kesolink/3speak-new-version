@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import axios from "axios";
@@ -14,6 +14,7 @@ import BarLoader from "../components/Loader/BarLoader";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
+import { fetchUserShortsWithDetails } from "../hive-api/hiveApi";
 
 import { FaVideo } from "react-icons/fa";
 import { IoLogoRss } from "react-icons/io5";
@@ -51,12 +52,15 @@ function ProfilePage() {
   const [show, setShow] = useState(() => {
     // Initialize show based on URL tab parameter
     const tab = searchParams.get('tab');
-    return tab === 'playlists' ? 'playlists' : 'video';
+    if (tab === 'playlists') return 'playlists';
+    if (tab === 'shorts') return 'shorts';
+    return 'video';
   });
   // Sync tab state when URL search params change (e.g. navigating from sidebar)
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'playlists') setShow('playlists');
+    else if (tab === 'shorts') setShow('shorts');
   }, [searchParams]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -261,23 +265,68 @@ function ProfilePage() {
   const { getViewCount } = useViewCounts(videos);
 
   /* ===============================
+     SHORTS FEED
+  =============================== */
+  const fetchMyShorts = async ({ pageParam = 1 }) => {
+    const data = await fetchUserShortsWithDetails(user, pageParam, 20);
+    return data;
+  };
+
+  const {
+    data: shortsData,
+    fetchNextPage: fetchNextShortsPage,
+    hasNextPage: hasNextShortsPage,
+    isFetchingNextPage: isFetchingNextShortsPage,
+    isLoading: isShortsLoading,
+  } = useInfiniteQuery({
+    queryKey: ["MyShorts", user],
+    queryFn: fetchMyShorts,
+    getNextPageParam: (lastPage) => {
+      if (lastPage?.page < lastPage?.totalPages) {
+        return lastPage.page + 1;
+      }
+      return undefined;
+    },
+    enabled: show === 'shorts',
+  });
+
+  const shortsVideos = useMemo(() => (
+    (shortsData?.pages || []).flatMap(page =>
+      (page?.shorts || []).map(s => ({
+        author: s.author,
+        permlink: s.permlink,
+        title: (s.caption || s.title || '').slice(0, 80),
+        images: { thumbnail: s.thumbnailUrl },
+        duration: 0,
+        stats: {
+          total_hive_reward: parseFloat(s.stats?.payout) || 0,
+          num_votes: s.stats?.likes || 0,
+        },
+        created_at: s.createdAt,
+      }))
+    )
+  ), [shortsData?.pages]);
+
+  /* ===============================
      SCROLL HANDLER
   =============================== */
   useEffect(() => {
     const handleScroll = () => {
       if (
         window.innerHeight + window.scrollY >=
-          document.body.offsetHeight - 200 &&
-        !isFetchingNextPage &&
-        hasNextPage
+          document.body.offsetHeight - 200
       ) {
-        fetchNextPage();
+        if (show === 'shorts' && !isFetchingNextShortsPage && hasNextShortsPage) {
+          fetchNextShortsPage();
+        } else if (show === 'video' && !isFetchingNextPage && hasNextPage) {
+          fetchNextPage();
+        }
       }
     };
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
+  }, [show, isFetchingNextPage, hasNextPage, fetchNextPage, isFetchingNextShortsPage, hasNextShortsPage, fetchNextShortsPage]);
 
   /* ===============================
      NAVIGATION
@@ -369,6 +418,7 @@ function ProfilePage() {
       <div className="toggle-wrap">
         <div className="wrap">
           <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
+          <span className={show === "shorts" ? "active" : ""} onClick={() => setShow("shorts")}>Shorts</span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
@@ -461,6 +511,17 @@ function ProfilePage() {
             </div>
           ) : (
             <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+          )
+        ) : show === "shorts" ? (
+          isShortsLoading ? (
+            <BarLoader />
+          ) : shortsVideos.length === 0 ? (
+            <div className="empty-wrap">
+              <img src={icon} alt="empty" />
+              <span>No Shorts Available</span>
+            </div>
+          ) : (
+            <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} />
           )
         ) : show === "playlists" ? (
           <>

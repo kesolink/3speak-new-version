@@ -168,6 +168,9 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
 
       {authenticated ? (
         <div className="nav-right flex-div">
+          <Link to="/embed-studio" className="nav-upload-btn" title="Upload Video">
+            <IoCloudUploadSharp size={18} />
+          </Link>
           <ThemeToggle />
           <span>{user}</span>
           {/* <IoIosNotifications size={20} /> */}

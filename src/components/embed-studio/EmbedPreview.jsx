@@ -26,11 +26,12 @@ function EmbedPreview() {
     publishToEmbed,
     resetUploadState,
     user,
+    fromStories,
   } = useEmbedUpload();
 
   const navigate = useNavigate();
 
-  if (!description || !title) {
+  if (!description || (!fromStories && !title)) {
     return <Navigate to="/embed-studio" replace />;
   }
 
@@ -44,8 +45,7 @@ function EmbedPreview() {
       {!uploading && !completed && (
         <div className="studio-main-container">
           <div className="studio-page-header">
-            <h1>Upload Video</h1>
-            <p>Follow the steps below to upload and publish your video</p>
+            <h1>{fromStories ? "Share a Short" : "Share a Video"}</h1>
           </div>
 
           <StepProgress step={step} />
@@ -109,7 +109,7 @@ function EmbedPreview() {
                   Edit Post
                 </button>
                 <button onClick={handlePostVideo}>
-                  Post Video
+                  {fromStories ? 'Post Short' : 'Post Video'}
                 </button>
               </div>
             </div>
@@ -129,7 +129,7 @@ function EmbedPreview() {
               <div className="progressbar-container">
                 <div className="content-wrap">
                   <div className="wrap">
-                    <div className="wrap-top"><h3>Uploading Video</h3> <div>{uploadProgress}%</div></div>
+                    <div className="wrap-top"><h3>{fromStories ? 'Uploading Short' : 'Uploading Video'}</h3> <div>{uploadProgress}%</div></div>
                     <div className="progress-bars">
                       <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }} />
                     </div>
@@ -149,9 +149,9 @@ function EmbedPreview() {
               <CheckCircle size={34} strokeWidth={2} />
             </div>
             <h3>Upload Finished!</h3>
-            <p>Your video has been published on 3Speak.</p>
+            <p>{fromStories ? 'Your short has been published on 3Speak.' : 'Your video has been published on 3Speak.'}</p>
             {embedUrl && (
-              <p style={{ fontSize: '0.85rem', color: '#666', wordBreak: 'break-all', marginTop: '0.5rem' }}>
+              <p style={{ fontSize: '0.85rem', wordBreak: 'break-all', marginTop: '0.5rem' }}>
                 Embed URL: {embedUrl}
               </p>
             )}

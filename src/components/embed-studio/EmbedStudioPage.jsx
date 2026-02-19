@@ -9,11 +9,12 @@ import { has3SpeakPostAuth } from "../../utils/hiveUtils";
 import 'ldrs/react/LineSpinner.css'
 import { useEmbedUpload } from "../../context/EmbedUploadContext";
 import { HIVE_API_URL } from "../../utils/config";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 
 function EmbedStudioPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isOpenAuth, setIsOpenAuth] = useState(false);
 
@@ -21,7 +22,14 @@ function EmbedStudioPage() {
     user,
     setCommunitiesData,
     step, setStep,
+    fromStories, setFromStories,
   } = useEmbedUpload();
+
+  // Detect stories origin from URL param
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setFromStories(params.get("from") === "stories");
+  }, [location.search, setFromStories]);
 
   const checkPostAuth = async (username) => {
     if (!username) return;
@@ -82,8 +90,7 @@ function EmbedStudioPage() {
     <>
       <div className="studio-main-container">
         <div className="studio-page-header">
-          <h1>Upload Video</h1>
-          <p>Follow the steps below to upload and publish your video</p>
+          <h1>{fromStories ? "Share a Short" : "Share a Video"}</h1>
         </div>
         <StepProgress step={step} />
         <div className="studio-page-content">
