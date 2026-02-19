@@ -2,12 +2,8 @@ import React, { useState } from 'react'
 import "./FirstUploads.scss"
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
-import { NEW_CONTENT_URL } from '../utils/config'
 import CardSkeleton from '../components/Cards/CardSkeleton'
 import Card3 from "../components/Cards/Card3";
-import { useContentBatch } from "../hooks/useContentBatch";
-import { useWatchHistory } from "../hooks/useWatchHistory";
-import useViewCounts from "../hooks/useViewCounts";
 
 const VIDEOS_PER_PAGE = 50;
 
@@ -30,8 +26,8 @@ const NewVideos = () => {
   const { data, isLoading, error } = useQuery({
     queryKey: ['new-content', page],
     queryFn: async () => {
-      const res = await axios.get(`${NEW_CONTENT_URL}?page=${page}&limit=${VIDEOS_PER_PAGE}`);
-      return res.data?.videos || [];
+      const res = await axios.get(`https://legacy.3speak.tv/apiv2/feeds/new?page=${page}&limit=${VIDEOS_PER_PAGE}`);
+      return res.data || [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
@@ -67,15 +63,6 @@ const NewVideos = () => {
 
   const hasMore = data?.length === VIDEOS_PER_PAGE;
 
-  // Batch fetch content data
-  const { getContentForVideo } = useContentBatch(videos);
-
-  // Batch check watch history
-  const { isWatched } = useWatchHistory(videos);
-
-  // Batch fetch view counts
-  const { getViewCount } = useViewCounts(videos);
-
   return (
     <div className='firstupload-container'>
       <div className='headers'>New VIDEOS</div>
@@ -83,7 +70,7 @@ const NewVideos = () => {
         <CardSkeleton />
       ) : (
         <>
-          <Card3 videos={videos} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+          <Card3 videos={videos} loading={false} />
           {hasMore && (
             <button 
               className="load-more-btn" 

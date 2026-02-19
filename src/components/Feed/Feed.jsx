@@ -11,7 +11,6 @@ import { useAppStore } from '../../lib/store';
 import CardSkeleton from "../Cards/CardSkeleton"
 import { useQuery } from "@apollo/client"
 import { LATEST_FEED } from "../../graphql/queries"
-import Cards from "../Cards/Cards"
 import axios from "axios"
 import { useInfiniteQuery } from "@tanstack/react-query"
 import Card3 from "../Cards/Card3"
