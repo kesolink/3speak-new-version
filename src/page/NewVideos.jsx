@@ -1,85 +1,96 @@
 import React, { useState } from 'react'
 import "./FirstUploads.scss"
-import { useQuery } from '@apollo/client'
-import { NEW_CONTENT } from '../graphql/queries'
+import { useQuery } from '@tanstack/react-query'
+import axios from 'axios'
+import { NEW_CONTENT_URL } from '../utils/config'
 import CardSkeleton from '../components/Cards/CardSkeleton'
 import Card3 from "../components/Cards/Card3";
+import { useContentBatch } from "../hooks/useContentBatch";
+import { useWatchHistory } from "../hooks/useWatchHistory";
+import useViewCounts from "../hooks/useViewCounts";
 
 const VIDEOS_PER_PAGE = 50;
 
+// Helper to deduplicate videos by author+permlink
+const deduplicateVideos = (videos) => {
+  const seen = new Set();
+  return videos.filter(video => {
+    const author = video.author?.username || video.author || video.owner;
+    const key = `${author}-${video.permlink}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const NewVideos = () => {
-  const [skip, setSkip] = useState(0);
+  const [page, setPage] = useState(1);
   const [allVideos, setAllVideos] = useState([]);
   
-  const { data, loading, error } = useQuery(NEW_CONTENT, {
-    variables: { limit: VIDEOS_PER_PAGE, skip },
-    fetchPolicy: 'network-only', // Prevent cache from causing duplicate onCompleted calls
-    onCompleted: (newData) => {
-      const newItems = newData?.socialFeed?.items || [];
-      
-      // Filter out internal re-encoding account
-      const filteredItems = newItems.filter(item => {
-        const author = item.author?.username || item.author;
-        return author !== 'threespeak-fixer';
-      });
-      
-      // Helper to deduplicate items by author+permlink
-      const deduplicateItems = (items) => {
-        const seen = new Set();
-        return items.filter(item => {
-          const key = `${item.author?.username || item.author}-${item.permlink}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-      };
-      
-      if (skip === 0) {
-        // Deduplicate even the first batch (API returns duplicates)
-        setAllVideos(deduplicateItems(filteredItems));
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['new-content', page],
+    queryFn: async () => {
+      const res = await axios.get(`${NEW_CONTENT_URL}?page=${page}&limit=${VIDEOS_PER_PAGE}`);
+      return res.data?.videos || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    onSuccess: (newVideos) => {
+      if (page === 1) {
+        setAllVideos(deduplicateVideos(newVideos));
       } else {
-        // Deduplicate against existing + new items
         setAllVideos(prev => {
-          const existingKeys = new Set(prev.map(v => `${v.author?.username || v.author}-${v.permlink}`));
-          const uniqueNew = filteredItems.filter(item => {
-            const key = `${item.author?.username || item.author}-${item.permlink}`;
+          const existingKeys = new Set(prev.map(v => {
+            const author = v.author?.username || v.author || v.owner;
+            return `${author}-${v.permlink}`;
+          }));
+          const uniqueNew = newVideos.filter(video => {
+            const author = video.author?.username || video.author || video.owner;
+            const key = `${author}-${video.permlink}`;
             return !existingKeys.has(key);
           });
-          return [...prev, ...deduplicateItems(uniqueNew)];
+          return [...prev, ...deduplicateVideos(uniqueNew)];
         });
       }
     }
   });
 
-  // Transform GraphQL response to match Card3 expected format
-  const videos = allVideos.map(item => ({
-    ...item,
-    author: item.author?.username || item.author,
-    duration: item.spkvideo?.duration,
-    created_at: item.created_at,
-  }));
+  // Filter out internal re-encoding account
+  const videos = allVideos.filter(video => {
+    const author = video.author?.username || video.author || video.owner;
+    return author !== 'threespeak-fixer';
+  });
 
   const handleLoadMore = () => {
-    setSkip(prev => prev + VIDEOS_PER_PAGE);
+    setPage(prev => prev + 1);
   };
 
-  const hasMore = data?.socialFeed?.items?.length === VIDEOS_PER_PAGE;
+  const hasMore = data?.length === VIDEOS_PER_PAGE;
+
+  // Batch fetch content data
+  const { getContentForVideo } = useContentBatch(videos);
+
+  // Batch check watch history
+  const { isWatched } = useWatchHistory(videos);
+
+  // Batch fetch view counts
+  const { getViewCount } = useViewCounts(videos);
 
   return (
     <div className='firstupload-container'>
       <div className='headers'>New VIDEOS</div>
-      {loading && skip === 0 ? (
+      {isLoading && page === 1 ? (
         <CardSkeleton />
       ) : (
         <>
-          <Card3 videos={videos} loading={false} />
+          <Card3 videos={videos} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
           {hasMore && (
             <button 
               className="load-more-btn" 
               onClick={handleLoadMore}
-              disabled={loading}
+              disabled={isLoading}
             >
-              {loading ? 'Loading...' : 'Load More'}
+              {isLoading ? 'Loading...' : 'Load More'}
             </button>
           )}
         </>
