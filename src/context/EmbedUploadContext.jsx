@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL } from '../utils/config';
-import { commentWithAioha } from '../hive-api/aioha';
+import { commentWithAioha, broadcastWithAioha, KeyTypes } from '../hive-api/aioha';
 import { useAppStore } from '../lib/store';
 import axios from 'axios';
 
@@ -270,15 +270,52 @@ export function EmbedUploadProvider({ children }) {
         }
       }
 
-      const result = await commentWithAioha(
-        parentAuthor,    // parentAuthor (empty = root post, or snaps author for shorts)
-        parentPermlink,  // parentPermlink (community or snaps post permlink)
-        hivePermlink,    // permlink
-        fromStories ? '' : title, // title (empty for replies/shorts)
-        postBody,        // body
-        jsonMetadata,    // json_metadata
-        commentOptions   // comment_options with beneficiaries
-      );
+      let result;
+
+      if (originalAuthor && originalPermlink) {
+        // Dual post: video post + comment on original video, in one transaction
+        addMessage('Creating post and comment on original video...');
+
+        const mainPostOp = ['comment', {
+          parent_author: parentAuthor,
+          parent_permlink: parentPermlink,
+          author: user,
+          permlink: hivePermlink,
+          title: fromStories ? '' : title,
+          body: postBody,
+          json_metadata: JSON.stringify(jsonMetadata),
+        }];
+
+        const commentOptionsOp = ['comment_options', commentOptions];
+
+        const replyPermlink = `re-${originalAuthor}-${Date.now()}`;
+        const replyBody = `I created a remix/clip from this video!\n\nCheck it out: [${title || 'My remix'}](${window.location.origin}/@${user}/${hivePermlink})`;
+        const replyOp = ['comment', {
+          parent_author: originalAuthor,
+          parent_permlink: originalPermlink,
+          author: user,
+          permlink: replyPermlink,
+          title: '',
+          body: replyBody,
+          json_metadata: JSON.stringify({ app: '3speak/embed', tags: ['3speak'] }),
+        }];
+
+        result = await broadcastWithAioha(
+          [mainPostOp, commentOptionsOp, replyOp],
+          KeyTypes.Posting
+        );
+      } else {
+        // Regular single post
+        result = await commentWithAioha(
+          parentAuthor,
+          parentPermlink,
+          hivePermlink,
+          fromStories ? '' : title,
+          postBody,
+          jsonMetadata,
+          commentOptions
+        );
+      }
 
       if (!result.success) {
         throw new Error('Failed to post to Hive');

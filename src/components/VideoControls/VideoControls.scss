@@ -628,6 +628,11 @@
   }
 }
 
+// Hide mobile settings gear on desktop
+.vc-mobile-settings-wrap {
+  display: none;
+}
+
 // Mobile controls layout
 @media (max-width: 767px) {
   // Container always visible (for progress bar) but non-interactive
@@ -680,18 +685,23 @@
     }
 
     .vc-controls-left {
-      gap: 20px;
+      gap: 15px;
     }
 
     .vc-btn {
-      width: 44px;
-      height: 44px;
+      width: 24px;
+      height: 24px;
       background: rgba(0, 0, 0, 0.35);
+
+      svg {
+        width: 75%;
+        height: 75%;
+      }
     }
 
     .vc-btn--play {
-      width: 52px;
-      height: 52px;
+      width: 27px;
+      height: 27px;
       background: rgba(0, 0, 0, 0.45);
     }
 
@@ -701,10 +711,10 @@
       bottom: 12px;
       left: 8px;
       margin-left: 0;
-      font-size: 11px;
+      font-size: 9px;
       background: rgba(0, 0, 0, 0.45);
-      padding: 2px 6px;
-      border-radius: 4px;
+      padding: 1px 4px;
+      border-radius: 3px;
       opacity: 0;
       transition: opacity 0.3s ease;
       z-index: 1;
@@ -720,15 +730,69 @@
       z-index: 1;
     }
 
-    // Hide resize, glow, autoplay, and volume slider on mobile
+    // Hide individual trigger buttons on mobile (menus are opened via settings gear instead)
     .vc-btn--resize,
     .vc-btn--glow,
     .vc-btn--autoplay {
       display: none;
     }
 
+    // Hide the trigger buttons inside wraps, but keep the wraps so menus can render
+    .vc-subtitle-wrap > .vc-btn--subtitle,
+    .vc-speed-wrap > .vc-btn--speed,
+    .vc-quality-wrap > .vc-btn {
+      display: none;
+    }
+
+    // Wraps should take no space when their button is hidden
+    .vc-subtitle-wrap,
+    .vc-speed-wrap,
+    .vc-quality-wrap {
+      width: 0;
+      overflow: visible;
+    }
+
     .vc-volume-slider-wrap {
       display: none !important;
+    }
+
+    // Mobile settings gear — visible only on mobile
+    .vc-mobile-settings-wrap {
+      position: relative;
+      display: flex;
+    }
+
+    .vc-mobile-settings-menu {
+      position: absolute;
+      bottom: 100%;
+      right: 0;
+      margin-bottom: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background: none;
+      padding: 0;
+      z-index: 100;
+    }
+
+    .vc-mobile-settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.35);
+      color: rgba(255, 255, 255, 0.85);
+      cursor: pointer;
+      font-size: 9px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+
+      &.active {
+        color: var(--accent-primary, #e53935);
+      }
     }
 
     // When visible: show gradient + controls (not progress bar — already visible)

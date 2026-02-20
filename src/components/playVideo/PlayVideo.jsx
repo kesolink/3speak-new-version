@@ -40,7 +40,7 @@ import { removeFromPlaylist } from "../../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import Button from "../Button/Button";
-import { Repeat2, Scissors, Tornado } from 'lucide-react';
+import { Repeat2, Scissors, Tornado, Film, Music } from 'lucide-react';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
 import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
@@ -90,6 +90,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [editorVideoName, setEditorVideoName] = useState(null);
   const [editorClipStart, setEditorClipStart] = useState(null);
   const [editorClipEnd, setEditorClipEnd] = useState(null);
+  const [editorVideoType, setEditorVideoType] = useState('video');
+  const [remixDropdownOpen, setRemixDropdownOpen] = useState(false);
+  const remixDropdownRef = useRef(null);
 
   // Clip mode state
   const [clipMode, setClipMode] = useState(false); // false | 'start' | 'end' | 'done'
@@ -359,7 +362,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     }
   }, [authenticated, user, author, permlink, hasReshared]);
 
-  const handleRemix = useCallback(() => {
+  const handleRemix = useCallback((mediaType = 'video') => {
     if (!videoUrlSelected) {
       toast.error('Could not resolve video URL for remix');
       return;
@@ -369,8 +372,21 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     setEditorVideoName(`${author} - ${videoDetails?.title || permlink}`);
     setEditorClipStart(null);
     setEditorClipEnd(null);
+    setEditorVideoType(mediaType);
     setShowEditorModal(true);
   }, [videoUrlSelected, author, permlink, videoDetails?.title, videoControls]);
+
+  // Close remix dropdown on click outside
+  useEffect(() => {
+    if (!remixDropdownOpen) return;
+    const handleClickOutside = (e) => {
+      if (remixDropdownRef.current && !remixDropdownRef.current.contains(e.target)) {
+        setRemixDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [remixDropdownOpen]);
 
   // Clip mode helpers
   const formatTime = (seconds) => {
@@ -602,6 +618,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     onSubtitleStyleChange={videoControls.onSubtitleStyleChange}
                     playbackRate={videoControls.playbackRate}
                     onPlaybackRateChange={videoControls.onPlaybackRateChange}
+                    onHoldControls={videoControls.onHoldControls}
+                    onReleaseControls={videoControls.onReleaseControls}
                   />
                 </>
               )}
@@ -701,15 +719,27 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             <div className="info-buttons-row">
               {FEATURE_EDITOR && (
                 <div className="info-buttons-left">
-                  <button
-                    className="remix-btn"
-                    onClick={handleRemix}
-                    title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
-                    disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
-                  >
-                    <Tornado size={16} />
-                    <span className="tools-row-label">Remix</span>
-                  </button>
+                  <div className="remix-dropdown-wrap" ref={remixDropdownRef}>
+                    <button
+                      className="remix-btn"
+                      onClick={() => setRemixDropdownOpen(p => !p)}
+                      title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
+                      disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
+                    >
+                      <Tornado size={16} />
+                      <span className="tools-row-label">Remix</span>
+                    </button>
+                    {remixDropdownOpen && (
+                      <div className="remix-dropdown">
+                        <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); }}>
+                          <Film size={14} /> Remix Video
+                        </button>
+                        <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); }}>
+                          <Music size={14} /> Remix Audio
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     className={`clip-btn${clipMode ? ' active' : ''}`}
                     onClick={clipMode ? handleCancelClip : handleStartClipMode}
@@ -805,15 +835,27 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           {/* Mobile-only tools row (Clip/Remix hidden from info-buttons-left on mobile) */}
           {FEATURE_EDITOR && (
             <div className="tools-row mobile-only">
-              <button
-                className="remix-btn"
-                onClick={handleRemix}
-                title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
-                disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
-              >
-                <Tornado size={16} />
-                <span className="tools-row-label">Remix</span>
-              </button>
+              <div className="remix-dropdown-wrap" ref={remixDropdownRef}>
+                <button
+                  className="remix-btn"
+                  onClick={() => setRemixDropdownOpen(p => !p)}
+                  title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
+                  disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
+                >
+                  <Tornado size={16} />
+                  <span className="tools-row-label">Remix</span>
+                </button>
+                {remixDropdownOpen && (
+                  <div className="remix-dropdown">
+                    <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); }}>
+                      <Film size={14} /> Remix Video
+                    </button>
+                    <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); }}>
+                      <Music size={14} /> Remix Audio
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 className={`clip-btn${clipMode ? ' active' : ''}`}
                 onClick={clipMode ? handleCancelClip : handleStartClipMode}
@@ -928,6 +970,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         onClose={() => setShowEditorModal(false)}
         videoUrl={editorVideoUrl}
         videoName={editorVideoName}
+        videoType={editorVideoType}
         clipStart={editorClipStart}
         clipEnd={editorClipEnd}
         originalAuthor={author}
@@ -999,6 +1042,42 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     aria-label="Tip"
                   >
                     <MdAttachMoney size={20} />
+                  </button>
+                </div>
+              )}
+
+              {FEATURE_EDITOR && authenticated && isLoggedIn() && videoUrlSelected && videoControls?.duration > 0 && videoControls.duration <= 60 && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Remix</span>
+                  <button
+                    className="fab-action-btn"
+                    onClick={() => { setRemixDropdownOpen(p => !p); }}
+                    aria-label="Remix"
+                  >
+                    <Tornado size={18} />
+                  </button>
+                  {remixDropdownOpen && (
+                    <div className="remix-dropdown remix-dropdown--fab">
+                      <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); setFabOpen(false); }}>
+                        <Film size={14} /> Remix Video
+                      </button>
+                      <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); setFabOpen(false); }}>
+                        <Music size={14} /> Remix Audio
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {FEATURE_EDITOR && authenticated && isLoggedIn() && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Clip</span>
+                  <button
+                    className={`fab-action-btn${clipMode ? ' fab-action-btn--active' : ''}`}
+                    onClick={() => { setMobileDetailsExpanded(true); handleStartClipMode(); setFabOpen(false); }}
+                    aria-label="Clip"
+                  >
+                    <Scissors size={18} />
                   </button>
                 </div>
               )}

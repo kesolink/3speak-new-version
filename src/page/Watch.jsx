@@ -554,6 +554,18 @@ function Watch() {
     });
   }, []);
 
+  // Hold controls visible (e.g. while a menu is open) — cancel auto-hide
+  const holdControls = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    setControlsVisible(true);
+  }, []);
+
+  // Release hold — restart auto-hide timer
+  const releaseControls = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+  }, []);
+
   const handleToggleFullscreen = useCallback(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
@@ -843,9 +855,9 @@ function Watch() {
     if (index < 0 || index >= (reactions?.length ?? 0)) return;
     setSelectedReactionIndex(index);
     setReactionsVisible(true);
-    // Seek main video to this reaction's timeline position
+    // Seek main video to this reaction's timeline position (only if it has a timestamp)
     const reaction = reactions[index];
-    if (reaction && playerState.duration > 0) {
+    if (reaction && reaction.pct !== null && playerState.duration > 0) {
       seek(reaction.pct);
     }
   }, [reactions, playerState.duration, seek]);
@@ -961,6 +973,8 @@ function Watch() {
           onSubtitleStyleChange: updateSubtitleStyle,
           playbackRate: playerState.playbackRate,
           onPlaybackRateChange: setPlaybackRate,
+          onHoldControls: holdControls,
+          onReleaseControls: releaseControls,
         }}
         mobileReactionPanel={
           <>

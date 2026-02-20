@@ -65,6 +65,7 @@ import EmbedStudioPage from "./components/embed-studio/EmbedStudioPage";
 import EmbedThumbnail from "./components/embed-studio/EmbedThumbnail";
 import EmbedDetails from "./components/embed-studio/EmbedDetails";
 import EmbedPreview from "./components/embed-studio/EmbedPreview";
+import FollowFeed from "./page/FollowFeed";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
 import { KeyTypes } from "@aioha/aioha";
@@ -257,6 +258,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomeGrouped />} />
             <Route path="/home-feed" element={<Feed />} />
+            <Route path="/follow-feed" element={<FollowFeed />} />
             <Route path="/watch" element={<Watch />} />
             <Route path="/upload" element={<UploadVideo />} />
             <Route path="/firstupload" element={<FirstUploads />} />

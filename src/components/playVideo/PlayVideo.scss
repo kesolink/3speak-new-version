@@ -493,6 +493,48 @@
         }
     }
 
+    .remix-dropdown-wrap {
+        position: relative;
+        display: inline-flex;
+    }
+
+    .remix-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 4px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 100;
+        min-width: 150px;
+        overflow: hidden;
+
+        button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s ease;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.1);
+            }
+
+            & + button {
+                border-top: 1px solid var(--border-color);
+            }
+        }
+    }
+
     .tools-row {
         display: flex;
         align-items: center;
@@ -1068,8 +1110,8 @@
         flex-direction: column;
         align-items: flex-end;
         position: fixed;
-        bottom: 24px;
-        right: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        right: calc(12px + env(safe-area-inset-right, 0px));
         z-index: 50;
     }
 }
@@ -1172,5 +1214,48 @@
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
+    }
+}
+
+/* Remix dropdown inside FAB — position to the left */
+.fab-action {
+    position: relative;
+}
+
+.remix-dropdown--fab {
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-right: 8px;
+    background: var(--bg-elevated, #2a2a2a);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 110;
+    min-width: 150px;
+    overflow: hidden;
+
+    button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 14px;
+        background: none;
+        border: none;
+        color: var(--text-primary, #fff);
+        font-size: 13px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        & + button {
+            border-top: 1px solid var(--border-color);
+        }
     }
 }

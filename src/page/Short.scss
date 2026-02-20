@@ -1322,6 +1322,44 @@
     }
   }
 
+  .remix-dropdown-short {
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-right: 8px;
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    min-width: 150px;
+    overflow: hidden;
+
+    button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 14px;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      & + button {
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+    }
+  }
+
   .actionLabel {
     font-size: 0.875rem;
     font-weight: 500;

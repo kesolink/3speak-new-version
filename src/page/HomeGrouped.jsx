@@ -237,7 +237,7 @@ const HomeGrouped = () => {
       <VideoRow
         title={authenticated ? "Follow Feed" : "Home Feed"}
         videos={homeData || []}
-        linkTo="/home-feed"
+        linkTo={authenticated ? "/follow-feed" : "/home-feed"}
         isLoading={homeLoading}
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
