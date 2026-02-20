@@ -131,6 +131,18 @@
       background: rgba(255, 255, 255, 0.08);
     }
   }
+
+  // On mobile: hide button text labels, show icons only
+  @include respond(phone) {
+    .comment-btn-label {
+      display: none;
+    }
+
+    .comment-shorts-link,
+    .comment-translate-btn {
+      padding: 4px 8px;
+    }
+  }
 }
 
 .btn-wrap {
@@ -199,7 +211,7 @@
 .comment-timestamp-input {
   width: 72px;
   padding: 5px 8px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   font-family: inherit;
   color: var(--text-primary, #fff);

@@ -131,7 +131,7 @@ export default function TranslateButton({ onTranslate, isTranslating, compact })
           {isTranslating
             ? <ImSpinner9 size={compact ? 10 : 12} className="spinner" />
             : <MdTranslate size={compact ? 12 : 14} />}
-          <span>{isTranslating ? (compact ? '...' : 'Translating...') : 'Translate'}</span>
+          <span className="comment-btn-label">{isTranslating ? (compact ? '...' : 'Translating...') : 'Translate'}</span>
         </button>
       </div>
       {menu}

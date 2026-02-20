@@ -31,6 +31,8 @@ import {
   Moon,
   Lightbulb,
   Sun,
+  Film,
+  Music,
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 import { MdTranslate, MdClosedCaption, MdClosedCaptionOff } from 'react-icons/md';
@@ -132,6 +134,9 @@ const VideoShort = () => {
   const [editorVideoName, setEditorVideoName] = useState(null);
   const [editorOriginalAuthor, setEditorOriginalAuthor] = useState(null);
   const [editorOriginalPermlink, setEditorOriginalPermlink] = useState(null);
+  const [editorVideoType, setEditorVideoType] = useState('video');
+  const [remixDropdownOpen, setRemixDropdownOpen] = useState(false);
+  const remixDropdownRef = useRef(null);
 
   // Ambient glow
   const { glowMode, toggleGlow } = useAmbientGlow();
@@ -1425,7 +1430,7 @@ const VideoShort = () => {
     }
   };
 
-  const handleRemix = useCallback(async () => {
+  const handleRemix = useCallback(async (mediaType = 'video') => {
     const currentVid = videos[currentIndex];
     if (!currentVid) return;
 
@@ -1443,6 +1448,7 @@ const VideoShort = () => {
         setEditorVideoName(`${currentVid.author} - ${currentVid.caption || currentVid.permlink}`);
         setEditorOriginalAuthor(currentVid.author);
         setEditorOriginalPermlink(currentVid.permlink);
+        setEditorVideoType(mediaType);
         setShowEditorModal(true);
       } else {
         toast.error('Could not resolve video URL for remix');
@@ -1452,6 +1458,18 @@ const VideoShort = () => {
       toast.error('Failed to load video for remix');
     }
   }, [videos, currentIndex]);
+
+  // Close remix dropdown on click outside
+  useEffect(() => {
+    if (!remixDropdownOpen) return;
+    const handleClickOutside = (e) => {
+      if (remixDropdownRef.current && !remixDropdownRef.current.contains(e.target)) {
+        setRemixDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [remixDropdownOpen]);
 
   /* ---------- INTERACTIONS ---------- */
 
@@ -2506,11 +2524,21 @@ const VideoShort = () => {
           </div>
 
           {FEATURE_EDITOR && authenticated && (
-            <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleRemix(); }}>
+            <div className="actionItem remix-action-wrap" ref={remixDropdownRef} onClick={(e) => { e.stopPropagation(); setRemixDropdownOpen(p => !p); }}>
               <div className="actionButton">
                 <WandSparkles size={24} />
               </div>
               <span className="actionLabel">Remix</span>
+              {remixDropdownOpen && (
+                <div className="remix-dropdown-short" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); }}>
+                    <Film size={14} /> Remix Video
+                  </button>
+                  <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); }}>
+                    <Music size={14} /> Remix Audio
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -2639,7 +2667,7 @@ const VideoShort = () => {
         onClose={() => setShowEditorModal(false)}
         videoUrl={editorVideoUrl}
         videoName={editorVideoName}
-        videoType="video"
+        videoType={editorVideoType}
         originalAuthor={editorOriginalAuthor}
         originalPermlink={editorOriginalPermlink}
       />
