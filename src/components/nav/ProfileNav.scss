@@ -30,7 +30,8 @@
     }
     .pro-top-wrap {
       width: 100%;
-      height: 180px;
+      height: 220px;
+      padding-top: 20px;
       position: relative;
       border-radius: 10px 10px 0 0;
       overflow: hidden;
@@ -44,8 +45,8 @@
       // background-image: blue;
 
       .avatar-img {
-        width: 45px;
-        height: 45px;
+        width: 90px;
+        height: 90px;
         border-radius: 50%;
         border: 3px solid white;
         position: relative;
@@ -61,8 +62,12 @@
         text-align: center;
         color: #fff;
         font-weight: 600;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 4px 14px;
+        border-radius: 12px;
+        margin-bottom: 16px;
         [data-theme="dark"] & {
-            color: black;
+            color: #fff;
           }
       }
       .power-wrap {
@@ -136,12 +141,8 @@
       .wrap {
         display: flex;
         padding: 15px 0;
-        // background-color: #cccccc83;
-        // width: 100%;
-        // background: red;
         border-radius: 4px;
         align-items: center;
-        // margin-bottom: 20px;
         width: fit-content;
         flex-wrap: wrap;
         cursor: pointer;
@@ -164,6 +165,35 @@
           margin-right: 12px;
         }
       }
+
+      .upload-dropdown {
+        .upload-chevron {
+          margin-left: 6px;
+          font-size: 16px;
+          color: var(--text-secondary);
+        }
+
+        .upload-subitems {
+          padding-left: 20px;
+
+          .sub-item {
+            padding: 10px 0;
+            .icon {
+              width: 20px;
+            }
+            span {
+              font-size: 13px;
+            }
+          }
+        }
+      }
+    }
+    .profile-divider {
+      border: 0;
+      height: 1px;
+      background: var(--divider, #e0e0e0);
+      width: 85%;
+      margin: 10px auto;
     }
     .logo-wrap {
       display: flex;

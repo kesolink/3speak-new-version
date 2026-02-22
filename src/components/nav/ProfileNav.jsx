@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import "./ProfileNav.scss"
 import '../../page/Login/KeyChainLogin.scss';
 import { useAppStore } from '../../lib/store';
@@ -16,6 +16,8 @@ import logo from "../../assets/image/3S_logo.svg";
 import logoDark from '../../assets/image/3S_logodark.png';
 import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
+import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
+import ShortsIcon from '../icons/ShortsIcon';
 
 
 
@@ -26,6 +28,7 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const { user, theme } = useAppStore();
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const handlewallletNavigation = () => {
     navigate(`/wallet/${user}`)
@@ -88,9 +91,22 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           {/* <Link className="wrap" onClick={onclose}>
             <TiThList className="icon" /> <span>Playlist</span>
           </Link> */}
-          <Link to="/studio" className="wrap" onClick={onclose}>
-            <MdCloudUpload className="icon" /> <span>Upload Video</span>
-          </Link>
+          <div className="upload-dropdown">
+            <div className="wrap" onClick={() => setUploadOpen(!uploadOpen)}>
+              <MdCloudUpload className="icon" /> <span>Upload</span>
+              {uploadOpen ? <BiChevronUp className="upload-chevron" /> : <BiChevronDown className="upload-chevron" />}
+            </div>
+            {uploadOpen && (
+              <div className="upload-subitems">
+                <Link to="/studio" className="wrap sub-item" onClick={onclose}>
+                  <MdCloudUpload className="icon" /> <span>Upload Video</span>
+                </Link>
+                <Link to="/embed-studio" className="wrap sub-item" onClick={onclose}>
+                  <ShortsIcon className="icon" outlineWidth={30} /> <span>Upload Short</span>
+                </Link>
+              </div>
+            )}
+          </div>
 
           <a className="wrap" onClick={() => { handlewallletNavigation(); onclose() }}>
             <RiWallet3Fill className="icon" /> <span>Wallet</span>
@@ -103,6 +119,7 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           </a>
 
            </div>
+           <hr className="profile-divider" />
            <div className="logo-wrap">
           {theme === "light" ? <img className="logo" src={logo} alt="3Speak Logo" /> :
             <img className="logo" src={logoDark} alt="3Speak Logo" />}

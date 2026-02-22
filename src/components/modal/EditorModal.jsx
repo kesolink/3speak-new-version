@@ -349,7 +349,8 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
               ref={iframeRef}
               src={`${resolvedUrl}?compact=true`}
               className="editor-iframe"
-              allow="cross-origin-isolated; camera; microphone"
+              allow="cross-origin-isolated; camera; microphone; fullscreen"
+              allowFullScreen
               title="3Speak Video Editor"
             />
           )}

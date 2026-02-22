@@ -2036,7 +2036,7 @@
   /* Comment Input */
   .commentInput {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 0.75rem;
     padding: 1rem 1.25rem;
     border-top: 1px solid var(--border-color);
@@ -2068,15 +2068,20 @@
     }
   }
 
-  .commentInput input {
+  .commentInput textarea {
     flex: 1;
     background: none;
     border: none;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-primary);
     font-size: 0.875rem;
+    font-family: inherit;
     padding: 0.5rem 0;
     outline: none;
+    resize: none;
+    overflow: hidden;
+    max-height: 120px;
+    line-height: 1.4;
 
     [data-theme="dark"] & {
       border-bottom-color: #3f3f3f;

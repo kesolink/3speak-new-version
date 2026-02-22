@@ -2640,14 +2640,19 @@ const VideoShort = () => {
           <div className="commentInputAvatar">
             <img src={user ? `https://images.hive.blog/u/${user}/avatar` : "https://images.hive.blog/u/guest/avatar"} alt="" />
           </div>
-          <input
-            type="text"
+          <textarea
+            rows={1}
             placeholder={user ? "Add a comment..." : "Login to comment"}
             value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
+            onChange={(e) => {
+              setNewComment(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
             disabled={!user || postingComment}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && !postingComment) {
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !postingComment) {
+                e.preventDefault();
                 handlePostComment(currentVideo.author, currentVideo.hivePermlink, newComment, false);
               }
             }}

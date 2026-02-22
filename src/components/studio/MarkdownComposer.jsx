@@ -45,6 +45,18 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
   const [isDragOver, setIsDragOver] = useState(false);
   const [renderedContent, setRenderedContent] = useState('');
 
+  // Auto-resize textarea to fit content
+  const autoResize = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }, []);
+
+  useEffect(() => {
+    autoResize();
+  }, [value, viewMode, autoResize]);
+
   // Render preview when content or viewMode changes
   useEffect(() => {
     if (viewMode === 'editor') return;

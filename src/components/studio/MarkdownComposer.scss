@@ -3,8 +3,7 @@
 .markdown-composer {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 300px;
+  min-height: 120px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background-color: var(--bg-secondary);
@@ -155,7 +154,6 @@
     display: flex;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
 
     &.editor {
       .editor-panel {
@@ -203,12 +201,13 @@
     flex-direction: column;
 
     textarea {
-      flex: 1;
       width: 100%;
+      min-height: 120px;
       padding: 16px;
       border: none;
       outline: none;
       resize: none;
+      overflow: hidden;
       font-family: "SF Mono", "Fira Code", "Monaco", "Inconsolata", monospace;
       font-size: 14px;
       line-height: 1.6;

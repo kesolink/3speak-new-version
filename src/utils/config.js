@@ -46,6 +46,7 @@ async function getEditorUrl() {
 
 // Feature flags
 const FEATURE_EDITOR = import.meta.env.VITE_FEATURE_EDITOR === 'true';
+const COMPACT_SIDEBAR = import.meta.env.VITE_COMPACT_SIDEBAR === 'true';
 
 // 3Speak Embed upload (for video reactions)
 const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed.3speak.tv/uploads';
@@ -91,4 +92,5 @@ export {
   EDITOR_URLS,
   getEditorUrl,
   FEATURE_EDITOR,
+  COMPACT_SIDEBAR,
 };

@@ -498,7 +498,11 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
             placeholder="Write your comment here..."
             className="textarea-box"
             value={commentInfo}
-            onChange={(e) => setCommentInfo(e.target.value)}
+            onChange={(e) => {
+              setCommentInfo(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
             onFocus={handleTextareaFocus}
           />
           <div className="comment-form-row">
@@ -771,7 +775,11 @@ function Comment({
                 placeholder="Write your reply here..."
                 className="textarea-box sub"
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+                onChange={(e) => {
+                  setReplyText(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
               />
               <div className="btn-wrap">
                 <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />
