@@ -17,6 +17,11 @@
   margin: 0 !important;
 }
 
+/* Remove container padding when Shorts page is active */
+.container:has(.short-main) {
+  padding: 0 !important;
+}
+
 @media (max-width: 767px) {
   .container {
     padding-left: 2%;

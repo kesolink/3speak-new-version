@@ -290,6 +290,11 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
           ? JSON.parse(post.json_metadata || '{}')
           : (post.json_metadata || {});
 
+        // Extract reusable flag from video metadata (undefined = not set)
+        if (jm.video && jm.video.reusable != null) {
+          base.reusable = !!jm.video.reusable;
+        }
+
         if (jm.parentTimestamp != null && post.parent_author) {
           base.parentTimestamp = jm.parentTimestamp;
           try {

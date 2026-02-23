@@ -61,6 +61,10 @@ export function EmbedUploadProvider({ children }) {
   // Original video attribution (for remix/clip)
   const [originalAuthor, setOriginalAuthor] = useState(null);
   const [originalPermlink, setOriginalPermlink] = useState(null);
+  const [originalShortPermlink, setOriginalShortPermlink] = useState(null);
+
+  // Reusable flag (allow others to remix/clip this video)
+  const [reusable, setReusable] = useState(true);
 
   // Publish state
   const [uploading, setUploading] = useState(false);
@@ -102,6 +106,8 @@ export function EmbedUploadProvider({ children }) {
     setFromStories(false);
     setOriginalAuthor(null);
     setOriginalPermlink(null);
+    setOriginalShortPermlink(null);
+    setReusable(true);
     setUploading(false);
     setCompleted(false);
     setUploadProgress(0);
@@ -132,7 +138,7 @@ export function EmbedUploadProvider({ children }) {
       toast.error('Description is required');
       return;
     }
-    if (!tagsPreview || tagsPreview.length === 0) {
+    if (!fromStories && (!tagsPreview || tagsPreview.length === 0)) {
       toast.error('Please add at least one tag');
       return;
     }
@@ -204,7 +210,12 @@ export function EmbedUploadProvider({ children }) {
       // Build body: description + embed URL + credit to original author
       let postBody = `${description}\n\n${capturedEmbedUrl}`;
       if (originalAuthor && originalPermlink) {
-        postBody += `\n\n---\n*Based on a video by [@${originalAuthor}](${window.location.origin}/@${originalAuthor}/${originalPermlink})*`;
+        // Use shorts link format when remix comes from a short
+        const shortPl = originalShortPermlink || originalPermlink;
+        const originalLink = fromStories
+          ? `${window.location.origin}/shorts?v=${originalAuthor}/${shortPl}`
+          : `${window.location.origin}/@${originalAuthor}/${originalPermlink}`;
+        postBody += `\n\n---\n*Based on a video by [@${originalAuthor}](${originalLink})*`;
       }
 
       const jsonMetadata = {
@@ -214,24 +225,35 @@ export function EmbedUploadProvider({ children }) {
         video: {
           platform: '3speak',
           url: capturedEmbedUrl,
+          reusable: (originalAuthor && originalPermlink) ? true : reusable,
           ...(originalAuthor ? { originalAuthor, originalPermlink } : {}),
         },
       };
 
-      // Build comment_options with 10% beneficiary to threespeakfund + any user-added beneficiaries
+      // Build comment_options with beneficiaries (threespeakfund + original author + user-added)
       let parsedBeneficiaries = beneficiaries;
       if (typeof parsedBeneficiaries === 'string') {
         try { parsedBeneficiaries = JSON.parse(parsedBeneficiaries); } catch { parsedBeneficiaries = []; }
       }
 
-      // Always include threespeakfund at 10% (1000 = 10%)
-      const allBeneficiaries = [
-        { account: 'threespeakfund', weight: 1000 },
-        ...(Array.isArray(parsedBeneficiaries) ? parsedBeneficiaries : [])
-      ];
+      // Start with user-set beneficiaries (from the UI list, includes locked items)
+      const beneMap = new Map();
+      for (const b of (Array.isArray(parsedBeneficiaries) ? parsedBeneficiaries : [])) {
+        beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
+      }
 
-      // Sort by account name (required by Hive protocol)
-      allBeneficiaries.sort((a, b) => a.account.localeCompare(b.account));
+      // Ensure threespeakfund at minimum 10% (1000 weight)
+      beneMap.set('threespeakfund', Math.max(beneMap.get('threespeakfund') || 0, 1000));
+
+      // Ensure 5% for original author when this is a remix/clip
+      if (originalAuthor && originalPermlink) {
+        beneMap.set(originalAuthor, Math.max(beneMap.get(originalAuthor) || 0, 500));
+      }
+
+      // Convert map to sorted array (sorted by account name — required by Hive protocol)
+      const allBeneficiaries = [...beneMap.entries()]
+        .map(([account, weight]) => ({ account, weight }))
+        .sort((a, b) => a.account.localeCompare(b.account));
 
       const commentOptions = {
         author: user,
@@ -243,11 +265,19 @@ export function EmbedUploadProvider({ children }) {
         extensions: [[0, { beneficiaries: allBeneficiaries }]],
       };
 
-      // Determine parent: shorts reply to @peak.snaps latest post, regular = root post
+      // Determine parent:
+      // - Short remix → comment under the original short
+      // - New short → reply to @peak.snaps latest container post
+      // - Regular video → root post in community
       let parentAuthor = '';
       let parentPermlink = communityTag;
 
-      if (fromStories) {
+      if (fromStories && originalAuthor && originalPermlink) {
+        // Remix of an existing short → post as comment under the original
+        parentAuthor = originalAuthor;
+        parentPermlink = originalPermlink;
+        addMessage(`Replying to @${parentAuthor}/${parentPermlink}`);
+      } else if (fromStories) {
         addMessage('Finding snaps container post...');
         try {
           const snapsRes = await axios.post(HIVE_API_URL, {
@@ -272,8 +302,8 @@ export function EmbedUploadProvider({ children }) {
 
       let result;
 
-      if (originalAuthor && originalPermlink) {
-        // Dual post: video post + comment on original video, in one transaction
+      if (originalAuthor && originalPermlink && !fromStories) {
+        // Dual post (non-short remix): video post + comment on original video
         addMessage('Creating post and comment on original video...');
 
         const mainPostOp = ['comment', {
@@ -281,7 +311,7 @@ export function EmbedUploadProvider({ children }) {
           parent_permlink: parentPermlink,
           author: user,
           permlink: hivePermlink,
-          title: fromStories ? '' : title,
+          title: title,
           body: postBody,
           json_metadata: JSON.stringify(jsonMetadata),
         }];
@@ -305,7 +335,7 @@ export function EmbedUploadProvider({ children }) {
           KeyTypes.Posting
         );
       } else {
-        // Regular single post
+        // Single post: shorts (including short remixes) and regular uploads
         result = await commentWithAioha(
           parentAuthor,
           parentPermlink,
@@ -410,6 +440,9 @@ export function EmbedUploadProvider({ children }) {
     // Original video attribution
     originalAuthor, setOriginalAuthor,
     originalPermlink, setOriginalPermlink,
+    originalShortPermlink, setOriginalShortPermlink,
+    // Reusable flag
+    reusable, setReusable,
     // User
     user,
     navigate,

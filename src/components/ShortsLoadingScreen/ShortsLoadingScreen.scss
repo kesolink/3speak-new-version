@@ -5,10 +5,10 @@
   justify-content: center;
   height: 100%;
   min-height: 400px;
-  background: #000;
+  background: var(--bg-primary);
   gap: 12px;
 
-  // Overlay variant — sits on top of the video container
+  // Overlay variant — sits on top of the video container (stays black)
   &--overlay {
     position: absolute;
     top: 0;
@@ -17,15 +17,19 @@
     height: 100%;
     z-index: 10;
     min-height: 0;
+    background: #000;
+
+    .shorts-loading-screen__logo { color: #fff; }
+    .shorts-loading-screen__text { color: #fff; }
   }
 
   &__logo {
-    color: #fff;
+    color: var(--text-primary);
     animation: shortsLoadingBreathe 2s ease-in-out infinite;
   }
 
   &__text {
-    color: #fff;
+    color: var(--text-secondary, var(--text-primary));
     font-size: 0.875rem;
     font-family: inherit;
     margin: 0;

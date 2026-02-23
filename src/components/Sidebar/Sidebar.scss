@@ -159,9 +159,40 @@ hr{
         &:hover {
             padding-left: 0;
             width: fit-content;
-            background-color: var(--sidebar-hover-bg);
-            color: var(--accent-primary);
-          }
+            background-color: transparent;
+            box-shadow: none;
+            color: inherit;
+
+            .icon {
+                color: red;
+            }
+        }
+    }
+
+    .sidebar-dropdown .dropdown-toggle {
+        width: fit-content;
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            font-size: 20px;
+            margin-right: 0;
+        }
+
+        .chevron {
+            display: none;
+        }
+
+        &:hover {
+            padding-left: 0;
+            background-color: transparent;
+            box-shadow: none;
+            color: inherit;
+
+            .icon {
+                color: red;
+            }
+        }
     }
 
     .sidebar-dropdown .flyout-menu {

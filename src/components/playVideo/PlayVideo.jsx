@@ -84,6 +84,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [reshareCount, setReshareCount] = useState(0);
   const [hasReshared, setHasReshared] = useState(false);
 
+  // Remix/clip eligibility (embed videos only, except meno)
+  const [canRemixClip, setCanRemixClip] = useState(false);
+
   // Editor modal state
   const [showEditorModal, setShowEditorModal] = useState(false);
   const [editorVideoUrl, setEditorVideoUrl] = useState(null);
@@ -98,6 +101,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [clipMode, setClipMode] = useState(false); // false | 'start' | 'end' | 'done'
   const [clipStart, setClipStart] = useState(null);
   const [clipEnd, setClipEnd] = useState(null);
+
+  // Notify parent when clip mode changes (disables autoplay)
+  useEffect(() => {
+    if (videoControls?.onClipModeChange) {
+      videoControls.onClipModeChange(!!clipMode);
+    }
+  }, [clipMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -224,6 +234,20 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       setOptimisticVoteCount(updates.optimisticVoteCount || 0);
       setIsVoted(updates.isVoted || false);
       setTooltipVoters(updates.tooltipVoters || []);
+
+      // Determine remix/clip eligibility from json_metadata
+      if (data.json_metadata) {
+        try {
+          const meta = typeof data.json_metadata === 'string' ? JSON.parse(data.json_metadata) : data.json_metadata;
+          const isEmbed = meta?.app?.startsWith('3speak/embed');
+          const isReusable = meta?.video?.reusable !== false;
+          setCanRemixClip(author === 'meno' || (isEmbed && isReusable));
+        } catch {
+          setCanRemixClip(author === 'meno');
+        }
+      } else {
+        setCanRemixClip(author === 'meno');
+      }
     } catch (error) {
       console.error("Error fetching upvotes:", error);
     }
@@ -415,8 +439,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       toast.error('End time must be after start time');
       return;
     }
-    if (clipStart !== null && time - clipStart > 30) {
-      toast.error('Clip cannot be longer than 30 seconds');
+    if (clipStart !== null && time - clipStart > 60) {
+      toast.error('Clip cannot be longer than 1 minute');
       return;
     }
     setClipEnd(time);
@@ -717,29 +741,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
 
             <div className="info-buttons-row">
-              {FEATURE_EDITOR && (
+              {FEATURE_EDITOR && canRemixClip && (
                 <div className="info-buttons-left">
-                  <div className="remix-dropdown-wrap" ref={remixDropdownRef}>
-                    <button
-                      className="remix-btn"
-                      onClick={() => setRemixDropdownOpen(p => !p)}
-                      title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
-                      disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
-                    >
-                      <Tornado size={16} />
-                      <span className="tools-row-label">Remix</span>
-                    </button>
-                    {remixDropdownOpen && (
-                      <div className="remix-dropdown">
-                        <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); }}>
-                          <Film size={14} /> Remix Video
-                        </button>
-                        <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); }}>
-                          <Music size={14} /> Remix Audio
-                        </button>
-                      </div>
-                    )}
-                  </div>
                   <button
                     className={`clip-btn${clipMode ? ' active' : ''}`}
                     onClick={clipMode ? handleCancelClip : handleStartClipMode}
@@ -747,7 +750,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     disabled={!authenticated}
                   >
                     <Scissors size={16} />
-                    <span className="tools-row-label">Clip</span>
+                    <span className="tools-row-label">Clip Video</span>
                   </button>
                   {clipMode && (
                     <div className="clip-bar-inline">
@@ -832,30 +835,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
           </div>
 
-          {/* Mobile-only tools row (Clip/Remix hidden from info-buttons-left on mobile) */}
-          {FEATURE_EDITOR && (
+          {/* Mobile-only tools row (Clip hidden from info-buttons-left on mobile) */}
+          {FEATURE_EDITOR && canRemixClip && (
             <div className="tools-row mobile-only">
-              <div className="remix-dropdown-wrap" ref={remixDropdownRef}>
-                <button
-                  className="remix-btn"
-                  onClick={() => setRemixDropdownOpen(p => !p)}
-                  title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
-                  disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
-                >
-                  <Tornado size={16} />
-                  <span className="tools-row-label">Remix</span>
-                </button>
-                {remixDropdownOpen && (
-                  <div className="remix-dropdown">
-                    <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); }}>
-                      <Film size={14} /> Remix Video
-                    </button>
-                    <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); }}>
-                      <Music size={14} /> Remix Audio
-                    </button>
-                  </div>
-                )}
-              </div>
               <button
                 className={`clip-btn${clipMode ? ' active' : ''}`}
                 onClick={clipMode ? handleCancelClip : handleStartClipMode}
@@ -863,7 +845,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 disabled={!authenticated}
               >
                 <Scissors size={16} />
-                <span className="tools-row-label">Clip</span>
+                <span className="tools-row-label">Clip Video</span>
               </button>
             </div>
           )}
@@ -1046,32 +1028,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </div>
               )}
 
-              {FEATURE_EDITOR && authenticated && isLoggedIn() && videoUrlSelected && videoControls?.duration > 0 && videoControls.duration <= 60 && (
+              {FEATURE_EDITOR && canRemixClip && authenticated && isLoggedIn() && (
                 <div className="fab-action">
-                  <span className="fab-action-label">Remix</span>
-                  <button
-                    className="fab-action-btn"
-                    onClick={() => { setRemixDropdownOpen(p => !p); }}
-                    aria-label="Remix"
-                  >
-                    <Tornado size={18} />
-                  </button>
-                  {remixDropdownOpen && (
-                    <div className="remix-dropdown remix-dropdown--fab">
-                      <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); setFabOpen(false); }}>
-                        <Film size={14} /> Remix Video
-                      </button>
-                      <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); setFabOpen(false); }}>
-                        <Music size={14} /> Remix Audio
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {FEATURE_EDITOR && authenticated && isLoggedIn() && (
-                <div className="fab-action">
-                  <span className="fab-action-label">Clip</span>
+                  <span className="fab-action-label">Clip Video</span>
                   <button
                     className={`fab-action-btn${clipMode ? ' fab-action-btn--active' : ''}`}
                     onClick={() => { setMobileDetailsExpanded(true); handleStartClipMode(); setFabOpen(false); }}

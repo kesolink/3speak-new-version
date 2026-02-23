@@ -134,6 +134,7 @@ const VideoShort = () => {
   const [editorVideoName, setEditorVideoName] = useState(null);
   const [editorOriginalAuthor, setEditorOriginalAuthor] = useState(null);
   const [editorOriginalPermlink, setEditorOriginalPermlink] = useState(null);
+  const [editorOriginalShortPermlink, setEditorOriginalShortPermlink] = useState(null);
   const [editorVideoType, setEditorVideoType] = useState('video');
   const [remixDropdownOpen, setRemixDropdownOpen] = useState(false);
   const remixDropdownRef = useRef(null);
@@ -663,6 +664,7 @@ const VideoShort = () => {
             parentShort: enriched.parentShort || null,
             reactionChain: enriched.reactionChain || null,
             childReactions: enriched.childReactions || null,
+            reusable: enriched.reusable,
             _enriched: true,
           };
         }));
@@ -1447,7 +1449,8 @@ const VideoShort = () => {
         setEditorVideoUrl(directUrl);
         setEditorVideoName(`${currentVid.author} - ${currentVid.caption || currentVid.permlink}`);
         setEditorOriginalAuthor(currentVid.author);
-        setEditorOriginalPermlink(currentVid.permlink);
+        setEditorOriginalPermlink(currentVid.hivePermlink || currentVid.permlink);
+        setEditorOriginalShortPermlink(currentVid.permlink);
         setEditorVideoType(mediaType);
         setShowEditorModal(true);
       } else {
@@ -2523,24 +2526,30 @@ const VideoShort = () => {
             <span className="actionLabel">{reshareCount || 0}</span>
           </div>
 
-          {FEATURE_EDITOR && authenticated && (
-            <div className="actionItem remix-action-wrap" ref={remixDropdownRef} onClick={(e) => { e.stopPropagation(); setRemixDropdownOpen(p => !p); }}>
-              <div className="actionButton">
-                <WandSparkles size={24} />
-              </div>
-              <span className="actionLabel">Remix</span>
-              {remixDropdownOpen && (
-                <div className="remix-dropdown-short" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); }}>
-                    <Film size={14} /> Remix Video
-                  </button>
-                  <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); }}>
-                    <Music size={14} /> Remix Audio
-                  </button>
+          {FEATURE_EDITOR && authenticated && (() => {
+            const vid = videos[currentIndex];
+            const REMIX_ALLOWED_AUTHORS = ['meno', 'tibfox', 'badadib', 'eddiespinod'];
+            const authorName = (vid?.author || '').replace(/^@/, '');
+            const canRemix = vid?.reusable === true || REMIX_ALLOWED_AUTHORS.includes(authorName);
+            return canRemix ? (
+              <div className="actionItem remix-action-wrap" ref={remixDropdownRef} onClick={(e) => { e.stopPropagation(); setRemixDropdownOpen(p => !p); }}>
+                <div className="actionButton">
+                  <WandSparkles size={24} />
                 </div>
-              )}
-            </div>
-          )}
+                <span className="actionLabel">Remix</span>
+                {remixDropdownOpen && (
+                  <div className="remix-dropdown-short" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); }}>
+                      <Film size={14} /> Remix Video
+                    </button>
+                    <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); }}>
+                      <Music size={14} /> Remix Audio
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null;
+          })()}
 
 
         </div>
@@ -2675,6 +2684,7 @@ const VideoShort = () => {
         videoType={editorVideoType}
         originalAuthor={editorOriginalAuthor}
         originalPermlink={editorOriginalPermlink}
+        originalShortPermlink={editorOriginalShortPermlink}
       />
     </main>
   );

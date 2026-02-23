@@ -22,21 +22,31 @@ import { useAppStore } from "../../lib/store";
 import ShortsIcon from "../icons/ShortsIcon";
 import { COMPACT_SIDEBAR } from "../../utils/config";
 
-const SidebarDropdown = ({ icon: Icon, label, children }) => {
+const SidebarDropdown = ({ icon: Icon, label, children, sidebar }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const compact = sidebar === false;
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
-    if (open) document.addEventListener("mousedown", handleClickOutside);
+    if (open && !compact) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  }, [open, compact]);
 
   return (
-    <div className={`sidebar-dropdown ${open ? "open" : ""}`} ref={ref}>
-      <div className="side-link dropdown-toggle" onClick={() => setOpen(!open)} title={label}>
+    <div
+      className={`sidebar-dropdown ${open ? "open" : ""}`}
+      ref={ref}
+      onMouseEnter={compact ? () => setOpen(true) : undefined}
+      onMouseLeave={compact ? () => setOpen(false) : undefined}
+    >
+      <div
+        className="side-link dropdown-toggle"
+        onClick={compact ? undefined : () => setOpen(!open)}
+        title={label}
+      >
         <Icon className="icon" />
         <span>{label}</span>
         <BiChevronRight className="chevron" />
@@ -59,7 +69,7 @@ const Sidebar = ({ sidebar }) => {
           <ShortsIcon className="icon" outlineWidth={30} /> <span>Shorts</span>
         </Link>
        {authenticated && (
-          <SidebarDropdown icon={IoCloudUploadSharp} label="Upload">
+          <SidebarDropdown icon={IoCloudUploadSharp} label="Upload" sidebar={sidebar}>
             <Link to="/studio" className="side-link" title="Upload Video">
               <IoCloudUploadSharp className="icon" /> <span>Upload Video</span>
             </Link>

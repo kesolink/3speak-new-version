@@ -1421,6 +1421,7 @@
     height: 3rem;
     border-radius: 50%;
     background-color: var(--bg-tertiary);
+    backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1429,12 +1430,20 @@
     transition: background-color 150ms;
     box-shadow: var(--shadow-sm);
 
+    :root:not([data-theme="dark"]) & {
+      background-color: rgba(0, 0, 0, 0.12);
+    }
+
     [data-theme="dark"] & {
-      background-color: #272727;
+      background-color: rgba(39, 39, 39, 0.8);
     }
 
     &:hover {
       background-color: var(--bg-elevated);
+
+      :root:not([data-theme="dark"]) & {
+        background-color: rgba(0, 0, 0, 0.18);
+      }
 
       [data-theme="dark"] & {
         background-color: #3f3f3f;
