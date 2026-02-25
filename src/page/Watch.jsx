@@ -119,6 +119,7 @@ function Watch() {
   const hideTimerRef = useRef(null);
   const [videoEnded, setVideoEnded] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const clipModeActiveRef = useRef(false);
 
   // Autoplay next video preference
   const AUTOPLAY_STORAGE_KEY = '3speak-autoplay';
@@ -326,6 +327,11 @@ function Watch() {
     });
 
     const unsubEnded = player.on('ended', () => {
+      // Don't autoplay when user is selecting clip start/end
+      if (clipModeActiveRef.current) {
+        setVideoEnded(true);
+        return;
+      }
       if (playlistDataRef.current && showPlaylistRef.current) {
         navigateToNextVideoRef.current();
       } else if (autoplayNextRef.current && suggestedVideosRef.current?.length > 0) {
@@ -947,6 +953,7 @@ function Watch() {
           onTogglePip: handleTogglePip,
           videoEnded,
           onReplay: handleReplay,
+          onClipModeChange: (active) => { clipModeActiveRef.current = active; },
           autoplayBlocked,
           onAutoplayTap: togglePlay,
           autoplayNext,

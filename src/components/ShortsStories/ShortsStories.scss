@@ -39,7 +39,10 @@
   // Compact variant (for shorts player context)
   &--compact {
     margin-bottom: 0;
-    padding: 2px 0 4px;
+    padding-top: 2px;
+    padding-bottom: 4px;
+    padding-left: 10px;
+    padding-right: 10px;
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(8px);
     border-radius: 0 0 12px 12px;

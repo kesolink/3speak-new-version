@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
-import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL } from '../utils/config';
+import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
 import { commentWithAioha, broadcastWithAioha, KeyTypes } from '../hive-api/aioha';
 import { useAppStore } from '../lib/store';
 import axios from 'axios';
@@ -52,8 +52,10 @@ export function EmbedUploadProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [benficaryOpen, setBeneficiaryOpen] = useState(false);
   const [BeneficiaryList, setBeneficiaryList] = useState([]);
-  const [list, setList] = useState([]);
-  const [remaingPercent, setRemaingPercent] = useState(100);
+  const [list, setList] = useState([
+    { account: 'threespeakfund', percent: 10, locked: true, minPercent: 10 },
+  ]);
+  const [remaingPercent, setRemaingPercent] = useState(90);
 
   // Entry origin (stories → "Share a Short", default → "Share a Video")
   const [fromStories, setFromStories] = useState(false);
@@ -61,6 +63,10 @@ export function EmbedUploadProvider({ children }) {
   // Original video attribution (for remix/clip)
   const [originalAuthor, setOriginalAuthor] = useState(null);
   const [originalPermlink, setOriginalPermlink] = useState(null);
+  const [originalShortPermlink, setOriginalShortPermlink] = useState(null);
+
+  // Reusable flag (allow others to remix/clip this video)
+  const [reusable, setReusable] = useState(true);
 
   // Publish state
   const [uploading, setUploading] = useState(false);
@@ -81,6 +87,18 @@ export function EmbedUploadProvider({ children }) {
   };
 
   const resetUploadState = () => {
+    // Abort any in-progress TUS upload and clear cached fingerprints
+    if (tusUploadRef.current) {
+      try { tusUploadRef.current.abort(); } catch {}
+      tusUploadRef.current = null;
+    }
+    // Clear TUS fingerprints from localStorage to prevent resume of old uploads
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('tus::')) localStorage.removeItem(key);
+      });
+    } catch {}
+
     setStep(1);
     setVideoFile(null);
     setPrevVideoFile(null);
@@ -102,6 +120,8 @@ export function EmbedUploadProvider({ children }) {
     setFromStories(false);
     setOriginalAuthor(null);
     setOriginalPermlink(null);
+    setOriginalShortPermlink(null);
+    setReusable(true);
     setUploading(false);
     setCompleted(false);
     setUploadProgress(0);
@@ -132,7 +152,7 @@ export function EmbedUploadProvider({ children }) {
       toast.error('Description is required');
       return;
     }
-    if (!tagsPreview || tagsPreview.length === 0) {
+    if (!fromStories && (!tagsPreview || tagsPreview.length === 0)) {
       toast.error('Please add at least one tag');
       return;
     }
@@ -146,42 +166,55 @@ export function EmbedUploadProvider({ children }) {
       // ─── Step 1: TUS upload to embed service ───
       let capturedEmbedUrl = '';
 
-      await new Promise((resolve, reject) => {
-        const upload = new tus.Upload(videoFile, {
-          endpoint: EMBED_UPLOAD_URL,
-          chunkSize: 5 * 1024 * 1024,
-          retryDelays: [0, 2000, 5000, 10000],
-          headers: {
-            ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
-          },
-          metadata: {
-            filename: videoFile.name,
-            filetype: videoFile.type,
-            frontend_app: '3speak-tv',
-            owner: user,
-            short: fromStories ? 'true' : 'false',
-            duration: String(Math.round(videoDuration)),
-          },
-          onError: (err) => {
-            console.error('TUS upload error:', err);
-            reject(err);
-          },
-          onProgress: (bytesUploaded, bytesTotal) => {
-            const pct = Math.round((bytesUploaded / bytesTotal) * 100);
-            setUploadProgress(pct);
-            setStatusText(`Uploading video... ${pct}%`);
-          },
-          onSuccess: () => {
-            resolve();
-          },
-          onAfterResponse: (req, res) => {
-            const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
-            if (header) capturedEmbedUrl = header;
-          },
+      if (EMBED_DEBUG) {
+        // Debug mode: simulate upload progress without actually uploading
+        addMessage('[DEBUG] Simulating upload...');
+        for (let pct = 0; pct <= 100; pct += 5) {
+          await new Promise(r => setTimeout(r, 150));
+          setUploadProgress(pct);
+          setStatusText(`Uploading video... ${pct}%`);
+        }
+        capturedEmbedUrl = `https://embed.okinoko.io/embed?v=debug/${Date.now()}`;
+        addMessage('[DEBUG] Simulated upload complete');
+      } else {
+        await new Promise((resolve, reject) => {
+          const upload = new tus.Upload(videoFile, {
+            endpoint: EMBED_UPLOAD_URL,
+            chunkSize: 5 * 1024 * 1024,
+            retryDelays: [0, 2000, 5000, 10000],
+            removeFingerprintOnSuccess: true,
+            headers: {
+              ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
+            },
+            metadata: {
+              filename: videoFile.name,
+              filetype: videoFile.type,
+              frontend_app: '3speak-tv',
+              owner: user,
+              short: fromStories ? 'true' : 'false',
+              duration: String(Math.round(videoDuration)),
+            },
+            onError: (err) => {
+              console.error('TUS upload error:', err);
+              reject(err);
+            },
+            onProgress: (bytesUploaded, bytesTotal) => {
+              const pct = Math.round((bytesUploaded / bytesTotal) * 100);
+              setUploadProgress(pct);
+              setStatusText(`Uploading video... ${pct}%`);
+            },
+            onSuccess: () => {
+              resolve();
+            },
+            onAfterResponse: (req, res) => {
+              const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
+              if (header) capturedEmbedUrl = header;
+            },
+          });
+          tusUploadRef.current = upload;
+          upload.start();
         });
-        tusUploadRef.current = upload;
-        upload.start();
-      });
+      }
 
       // Fallback: if no X-Embed-URL header, warn but don't use the raw TUS URL
       if (!capturedEmbedUrl) {
@@ -194,6 +227,15 @@ export function EmbedUploadProvider({ children }) {
 
       setEmbedUrl(capturedEmbedUrl);
       addMessage('Video uploaded successfully');
+
+      if (EMBED_DEBUG) {
+        addMessage('[DEBUG] Skipping Hive posting and embed linking');
+        setStatusText('[DEBUG] Done — staying on screen');
+        setUploadProgress(100);
+        // Keep uploading=true so the status screen stays visible
+        return;
+      }
+
       setStatusText('Posting to Hive...');
       addMessage('Publishing to Hive blockchain...');
 
@@ -204,7 +246,12 @@ export function EmbedUploadProvider({ children }) {
       // Build body: description + embed URL + credit to original author
       let postBody = `${description}\n\n${capturedEmbedUrl}`;
       if (originalAuthor && originalPermlink) {
-        postBody += `\n\n---\n*Based on a video by [@${originalAuthor}](${window.location.origin}/@${originalAuthor}/${originalPermlink})*`;
+        // Use shorts link format when remix comes from a short
+        const shortPl = originalShortPermlink || originalPermlink;
+        const originalLink = fromStories
+          ? `${window.location.origin}/shorts?v=${originalAuthor}/${shortPl}`
+          : `${window.location.origin}/@${originalAuthor}/${originalPermlink}`;
+        postBody += `\n\n---\n*Based on a video by [@${originalAuthor}](${originalLink})*`;
       }
 
       const jsonMetadata = {
@@ -214,24 +261,35 @@ export function EmbedUploadProvider({ children }) {
         video: {
           platform: '3speak',
           url: capturedEmbedUrl,
+          reusable: (originalAuthor && originalPermlink) ? true : reusable,
           ...(originalAuthor ? { originalAuthor, originalPermlink } : {}),
         },
       };
 
-      // Build comment_options with 10% beneficiary to threespeakfund + any user-added beneficiaries
+      // Build comment_options with beneficiaries (threespeakfund + original author + user-added)
       let parsedBeneficiaries = beneficiaries;
       if (typeof parsedBeneficiaries === 'string') {
         try { parsedBeneficiaries = JSON.parse(parsedBeneficiaries); } catch { parsedBeneficiaries = []; }
       }
 
-      // Always include threespeakfund at 10% (1000 = 10%)
-      const allBeneficiaries = [
-        { account: 'threespeakfund', weight: 1000 },
-        ...(Array.isArray(parsedBeneficiaries) ? parsedBeneficiaries : [])
-      ];
+      // Start with user-set beneficiaries (from the UI list, includes locked items)
+      const beneMap = new Map();
+      for (const b of (Array.isArray(parsedBeneficiaries) ? parsedBeneficiaries : [])) {
+        beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
+      }
 
-      // Sort by account name (required by Hive protocol)
-      allBeneficiaries.sort((a, b) => a.account.localeCompare(b.account));
+      // Ensure threespeakfund at minimum 10% (1000 weight)
+      beneMap.set('threespeakfund', Math.max(beneMap.get('threespeakfund') || 0, 1000));
+
+      // Ensure 5% for original author when this is a remix/clip
+      if (originalAuthor && originalPermlink) {
+        beneMap.set(originalAuthor, Math.max(beneMap.get(originalAuthor) || 0, 500));
+      }
+
+      // Convert map to sorted array (sorted by account name — required by Hive protocol)
+      const allBeneficiaries = [...beneMap.entries()]
+        .map(([account, weight]) => ({ account, weight }))
+        .sort((a, b) => a.account.localeCompare(b.account));
 
       const commentOptions = {
         author: user,
@@ -243,11 +301,19 @@ export function EmbedUploadProvider({ children }) {
         extensions: [[0, { beneficiaries: allBeneficiaries }]],
       };
 
-      // Determine parent: shorts reply to @peak.snaps latest post, regular = root post
+      // Determine parent:
+      // - Short remix → comment under the original short
+      // - New short → reply to @peak.snaps latest container post
+      // - Regular video → root post in community
       let parentAuthor = '';
       let parentPermlink = communityTag;
 
-      if (fromStories) {
+      if (fromStories && originalAuthor && originalPermlink) {
+        // Remix of an existing short → post as comment under the original
+        parentAuthor = originalAuthor;
+        parentPermlink = originalPermlink;
+        addMessage(`Replying to @${parentAuthor}/${parentPermlink}`);
+      } else if (fromStories) {
         addMessage('Finding snaps container post...');
         try {
           const snapsRes = await axios.post(HIVE_API_URL, {
@@ -272,8 +338,8 @@ export function EmbedUploadProvider({ children }) {
 
       let result;
 
-      if (originalAuthor && originalPermlink) {
-        // Dual post: video post + comment on original video, in one transaction
+      if (originalAuthor && originalPermlink && !fromStories) {
+        // Dual post (non-short remix): video post + comment on original video
         addMessage('Creating post and comment on original video...');
 
         const mainPostOp = ['comment', {
@@ -281,7 +347,7 @@ export function EmbedUploadProvider({ children }) {
           parent_permlink: parentPermlink,
           author: user,
           permlink: hivePermlink,
-          title: fromStories ? '' : title,
+          title: title,
           body: postBody,
           json_metadata: JSON.stringify(jsonMetadata),
         }];
@@ -305,7 +371,7 @@ export function EmbedUploadProvider({ children }) {
           KeyTypes.Posting
         );
       } else {
-        // Regular single post
+        // Single post: shorts (including short remixes) and regular uploads
         result = await commentWithAioha(
           parentAuthor,
           parentPermlink,
@@ -410,6 +476,9 @@ export function EmbedUploadProvider({ children }) {
     // Original video attribution
     originalAuthor, setOriginalAuthor,
     originalPermlink, setOriginalPermlink,
+    originalShortPermlink, setOriginalShortPermlink,
+    // Reusable flag
+    reusable, setReusable,
     // User
     user,
     navigate,

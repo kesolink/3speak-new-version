@@ -448,7 +448,7 @@
     }
 
     .tools-row-label {
-        display: none;
+        display: inline;
     }
 
     .remix-btn,
@@ -1034,18 +1034,21 @@
             border-radius: 4px;
             // border: solid grey 1px;
             margin-top: 5px;
-            height: 120px;
+            min-height: 120px;
             outline: none;
             padding: 10px;
             box-sizing: border-box;
+            resize: none;
+            overflow: hidden;
             background-color: var(--card-bg);
             color: var(--text-primary);
+            font-family: inherit;
             @include mix.respond(phone) {
-                height: 60px;
+                min-height: 60px;
               }
             &.sub{
-                height: 50px; 
-                border-radius: 12px; 
+                min-height: 50px;
+                border-radius: 12px;
             }
             &::placeholder {
                 color: var(--text-muted);

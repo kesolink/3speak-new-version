@@ -526,3 +526,8 @@
     opacity: 1;
   }
 }
+
+// Embed studio override — green progress bar
+.embed-status .progress-fill.embed-fill {
+  background: linear-gradient(90deg, #2ecc71 0%, #27ae60 100%);
+}

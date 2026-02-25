@@ -21,6 +21,7 @@ function Details() {
         community, setCommunity, setBeneficiaries,
         SetDeclineRewards,
         setRewardPowerup,
+        reusable, setReusable,
         communitiesData, 
         navigate,
         BeneficiaryList, setBeneficiaryList,
@@ -215,6 +216,20 @@ const handleTagChange = (e) => {
             <span> BENEFICIARIES</span>
             <MdPeopleAlt />
            </div>
+          </div>
+          <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+            <div className="wrap">
+              <span>Allow Remix/Clip</span>
+              <span>Allow others to create remixes and clips from this video.</span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={reusable}
+                onChange={(e) => setReusable(e.target.checked)}
+              />
+              <span className="toggle-track"><span className="toggle-thumb" /></span>
+            </label>
           </div>
         </div>
 

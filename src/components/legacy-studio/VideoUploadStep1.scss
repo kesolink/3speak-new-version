@@ -154,7 +154,7 @@
         filter: brightness(0.9);
       }
 
-      &--outline {
+      &--outline, &-secondary {
         background-color: transparent;
         color: var(--text-secondary, #6b7280);
         border: 1px solid var(--text-secondary, #6b7280);

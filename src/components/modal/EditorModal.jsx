@@ -7,9 +7,9 @@ import { useAppStore } from '../../lib/store';
 import { useEmbedUpload } from '../../context/EmbedUploadContext';
 import './EditorModal.scss';
 
-function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStart, clipEnd, originalAuthor, originalPermlink }) {
+function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStart, clipEnd, originalAuthor, originalPermlink, originalShortPermlink }) {
   const navigate = useNavigate();
-  const { setVideoFile, setPrevVideoFile, setGeneratedThumbnail, setVideoDuration, setOriginalAuthor, setOriginalPermlink } = useEmbedUpload();
+  const { setVideoFile, setPrevVideoFile, setGeneratedThumbnail, setVideoDuration, setOriginalAuthor, setOriginalPermlink, setOriginalShortPermlink, setFromStories, setList, setRemaingPercent } = useEmbedUpload();
   const iframeRef = useRef(null);
   const mediaLoadedRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
@@ -66,10 +66,11 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
     }
   }, [resolvedUrl]);
 
-  // Send theme to editor when ready or when theme changes
+  // Send theme and desktop flag to editor when ready or when theme changes
   useEffect(() => {
     if (editorReady) {
       sendToEditor({ type: 'set-theme', theme: getEffectiveTheme() });
+      sendToEditor({ type: 'set-desktop', isDesktop: window.matchMedia('(min-width: 768px)').matches });
     }
   }, [editorReady, theme, sendToEditor, getEffectiveTheme]);
 
@@ -108,6 +109,8 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
             };
             if (clipStart != null) msg.clipStart = clipStart;
             if (clipEnd != null) msg.clipEnd = clipEnd;
+            if (originalAuthor) msg.parentAuthor = originalAuthor;
+            if (originalPermlink) msg.parentPermlink = originalPermlink;
             sendToEditor(msg);
           }
           break;
@@ -273,9 +276,24 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
       // Set original author/permlink for credit attribution
       if (originalAuthor) setOriginalAuthor(originalAuthor);
       if (originalPermlink) setOriginalPermlink(originalPermlink);
+      if (originalShortPermlink) setOriginalShortPermlink(originalShortPermlink);
+
+      // Remix from shorts should use the short upload form (no title/tags)
+      setFromStories(true);
+
+      // Pre-populate beneficiary list with locked minimums
+      const lockedBeneficiaries = [
+        { account: 'threespeakfund', percent: 10, locked: true, minPercent: 10 },
+      ];
+      if (originalAuthor) {
+        lockedBeneficiaries.push({ account: originalAuthor, percent: 5, locked: true, minPercent: 5 });
+      }
+      setList(lockedBeneficiaries);
+      const usedPercent = lockedBeneficiaries.reduce((sum, b) => sum + b.percent, 0);
+      setRemaingPercent(100 - usedPercent);
 
       // Navigate to embed-studio thumbnail step (video uploads at publish time)
-      navigate('/embed-studio/thumbnail');
+      navigate('/embed-studio/thumbnail?from=stories');
     } catch (err) {
       console.error('[EditorModal] Post to 3Speak failed:', err);
       setRenderStatus('post-error');
@@ -349,7 +367,8 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
               ref={iframeRef}
               src={`${resolvedUrl}?compact=true`}
               className="editor-iframe"
-              allow="cross-origin-isolated; camera; microphone"
+              allow="cross-origin-isolated; camera; microphone; fullscreen"
+              allowFullScreen
               title="3Speak Video Editor"
             />
           )}

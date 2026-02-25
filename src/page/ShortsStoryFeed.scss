@@ -14,6 +14,15 @@
     flex-shrink: 0;
     z-index: 10;
     width: 100%;
+    box-sizing: border-box;
+
+    // Offset past the fixed sidebar on desktop
+    @media (min-width: 1025px) {
+      margin-left: 12vw;
+      padding-left: 10px !important;
+      padding-right: 10px !important;
+      width: auto;
+    }
   }
 
   &__player {
@@ -135,6 +144,13 @@
     bottom: 0;
     height: 100dvh;
     max-height: 100dvh;
+  }
+}
+
+// When sidebar is collapsed, use smaller offset
+.large-container > .shorts-story-feed > .shorts-stories {
+  @media (min-width: 1025px) {
+    margin-left: 3vw;
   }
 }
 

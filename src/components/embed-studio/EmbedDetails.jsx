@@ -31,7 +31,11 @@ function EmbedDetails() {
         isScheduled, setIsScheduled,
         scheduleDateTime, setScheduleDateTime,
         fromStories,
+        reusable, setReusable,
+        originalAuthor, originalPermlink,
       } = useEmbedUpload();
+
+  const isRemix = !!(originalAuthor && originalPermlink);
 
 
   useEffect(() => {
@@ -78,7 +82,7 @@ function EmbedDetails() {
       return;
     }
 
-    if (!tagsPreview || tagsPreview.length === 0) {
+    if (!fromStories && (!tagsPreview || tagsPreview.length === 0)) {
       toast.error("Please add at least one tag");
       return;
     }
@@ -131,6 +135,7 @@ const handleTagChange = (e) => {
           </div>
         </div>
 
+        {!fromStories && (
         <div className="input-group">
           <label htmlFor="">Tag</label>
           <input type="text" value={tagsInputValue} onChange={handleTagChange}  />
@@ -147,6 +152,7 @@ const handleTagChange = (e) => {
     ))}</span>}
         </div>
         </div>
+        )}
         {!fromStories && (
         <div className="community-box-wrap">
         <div className="community-wrap" onClick={openCommunityModal}>
@@ -181,6 +187,21 @@ const handleTagChange = (e) => {
             <span> BENEFICIARIES</span>
             <MdPeopleAlt />
            </div>
+          </div>
+          <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+           <div className="wrap">
+           <span>Allow Remix/Clip</span>
+           <span>Allow others to create remixes and clips from this video.</span>
+           </div>
+           <label className={`toggle-switch${isRemix ? ' disabled' : ''}`}>
+            <input
+              type="checkbox"
+              checked={isRemix ? true : reusable}
+              disabled={isRemix}
+              onChange={(e) => setReusable(e.target.checked)}
+            />
+            <span className="toggle-track"><span className="toggle-thumb" /></span>
+           </label>
           </div>
         </div>
 

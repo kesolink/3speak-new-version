@@ -15,11 +15,39 @@ import { FaFire, FaRegSmile } from "react-icons/fa";
 import { LuNewspaper } from "react-icons/lu";
 import apple_icon from "../../assets/image/app-store.png"
 import play_store from "../../assets/image/playstore.png"
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SearchList from "./SearchList";
 import SearchList_Sm from "./SearchList_Sm";
 import { TiThMenu } from "react-icons/ti";
 import ShortsIcon from "../icons/ShortsIcon";
+import UploadLinks from "../UploadLinks";
+
+function NavUploadDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="nav-upload-wrapper" ref={ref}>
+      <div className="nav-upload-btn" onClick={() => setOpen(!open)} title="Upload">
+        <IoCloudUploadSharp size={18} />
+        <span className="nav-upload-label">Upload</span>
+      </div>
+      {open && (
+        <div className="nav-upload-flyout" onClick={() => setOpen(false)}>
+          <UploadLinks linkClass="nav-upload-flyout-item" iconClass="nav-upload-flyout-icon" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
@@ -168,9 +196,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
 
       {authenticated ? (
         <div className="nav-right flex-div">
-          <Link to="/embed-studio" className="nav-upload-btn" title="Upload Video">
-            <IoCloudUploadSharp size={18} />
-          </Link>
+          <NavUploadDropdown />
           <ThemeToggle />
           <span>{user}</span>
           {/* <IoIosNotifications size={20} /> */}

@@ -108,25 +108,79 @@
   .nav-right {
     gap: 8px;
 
-    .nav-upload-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      background-color: var(--accent-primary, #e53935);
-      color: #fff;
-      cursor: pointer;
-      transition: filter 0.2s ease;
-      text-decoration: none;
+    .nav-upload-wrapper {
+      position: relative;
 
-      &:hover {
-        filter: brightness(0.9);
+      .nav-upload-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 34px;
+        padding: 0 12px;
+        border-radius: 17px;
+        background-color: var(--accent-primary, #e53935);
+        color: #fff;
+        cursor: pointer;
+        transition: filter 0.2s ease;
+        white-space: nowrap;
+
+        .nav-upload-label {
+          font-size: 13px;
+          font-weight: 500;
+          padding: 0;
+          border-radius: 0;
+          background: transparent;
+          color: inherit;
+          @include mix.respond(phone) {
+            display: none;
+          }
+        }
+
+        &:hover {
+          filter: brightness(0.9);
+        }
+      }
+
+      .nav-upload-flyout {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        min-width: 170px;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        box-shadow: var(--shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.2));
+        border: 1px solid var(--border-light);
+        padding: 6px 0;
+        z-index: 100;
+
+        .nav-upload-flyout-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 16px;
+          color: var(--text-primary);
+          font-size: 14px;
+          font-weight: 500;
+          text-decoration: none;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: background-color 0.15s ease;
+
+          .nav-upload-flyout-icon {
+            width: 16px;
+            height: 16px;
+          }
+
+          &:hover {
+            background-color: var(--bg-hover, var(--sidebar-hover-bg));
+            color: var(--accent-primary);
+          }
+        }
       }
     }
 
-    span {
+    > span {
       padding: 5px 20px;
       border-radius: 15px;
       background-color: var(--bg-tertiary);
