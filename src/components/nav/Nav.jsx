@@ -20,6 +20,7 @@ import SearchList from "./SearchList";
 import SearchList_Sm from "./SearchList_Sm";
 import { TiThMenu } from "react-icons/ti";
 import ShortsIcon from "../icons/ShortsIcon";
+import UploadLinks from "../UploadLinks";
 
 function NavUploadDropdown() {
   const [open, setOpen] = useState(false);
@@ -41,12 +42,7 @@ function NavUploadDropdown() {
       </div>
       {open && (
         <div className="nav-upload-flyout" onClick={() => setOpen(false)}>
-          <Link to="/studio" className="nav-upload-flyout-item">
-            <IoCloudUploadSharp size={16} /> Upload Video
-          </Link>
-          <Link to="/embed-studio" className="nav-upload-flyout-item">
-            <ShortsIcon className="nav-upload-flyout-icon" outlineWidth={30} /> Upload Short
-          </Link>
+          <UploadLinks linkClass="nav-upload-flyout-item" iconClass="nav-upload-flyout-icon" />
         </div>
       )}
     </div>

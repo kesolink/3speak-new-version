@@ -27,7 +27,7 @@ import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
-import { FEED_URL, HIVE_API_URL, FEATURE_EDITOR } from '../../utils/config';
+import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
 import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo } from "react-icons/md";
@@ -235,18 +235,12 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       setIsVoted(updates.isVoted || false);
       setTooltipVoters(updates.tooltipVoters || []);
 
-      // Determine remix/clip eligibility from json_metadata
-      if (data.json_metadata) {
-        try {
-          const meta = typeof data.json_metadata === 'string' ? JSON.parse(data.json_metadata) : data.json_metadata;
-          const isEmbed = meta?.app?.startsWith('3speak/embed');
-          const isReusable = meta?.video?.reusable !== false;
-          setCanRemixClip(author === 'meno' || (isEmbed && isReusable));
-        } catch {
-          setCanRemixClip(author === 'meno');
-        }
-      } else {
-        setCanRemixClip(author === 'meno');
+      // Determine remix/clip eligibility from MongoDB via checker
+      try {
+        const reusableRes = await axios.get(`${CHECKER_URL}/api/video/${author}/${permlink}`);
+        setCanRemixClip(reusableRes.data?.success && !!reusableRes.data.reusable);
+      } catch {
+        setCanRemixClip(false);
       }
     } catch (error) {
       console.error("Error fetching upvotes:", error);
@@ -434,18 +428,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   }, [videoControls?.currentTime]);
 
   const handleSetClipEnd = useCallback(() => {
-    const time = Math.floor(videoControls?.currentTime || 0);
+    let time = Math.floor(videoControls?.currentTime || 0);
     if (clipStart !== null && time <= clipStart) {
       toast.error('End time must be after start time');
       return;
     }
     if (clipStart !== null && time - clipStart > 60) {
-      toast.error('Clip cannot be longer than 1 minute');
-      return;
+      time = clipStart + 60;
+      toast.info('Clip trimmed to 1 minute — we will trim the clip at the end of the timeline.');
     }
     setClipEnd(time);
     setClipMode('done');
-    toast.success(`Clip set: ${formatTime(clipStart)} – ${formatTime(time)}`);
+    toast.success(`Clip set: ${formatTime(clipStart)} – ${formatTime(time)}. Now click on "Create Clip"`);
   }, [videoControls?.currentTime, clipStart]);
 
   const handleCancelClip = useCallback(() => {

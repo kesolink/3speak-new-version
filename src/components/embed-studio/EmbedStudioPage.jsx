@@ -23,12 +23,15 @@ function EmbedStudioPage() {
     setCommunitiesData,
     step, setStep,
     fromStories, setFromStories,
+    completed,
+    resetUploadState,
   } = useEmbedUpload();
 
   // Detect stories origin from URL param
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    setFromStories(params.get("from") === "stories");
+    const from = params.get("from");
+    setFromStories(from === "stories" || from === "shorts");
   }, [location.search, setFromStories]);
 
   const checkPostAuth = async (username) => {
@@ -39,8 +42,13 @@ function EmbedStudioPage() {
     }
   };
 
+  // Reset all upload state when arriving fresh (previous upload completed)
   useEffect(() => {
-    setStep(1);
+    if (completed) {
+      resetUploadState();
+    } else {
+      setStep(1);
+    }
   }, []);
 
   useEffect(() => {

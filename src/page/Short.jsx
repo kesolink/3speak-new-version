@@ -104,6 +104,46 @@ const getRenderer = async () => {
   return rendererPromise;
 };
 
+/* ---- Caption renderer: markdown links → clickable badges, strips HTML ---- */
+function renderCaption(text) {
+  if (!text) return null;
+  // Remove <sup>...</sup> blocks (reply-to metadata)
+  let cleaned = text.replace(/<sup>[\s\S]*?<\/sup>/gi, '');
+  // Remove any remaining HTML tags
+  cleaned = cleaned.replace(/<[^>]+>/g, '');
+  // Remove standalone URLs (not inside markdown link syntax)
+  cleaned = cleaned.replace(/(?<!\()https?:\/\/\S+/g, '');
+  // Remove markdown bold/italic
+  cleaned = cleaned.replace(/[*_]{1,3}/g, '');
+  // Remove markdown headers
+  cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
+  // Remove horizontal rules
+  cleaned = cleaned.replace(/^---+$/gm, '');
+  // Collapse whitespace
+  cleaned = cleaned.replace(/\n{2,}/g, '\n').trim();
+
+  // Split on markdown links: [text](url)
+  const parts = cleaned.split(/(\[[^\]]*\]\([^)]*\))/g);
+  const elements = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const linkMatch = part.match(/^\[([^\]]*)\]\(([^)]*)\)$/);
+    if (linkMatch) {
+      const [, label, href] = linkMatch;
+      if (label.trim()) {
+        elements.push(
+          <a key={i} href={href} className="captionBadge" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            {label}
+          </a>
+        );
+      }
+    } else if (part.trim()) {
+      elements.push(<span key={i}>{part}</span>);
+    }
+  }
+  return elements.length > 0 ? elements : null;
+}
+
 /* ================= COMPONENT ================= */
 const VideoShort = () => {
   const { user, authenticated, watchHistoryEnabled } = useAppStore();
@@ -121,8 +161,13 @@ const VideoShort = () => {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [parentCardVisible, setParentCardVisible] = useState(true);
+  const [parentCardVisible, setParentCardVisible] = useState(() => {
+    const stored = localStorage.getItem('3speak-chain-visible');
+    return stored !== null ? stored === '1' : true;
+  });
   const [expandedChainCard, setExpandedChainCard] = useState(null);
+  const chainRowRef = useRef(null);
+  const chainDragRef = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
   const [shortNavLoading, setShortNavLoading] = useState(false);
   const [firstPlayerReady, setFirstPlayerReady] = useState(false);
   const shortHistoryRef = useRef([]); // Stack of {author, permlink} for back navigation
@@ -553,7 +598,7 @@ const VideoShort = () => {
     currentTimeRef.current = 0;
     durationRef.current = 0;
     updateProgressBar();
-    setParentCardVisible(true);
+    setParentCardVisible(localStorage.getItem('3speak-chain-visible') !== '0');
     setCaptionExpanded(false);
     setTranslatedCaption(null);
 
@@ -2265,10 +2310,11 @@ const VideoShort = () => {
             </button>
           )}
 
-          {/* Reaction chain overlay (for reactions) */}
-          {currentVideo.reactionChain && currentVideo.reactionChain.length > 0 && (() => {
-            const rootStep = currentVideo.reactionChain.find(s => s.isRoot);
-            const childSteps = currentVideo.reactionChain.filter(s => !s.isRoot);
+          {/* Reaction chain overlay (for reactions and remixes) */}
+          {((currentVideo.reactionChain && currentVideo.reactionChain.length > 0) || (currentVideo.childReactions && currentVideo.childReactions.length > 0)) && (() => {
+            const chain = currentVideo.reactionChain || [];
+            const rootStep = chain.find(s => s.isRoot);
+            const childSteps = chain.filter(s => !s.isRoot);
             const rootUrl = rootStep ? `/watch?v=${rootStep.author}/${rootStep.permlink}${currentVideo.parentTimestamp != null ? `&t=${currentVideo.parentTimestamp}` : ''}` : null;
             return (
               <div className={`reactionChainOverlay${parentCardVisible ? '' : ' collapsed'}${shortHistoryRef.current.length > 0 ? ' has-back' : ''}`} onClick={(e) => e.stopPropagation()}>
@@ -2298,8 +2344,26 @@ const VideoShort = () => {
                     )}
 
                     {/* Child steps — horizontal scroll row */}
-                    {childSteps.length > 0 && (
-                      <div className="chainChildRow">
+                    {(childSteps.length > 0 || currentVideo.childReactions?.length > 0) && (
+                      <div
+                        className="chainChildRow"
+                        ref={chainRowRef}
+                        onMouseDown={(e) => {
+                          const el = chainRowRef.current;
+                          if (!el) return;
+                          chainDragRef.current = { isDown: true, startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft };
+                          el.style.cursor = 'grabbing';
+                        }}
+                        onMouseLeave={() => { chainDragRef.current.isDown = false; if (chainRowRef.current) chainRowRef.current.style.cursor = ''; }}
+                        onMouseUp={() => { chainDragRef.current.isDown = false; if (chainRowRef.current) chainRowRef.current.style.cursor = ''; }}
+                        onMouseMove={(e) => {
+                          if (!chainDragRef.current.isDown) return;
+                          e.preventDefault();
+                          const el = chainRowRef.current;
+                          const x = e.pageX - el.offsetLeft;
+                          el.scrollLeft = chainDragRef.current.scrollLeft - (x - chainDragRef.current.startX);
+                        }}
+                      >
                         {childSteps.map((step, i) => {
                           const isExpanded = expandedChainCard === i;
                           return (
@@ -2338,7 +2402,7 @@ const VideoShort = () => {
                             </React.Fragment>
                           );
                         })}
-                        <span className="chainDash">&mdash;</span>
+                        {childSteps.length > 0 && <span className="chainDash">&mdash;</span>}
                         {(() => {
                           const currentIdx = childSteps.length;
                           const isCurExpanded = expandedChainCard === currentIdx;
@@ -2363,12 +2427,12 @@ const VideoShort = () => {
                             <div className="chainChild chainChild--video chainChild--downstream">
                               <div className="chainChildHeader">
                                 <AuthorBadge author={child.author} compact noLink />
-                                <Link to={`/shorts?v=${child.author}/${child.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
+                                <Link to={`/shorts?v=${child.shortAuthor || child.author}/${child.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
                                   <Camera size={11} />
                                 </Link>
                               </div>
                               <span className="chainChildTitle">
-                                {child.title || 'Reaction'}
+                                {child.title || 'Remix'}
                               </span>
                               {child.duration > 0 && (
                                 <span className="chainChildDuration">
@@ -2382,7 +2446,7 @@ const VideoShort = () => {
                     )}
                   </div>
                 )}
-                <button className="chainToggleBtn" onClick={(e) => { e.stopPropagation(); setParentCardVisible(prev => !prev); }}>
+                <button className="chainToggleBtn" onClick={(e) => { e.stopPropagation(); setParentCardVisible(prev => { const next = !prev; localStorage.setItem('3speak-chain-visible', next ? '1' : '0'); return next; }); }}>
                   {!parentCardVisible && <span className="chainToggleLabel">show reaction chain</span>}
                   {parentCardVisible ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </button>
@@ -2431,7 +2495,7 @@ const VideoShort = () => {
               />
             </div>
             <div className={`caption${captionExpanded ? ' caption--expanded' : ''}`} onClick={(e) => { e.stopPropagation(); setCaptionExpanded(prev => !prev); }}>
-              <p className="captionText">{translatedCaption || currentVideo.caption}</p>
+              <p className="captionText">{renderCaption(translatedCaption || currentVideo.caption)}</p>
               {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && (
                 <span className="captionDate">{currentVideo.timeAgo}</span>
               )}
@@ -2528,25 +2592,12 @@ const VideoShort = () => {
 
           {FEATURE_EDITOR && authenticated && (() => {
             const vid = videos[currentIndex];
-            const REMIX_ALLOWED_AUTHORS = ['meno', 'tibfox', 'badadib', 'eddiespinod'];
-            const authorName = (vid?.author || '').replace(/^@/, '');
-            const canRemix = vid?.reusable === true || REMIX_ALLOWED_AUTHORS.includes(authorName);
-            return canRemix ? (
-              <div className="actionItem remix-action-wrap" ref={remixDropdownRef} onClick={(e) => { e.stopPropagation(); setRemixDropdownOpen(p => !p); }}>
+            return vid?.reusable === true ? (
+              <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleRemix('video'); }}>
                 <div className="actionButton">
                   <WandSparkles size={24} />
                 </div>
                 <span className="actionLabel">Remix</span>
-                {remixDropdownOpen && (
-                  <div className="remix-dropdown-short" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => { handleRemix('video'); setRemixDropdownOpen(false); }}>
-                      <Film size={14} /> Remix Video
-                    </button>
-                    <button onClick={() => { handleRemix('audio'); setRemixDropdownOpen(false); }}>
-                      <Music size={14} /> Remix Audio
-                    </button>
-                  </div>
-                )}
               </div>
             ) : null;
           })()}

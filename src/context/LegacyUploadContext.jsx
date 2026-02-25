@@ -4,7 +4,7 @@ import { useAppStore } from "../lib/store";
 import { toast } from 'sonner'
 import * as tus from "tus-js-client";
 import axios from "axios";
-import { UPLOAD_TOKEN, UPLOAD_URL } from "../utils/config";
+import { UPLOAD_TOKEN, UPLOAD_URL, CHECKER_URL } from "../utils/config";
 import { getTusUploadOptions } from "../utils/tusConfig";
 
 const LegacyUploadContext = createContext();
@@ -53,6 +53,9 @@ export function LegacyUploadProvider({ children }) {
     // SCHEDULING STATES
     isScheduled: false,
     scheduleDateTime: '',
+
+    // REUSABLE (allow remix/clip)
+    reusable: true,
 
     // State for VideoUploadStatus
       uploading: false,
@@ -132,6 +135,7 @@ export function LegacyUploadProvider({ children }) {
   // ============================================
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState('');
+  const [reusable, setReusable] = useState(true);
 
 
   // Keep ref updated on every uploadStatus change
@@ -296,6 +300,7 @@ export function LegacyUploadProvider({ children }) {
         community,
         declineRewards,
         rewardPowerup,
+        reusable,
         beneficiaries: parsedBeneficiaries,
       }
       
@@ -325,6 +330,18 @@ export function LegacyUploadProvider({ children }) {
       setPermlink(perm);
 
       console.log('✔ Upload finalized successfully');
+
+      // Set reusable flag via checker (workaround until upload service is redeployed)
+      try {
+        await axios.patch(
+          `${CHECKER_URL}/api/video/${username}/${perm}/reusable`,
+          { reusable: !!reusable },
+          { headers: { Authorization: `Bearer ${UPLOAD_TOKEN}` } }
+        );
+        console.log(`✔ Reusable flag set to ${reusable} via checker`);
+      } catch (e) {
+        console.warn('⚠ Failed to set reusable via checker:', e.message);
+      }
 
       // Upload thumbnail if exists
       if (thumbnailFile) {
@@ -609,6 +626,7 @@ const startTusUpload = async (file) => {
     encodingIntervalRef.current = initialState.encodingIntervalRef; // or null
 
     setIsUploadLocked(initialState.isUploadLocked)
+    setReusable(initialState.reusable)
 
   };
  
@@ -681,6 +699,9 @@ const startTusUpload = async (file) => {
         // Scheduling states
         isScheduled, setIsScheduled,
         scheduleDateTime, setScheduleDateTime,
+
+        // Reusable (allow remix/clip)
+        reusable, setReusable,
 
         startTusUpload,
         uploadVideoTo3Speak,

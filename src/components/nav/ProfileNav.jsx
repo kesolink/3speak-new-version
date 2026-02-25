@@ -17,7 +17,7 @@ import logoDark from '../../assets/image/3S_logodark.png';
 import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
 import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
-import ShortsIcon from '../icons/ShortsIcon';
+import UploadLinks from '../UploadLinks';
 
 
 
@@ -98,12 +98,7 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
             </div>
             {uploadOpen && (
               <div className="upload-subitems">
-                <Link to="/studio" className="wrap sub-item" onClick={onclose}>
-                  <MdCloudUpload className="icon" /> <span>Upload Video</span>
-                </Link>
-                <Link to="/embed-studio" className="wrap sub-item" onClick={onclose}>
-                  <ShortsIcon className="icon" outlineWidth={30} /> <span>Upload Short</span>
-                </Link>
+                <UploadLinks linkClass="wrap sub-item" onClick={onclose} />
               </div>
             )}
           </div>

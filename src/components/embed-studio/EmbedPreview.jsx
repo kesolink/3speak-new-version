@@ -1,11 +1,11 @@
 import React from "react";
 import "../legacy-studio/Preview.scss";
 import { Navigate, useNavigate } from "react-router-dom";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Upload, FileText, Info } from "lucide-react";
 import VideoPreview from "../studio/VideoPreview";
 import { StepProgress } from "../legacy-studio/StepProgress";
 import { useEmbedUpload } from "../../context/EmbedUploadContext";
-import VideoUploadStatus from "../legacy-studio/VideoUploadStatus";
+import "../legacy-studio/VideoUploadStatus.scss";
 import EditorPreview from "../Editor/EditorPreview";
 
 function EmbedPreview() {
@@ -120,24 +120,60 @@ function EmbedPreview() {
       {/* STATUS CONTAINER — during upload & Hive posting */}
       {uploading && (
         <div className="status-container">
-          <VideoUploadStatus
-            statusMessages={statusMessages}
-            statusText={statusText}
-          />
-          {uploadProgress > 0 && uploadProgress < 100 && (
-            <div className="studio-main-container" style={{ marginTop: '1rem' }}>
-              <div className="progressbar-container">
-                <div className="content-wrap">
-                  <div className="wrap">
-                    <div className="wrap-top"><h3>{fromStories ? 'Uploading Short' : 'Uploading Video'}</h3> <div>{uploadProgress}%</div></div>
-                    <div className="progress-bars">
-                      <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }} />
-                    </div>
-                  </div>
+          <div className="upload-status-container embed-status">
+            <div className="upload-icon">
+              <Upload size={30} strokeWidth={1.5} />
+            </div>
+
+            <h2 className="upload-title">
+              {fromStories ? 'Publishing Short' : 'Publishing Video'}
+            </h2>
+            <p className="upload-subtitle">Please wait while we process your content...</p>
+
+            <div className="progress-section">
+              <div className="progress-bar-container">
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill embed-fill"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
                 </div>
               </div>
+              <div className="progress-header">
+                <span className="progress-label">{statusText || 'Starting...'}</span>
+                <span className="progress-percentage">{uploadProgress}%</span>
+              </div>
             </div>
-          )}
+
+            <div className="caution-wrap">
+              Please stay on this page until publishing is finished.
+            </div>
+
+            <div className="activity-log">
+              <div className="activity-log-header">
+                <div className="wrapin">
+                  <FileText size={18} />
+                  <span>Activity Log</span>
+                </div>
+                <div className="discord">
+                  For Support reach out to us on{" "}
+                  <a href="https://discord.gg/NSFS2VGj83" target="_blank" rel="noopener noreferrer" className="discord-link">Discord</a>
+                </div>
+              </div>
+              <div className="activity-log-content">
+                {statusMessages.map((msg, i) => (
+                  <div key={i} className={`activity-item ${msg.type === 'error' ? 'error' : msg.type === 'success' ? 'success' : 'info'}`}>
+                    <div className="activity-icon">
+                      {msg.type === 'success' ? <CheckCircle size={20} /> : <Info size={20} />}
+                    </div>
+                    <div className="activity-details">
+                      <p className="activity-message">{msg.message}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -706,6 +706,9 @@
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    cursor: grab;
+    user-select: none;
+    -webkit-overflow-scrolling: touch;
     &::-webkit-scrollbar { display: none; }
   }
 
@@ -809,7 +812,7 @@
   // Reaction chain overlay
   .reactionChainOverlay {
     position: absolute;
-    top: 12px;
+    top: 56px;
     left: 8px;
     right: 8px;
     z-index: 11;
@@ -819,7 +822,7 @@
     gap: 6px;
 
     &.has-back {
-      top: 52px;
+      top: 56px;
     }
 
     &.collapsed {
@@ -1103,6 +1106,25 @@
       display: block;
       -webkit-line-clamp: unset;
       overflow: visible;
+    }
+
+    .captionBadge {
+      display: inline-block;
+      padding: 2px 8px;
+      margin: 1px 3px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.75rem;
+      text-decoration: none;
+      pointer-events: auto;
+      white-space: nowrap;
+      vertical-align: middle;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.25);
+        color: #fff;
+      }
     }
 
     .captionActions {

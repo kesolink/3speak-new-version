@@ -20,6 +20,7 @@ import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../../lib/store";
 import ShortsIcon from "../icons/ShortsIcon";
+import UploadLinks from "../UploadLinks";
 import { COMPACT_SIDEBAR } from "../../utils/config";
 
 const SidebarDropdown = ({ icon: Icon, label, children, sidebar }) => {
@@ -70,12 +71,7 @@ const Sidebar = ({ sidebar }) => {
         </Link>
        {authenticated && (
           <SidebarDropdown icon={IoCloudUploadSharp} label="Upload" sidebar={sidebar}>
-            <Link to="/studio" className="side-link" title="Upload Video">
-              <IoCloudUploadSharp className="icon" /> <span>Upload Video</span>
-            </Link>
-            <Link to="/embed-studio" className="side-link" title="Upload Short">
-              <ShortsIcon className="icon" outlineWidth={30} /> <span>Upload Short</span>
-            </Link>
+            <UploadLinks linkClass="side-link" />
           </SidebarDropdown>
         )}
 

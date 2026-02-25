@@ -68,6 +68,8 @@ import EmbedPreview from "./components/embed-studio/EmbedPreview";
 import FollowFeed from "./page/FollowFeed";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
+import EditorModal from "./components/modal/EditorModal";
+import { FEATURE_EDITOR } from "./utils/config";
 import { KeyTypes } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
@@ -111,6 +113,7 @@ function App() {
   const [reloadSwitch, setRelaodSwitch] = useState(false)
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
   const loginInProgress = useRef(false); // Track if login is being processed
   const aiohaUserSeen = useRef(false); // Track if aiohaUser has ever been populated
 
@@ -128,6 +131,12 @@ function App() {
 
   const hideNavOnMobile = isShorts && isMobile;
 
+  // Listen for "open-shorts-editor" custom event from UploadLinks
+  useEffect(() => {
+    const handleOpenEditor = () => setEditorModalOpen(true);
+    window.addEventListener('open-shorts-editor', handleOpenEditor);
+    return () => window.removeEventListener('open-shorts-editor', handleOpenEditor);
+  }, []);
 
   useEffect(() => {
     initializeAuth();
@@ -316,6 +325,12 @@ function App() {
             keyType: KeyTypes.Posting
           }}
         />
+        {FEATURE_EDITOR && (
+          <EditorModal
+            isOpen={editorModalOpen}
+            onClose={() => setEditorModalOpen(false)}
+          />
+        )}
       </div>
     </div>
 

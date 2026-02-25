@@ -3,7 +3,7 @@
   .list-top-wrap {
     display: flex;
     align-items: center;
-    border-bottom: 1px solid grey;
+    border-bottom: 1px solid var(--border-light, grey);
     justify-content: space-around;
     padding-bottom: 3px;
     font-size: 14px;
@@ -14,16 +14,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background-color: #eaecf4;
-    border: 1px solid #d1d3e2;
+    background-color: var(--bg-tertiary, #eaecf4);
+    border: 1px solid var(--border-light, #d1d3e2);
     padding: 10px 6px;
     border-radius: 6px;
-
-        [data-theme="dark"] & {
-    background-color: rgb(59, 59, 59);
-    // border-color: #3d3d3d;
-    color: #fff;
-  }
+    color: var(--text-primary, #000);
   }
 
   .reward-main {
@@ -44,27 +39,18 @@
       margin-top: 7px;
       height: 100%;
       padding: 0px 4px;
-      background-color: #eaecf4;
-      border: 1px solid #d1d3e2;
+      background-color: var(--bg-tertiary, #eaecf4);
+      border: 1px solid var(--border-light, #d1d3e2);
       border-radius: 6px;
-              [data-theme="dark"] & {
-    background-color: rgb(59, 59, 59);
-    // border-color: #3d3d3d;
-    color: #fff;
-  }
+      color: var(--text-primary, #000);
       input {
         width: 200px;
         height: 100%;
         border: none;
         outline: none;
-
-        background-color: #eaecf4;
+        background-color: var(--bg-tertiary, #eaecf4);
+        color: var(--text-primary, #000);
         padding: 1px 4px;
-                [data-theme="dark"] & {
-    background-color: rgb(59, 59, 59);
-    // border-color: #3d3d3d;
-    color: #fff;
-  }
         @include mix.respond(phone) {
           width: 150px;
           font-size: 16px;
@@ -79,6 +65,7 @@
       height: 100%;
       label {
         font-size: 14px;
+        color: var(--text-primary, #000);
       }
       input {
         width: 40px;
@@ -87,16 +74,12 @@
         outline: none;
         padding: 1px 4px;
         border-radius: 6px;
-        -webkit-appearance: none; // Remove increment/decrement arrows on Safari
-        -moz-appearance: textfield; // Remove increment/decrement arrows on Firefox
+        -webkit-appearance: none;
+        -moz-appearance: textfield;
         appearance: none;
-        background-color: #eaecf4;
-        border: 1px solid #d1d3e2;
-                [data-theme="dark"] & {
-    background-color: rgb(59, 59, 59);
-    // border-color: #3d3d3d;
-    color: #fff;
-  }
+        background-color: var(--bg-tertiary, #eaecf4);
+        border: 1px solid var(--border-light, #d1d3e2);
+        color: var(--text-primary, #000);
         @include mix.respond(phone) {
           width: 30px;
           font-size: 16px;
@@ -106,12 +89,14 @@
         padding: 10px 20px;
         border-radius: 6px;
         border: none;
-        background-color: rgba(60, 204, 60, 0.945);
+        background-color: var(--accent-primary, #e53935);
+        color: #fff;
         height: 100%;
         text-align: center;
         display: flex;
         justify-content: center;
         align-items: center;
+        cursor: pointer;
         @include mix.respond(phone) {
           padding: 10px 15px;
         }
@@ -124,16 +109,24 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background-color: rgba(214, 93, 56, 0.144);
-      border-bottom: 1px solid rgb(243 244 246);
+      background-color: var(--bg-tertiary, #eaecf4);
+      border-bottom: 1px solid var(--border-light, #e0e0e0);
       padding: 10px 6px;
       border-radius: 7px;
       margin-bottom: 5px;
+      color: var(--text-primary, #000);
+
       span {
         font-size: 14px;
       }
+      input {
+        background-color: var(--bg-secondary, #fff);
+        border: 1px solid var(--border-light, #d1d3e2);
+        border-radius: 4px;
+        color: var(--text-primary, #000);
+      }
       .delete-icon {
-        color: red;
+        color: #e74a3b;
         font-size: 20px;
         cursor: pointer;
         transition: transform 0.2s ease;
@@ -151,31 +144,26 @@
     align-self: center;
     margin-top: 13px;
     gap: 7px;
-    :first-child {
+    button {
       padding: 8px 20px;
       border-radius: 6px;
       border: none;
-      background-color: #accc;
-      // color: #FFF;
-      // background-color: #4e73df;
-      // border-color: #4e73df;
-    }
-    :last-child {
-      padding: 8px 20px;
-      border-radius: 6px;
-      border: none;
-      // background-color: #accc;
       color: #fff;
-      background-color: #4e73df;
-      border-color: #4e73df;
+      background-color: var(--accent-primary, #e53935);
+      cursor: pointer;
+
+      &:hover {
+        opacity: 0.9;
+      }
     }
   }
   .default-bene-wrap {
     margin-top: 10px;
-    border: 1px solid rgba(128, 128, 128, 0.308);
-    background-color: rgba(214, 93, 56, 0.082);
+    border: 1px solid var(--border-light, rgba(128, 128, 128, 0.308));
+    background-color: var(--bg-tertiary, #f5f5f5);
     border-radius: 4px;
     padding: 5px;
+    color: var(--text-primary, #000);
     p {
       font-size: 14px;
       font-weight: 600;
@@ -192,12 +180,9 @@
 .bene-text {
   text-align: center;
   font-size: 14.25px;
-  color: black;
+  color: var(--text-secondary, #5a5a5a);
   font-weight: 400;
   margin: 10px 0px;
-  [data-theme="dark"] & {
-    color: #fff;
-  }
   @include mix.respond(phone) {
     font-size: 12.25px;
     margin: 6px 0px;

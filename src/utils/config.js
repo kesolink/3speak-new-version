@@ -9,6 +9,7 @@ const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://techcoderx.co
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
 const VIEWS_URL = import.meta.env.VITE_VIEWS_URL || 'https://views.3speak.tv';
 const MY_VIDEOS_URL = import.meta.env.VITE_MY_VIDEOS_URL || 'https://views.3speak.tv';
+const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://3speak-checker.okinoko.io';
 const TAG_FEED_URL = import.meta.env.VITE_THREESPEAK_TAG_FEED_URL || 'https://legacy.3speak.tv';
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 
@@ -52,6 +53,7 @@ const COMPACT_SIDEBAR = import.meta.env.VITE_COMPACT_SIDEBAR === 'true';
 const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed.3speak.tv/uploads';
 const EMBED_API_URL = import.meta.env.VITE_EMBED_API_URL || 'https://embed.3speak.tv';
 const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
+const EMBED_DEBUG = import.meta.env.VITE_EMBED_DEBUG === 'true';
 
 // Translation API (LibreTranslate)
 const TRANSLATE_API_URL = import.meta.env.VITE_TRANSLATE_API_URL || 'https://3speak-translator.okinoko.io';
@@ -77,6 +79,7 @@ export {
   FEED_URL,
   VIEWS_URL,
   MY_VIDEOS_URL,
+  CHECKER_URL,
   PLAYER_URL,
   PLAYLISTS_API_URL,
   WATCH_HISTORY_THRESHOLD_DAYS,
@@ -93,4 +96,5 @@ export {
   getEditorUrl,
   FEATURE_EDITOR,
   COMPACT_SIDEBAR,
+  EMBED_DEBUG,
 };

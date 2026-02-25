@@ -4,7 +4,7 @@ import axios from "axios";
 import { Navigate, useNavigate } from "react-router-dom";
 import { CheckCircle } from "lucide-react";
 import { toast } from 'sonner';
-import { UPLOAD_TOKEN, UPLOAD_URL } from "../../utils/config";
+import { UPLOAD_TOKEN, UPLOAD_URL, CHECKER_URL } from "../../utils/config";
 import BlogContent from "../playVideo/BlogContent";
 import VideoPreview from "../studio/VideoPreview";
 import { StepProgress } from "./StepProgress";
@@ -55,7 +55,8 @@ function Preview() {
     encodingIntervalRef,
     setIsUploadLocked,
     isUploadLocked,
-    setHasBackgroundJob
+    setHasBackgroundJob,
+    reusable
   } = useLegacyUpload();
 
   const navigate = useNavigate();
@@ -242,6 +243,7 @@ function Preview() {
           declineRewards,
           rewardPowerup,
           beneficiaries: parsedBeneficiaries,
+          reusable: !!reusable,
           ...schedulingParams
         },
         {
@@ -265,6 +267,18 @@ function Preview() {
       setPermlink(perm);
 
       addMessage("✔ Upload finalized successfully");
+
+      // Set reusable flag via checker (workaround until upload service is redeployed)
+      try {
+        await axios.patch(
+          `${CHECKER_URL}/api/video/${user}/${perm}/reusable`,
+          { reusable: !!reusable },
+          { headers: { Authorization: `Bearer ${UPLOAD_TOKEN}` } }
+        );
+        console.log(`✔ Reusable flag set to ${reusable} via checker`);
+      } catch (e) {
+        console.warn('⚠ Failed to set reusable via checker:', e.message);
+      }
 
       await uploadThumbnail(vid);
       startEncodingPolling(vid);

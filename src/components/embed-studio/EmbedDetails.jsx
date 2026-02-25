@@ -193,16 +193,14 @@ const handleTagChange = (e) => {
            <span>Allow Remix/Clip</span>
            <span>Allow others to create remixes and clips from this video.</span>
            </div>
-           <label className="schedule-checkbox-label" style={{ cursor: isRemix ? 'not-allowed' : 'pointer' }}>
+           <label className={`toggle-switch${isRemix ? ' disabled' : ''}`}>
             <input
               type="checkbox"
               checked={isRemix ? true : reusable}
               disabled={isRemix}
               onChange={(e) => setReusable(e.target.checked)}
             />
-            <span style={{ opacity: isRemix ? 0.5 : 1 }}>
-              {isRemix ? 'Always on for remixes' : 'Reusable'}
-            </span>
+            <span className="toggle-track"><span className="toggle-thumb" /></span>
            </label>
           </div>
         </div>

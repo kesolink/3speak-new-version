@@ -265,15 +265,18 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
             <button onClick={handleSave}>Continue</button>
           </div>
 
-          <div className="default-bene-wrap">
-            <p>Default Beneficiaries (2)</p>
-            <div className="wrap">
-              <span>spk.beneficiary</span> <span>10% === Infrastructure</span>
+          {!list.some(item => item.locked) && (
+            <div className="default-bene-wrap">
+              <p>Default Beneficiaries (2)</p>
+              <div className="wrap">
+                <span>spk.beneficiary</span> <span>10% === Infrastructure</span>
+              </div>
+              <div className="wrap">
+                 <span> Video Encoding === 1%</span>
+              </div>
             </div>
-            <div className="wrap">
-               <span> Video Encoding === 1%</span>
-            </div>
-          </div>
+          )}
+
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
-import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL } from '../utils/config';
+import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
 import { commentWithAioha, broadcastWithAioha, KeyTypes } from '../hive-api/aioha';
 import { useAppStore } from '../lib/store';
 import axios from 'axios';
@@ -52,8 +52,10 @@ export function EmbedUploadProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [benficaryOpen, setBeneficiaryOpen] = useState(false);
   const [BeneficiaryList, setBeneficiaryList] = useState([]);
-  const [list, setList] = useState([]);
-  const [remaingPercent, setRemaingPercent] = useState(100);
+  const [list, setList] = useState([
+    { account: 'threespeakfund', percent: 10, locked: true, minPercent: 10 },
+  ]);
+  const [remaingPercent, setRemaingPercent] = useState(90);
 
   // Entry origin (stories → "Share a Short", default → "Share a Video")
   const [fromStories, setFromStories] = useState(false);
@@ -85,6 +87,18 @@ export function EmbedUploadProvider({ children }) {
   };
 
   const resetUploadState = () => {
+    // Abort any in-progress TUS upload and clear cached fingerprints
+    if (tusUploadRef.current) {
+      try { tusUploadRef.current.abort(); } catch {}
+      tusUploadRef.current = null;
+    }
+    // Clear TUS fingerprints from localStorage to prevent resume of old uploads
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('tus::')) localStorage.removeItem(key);
+      });
+    } catch {}
+
     setStep(1);
     setVideoFile(null);
     setPrevVideoFile(null);
@@ -152,42 +166,55 @@ export function EmbedUploadProvider({ children }) {
       // ─── Step 1: TUS upload to embed service ───
       let capturedEmbedUrl = '';
 
-      await new Promise((resolve, reject) => {
-        const upload = new tus.Upload(videoFile, {
-          endpoint: EMBED_UPLOAD_URL,
-          chunkSize: 5 * 1024 * 1024,
-          retryDelays: [0, 2000, 5000, 10000],
-          headers: {
-            ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
-          },
-          metadata: {
-            filename: videoFile.name,
-            filetype: videoFile.type,
-            frontend_app: '3speak-tv',
-            owner: user,
-            short: fromStories ? 'true' : 'false',
-            duration: String(Math.round(videoDuration)),
-          },
-          onError: (err) => {
-            console.error('TUS upload error:', err);
-            reject(err);
-          },
-          onProgress: (bytesUploaded, bytesTotal) => {
-            const pct = Math.round((bytesUploaded / bytesTotal) * 100);
-            setUploadProgress(pct);
-            setStatusText(`Uploading video... ${pct}%`);
-          },
-          onSuccess: () => {
-            resolve();
-          },
-          onAfterResponse: (req, res) => {
-            const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
-            if (header) capturedEmbedUrl = header;
-          },
+      if (EMBED_DEBUG) {
+        // Debug mode: simulate upload progress without actually uploading
+        addMessage('[DEBUG] Simulating upload...');
+        for (let pct = 0; pct <= 100; pct += 5) {
+          await new Promise(r => setTimeout(r, 150));
+          setUploadProgress(pct);
+          setStatusText(`Uploading video... ${pct}%`);
+        }
+        capturedEmbedUrl = `https://embed.okinoko.io/embed?v=debug/${Date.now()}`;
+        addMessage('[DEBUG] Simulated upload complete');
+      } else {
+        await new Promise((resolve, reject) => {
+          const upload = new tus.Upload(videoFile, {
+            endpoint: EMBED_UPLOAD_URL,
+            chunkSize: 5 * 1024 * 1024,
+            retryDelays: [0, 2000, 5000, 10000],
+            removeFingerprintOnSuccess: true,
+            headers: {
+              ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
+            },
+            metadata: {
+              filename: videoFile.name,
+              filetype: videoFile.type,
+              frontend_app: '3speak-tv',
+              owner: user,
+              short: fromStories ? 'true' : 'false',
+              duration: String(Math.round(videoDuration)),
+            },
+            onError: (err) => {
+              console.error('TUS upload error:', err);
+              reject(err);
+            },
+            onProgress: (bytesUploaded, bytesTotal) => {
+              const pct = Math.round((bytesUploaded / bytesTotal) * 100);
+              setUploadProgress(pct);
+              setStatusText(`Uploading video... ${pct}%`);
+            },
+            onSuccess: () => {
+              resolve();
+            },
+            onAfterResponse: (req, res) => {
+              const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
+              if (header) capturedEmbedUrl = header;
+            },
+          });
+          tusUploadRef.current = upload;
+          upload.start();
         });
-        tusUploadRef.current = upload;
-        upload.start();
-      });
+      }
 
       // Fallback: if no X-Embed-URL header, warn but don't use the raw TUS URL
       if (!capturedEmbedUrl) {
@@ -200,6 +227,15 @@ export function EmbedUploadProvider({ children }) {
 
       setEmbedUrl(capturedEmbedUrl);
       addMessage('Video uploaded successfully');
+
+      if (EMBED_DEBUG) {
+        addMessage('[DEBUG] Skipping Hive posting and embed linking');
+        setStatusText('[DEBUG] Done — staying on screen');
+        setUploadProgress(100);
+        // Keep uploading=true so the status screen stays visible
+        return;
+      }
+
       setStatusText('Posting to Hive...');
       addMessage('Publishing to Hive blockchain...');
 
