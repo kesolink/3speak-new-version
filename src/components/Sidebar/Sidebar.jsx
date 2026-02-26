@@ -1,7 +1,5 @@
 import { RiProfileLine } from "react-icons/ri";
 import "./Sidebar.scss";
-import apple_icon from "../../assets/image/app-store.png";
-import play_store from "../../assets/image/playstore.png";
 import { PiUserSwitchBold } from "react-icons/pi";
 import { HiInformationCircle } from "react-icons/hi";
 import {
@@ -118,18 +116,6 @@ const Sidebar = ({ sidebar, onNavigate }) => {
           <HiInformationCircle className="icon" /> <span>About 3speak</span>
         </Link>
 
-        <hr />
-      </div>
-      <div className="subscibed-list">
-        <h3>Download</h3>
-        <a href="https://apps.apple.com/gb/app/3speak/id1614771373" target="_blank" rel="noopener noreferrer" className="side-link" title="Apple Store">
-          <img src={apple_icon} alt="" className="store-icon" />{" "}
-          <span>Apple Store</span>
-        </a>
-        <a href="https://play.google.com/store/apps/details?id=tv.threespeak.app" target="_blank" rel="noopener noreferrer" className="side-link" title="Play Store">
-          <img src={play_store} alt="" className="store-icon" />{" "}
-          <span>Play Store</span>
-        </a>
       </div>
     </div>
   );
