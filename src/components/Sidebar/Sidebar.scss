@@ -19,6 +19,29 @@
       display: none  !important;
     }
 
+    // When inside the mobile slide-out nav, override desktop styles
+    .side-nav & {
+      display: block !important;
+      position: static;
+      width: 100%;
+      height: auto;
+      padding-top: 0;
+      padding-left: 0;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+      z-index: auto;
+      overflow-y: auto;
+
+      .sidebar-dropdown .flyout-menu {
+        position: static;
+        box-shadow: none;
+        padding-left: 20px;
+        min-width: 0;
+        background: transparent;
+      }
+    }
+
 .shortcut-links{
     .icon{
         width: 20px;
