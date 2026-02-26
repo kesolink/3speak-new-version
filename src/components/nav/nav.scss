@@ -235,28 +235,19 @@
     transition: background-color 0.3s ease,
       transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 0px 20px;
+    padding-top: 50px;
     border-right: none;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+    overflow-y: auto;
 
     @include mix.respond(desktop) {
       display: none;
     }
 
-    .shortcut-links {
-      padding-top: 30px;
-      .icon {
-        width: 20px;
-        height: 20px;
-        font-size: 20px;
-        margin-right: 15px;
-        color: var(--text-secondary);
-        &:hover {
-          color: var(--accent-primary);
-        }
-      }
+    .side-nav-search {
       .search-wrap-sm {
         position: relative;
-        padding-top: 12px;
+        padding: 12px 0;
         .wrap {
           display: flex;
           align-items: center;
@@ -279,54 +270,6 @@
             }
           }
         }
-      }
-    }
-    .side-link-n {
-      display: flex;
-      padding: 10px 0;
-      color: var(--text-primary);
-      border-radius: 4px;
-      align-items: center;
-      margin-bottom: 20px;
-      width: fit-content;
-      flex-wrap: wrap;
-      cursor: pointer;
-      transition: color 0.3s ease;
-      span {
-        font-size: 14px;
-        font-weight: 500;
-      }
-      .store-icon {
-        width: 20px;
-        margin-right: 15px;
-      }
-
-      &:hover {
-        padding-left: 10px;
-        width: 90%;
-        background-color: var(--bg-hover);
-        box-shadow: var(--shadow-md);
-        color: var(--accent-primary);
-      }
-    }
-
-    hr {
-      border: 0;
-      height: 1px;
-      background: var(--divider);
-      width: 85%;
-    }
-
-    .subscibed-list {
-      h3 {
-        font-size: 13px;
-        margin: 20px 0px;
-        color: var(--text-secondary);
-      }
-
-      .icon {
-        width: 25px;
-        margin-right: 15px;
       }
     }
   }

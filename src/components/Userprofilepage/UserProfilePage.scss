@@ -508,6 +508,40 @@
             stroke-linejoin: round;
           }
         }
+
+        .btn-follow {
+          background: linear-gradient(135deg, var(--accent-primary, #e53935), #c62828);
+          border-color: transparent;
+          color: #fff;
+          font-weight: 600;
+
+          &:hover {
+            background: linear-gradient(135deg, #c62828, #b71c1c);
+            border-color: transparent;
+          }
+
+          &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
+        }
+
+        .btn-following {
+          background: rgba(15, 23, 42, 0.9);
+          border-color: #34d399;
+          color: #34d399;
+
+          &:hover {
+            border-color: #ef4444;
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+          }
+
+          &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
+        }
       }
     }
 

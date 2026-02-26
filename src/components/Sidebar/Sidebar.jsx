@@ -57,63 +57,64 @@ const SidebarDropdown = ({ icon: Icon, label, children, sidebar }) => {
   );
 };
 
-const Sidebar = ({ sidebar }) => {
+const Sidebar = ({ sidebar, onNavigate }) => {
   const { authenticated, user } = useAppStore();
+  const nav = onNavigate || undefined;
 
   return (
     <div className={`sidebar ${sidebar ? "" : "small-sidebar"}`}>
       <div className="shortcut-links">
-        <Link to="/" className="side-link" title="Home">
+        <Link to="/" className="side-link" title="Home" onClick={nav}>
           <MdOutlineDashboard className="icon" /> <span>Home</span>
         </Link>
-        <Link to="/shorts" className="side-link" title="Shorts">
+        <Link to="/shorts" className="side-link" title="Shorts" onClick={nav}>
           <ShortsIcon className="icon" outlineWidth={30} /> <span>Shorts</span>
         </Link>
        {authenticated && (
           <SidebarDropdown icon={IoCloudUploadSharp} label="Upload" sidebar={sidebar}>
-            <UploadLinks linkClass="side-link" />
+            <UploadLinks linkClass="side-link" onClick={nav} />
           </SidebarDropdown>
         )}
 
         {COMPACT_SIDEBAR ? (
           <SidebarDropdown icon={BsCollectionPlay} label="Feeds" sidebar={sidebar}>
-            <Link to="/firstupload" className="side-link" title="First Uploads">
+            <Link to="/firstupload" className="side-link" title="First Uploads" onClick={nav}>
               <FaRegSmile className="icon" /> <span>First Uploads</span>
             </Link>
-            <Link to="/new" className="side-link" title="New Content">
+            <Link to="/new" className="side-link" title="New Content" onClick={nav}>
               <LuNewspaper className="icon" /> <span>New Content</span>
             </Link>
             {authenticated && (
-              <Link to="/follow-feed" className="side-link" title="Follow Feed">
+              <Link to="/follow-feed" className="side-link" title="Follow Feed" onClick={nav}>
                 <RiRssFill className="icon" /> <span>Follow Feed</span>
               </Link>
             )}
-            <Link to="/trend" className="side-link" title="Trending Content">
+            <Link to="/trend" className="side-link" title="Trending Content" onClick={nav}>
               <FaFire className="icon" /> <span>Trending Content</span>
             </Link>
           </SidebarDropdown>
         ) : (
           <>
-            <Link to="/firstupload" className="side-link" title="First Uploads">
+            <Link to="/firstupload" className="side-link" title="First Uploads" onClick={nav}>
               <FaRegSmile className="icon" /> <span>First Uploads</span>
             </Link>
-            <Link to="/trend" className="side-link" title="Trending Content">
+            <Link to="/trend" className="side-link" title="Trending Content" onClick={nav}>
               <FaFire className="icon" /> <span>Trending Content</span>
             </Link>
-            <Link to="/new" className="side-link" title="New Content">
+            <Link to="/new" className="side-link" title="New Content" onClick={nav}>
               <LuNewspaper className="icon" /> <span>New Content</span>
             </Link>
           </>
         )}
 
-        {authenticated && <Link to="/profile?tab=playlists" className="side-link" title="Playlists">
+        {authenticated && <Link to="/profile?tab=playlists" className="side-link" title="Playlists" onClick={nav}>
           <MdPlaylistPlay className="icon" /> <span>Playlists</span>
         </Link>}
 
-        <Link to="/communities" className="side-link" title="Communities">
+        <Link to="/communities" className="side-link" title="Communities" onClick={nav}>
           <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>
         </Link>
-        <Link to="/about" className="side-link" title="About 3speak">
+        <Link to="/about" className="side-link" title="About 3speak" onClick={nav}>
           <HiInformationCircle className="icon" /> <span>About 3speak</span>
         </Link>
 

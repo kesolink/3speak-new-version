@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { getFollowers } from '../../hive-api/api';
+import { getFollowers, getRelationshipBetweenAccounts } from '../../hive-api/api';
+import { followWithAioha } from '../../hive-api/aioha';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import icon from "../../../public/images/stack.png"
 import "./UserProfilePage.scss"
@@ -8,7 +9,7 @@ import { Quantum } from 'ldrs/react'
 import 'ldrs/react/Quantum.css'
 import { useInfiniteQuery, useQueryClient as useReactQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { MY_VIDEOS_URL } from '../../utils/config';
+import { MY_VIDEOS_URL, FEED_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
 import { IoLogoRss } from 'react-icons/io5';
@@ -30,8 +31,10 @@ function UserProfilePage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate()
     const queryClient = useReactQueryClient();
-    const { user: authenticatedUser } = useAppStore();
+    const { user: authenticatedUser, authenticated } = useAppStore();
     const [follower, setFollower] = useState(null)
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [followLoading, setFollowLoading] = useState(false);
     const [show, setShow] = useState(() => {
       const tab = searchParams.get('tab');
       if (tab === 'playlists') return 'playlists';
@@ -209,6 +212,32 @@ const {
         }
       }
 
+      // Check follow relationship on mount
+      useEffect(() => {
+        if (authenticated && authenticatedUser && user && authenticatedUser.toLowerCase() !== user.toLowerCase()) {
+          getRelationshipBetweenAccounts(authenticatedUser, user).then((rel) => {
+            if (rel) setIsFollowing(rel.follows);
+          });
+        }
+      }, [authenticated, authenticatedUser, user]);
+
+      const handleFollowToggle = async () => {
+        if (!authenticated || followLoading) return;
+        setFollowLoading(true);
+        try {
+          await followWithAioha(user, !isFollowing);
+          setIsFollowing(!isFollowing);
+          // Refresh follower count
+          getFollowersCount(user);
+          toast.success(isFollowing ? `Unfollowed @${user}` : `Now following @${user}`);
+        } catch (err) {
+          console.error('Follow error:', err);
+          toast.error('Follow action failed: ' + (err.message || 'Unknown error'));
+        } finally {
+          setFollowLoading(false);
+        }
+      };
+
       const handleWalletNavigate = (user)=>{
         navigate(`/wallet/${user}`)
       }
@@ -247,6 +276,15 @@ const {
                     <Quantum size="15" speed="1.75" color="red" />
                   )}
               </button>
+              {authenticated && (
+                <button
+                  className={`btn ${isFollowing ? 'btn-following' : 'btn-follow'}`}
+                  onClick={handleFollowToggle}
+                  disabled={followLoading}
+                >
+                  {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
+                </button>
+              )}
               <button className="btn btn-secondary" onClick={() => window.open(`${FEED_URL}/rss/${user}.xml`, "_blank")}>
                 <IoLogoRss />
               </button>
