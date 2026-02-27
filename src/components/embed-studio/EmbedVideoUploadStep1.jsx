@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useMemo } from 'react'
 import { Upload } from "lucide-react";
 import "../legacy-studio/VideoUploadStep1.scss"
 import { generateVideoThumbnails } from "@rajesh896/video-thumbnails-generator";
@@ -31,6 +31,7 @@ function EmbedVideoUploadStep1() {
   }, []);
 
   const videoInputRef = useRef(null);
+  const videoPreviewUrl = useMemo(() => videoFile ? URL.createObjectURL(videoFile) : null, [videoFile]);
 
   const getVideoMetadata = (file) => {
     return new Promise((resolve) => {
@@ -170,6 +171,19 @@ function EmbedVideoUploadStep1() {
             </div>
           </div>
         </div>
+
+        {videoFile && videoPreviewUrl && (
+          <div className="video-preview-container">
+            <video
+              src={videoPreviewUrl}
+              controls
+              muted
+              playsInline
+              className="video-preview"
+            />
+            <p className="video-preview-name">{videoFile.name}</p>
+          </div>
+        )}
 
       </div>
     </div>

@@ -17,7 +17,6 @@ import useViewCounts from "../hooks/useViewCounts";
 import { fetchUserShortsWithDetails } from "../hive-api/hiveApi";
 
 import { FaVideo } from "react-icons/fa";
-import { IoLogoRss } from "react-icons/io5";
 import { IoMdShare, IoMdAdd } from "react-icons/io";
 import { MdLock, MdPublic } from "react-icons/md";
 
@@ -25,7 +24,7 @@ import { LineSpinner, Quantum } from "ldrs/react";
 import "ldrs/react/Quantum.css";
 
 import icon from "../../public/images/stack.png";
-import { UPLOAD_TOKEN, UPLOAD_URL, FEED_URL } from "../utils/config";
+import { UPLOAD_TOKEN, UPLOAD_URL } from "../utils/config";
 import "./ProfilePage.scss";
 import { useLegacyUpload } from "../context/LegacyUploadContext";
 import checker from "../../public/images/checker.png";
@@ -386,26 +385,23 @@ function ProfilePage() {
 
               <button
                 className="btn btn-secondary"
-                onClick={() =>
-                  window.open(`${FEED_URL}/rss/${user}.xml`, "_blank")
-                }
-              >
-                <IoLogoRss />
-              </button>
-
-              <button
-                className="btn btn-secondary"
-                onClick={() =>
-                  navigator.share
-                      ? navigator.share({
-                          title: user,
-                          url: `${FEED_URL}/user/${user}`,
-                        })
-                      : window.open(
-                          `${FEED_URL}/user/${user}`,
-                          "_blank"
-                        )
-                }
+                onClick={async () => {
+                  const profileUrl = `${window.location.origin}/@${user}`;
+                  const shareData = { title: `${user} on 3Speak`, url: profileUrl };
+                  try {
+                    if (navigator.share && navigator.canShare?.(shareData)) {
+                      await navigator.share(shareData);
+                    } else {
+                      await navigator.clipboard.writeText(profileUrl);
+                      toast.success('Profile link copied to clipboard!');
+                    }
+                  } catch (err) {
+                    if (err.name !== 'AbortError') {
+                      await navigator.clipboard.writeText(profileUrl);
+                      toast.success('Profile link copied to clipboard!');
+                    }
+                  }
+                }}
               >
                 <IoMdShare />
               </button>
@@ -521,7 +517,7 @@ function ProfilePage() {
               <span>No Shorts Available</span>
             </div>
           ) : (
-            <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} />
+            <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
           )
         ) : show === "playlists" ? (
           <>

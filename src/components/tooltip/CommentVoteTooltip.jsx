@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import './UpvoteTooltip.scss';
 import { useAppStore } from '../../lib/store';
 import { X, ChevronUp } from 'lucide-react';
@@ -315,7 +316,7 @@ const CommentVoteTooltip = ({
 
   return (
     <>
-      {showTooltip && (
+      {showTooltip && createPortal(
         <div className="vote-popup-overlay" onMouseDown={(e) => {
           if (!isLoadingRef.current) {
             setShowTooltip(false);
@@ -370,7 +371,8 @@ const CommentVoteTooltip = ({
               )}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

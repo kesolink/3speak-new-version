@@ -156,6 +156,25 @@
       }
     }
 
+    // Phone landscape: keep mobile layout (phone height is small when rotated)
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      flex-wrap: wrap;
+
+      > .play-video {
+        flex-basis: 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+
+      .right-column {
+        display: none !important;
+      }
+
+      .mobile-recommended {
+        display: block !important;
+      }
+    }
+
     .show-reactions-btn {
       display: flex;
       align-items: center;

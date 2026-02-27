@@ -172,6 +172,31 @@
   }
 }
 
+.video-preview-container {
+  width: 700px;
+  margin: 1rem auto 0;
+
+  @include mix.respond(phone) {
+    width: 90%;
+  }
+
+  .video-preview {
+    width: 100%;
+    max-height: 400px;
+    border-radius: 0.5rem;
+    background: #000;
+    object-fit: contain;
+  }
+
+  .video-preview-name {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+    word-break: break-all;
+  }
+}
+
 .file-preview {
   background: var(--bg-secondary);
   border-radius: 0.5rem;

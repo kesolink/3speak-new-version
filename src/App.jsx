@@ -74,13 +74,16 @@ import { KeyTypes } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
 
-// Hive-like URL redirects: /@user → profile, /@user/permlink → watch
+// Hive-like URL redirects: /@user → profile, /@user/permlink → watch, /@user/shorts → profile shorts tab
 const HiveLinkRedirect = () => {
   const location = useLocation();
   const path = location.pathname;
   const match = path.match(/^\/@([^/]+)(?:\/(.+))?$/);
   if (match) {
     const [, user, permlink] = match;
+    if (permlink === 'shorts') {
+      return <Navigate to={`/p/${user}?tab=shorts`} replace />;
+    }
     if (permlink) {
       return <Navigate to={`/watch?v=${user}/${permlink}`} replace />;
     }

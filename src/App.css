@@ -46,3 +46,11 @@
     padding-left: 2%;
   }
 }
+
+/* Phone landscape: remove container padding so video fills the viewport height */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .container {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
