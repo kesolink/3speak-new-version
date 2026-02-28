@@ -8,6 +8,13 @@
   background: var(--bg-primary);
   gap: 12px;
 
+  @media (max-width: 767px) {
+    background: #000;
+
+    .shorts-loading-screen__logo { color: #fff; }
+    .shorts-loading-screen__text { color: #fff; }
+  }
+
   // Overlay variant — sits on top of the video container (stays black)
   &--overlay {
     position: absolute;

@@ -23,6 +23,12 @@
 }
 
 @media (max-width: 767px) {
+  .container:has(.short-main) {
+    background: #000 !important;
+  }
+}
+
+@media (max-width: 767px) {
   .container {
     padding-left: 2%;
     padding-top: 10px;
