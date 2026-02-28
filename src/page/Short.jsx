@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import "./Short.scss";
 import {
   Heart,
@@ -300,6 +302,8 @@ const VideoShort = () => {
   const accessToken = localStorage.getItem("access_token");
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
+  const isStoriesMode = location.pathname.includes('/shorts/stories');
 
   // User-specific feed mode: when ?user=username is in the URL, load from the per-user endpoint
   const feedUser = useMemo(() => {
@@ -589,6 +593,21 @@ const VideoShort = () => {
     // Record watch history — use hivePermlink so WatchedView can look it up via Hive API
     if (user && watchHistoryEnabled !== false && currentVid.author && (currentVid.hivePermlink || currentVid.permlink)) {
       recordWatch(user, currentVid.author, currentVid.hivePermlink || currentVid.permlink, { short: true });
+    }
+
+    // Decrement unseen_count for the current creator in the stories bar cache
+    if (isStoriesMode && feedUser) {
+      queryClient.setQueryData(['shorts-stories', user], (old) => {
+        if (!old?.creators) return old;
+        return {
+          ...old,
+          creators: old.creators.map(c =>
+            c.username === feedUser && c.unseen_count > 0
+              ? { ...c, unseen_count: c.unseen_count - 1 }
+              : c
+          ),
+        };
+      });
     }
 
     // Reset player state
@@ -1233,13 +1252,18 @@ const VideoShort = () => {
     subtitleStyle,
   } = useSubtitles(currentVideo?.author, currentVideo?.permlink);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const [subtitleMenuPos, setSubtitleMenuPos] = useState(null);
   const subtitleMenuRef = useRef(null);
+  const subtitleDropdownRef = useRef(null);
 
   // Close subtitle menu on outside click
   useEffect(() => {
     if (!subtitleMenuOpen) return;
     const handler = (e) => {
-      if (subtitleMenuRef.current && !subtitleMenuRef.current.contains(e.target)) {
+      if (
+        subtitleMenuRef.current && !subtitleMenuRef.current.contains(e.target) &&
+        (!subtitleDropdownRef.current || !subtitleDropdownRef.current.contains(e.target))
+      ) {
         setSubtitleMenuOpen(false);
       }
     };
@@ -1250,6 +1274,16 @@ const VideoShort = () => {
       document.removeEventListener('touchstart', handler);
     };
   }, [subtitleMenuOpen]);
+
+  const openSubtitleMenu = useCallback(() => {
+    setSubtitleMenuOpen(prev => {
+      if (!prev && subtitleMenuRef.current) {
+        const rect = subtitleMenuRef.current.getBoundingClientRect();
+        setSubtitleMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+      }
+      return !prev;
+    });
+  }, []);
 
   /* ---------- CAPTION TRANSLATE ---------- */
   const handleCaptionTranslate = useCallback(async (langCode) => {
@@ -2064,6 +2098,16 @@ const VideoShort = () => {
 
   return (
     <main className="short-main">
+      <div className="landscape-block"
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        onTouchMove={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+      >
+        <RotateCcw size={48} />
+        <p>Please rotate your device to portrait mode</p>
+      </div>
       <AmbientGlow getVideoEl={() => videoElRef.current} glowMode={glowMode} />
       <div
         tabIndex={0}
@@ -2178,45 +2222,6 @@ const VideoShort = () => {
             <div className={`heartAnimation ${showHeartAnimation ? 'visible' : ''}`}>
               <Heart size={80} fill="#ff2d55" color="#ff2d55" />
             </div>
-            {/* Subtitle/CC toggle */}
-            {subtitleLanguages && subtitleLanguages.length > 0 && (
-              <div className={`subtitleIndicator${selectedSubtitleLang ? ' active' : ''}`}
-                ref={subtitleMenuRef}
-                onClick={(e) => { e.stopPropagation(); setSubtitleMenuOpen(o => !o); }}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setSubtitleMenuOpen(o => !o); }}
-              >
-                {selectedSubtitleLang ? <MdClosedCaption size={18} /> : <MdClosedCaptionOff size={18} />}
-                {subtitleMenuOpen && (
-                  <div className="shortsSubtitleMenu"
-                    onClick={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      className={`shortsSubtitleItem${!selectedSubtitleLang ? ' active' : ''}`}
-                      onClick={() => { selectSubtitleLang(null); setSubtitleMenuOpen(false); }}
-                    >
-                      Off
-                    </button>
-                    {subtitleLanguages.map((sub) => {
-                      const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === sub.lang);
-                      const label = langInfo ? langInfo.native : sub.lang;
-                      return (
-                        <button
-                          key={sub.lang}
-                          className={`shortsSubtitleItem${selectedSubtitleLang === sub.lang ? ' active' : ''}`}
-                          onClick={() => { selectSubtitleLang(sub.lang); setSubtitleMenuOpen(false); }}
-                        >
-                          {label}
-                          {subtitleLoading && selectedSubtitleLang === sub.lang && ' ...'}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
             {/* Ambient glow toggle */}
             <div className={`glowIndicator${glowMode !== 'off' ? ' active' : ''}`}
               onClick={(e) => { e.stopPropagation(); toggleGlow(); }}
@@ -2300,6 +2305,56 @@ const VideoShort = () => {
             <button className="shortBackBtn mobileOnly" onClick={(e) => { e.stopPropagation(); navigate(-1); }}>
               <ArrowLeft size={18} />
             </button>
+          )}
+
+          {/* Stories mode button (next to back button on mobile) — only in stories mode */}
+          {isStoriesMode && (
+            <button className="shortStoriesBtn mobileOnly" onClick={(e) => { e.stopPropagation(); navigate('/shorts'); }}>
+              <ShortsIcon size={18} />
+            </button>
+          )}
+
+          {/* Subtitle/CC toggle (outside videoOverlay; dropdown via portal to escape stacking contexts) */}
+          {subtitleLanguages && subtitleLanguages.length > 0 && (
+            <div className={`subtitleIndicator${selectedSubtitleLang ? ' active' : ''}${isStoriesMode ? ' stories-mode' : ''}`}
+              ref={subtitleMenuRef}
+              onClick={(e) => { e.stopPropagation(); openSubtitleMenu(); }}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); openSubtitleMenu(); }}
+            >
+              {selectedSubtitleLang ? <MdClosedCaption size={18} /> : <MdClosedCaptionOff size={18} />}
+            </div>
+          )}
+          {subtitleMenuOpen && subtitleMenuPos && createPortal(
+            <div className="shortsSubtitleMenu"
+              ref={subtitleDropdownRef}
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              style={{ position: 'fixed', top: subtitleMenuPos.top, right: subtitleMenuPos.right, zIndex: 99999 }}
+            >
+              <button
+                className={`shortsSubtitleItem${!selectedSubtitleLang ? ' active' : ''}`}
+                onClick={() => { selectSubtitleLang(null); setSubtitleMenuOpen(false); }}
+              >
+                Off
+              </button>
+              {subtitleLanguages.map((sub) => {
+                const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === sub.lang);
+                const label = langInfo ? langInfo.native : sub.lang;
+                return (
+                  <button
+                    key={sub.lang}
+                    className={`shortsSubtitleItem${selectedSubtitleLang === sub.lang ? ' active' : ''}`}
+                    onClick={() => { selectSubtitleLang(sub.lang); setSubtitleMenuOpen(false); }}
+                  >
+                    {label}
+                    {subtitleLoading && selectedSubtitleLang === sub.lang && ' ...'}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body
           )}
 
           {/* Back button (visible after navigating to a parent short) */}

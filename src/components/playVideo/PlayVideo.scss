@@ -1262,3 +1262,93 @@
         }
     }
 }
+
+// ===== Phone landscape overrides =====
+// When a phone rotates, width > 767px so `respond(phone)` no longer matches.
+// Use max-height to detect phone-in-landscape and replicate key mobile rules.
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .play-video {
+    flex-basis: 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+
+    .top-container {
+      display: contents;
+    }
+
+    .video-iframe-wrapper {
+      position: relative !important;
+      z-index: auto !important;
+      border-radius: 0;
+      // Height = viewport minus nav bar. Width = 16:9 from that height.
+      // Leaves space on the sides for scrolling.
+      padding-top: 0 !important;
+      height: calc(100svh - 75px) !important;
+      width: calc((100svh - 75px) * 16 / 9) !important;
+      max-width: 100% !important;
+      margin: 0 auto;
+    }
+
+    .video-title-row {
+      margin-top: 0;
+      padding: 8px 10px;
+      background-color: var(--card-bg);
+    }
+
+    .video-details-collapsible {
+      padding: 8px 10px 10px;
+      background-color: var(--card-bg);
+
+      &.collapsed {
+        display: none;
+      }
+    }
+
+    .mobile-title-toggle {
+      display: flex;
+    }
+
+    .mobile-title-meta {
+      display: flex !important;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .badges-row {
+      display: none;
+    }
+
+    .info-buttons-left {
+      display: none !important;
+    }
+
+    .mobile-reactions-slot {
+      display: block !important;
+    }
+
+    .cinema-reactions-slot {
+      display: none !important;
+    }
+  }
+
+  // Show FAB in landscape phone
+  .fab-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 49;
+  }
+
+  .fab-speed-dial {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    position: fixed;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    z-index: 50;
+  }
+}

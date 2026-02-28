@@ -9,10 +9,9 @@ import { Quantum } from 'ldrs/react'
 import 'ldrs/react/Quantum.css'
 import { useInfiniteQuery, useQueryClient as useReactQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { MY_VIDEOS_URL, FEED_URL } from '../../utils/config';
+import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
-import { IoLogoRss } from 'react-icons/io5';
 import Follower from './Follower';
 import PlaylistCard from '../Cards/PlaylistCard';
 import { useUserPlaylists } from '../../hooks/useUserPlaylists';
@@ -285,20 +284,23 @@ const {
                   {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
                 </button>
               )}
-              <button className="btn btn-secondary" onClick={() => window.open(`${FEED_URL}/rss/${user}.xml`, "_blank")}>
-                <IoLogoRss />
-              </button>
                     <button
                       className="btn btn-secondary"
-                      onClick={() => {
-                        if (navigator.share) {
-                          navigator.share({
-                            title: `${user}`,
-                            text: `Follow ${user} on 3Speak`,
-                            url: `${FEED_URL}/user/${user}`,
-                          });
-                        } else {
-                          window.open(`${FEED_URL}/user/${user}`, "_blank");
+                      onClick={async () => {
+                        const profileUrl = `${window.location.origin}/@${user}`;
+                        const shareData = { title: `${user} on 3Speak`, text: `Follow ${user} on 3Speak`, url: profileUrl };
+                        try {
+                          if (navigator.share && navigator.canShare?.(shareData)) {
+                            await navigator.share(shareData);
+                          } else {
+                            await navigator.clipboard.writeText(profileUrl);
+                            toast.success('Profile link copied to clipboard!');
+                          }
+                        } catch (err) {
+                          if (err.name !== 'AbortError') {
+                            await navigator.clipboard.writeText(profileUrl);
+                            toast.success('Profile link copied to clipboard!');
+                          }
                         }
                       }}
                     >
@@ -340,7 +342,7 @@ const {
         <span>No Shorts Available</span>
       </div>
     ) : (
-      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} />
+      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
     )
   ) : show === "playlists" ? (
     <>

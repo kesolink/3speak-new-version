@@ -56,7 +56,8 @@ function Preview() {
     setIsUploadLocked,
     isUploadLocked,
     setHasBackgroundJob,
-    reusable
+    reusable,
+    startTusUpload,
   } = useLegacyUpload();
 
   const navigate = useNavigate();
@@ -165,10 +166,21 @@ function Preview() {
     }, 5000);
   };
 
-  const handlePostVideo = () => {
+  const handlePostVideo = async () => {
     if (uploadStatus) {
+      // Upload already complete, finalize immediately
       uploadVideoTo3Speak();
+    } else if (!uploadId) {
+      // Upload hasn't started yet — start TUS upload now, then auto-finalize on completion
+      setUploading(true);
+      setStatusText("Uploading video…");
+      addMessage("Starting video upload…");
+      setHasBackgroundJob(true);
+      await startTusUpload(videoFile);
+      // startTusUpload triggers onSuccess → uploadStatus=true → auto-check will finalize
+      onSaveClicked();
     } else {
+      // Upload in progress but not finished
       setShowUploadModal(true);
     }
   };

@@ -604,14 +604,38 @@ function Watch() {
       if (!wrapper) return;
 
       const isLandscape = screen.orientation.type.startsWith('landscape');
-      if (isLandscape && !videoIsVerticalRef.current) {
+      const shortSide = Math.min(screen.width, screen.height);
+      const isPhoneLandscape = isLandscape && shortSide <= 500;
+
+      console.log('[orientation]', {
+        type: screen.orientation.type,
+        isLandscape,
+        screenW: screen.width,
+        screenH: screen.height,
+        shortSide,
+        innerW: window.innerWidth,
+        innerH: window.innerHeight,
+        isVertical: videoIsVerticalRef.current,
+        isPhoneLandscape,
+        willAddFullscreen: isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape,
+      });
+
+      if (isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape) {
         wrapper.classList.add('landscape-fullscreen');
         setIsFullscreen(true);
       } else if (wrapper.classList.contains('landscape-fullscreen')) {
         wrapper.classList.remove('landscape-fullscreen');
         setIsFullscreen(false);
       }
+
+      // Collapse reactions in phone landscape to save vertical space
+      if (isPhoneLandscape) {
+        setIsReactionPlayerVisible(false);
+      }
     };
+
+    // Also run on mount in case page loads in landscape
+    handleOrientationChange();
 
     screen.orientation.addEventListener('change', handleOrientationChange);
     return () => screen.orientation.removeEventListener('change', handleOrientationChange);

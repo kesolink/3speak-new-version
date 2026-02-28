@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useMemo } from 'react'
 import { Upload } from "lucide-react";
 import "./VideoUploadStep1.scss"
 import { generateVideoThumbnails } from "@rajesh896/video-thumbnails-generator";
@@ -8,20 +8,16 @@ import { useLegacyUpload } from '../../context/LegacyUploadContext';
 import { useNavigate } from 'react-router-dom';
 import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
-import { UPLOAD_TOKEN, UPLOAD_URL } from "../../utils/config";
-import * as tus from "tus-js-client";
 import { Navigate } from 'react-router-dom';
 
 function VideoUploadStep1() {
-  const { 
+  const {
     setVideoDuration,
     videoFile,
     setVideoFile,
     setPrevVideoFile,
     setGeneratedThumbnail,
-    startTusUpload,
     banned,
-    setUploadId,
     setError,
     isUploadLocked
   } = useLegacyUpload()
@@ -34,6 +30,7 @@ function VideoUploadStep1() {
 
   const videoInputRef = useRef(null);
   const isBanned = banned && banned.canUpload === false;
+  const videoPreviewUrl = useMemo(() => videoFile ? URL.createObjectURL(videoFile) : null, [videoFile]);
 
      if (isUploadLocked) {
       return <Navigate to="/studio/preview" replace />;
@@ -68,42 +65,11 @@ function VideoUploadStep1() {
       // 1️⃣ Calculate duration
       const duration = await calculateVideoDuration(file);
 
-      // 2️⃣ Init Upload
-      const initResponse = await fetch(`${UPLOAD_URL}/api/upload/init`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${UPLOAD_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          owner: user,
-          originalFilename: file.name,
-          size: file.size,
-          duration: Math.round(duration)
-        })
-      });
-
-      const result = await initResponse.json();
-
-      if (!result.success) {
-        throw new Error(result.error || 'Upload initialization failed');
-      }
-
-      const upload_id = result.data.upload_id;
-      // const tus_endpoint = result.data.tus_endpoint;
-
-      setUploadId(upload_id);
-
-
-
-      // Start upload in provider
-       await startTusUpload(file);
-
-      // 4️⃣ Generate Thumbnails
+      // 2️⃣ Generate Thumbnails
       const thumbs = await generateVideoThumbnails(file, 2, "url");
       setGeneratedThumbnail(thumbs);
 
-      // 5️⃣ Store video for next step
+      // 3️⃣ Store video for next step (upload deferred to publish)
       setVideoFile(file);
       setPrevVideoFile(file);
       setVideoDuration(duration);
@@ -111,7 +77,7 @@ function VideoUploadStep1() {
     } catch (err) {
       console.error(err);
       setError(err.message);
-      toast.error(err.message || "Upload failed.");
+      toast.error(err.message || "Failed to process video.");
     }
 
     setLoading(false);
@@ -191,6 +157,19 @@ function VideoUploadStep1() {
             </div>
           </div>
         </div>
+
+        {videoFile && videoPreviewUrl && (
+          <div className="video-preview-container">
+            <video
+              src={videoPreviewUrl}
+              controls
+              muted
+              playsInline
+              className="video-preview"
+            />
+            <p className="video-preview-name">{videoFile.name}</p>
+          </div>
+        )}
 
       </div>
     </div>

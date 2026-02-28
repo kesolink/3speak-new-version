@@ -19,7 +19,7 @@ import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ProfileModal from "../modal/ProfileModal";
 
 
-function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true }) {
+function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
   const formatViewCount = (views) => {
@@ -41,7 +41,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
   if (error) return <div>Error: {error}</div>;
 
   return (
-    <div className="card-container">
+    <div className={`card-container${shortsGrid ? ' card-container--shorts' : ''}`}>
       {processedVideos.map((video, index) => {
         const postKey = `${video.author?.username || video.author || video.owner}/${
           video.permlink
