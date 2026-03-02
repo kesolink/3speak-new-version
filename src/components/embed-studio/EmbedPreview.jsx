@@ -80,7 +80,7 @@ function EmbedPreview() {
                   <div className="preview-section">
                     <label className="preview-label">Thumbnail</label>
                     <img
-                      className="preview-thumbnail"
+                      className={`preview-thumbnail${fromStories ? ' preview-thumbnail--portrait' : ''}`}
                       src={selectedThumbnail}
                       alt="Thumbnail"
                     />
@@ -186,6 +186,7 @@ function EmbedPreview() {
             </div>
             <h3>Upload Finished!</h3>
             <p>{fromStories ? 'Your short has been published on 3Speak.' : 'Your video has been published on 3Speak.'}</p>
+            {fromStories && <p style={{ color: '#e53935' }}>It will take around 5 minutes for it to show up on your profile.</p>}
             {embedUrl && (
               <p style={{ fontSize: '0.85rem', wordBreak: 'break-all', marginTop: '0.5rem' }}>
                 Embed URL: {embedUrl}

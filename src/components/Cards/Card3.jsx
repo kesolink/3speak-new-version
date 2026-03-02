@@ -63,14 +63,16 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                 onError={(e) => (e.currentTarget.src = img)}
                 loading="lazy"
               />
-              <div className="wrap">
-                <span className="play">
-                  {Math.floor((video.spkvideo?.duration || video.duration) / 60)}:
-                  {Math.floor((video.spkvideo?.duration || video.duration) % 60)
-                    .toString()
-                    .padStart(2, "0")}
-                </span>
-              </div>
+              {!shortsGrid && (
+                <div className="wrap">
+                  <span className="play">
+                    {Math.floor((video.spkvideo?.duration || video.duration) / 60)}:
+                    {Math.floor((video.spkvideo?.duration || video.duration) % 60)
+                      .toString()
+                      .padStart(2, "0")}
+                  </span>
+                </div>
+              )}
 
               {/* Add to Playlist Button */}
               <AddToPlaylistButton

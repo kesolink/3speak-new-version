@@ -45,12 +45,19 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
   const [isDragOver, setIsDragOver] = useState(false);
   const [renderedContent, setRenderedContent] = useState('');
 
-  // Auto-resize textarea to fit content
+  // Auto-resize textarea to fit content, capped by parent max-height
   const autoResize = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    textarea.style.height = textarea.scrollHeight + 'px';
+    const composer = textarea.closest('.markdown-composer');
+    const maxH = composer ? parseFloat(getComputedStyle(composer).maxHeight) : Infinity;
+    const desired = textarea.scrollHeight;
+    if (Number.isFinite(maxH) && desired > maxH) {
+      textarea.style.height = maxH + 'px';
+    } else {
+      textarea.style.height = desired + 'px';
+    }
   }, []);
 
   useEffect(() => {

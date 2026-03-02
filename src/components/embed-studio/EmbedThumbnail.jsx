@@ -128,7 +128,7 @@ function EmbedThumbnail() {
                   )}
                 </button>
               </div>
-              <div className="thumbnail-grid">
+              <div className={`thumbnail-grid${fromStories ? ' thumbnail-grid--portrait' : ''}`}>
                 {allThumbnails.map((thumbnail, index) => (
                   <div
                     key={index}

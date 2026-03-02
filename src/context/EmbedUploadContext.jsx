@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
+import { uploadThumbnail } from '../utils/uploadThumbnail';
 import { commentWithAioha, broadcastWithAioha, KeyTypes } from '../hive-api/aioha';
 import { useAppStore } from '../lib/store';
 import axios from 'axios';
@@ -228,6 +229,20 @@ export function EmbedUploadProvider({ children }) {
       setEmbedUrl(capturedEmbedUrl);
       addMessage('Video uploaded successfully');
 
+      // ─── Upload thumbnail if available ───
+      let thumbnailUrl = null;
+      if (thumbnailFile) {
+        try {
+          setStatusText('Uploading thumbnail...');
+          addMessage('Uploading thumbnail...');
+          thumbnailUrl = await uploadThumbnail(thumbnailFile);
+          addMessage('Thumbnail uploaded');
+        } catch (thumbErr) {
+          console.warn('Thumbnail upload failed:', thumbErr);
+          addMessage('Warning: Thumbnail upload failed (non-critical)', 'warning');
+        }
+      }
+
       if (EMBED_DEBUG) {
         addMessage('[DEBUG] Skipping Hive posting and embed linking');
         setStatusText('[DEBUG] Done — staying on screen');
@@ -258,6 +273,7 @@ export function EmbedUploadProvider({ children }) {
         app: '3speak/embed',
         format: 'markdown',
         tags: ['3speak', ...tagsPreview],
+        ...(thumbnailUrl ? { image: [thumbnailUrl] } : {}),
         video: {
           platform: '3speak',
           url: capturedEmbedUrl,
@@ -391,10 +407,10 @@ export function EmbedUploadProvider({ children }) {
       setStatusText('Linking embed video...');
 
       // ─── Step 3: Link embed video to Hive post ───
-      try {
-        const vParam = new URL(capturedEmbedUrl).searchParams.get('v');
-        const embedPermlink = vParam ? vParam.split('/').pop() : null;
+      const vParam = new URL(capturedEmbedUrl).searchParams.get('v');
+      const embedPermlink = vParam ? vParam.split('/').pop() : null;
 
+      try {
         if (embedPermlink && EMBED_API_URL) {
           await fetch(`${EMBED_API_URL}/video/${embedPermlink}/hive`, {
             method: 'POST',
@@ -415,6 +431,24 @@ export function EmbedUploadProvider({ children }) {
       } catch (linkErr) {
         console.warn('Failed to link embed video to Hive post:', linkErr);
         addMessage('Warning: Could not link embed video (non-critical)', 'warning');
+      }
+
+      // ─── Step 4: Update thumbnail on embed service ───
+      if (thumbnailUrl && embedPermlink && EMBED_API_URL) {
+        try {
+          await fetch(`${EMBED_API_URL}/video/${embedPermlink}/thumbnail`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
+            },
+            body: JSON.stringify({ thumbnail_url: thumbnailUrl }),
+          });
+          addMessage('Thumbnail linked to embed video');
+        } catch (thumbLinkErr) {
+          console.warn('Failed to set embed thumbnail:', thumbLinkErr);
+          addMessage('Warning: Could not set embed thumbnail (non-critical)', 'warning');
+        }
       }
 
       // ─── Done ───

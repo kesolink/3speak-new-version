@@ -165,6 +165,7 @@ function VideoUploadStep1() {
               controls
               muted
               playsInline
+              preload="auto"
               className="video-preview"
             />
             <p className="video-preview-name">{videoFile.name}</p>

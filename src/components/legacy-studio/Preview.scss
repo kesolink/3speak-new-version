@@ -82,6 +82,12 @@ $overlay: rgba(15, 23, 42, 0.6);
       height: auto;
       border-radius: 8px;
       margin-top: 8px;
+
+      &--portrait {
+        width: 140px;
+        aspect-ratio: 9 / 16;
+        object-fit: cover;
+      }
     }
 
     .preview-tags {

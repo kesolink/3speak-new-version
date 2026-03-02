@@ -55,6 +55,10 @@ const EMBED_API_URL = import.meta.env.VITE_EMBED_API_URL || 'https://embed.3spea
 const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
 const EMBED_DEBUG = import.meta.env.VITE_EMBED_DEBUG === 'true';
 
+// 3Speak Image Upload Service (thumbnail uploads)
+const IMAGE_UPLOAD_URL = import.meta.env.VITE_IMAGE_UPLOAD_URL || 'https://images.3speak.tv';
+const IMAGE_UPLOAD_KEY = import.meta.env.VITE_IMAGE_UPLOAD_KEY || '';
+
 // Translation API (LibreTranslate)
 const TRANSLATE_API_URL = import.meta.env.VITE_TRANSLATE_API_URL || 'https://3speak-translator.okinoko.io';
 
@@ -97,4 +101,6 @@ export {
   FEATURE_EDITOR,
   COMPACT_SIDEBAR,
   EMBED_DEBUG,
+  IMAGE_UPLOAD_URL,
+  IMAGE_UPLOAD_KEY,
 };

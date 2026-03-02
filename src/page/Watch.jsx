@@ -675,6 +675,7 @@ function Watch() {
   // Hive fallback: when GraphQL doesn't have the video, fetch directly from blockchain
   const [hiveFallback, setHiveFallback] = useState(null);
   const [hiveFallbackLoading, setHiveFallbackLoading] = useState(false);
+  const [hiveFallbackDone, setHiveFallbackDone] = useState(false);
 
   useEffect(() => {
     if (videoLoading || videoData?.socialPost || !author || author === 'unknown') return;
@@ -731,7 +732,7 @@ function Watch() {
       } catch (err) {
         console.error('Hive fallback failed:', err);
       } finally {
-        if (!cancelled) setHiveFallbackLoading(false);
+        if (!cancelled) { setHiveFallbackLoading(false); setHiveFallbackDone(true); }
       }
     })();
 
@@ -915,17 +916,20 @@ function Watch() {
     setReactionsVisible(true);
   }, [reactions, searchParams]);
 
-  const isNetworkError = videoError && videoError.networkError;
-  const isLoading = videoLoading || hiveFallbackLoading || (suggestionsLoading && trendingLoading && authorVideosLoading);
+  const isNetworkError = videoError && videoError.networkError && !hiveFallback;
+  // Also wait while Hive fallback hasn't been attempted yet (covers the gap between
+  // GraphQL completing and the fallback useEffect firing)
+  const awaitingFallback = !videoLoading && !videoData?.socialPost && !hiveFallbackDone && author !== 'unknown';
+  const isLoading = videoLoading || hiveFallbackLoading || awaitingFallback || (suggestionsLoading && trendingLoading && authorVideosLoading);
 
   if (isLoading) {
     return <BarLoader />;
   }
 
-  if (videoError || !videoDetails) {
+  if (!videoDetails) {
     return (
       <div className="watch-error">
-        <p>{isNetworkError ? 'Network error. Please check your connection.' : videoError ? 'Error loading video.' : 'Video not found or failed to load.'}</p>
+        <p>{isNetworkError ? 'Network error. Please check your connection.' : 'Video not found or failed to load.'}</p>
         <button className="watch-error-retry" onClick={() => refetchVideo()}>Retry</button>
       </div>
     );

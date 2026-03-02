@@ -167,6 +167,25 @@
   justify-content: center;
   gap: 12px;
   margin-top: 15px;
+
+  &--portrait .thumbnail-card {
+    width: 120px;
+    @include mix.respond(phone) {
+      width: 100px;
+    }
+
+    .content .image {
+      height: auto;
+      aspect-ratio: 9 / 16;
+    }
+  }
+
+  &--portrait .thumbnail-upload {
+    width: 120px;
+    @include mix.respond(phone) {
+      width: 100px;
+    }
+  }
 }
 
 @media (min-width: 768px) {
@@ -284,5 +303,10 @@
     .thumbnail-upload__input {
       display: none;
     }
+  }
+
+  .thumbnail-grid--portrait .thumbnail-upload .thumbnail-upload__content {
+    height: auto;
+    aspect-ratio: 9 / 16;
   }
 }
