@@ -174,6 +174,13 @@ export default defineConfig({
           });
         },
       },
+      // Proxy image upload to images.3speak.tv to avoid CORS in dev.
+      '/image-api': {
+        target: 'https://images.3speak.tv',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/image-api/, ''),
+      },
     },
   },
 });

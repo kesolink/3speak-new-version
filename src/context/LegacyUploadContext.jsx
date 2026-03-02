@@ -6,6 +6,7 @@ import * as tus from "tus-js-client";
 import axios from "axios";
 import { UPLOAD_TOKEN, UPLOAD_URL, CHECKER_URL } from "../utils/config";
 import { getTusUploadOptions } from "../utils/tusConfig";
+import { getSchedulingParams } from "../utils/schedulingHelpers";
 
 const LegacyUploadContext = createContext();
 
@@ -288,6 +289,14 @@ export function LegacyUploadProvider({ children }) {
         }
       }
 
+      const schedulingParams = getSchedulingParams(isScheduled, scheduleDateTime);
+
+      if (schedulingParams.publish_type === 'error') {
+        toast.error(schedulingParams.error || 'Invalid schedule time');
+        setIsSubmitting(false);
+        return;
+      }
+
       const raw = {
         upload_id: uploadId,
         owner: username,
@@ -302,8 +311,9 @@ export function LegacyUploadProvider({ children }) {
         rewardPowerup,
         reusable,
         beneficiaries: parsedBeneficiaries,
+        ...schedulingParams,
       }
-      
+
       console.log('Finalizing upload with:', raw);
 
       const res = await axios.post(
@@ -363,9 +373,6 @@ export function LegacyUploadProvider({ children }) {
           console.warn("Thumbnail upload failed:", err);
         }
       }
-
-
-
 
       startEncodingPolling (vid)
       // resetUploadState();

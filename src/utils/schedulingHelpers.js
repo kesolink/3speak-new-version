@@ -53,8 +53,18 @@ export function getSchedulingParams(isScheduled, datetimeValue) {
   }
 
   // Convert to Unix timestamp (seconds)
+  // datetimeValue is "YYYY-MM-DDTHH:MM" with no timezone — JS parses as local time
+  // .getTime() returns UTC milliseconds, /1000 gives correct UTC seconds
   const scheduledDate = new Date(datetimeValue);
   const publish_data = Math.floor(scheduledDate.getTime() / 1000);
+  const nowUnix = Math.floor(Date.now() / 1000);
+
+  if (publish_data <= nowUnix) {
+    console.warn(`Scheduled time is in the past (${publish_data} <= ${nowUnix}), rejecting`);
+    return { publish_type: 'error', error: 'Scheduled time is in the past' };
+  }
+
+  console.log(`Scheduling: local="${datetimeValue}" → UTC unix=${publish_data} (${new Date(publish_data * 1000).toISOString()})`);
 
   return {
     publish_type: 'schedule',

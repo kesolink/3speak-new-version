@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { StepProgress } from './StepProgress';
 import { IoIosArrowDropdownCircle } from 'react-icons/io';
@@ -11,6 +11,7 @@ import { LineSpinner } from 'ldrs/react';
 import checker from "../../../public/images/checker.png"
 import MarkdownComposer from '../studio/MarkdownComposer';
 import { getMinMaxDates } from '../../utils/schedulingHelpers';
+import SchedulePicker from '../studio/SchedulePicker';
 
 function Details() {
     const {
@@ -22,7 +23,7 @@ function Details() {
         SetDeclineRewards,
         setRewardPowerup,
         reusable, setReusable,
-        communitiesData, 
+        communitiesData,
         navigate,
         BeneficiaryList, setBeneficiaryList,
         list, setList,
@@ -35,15 +36,25 @@ function Details() {
         uploadStatus,
         isUploadLocked,
         isScheduled, setIsScheduled,
-        scheduleDateTime, setScheduleDateTime
-        // NOTE: Auto-submit values imported but not used in Details
-        // The logic happens in Preview page when user clicks "Post Video"
+        scheduleDateTime, setScheduleDateTime,
+        videoFile,
+        uploadId,
+        startTusUpload,
       } = useLegacyUpload();
 
+
+  const [scheduleValid, setScheduleValid] = useState(true);
 
   useEffect(() => {
     setStep(3)
   }, [])
+
+  // Start TUS upload in the background when entering the Details page
+  useEffect(() => {
+    if (videoFile && !uploadId && !uploadStatus) {
+      startTusUpload(videoFile);
+    }
+  }, []);
 
     if (isUploadLocked) {
     return <Navigate to="/studio/preview" replace />;
@@ -159,7 +170,10 @@ const handleTagChange = (e) => {
         <div className="video-items">
         <div className="input-group">
           <label htmlFor="">Title</label>
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={250} />
+          {title && (title.trim().length < 5 || title.trim().length > 250) && (
+            <span className="input-hint input-hint--error">Title must be between 5 and 250 characters ({title.trim().length}/250)</span>
+          )}
         </div>
         <div className="input-group">
           <label htmlFor="">Description</label>
@@ -253,14 +267,12 @@ const handleTagChange = (e) => {
 
           {isScheduled && (
             <div className="schedule-datetime-group">
-              <label htmlFor="schedule-datetime">Publish Date & Time</label>
-              <input
-                type="datetime-local"
-                id="schedule-datetime"
+              <SchedulePicker
                 value={scheduleDateTime}
-                onChange={(e) => setScheduleDateTime(e.target.value)}
-                min={getMinMaxDates().minFormatted}
-                max={getMinMaxDates().maxFormatted}
+                onChange={setScheduleDateTime}
+                minDate={getMinMaxDates().minFormatted}
+                maxDate={getMinMaxDates().maxFormatted}
+                onValidChange={setScheduleValid}
               />
               <small>Must be at least 1 hour in future, maximum 90 days</small>
             </div>
@@ -269,11 +281,11 @@ const handleTagChange = (e) => {
 
         <div className="submit-btn-wrap">
           {/* Button always shows "Proceed" - no auto-submit logic here */}
-          <button 
+          <button
             onClick={() => {
               process();
             }}
-            // disabled={!title || !description || !tagsInputValue}
+            disabled={!title?.trim() || title.trim().length < 5 || title.trim().length > 250 || !tagsPreview?.length || (isScheduled && !scheduleValid)}
           >
             Proceed
           </button>

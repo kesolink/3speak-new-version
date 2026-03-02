@@ -221,6 +221,11 @@ function Preview() {
       return;
     }
 
+    if (isScheduled && !scheduleDateTime) {
+      toast.error("Please select a date and time for your scheduled post.");
+      return;
+    }
+
     stopAutoCheck();
     setIsSubmitting(true);
     setUploading(true);
@@ -240,6 +245,13 @@ function Preview() {
 
       const schedulingParams = getSchedulingParams(isScheduled, scheduleDateTime);
 
+      if (schedulingParams.publish_type === 'error') {
+        toast.error("The scheduled time is in the past. Please select a future date and time.");
+        setIsSubmitting(false);
+        setUploading(false);
+        return;
+      }
+
       const res = await axios.post(
         `${UPLOAD_URL}/api/upload/finalize`,
         {
@@ -256,7 +268,7 @@ function Preview() {
           rewardPowerup,
           beneficiaries: parsedBeneficiaries,
           reusable: !!reusable,
-          ...schedulingParams
+          ...schedulingParams,
         },
         {
           headers: {
