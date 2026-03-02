@@ -42,8 +42,10 @@ export function fixVideoThumbnail(video) {
     return cleanThumbnail.replace("https://ipfs-3speak.b-cdn.net", APP_BUNNY_IPFS_CDN);
   }
 
-  // ✅ Already using Hive proxy - return as-is (already optimized)
-  if (cleanThumbnail.includes("images.hive.blog") || cleanThumbnail.includes("files.peakd.com")) {
+  // ✅ Already using optimized CDN - return as-is (no need to re-proxy)
+  if (cleanThumbnail.includes("images.hive.blog") || 
+      cleanThumbnail.includes("files.peakd.com") || 
+      cleanThumbnail.includes("images.3speak.tv")) {
     return cleanThumbnail;
   }
 
