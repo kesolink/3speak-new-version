@@ -90,7 +90,7 @@ export function EmbedUploadProvider({ children }) {
   const resetUploadState = () => {
     // Abort any in-progress TUS upload and clear cached fingerprints
     if (tusUploadRef.current) {
-      try { tusUploadRef.current.abort(); } catch {}
+      try { tusUploadRef.current.abort(); } catch { }
       tusUploadRef.current = null;
     }
     // Clear TUS fingerprints from localStorage to prevent resume of old uploads
@@ -98,7 +98,7 @@ export function EmbedUploadProvider({ children }) {
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('tus::')) localStorage.removeItem(key);
       });
-    } catch {}
+    } catch { }
 
     setStep(1);
     setVideoFile(null);
@@ -178,11 +178,24 @@ export function EmbedUploadProvider({ children }) {
         capturedEmbedUrl = `https://embed.okinoko.io/embed?v=debug/${Date.now()}`;
         addMessage('[DEBUG] Simulated upload complete');
       } else {
+        // Clear any stale TUS fingerprints for this endpoint before starting,
+        // to avoid "invalid or missing length value" errors from resumed uploads.
+        // The embed.3speak.tv server does not return Upload-Length on HEAD,
+        // so resuming always fails. We disable resume storage entirely.
+        try {
+          Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('tus::') && key.includes('embed.3speak.tv')) {
+              localStorage.removeItem(key);
+            }
+          });
+        } catch { }
+
         await new Promise((resolve, reject) => {
           const upload = new tus.Upload(videoFile, {
             endpoint: EMBED_UPLOAD_URL,
             chunkSize: 5 * 1024 * 1024,
             retryDelays: [0, 2000, 5000, 10000],
+            storeFingerprintForResuming: false,
             removeFingerprintOnSuccess: true,
             headers: {
               ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
