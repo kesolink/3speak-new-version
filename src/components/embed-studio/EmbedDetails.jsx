@@ -191,7 +191,7 @@ const handleTagChange = (e) => {
           <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
            <div className="wrap">
            <span>Allow Remix/Clip</span>
-           <span>Allow others to create remixes and clips from this video.</span>
+           <span>Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</span>
            </div>
            <label className={`toggle-switch${isRemix ? ' disabled' : ''}`}>
             <input
