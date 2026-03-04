@@ -286,7 +286,6 @@ export function EmbedUploadProvider({ children }) {
         app: '3speak/embed',
         format: 'markdown',
         tags: ['3speak', 'hive-181335', 'short', ...tagsPreview.filter(t => !['3speak', 'hive-181335', 'short'].includes(t))],
-        ...(thumbnailUrl ? { image: [thumbnailUrl] } : {}),
         video: {
           platform: '3speak',
           url: capturedEmbedUrl,
