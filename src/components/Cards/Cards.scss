@@ -20,9 +20,9 @@
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
     @include respond(phone) {
       border-radius: 8px;
+      min-width: 0;
+      overflow: hidden;
    }
-    
-    
 
     .img-wrap {
       // width: 270px;
@@ -410,7 +410,7 @@
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
 
   @include respond(phone) {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .card .img-wrap {

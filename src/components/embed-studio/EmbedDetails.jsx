@@ -135,7 +135,6 @@ const handleTagChange = (e) => {
           </div>
         </div>
 
-        {!fromStories && (
         <div className="input-group">
           <label htmlFor="">Tag</label>
           <input type="text" value={tagsInputValue} onChange={handleTagChange}  />
@@ -145,14 +144,13 @@ const handleTagChange = (e) => {
           </div>
           {/* Show the tags */}
         <div className="preview-tags">
-        {tagsPreview &&<span> {tagsPreview.map((item, index) => (
+        <span>{['3speak', 'hive-181335', 'short', ...tagsPreview.filter(t => !['3speak', 'hive-181335', 'short'].includes(t))].map((item, index) => (
       <span className="item" key={index} style={{ marginRight: '8px' }}>
         {item}
       </span>
-    ))}</span>}
+    ))}</span>
         </div>
         </div>
-        )}
         {!fromStories && (
         <div className="community-box-wrap">
         <div className="community-wrap" onClick={openCommunityModal}>
