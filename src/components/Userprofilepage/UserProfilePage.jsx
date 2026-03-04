@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { getFollowers } from '../../hive-api/api';
+import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '../../hive-api/api';
+import { followWithAioha } from '../../hive-api/aioha';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import icon from "../../../public/images/stack.png"
 import "./UserProfilePage.scss"
@@ -8,10 +9,9 @@ import { Quantum } from 'ldrs/react'
 import 'ldrs/react/Quantum.css'
 import { useInfiniteQuery, useQueryClient as useReactQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { VIEWS_URL } from '../../utils/config';
+import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
-import { IoLogoRss } from 'react-icons/io5';
 import Follower from './Follower';
 import PlaylistCard from '../Cards/PlaylistCard';
 import { useUserPlaylists } from '../../hooks/useUserPlaylists';
@@ -30,8 +30,10 @@ function UserProfilePage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate()
     const queryClient = useReactQueryClient();
-    const { user: authenticatedUser } = useAppStore();
+    const { user: authenticatedUser, authenticated } = useAppStore();
     const [follower, setFollower] = useState(null)
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [followLoading, setFollowLoading] = useState(false);
     const [show, setShow] = useState(() => {
       const tab = searchParams.get('tab');
       if (tab === 'playlists') return 'playlists';
@@ -55,6 +57,14 @@ function UserProfilePage() {
         navigate(redirectUrl, { replace: true });
       }
     }, [isOwnProfile, navigate, searchParams]);
+
+    // Check if account exists on Hive
+    const [userExists, setUserExists] = useState(null); // null = loading, true/false = result
+    useEffect(() => {
+      if (!user || isOwnProfile) return;
+      setUserExists(null);
+      isAccountValid(user).then(setUserExists);
+    }, [user, isOwnProfile]);
 
     // Fetch user's public playlists
     const { data: playlists = [], isLoading: playlistsLoading, error: playlistsError, refetch: refetchPlaylists } = useUserPlaylists(user);
@@ -96,7 +106,7 @@ function UserProfilePage() {
  const LIMIT = 20;
 
 const fetchVideos = async ({ pageParam = 0 }) => {
-  const url = `${VIEWS_URL}/api/my-videos?username=${user}&limit=${LIMIT}&offset=${pageParam}&status=published&sort=newest`;
+  const url = `${MY_VIDEOS_URL}/api/my-videos?username=${user}&limit=${LIMIT}&offset=${pageParam}&status=published&sort=newest`;
 
   const res = await axios.get(url);
   return res.data?.data?.videos || [];
@@ -209,10 +219,56 @@ const {
         }
       }
 
+      // Check follow relationship on mount
+      useEffect(() => {
+        if (authenticated && authenticatedUser && user && authenticatedUser.toLowerCase() !== user.toLowerCase()) {
+          getRelationshipBetweenAccounts(authenticatedUser, user).then((rel) => {
+            if (rel) setIsFollowing(rel.follows);
+          });
+        }
+      }, [authenticated, authenticatedUser, user]);
+
+      const handleFollowToggle = async () => {
+        if (!authenticated || followLoading) return;
+        setFollowLoading(true);
+        try {
+          await followWithAioha(user, !isFollowing);
+          setIsFollowing(!isFollowing);
+          // Refresh follower count
+          getFollowersCount(user);
+          toast.success(isFollowing ? `Unfollowed @${user}` : `Now following @${user}`);
+        } catch (err) {
+          console.error('Follow error:', err);
+          toast.error('Follow action failed: ' + (err.message || 'Unknown error'));
+        } finally {
+          setFollowLoading(false);
+        }
+      };
+
       const handleWalletNavigate = (user)=>{
         navigate(`/wallet/${user}`)
       }
     
+  if (userExists === null && !isOwnProfile) {
+    return <div className="profile-page-container"><BarLoader /></div>;
+  }
+
+  if (userExists === false) {
+    return (
+      <div className="profile-page-container">
+        <div className="empty-wrap" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>404</h2>
+          <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+            User <strong>@{user}</strong> does not exist
+          </p>
+          <button onClick={() => navigate('/')} style={{ padding: '10px 24px', borderRadius: '8px', background: 'var(--accent-primary, #e53935)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="profile-page-container">
       <div className="profile-card">
@@ -247,20 +303,32 @@ const {
                     <Quantum size="15" speed="1.75" color="red" />
                   )}
               </button>
-              <button className="btn btn-secondary" onClick={() => window.open(`${FEED_URL}/rss/${user}.xml`, "_blank")}>
-                <IoLogoRss />
-              </button>
+              {authenticated && (
+                <button
+                  className={`btn ${isFollowing ? 'btn-following' : 'btn-follow'}`}
+                  onClick={handleFollowToggle}
+                  disabled={followLoading}
+                >
+                  {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
+                </button>
+              )}
                     <button
                       className="btn btn-secondary"
-                      onClick={() => {
-                        if (navigator.share) {
-                          navigator.share({
-                            title: `${user}`,
-                            text: `Follow ${user} on 3Speak`,
-                            url: `${FEED_URL}/user/${user}`,
-                          });
-                        } else {
-                          window.open(`${FEED_URL}/user/${user}`, "_blank");
+                      onClick={async () => {
+                        const profileUrl = `${window.location.origin}/@${user}`;
+                        const shareData = { title: `${user} on 3Speak`, text: `Follow ${user} on 3Speak`, url: profileUrl };
+                        try {
+                          if (navigator.share && navigator.canShare?.(shareData)) {
+                            await navigator.share(shareData);
+                          } else {
+                            await navigator.clipboard.writeText(profileUrl);
+                            toast.success('Profile link copied to clipboard!');
+                          }
+                        } catch (err) {
+                          if (err.name !== 'AbortError') {
+                            await navigator.clipboard.writeText(profileUrl);
+                            toast.success('Profile link copied to clipboard!');
+                          }
                         }
                       }}
                     >
@@ -302,7 +370,7 @@ const {
         <span>No Shorts Available</span>
       </div>
     ) : (
-      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} />
+      <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
     )
   ) : show === "playlists" ? (
     <>

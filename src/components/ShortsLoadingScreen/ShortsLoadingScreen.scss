@@ -1,0 +1,55 @@
+.shorts-loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 400px;
+  background: var(--bg-primary);
+  gap: 12px;
+
+  @media (max-width: 767px) {
+    background: #000;
+
+    .shorts-loading-screen__logo { color: #fff; }
+    .shorts-loading-screen__text { color: #fff; }
+  }
+
+  // Overlay variant — sits on top of the video container (stays black)
+  &--overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    min-height: 0;
+    background: #000;
+
+    .shorts-loading-screen__logo { color: #fff; }
+    .shorts-loading-screen__text { color: #fff; }
+  }
+
+  &__logo {
+    color: var(--text-primary);
+    animation: shortsLoadingBreathe 2s ease-in-out infinite;
+  }
+
+  &__text {
+    color: var(--text-secondary, var(--text-primary));
+    font-size: 0.875rem;
+    font-family: inherit;
+    margin: 0;
+    animation: shortsLoadingPulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes shortsLoadingBreathe {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes shortsLoadingPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}

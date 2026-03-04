@@ -108,7 +108,79 @@
   .nav-right {
     gap: 8px;
 
-    span {
+    .nav-upload-wrapper {
+      position: relative;
+
+      .nav-upload-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 34px;
+        padding: 0 12px;
+        border-radius: 17px;
+        background-color: var(--accent-primary, #e53935);
+        color: #fff;
+        cursor: pointer;
+        transition: filter 0.2s ease;
+        white-space: nowrap;
+
+        .nav-upload-label {
+          font-size: 13px;
+          font-weight: 500;
+          padding: 0;
+          border-radius: 0;
+          background: transparent;
+          color: inherit;
+          @include mix.respond(phone) {
+            display: none;
+          }
+        }
+
+        &:hover {
+          filter: brightness(0.9);
+        }
+      }
+
+      .nav-upload-flyout {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        min-width: 170px;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        box-shadow: var(--shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.2));
+        border: 1px solid var(--border-light);
+        padding: 6px 0;
+        z-index: 100;
+
+        .nav-upload-flyout-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 16px;
+          color: var(--text-primary);
+          font-size: 14px;
+          font-weight: 500;
+          text-decoration: none;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: background-color 0.15s ease;
+
+          .nav-upload-flyout-icon {
+            width: 16px;
+            height: 16px;
+          }
+
+          &:hover {
+            background-color: var(--bg-hover, var(--sidebar-hover-bg));
+            color: var(--accent-primary);
+          }
+        }
+      }
+    }
+
+    > span {
       padding: 5px 20px;
       border-radius: 15px;
       background-color: var(--bg-tertiary);
@@ -163,28 +235,19 @@
     transition: background-color 0.3s ease,
       transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 0px 20px;
+    padding-top: 50px;
     border-right: none;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+    overflow-y: auto;
 
     @include mix.respond(desktop) {
       display: none;
     }
 
-    .shortcut-links {
-      padding-top: 30px;
-      .icon {
-        width: 20px;
-        height: 20px;
-        font-size: 20px;
-        margin-right: 15px;
-        color: var(--text-secondary);
-        &:hover {
-          color: var(--accent-primary);
-        }
-      }
+    .side-nav-search {
       .search-wrap-sm {
         position: relative;
-        padding-top: 12px;
+        padding: 12px 0;
         .wrap {
           display: flex;
           align-items: center;
@@ -207,54 +270,6 @@
             }
           }
         }
-      }
-    }
-    .side-link-n {
-      display: flex;
-      padding: 10px 0;
-      color: var(--text-primary);
-      border-radius: 4px;
-      align-items: center;
-      margin-bottom: 20px;
-      width: fit-content;
-      flex-wrap: wrap;
-      cursor: pointer;
-      transition: color 0.3s ease;
-      span {
-        font-size: 14px;
-        font-weight: 500;
-      }
-      .store-icon {
-        width: 20px;
-        margin-right: 15px;
-      }
-
-      &:hover {
-        padding-left: 10px;
-        width: 90%;
-        background-color: var(--bg-hover);
-        box-shadow: var(--shadow-md);
-        color: var(--accent-primary);
-      }
-    }
-
-    hr {
-      border: 0;
-      height: 1px;
-      background: var(--divider);
-      width: 85%;
-    }
-
-    .subscibed-list {
-      h3 {
-        font-size: 13px;
-        margin: 20px 0px;
-        color: var(--text-secondary);
-      }
-
-      .icon {
-        width: 25px;
-        margin-right: 15px;
       }
     }
   }

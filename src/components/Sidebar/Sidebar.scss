@@ -19,6 +19,29 @@
       display: none  !important;
     }
 
+    // When inside the mobile slide-out nav, override desktop styles
+    .side-nav & {
+      display: block !important;
+      position: static;
+      width: 100%;
+      height: auto;
+      padding-top: 0;
+      padding-left: 0;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+      z-index: auto;
+      overflow-y: auto;
+
+      .sidebar-dropdown .flyout-menu {
+        position: static;
+        box-shadow: none;
+        padding-left: 20px;
+        min-width: 0;
+        background: transparent;
+      }
+    }
+
 .shortcut-links{
     .icon{
         width: 20px;
@@ -64,6 +87,57 @@
 }
 
 
+.sidebar-dropdown {
+    position: relative;
+
+    .dropdown-toggle {
+        width: 90%;
+        flex-wrap: nowrap;
+        cursor: pointer;
+        user-select: none;
+        padding-left: 0;
+
+        .chevron {
+            margin-left: auto;
+            font-size: 16px;
+            color: var(--text-secondary);
+            transition: transform 0.2s ease;
+        }
+
+        &:hover {
+            padding-left: 10px;
+        }
+    }
+
+    &.open .dropdown-toggle .chevron {
+        transform: rotate(90deg);
+    }
+
+    .flyout-menu {
+        position: absolute;
+        left: 100%;
+        top: 0;
+        min-width: 180px;
+        background: var(--sidebar-bg);
+        border-radius: 8px;
+        box-shadow: var(--shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.2));
+        padding: 8px 0;
+        z-index: 20;
+
+        .side-link {
+            margin-bottom: 0;
+            padding: 10px 16px;
+            width: 100%;
+            white-space: nowrap;
+
+            &:hover {
+                padding-left: 16px;
+                width: 100%;
+            }
+        }
+    }
+}
+
 hr{
     border: 0;
     height: 1px;
@@ -108,9 +182,45 @@ hr{
         &:hover {
             padding-left: 0;
             width: fit-content;
-            background-color: var(--sidebar-hover-bg);
-            color: var(--accent-primary);
-          }
+            background-color: transparent;
+            box-shadow: none;
+            color: inherit;
+
+            .icon {
+                color: red;
+            }
+        }
     }
-    
+
+    .sidebar-dropdown .dropdown-toggle {
+        width: fit-content;
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            font-size: 20px;
+            margin-right: 0;
+        }
+
+        .chevron {
+            display: none;
+        }
+
+        &:hover {
+            padding-left: 0;
+            background-color: transparent;
+            box-shadow: none;
+            color: inherit;
+
+            .icon {
+                color: red;
+            }
+        }
+    }
+
+    .sidebar-dropdown .flyout-menu {
+        span {
+            display: inline !important;
+        }
+    }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import axios from "axios";
@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useAppStore } from "../lib/store";
 import { getFollowers } from "../hive-api/api";
+import { MY_VIDEOS_URL } from "../utils/config";
 
 import Card3 from "../components/Cards/Card3";
 import Follower from "../components/Userprofilepage/Follower";
@@ -13,9 +14,9 @@ import BarLoader from "../components/Loader/BarLoader";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
+import { fetchUserShortsWithDetails } from "../hive-api/hiveApi";
 
 import { FaVideo } from "react-icons/fa";
-import { IoLogoRss } from "react-icons/io5";
 import { IoMdShare, IoMdAdd } from "react-icons/io";
 import { MdLock, MdPublic } from "react-icons/md";
 
@@ -23,7 +24,7 @@ import { LineSpinner, Quantum } from "ldrs/react";
 import "ldrs/react/Quantum.css";
 
 import icon from "../../public/images/stack.png";
-import { UPLOAD_TOKEN, UPLOAD_URL, FEED_URL } from "../utils/config";
+import { UPLOAD_TOKEN, UPLOAD_URL } from "../utils/config";
 import "./ProfilePage.scss";
 import { useLegacyUpload } from "../context/LegacyUploadContext";
 import checker from "../../public/images/checker.png";
@@ -50,12 +51,15 @@ function ProfilePage() {
   const [show, setShow] = useState(() => {
     // Initialize show based on URL tab parameter
     const tab = searchParams.get('tab');
-    return tab === 'playlists' ? 'playlists' : 'video';
+    if (tab === 'playlists') return 'playlists';
+    if (tab === 'shorts') return 'shorts';
+    return 'video';
   });
   // Sync tab state when URL search params change (e.g. navigating from sidebar)
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'playlists') setShow('playlists');
+    else if (tab === 'shorts') setShow('shorts');
   }, [searchParams]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -194,7 +198,7 @@ function ProfilePage() {
 
     try {
       // Use new reliable API endpoint with server-side pagination
-      const res = await axios.get('https://views.3speak.tv/api/my-videos', {
+      const res = await axios.get(`${MY_VIDEOS_URL}/api/my-videos`, {
         params: {
           username: user,
           limit: pageSize,
@@ -260,23 +264,68 @@ function ProfilePage() {
   const { getViewCount } = useViewCounts(videos);
 
   /* ===============================
+     SHORTS FEED
+  =============================== */
+  const fetchMyShorts = async ({ pageParam = 1 }) => {
+    const data = await fetchUserShortsWithDetails(user, pageParam, 20);
+    return data;
+  };
+
+  const {
+    data: shortsData,
+    fetchNextPage: fetchNextShortsPage,
+    hasNextPage: hasNextShortsPage,
+    isFetchingNextPage: isFetchingNextShortsPage,
+    isLoading: isShortsLoading,
+  } = useInfiniteQuery({
+    queryKey: ["MyShorts", user],
+    queryFn: fetchMyShorts,
+    getNextPageParam: (lastPage) => {
+      if (lastPage?.page < lastPage?.totalPages) {
+        return lastPage.page + 1;
+      }
+      return undefined;
+    },
+    enabled: show === 'shorts',
+  });
+
+  const shortsVideos = useMemo(() => (
+    (shortsData?.pages || []).flatMap(page =>
+      (page?.shorts || []).map(s => ({
+        author: s.author,
+        permlink: s.permlink,
+        title: (s.caption || s.title || '').slice(0, 80),
+        images: { thumbnail: s.thumbnailUrl },
+        duration: 0,
+        stats: {
+          total_hive_reward: parseFloat(s.stats?.payout) || 0,
+          num_votes: s.stats?.likes || 0,
+        },
+        created_at: s.createdAt,
+      }))
+    )
+  ), [shortsData?.pages]);
+
+  /* ===============================
      SCROLL HANDLER
   =============================== */
   useEffect(() => {
     const handleScroll = () => {
       if (
         window.innerHeight + window.scrollY >=
-          document.body.offsetHeight - 200 &&
-        !isFetchingNextPage &&
-        hasNextPage
+          document.body.offsetHeight - 200
       ) {
-        fetchNextPage();
+        if (show === 'shorts' && !isFetchingNextShortsPage && hasNextShortsPage) {
+          fetchNextShortsPage();
+        } else if (show === 'video' && !isFetchingNextPage && hasNextPage) {
+          fetchNextPage();
+        }
       }
     };
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
+  }, [show, isFetchingNextPage, hasNextPage, fetchNextPage, isFetchingNextShortsPage, hasNextShortsPage, fetchNextShortsPage]);
 
   /* ===============================
      NAVIGATION
@@ -336,26 +385,23 @@ function ProfilePage() {
 
               <button
                 className="btn btn-secondary"
-                onClick={() =>
-                  window.open(`${FEED_URL}/rss/${user}.xml`, "_blank")
-                }
-              >
-                <IoLogoRss />
-              </button>
-
-              <button
-                className="btn btn-secondary"
-                onClick={() =>
-                  navigator.share
-                      ? navigator.share({
-                          title: user,
-                          url: `${FEED_URL}/user/${user}`,
-                        })
-                      : window.open(
-                          `${FEED_URL}/user/${user}`,
-                          "_blank"
-                        )
-                }
+                onClick={async () => {
+                  const profileUrl = `${window.location.origin}/@${user}`;
+                  const shareData = { title: `${user} on 3Speak`, url: profileUrl };
+                  try {
+                    if (navigator.share && navigator.canShare?.(shareData)) {
+                      await navigator.share(shareData);
+                    } else {
+                      await navigator.clipboard.writeText(profileUrl);
+                      toast.success('Profile link copied to clipboard!');
+                    }
+                  } catch (err) {
+                    if (err.name !== 'AbortError') {
+                      await navigator.clipboard.writeText(profileUrl);
+                      toast.success('Profile link copied to clipboard!');
+                    }
+                  }
+                }}
               >
                 <IoMdShare />
               </button>
@@ -368,6 +414,7 @@ function ProfilePage() {
       <div className="toggle-wrap">
         <div className="wrap">
           <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
+          <span className={show === "shorts" ? "active" : ""} onClick={() => setShow("shorts")}>Shorts</span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
@@ -460,6 +507,17 @@ function ProfilePage() {
             </div>
           ) : (
             <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+          )
+        ) : show === "shorts" ? (
+          isShortsLoading ? (
+            <BarLoader />
+          ) : shortsVideos.length === 0 ? (
+            <div className="empty-wrap">
+              <img src={icon} alt="empty" />
+              <span>No Shorts Available</span>
+            </div>
+          ) : (
+            <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
           )
         ) : show === "playlists" ? (
           <>

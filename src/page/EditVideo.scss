@@ -111,19 +111,21 @@ $black: #212529;
     justify-content: flex-start;
     margin-top: 30px;
   }
-}
-.preview {
-  animation: scale-in 0.4s ease-out;
-  width: 50%;
-  @include respond(phone) {
-    width: 100%;
-  }
 
-  h2 {
-    margin-bottom: 20px;
-    font-size: 18px;
-    font-weight: 600;
-    color: $dark-gray;
+
+  .preview {
+    animation: scale-in 0.4s ease-out;
+    width: 50%;
+    @include respond(phone) {
+      width: 100%;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      font-size: 18px;
+      font-weight: 600;
+      color: $dark-gray;
+    }
   }
 }
 .video-preview {

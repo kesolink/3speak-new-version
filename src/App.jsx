@@ -42,6 +42,7 @@ import Details from "./components/legacy-studio/Details";
 import Preview from "./components/legacy-studio/Preview";
 import Test from "./page/Test";
 import Short from "./page/Short";
+import ShortsStoryFeed from "./page/ShortsStoryFeed";
 import ShortsPreloader from "./components/ShortsPreloader";
 // import Email from "./page/Login/Email"
 // import AuthCallback from "./page/Login/AuthCallback";
@@ -56,20 +57,33 @@ import HiveImageUploader from "./page/HiveImageUploader";
 import PlaylistView from "./page/PlaylistView";
 import WatchedView from "./page/WatchedView";
 import { LegacyUploadProvider } from "./context/LegacyUploadContext";
+import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
+
+// Embed studio pages
+import EmbedStudioPage from "./components/embed-studio/EmbedStudioPage";
+import EmbedThumbnail from "./components/embed-studio/EmbedThumbnail";
+import EmbedDetails from "./components/embed-studio/EmbedDetails";
+import EmbedPreview from "./components/embed-studio/EmbedPreview";
+import FollowFeed from "./page/FollowFeed";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
+import EditorModal from "./components/modal/EditorModal";
+import { FEATURE_EDITOR } from "./utils/config";
 import { KeyTypes } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
 
-// Hive-like URL redirects: /@user → profile, /@user/permlink → watch
+// Hive-like URL redirects: /@user → profile, /@user/permlink → watch, /@user/shorts → profile shorts tab
 const HiveLinkRedirect = () => {
   const location = useLocation();
   const path = location.pathname;
   const match = path.match(/^\/@([^/]+)(?:\/(.+))?$/);
   if (match) {
     const [, user, permlink] = match;
+    if (permlink === 'shorts') {
+      return <Navigate to={`/p/${user}?tab=shorts`} replace />;
+    }
     if (permlink) {
       return <Navigate to={`/watch?v=${user}/${permlink}`} replace />;
     }
@@ -102,6 +116,7 @@ function App() {
   const [reloadSwitch, setRelaodSwitch] = useState(false)
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
   const loginInProgress = useRef(false); // Track if login is being processed
   const aiohaUserSeen = useRef(false); // Track if aiohaUser has ever been populated
 
@@ -119,6 +134,12 @@ function App() {
 
   const hideNavOnMobile = isShorts && isMobile;
 
+  // Listen for "open-shorts-editor" custom event from UploadLinks
+  useEffect(() => {
+    const handleOpenEditor = () => setEditorModalOpen(true);
+    window.addEventListener('open-shorts-editor', handleOpenEditor);
+    return () => window.removeEventListener('open-shorts-editor', handleOpenEditor);
+  }, []);
 
   useEffect(() => {
     initializeAuth();
@@ -234,6 +255,7 @@ function App() {
   return (
     <HiveAuthProvider>
     <LegacyUploadProvider>
+    <EmbedUploadProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
       <Toaster richColors position="top-right" />
       <ShortsPreloader />
@@ -248,6 +270,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomeGrouped />} />
             <Route path="/home-feed" element={<Feed />} />
+            <Route path="/follow-feed" element={<FollowFeed />} />
             <Route path="/watch" element={<Watch />} />
             <Route path="/upload" element={<UploadVideo />} />
             <Route path="/firstupload" element={<FirstUploads />} />
@@ -262,11 +285,17 @@ function App() {
             <Route path="/studio/thumbnail" element={<Thumbnail />} />
             <Route path="/studio/details" element={<Details />} />
             <Route path="/studio/preview" element={<Preview />} />
+            {/* Embed studio (uses embed.okinoko.io upload service) */}
+            <Route path="/embed-studio" element={<EmbedStudioPage />} />
+            <Route path="/embed-studio/thumbnail" element={<EmbedThumbnail />} />
+            <Route path="/embed-studio/details" element={<EmbedDetails />} />
+            <Route path="/embed-studio/preview" element={<EmbedPreview />} />
             {/* <Route path="/studio2" element={<StudioPage2 />} /> */}
             <Route path="/draft" element={<DraftStudio />} />
             <Route path="/editvideo/:d" element={<EditVideo />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/shorts/stories" element={<ShortsStoryFeed />} />
             <Route path="/shorts" element={<Short />} />
             <Route
               path="/community/:communityName"
@@ -299,9 +328,16 @@ function App() {
             keyType: KeyTypes.Posting
           }}
         />
+        {FEATURE_EDITOR && (
+          <EditorModal
+            isOpen={editorModalOpen}
+            onClose={() => setEditorModalOpen(false)}
+          />
+        )}
       </div>
     </div>
 
+    </EmbedUploadProvider>
     </LegacyUploadProvider>
     </HiveAuthProvider>
   );

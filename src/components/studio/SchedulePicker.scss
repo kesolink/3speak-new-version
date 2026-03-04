@@ -1,0 +1,366 @@
+@use '../../mixins' as mix;
+
+$font-stack: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI",
+  Roboto, "Helvetica Neue", Arial, sans-serif;
+
+.schedule-picker {
+  // ── Main layout: calendar left, time right ──
+  &__layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+
+    @include mix.respond(phone) {
+      flex-direction: column;
+      gap: 16px;
+    }
+  }
+
+  &__left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 180px;
+
+    @include mix.respond(phone) {
+      width: 100%;
+    }
+  }
+
+  // ── Always-visible calendar ──
+  &__calendar {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px;
+
+    .calendar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      padding: 0;
+
+      .month-year {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-primary);
+        font-family: $font-stack;
+        user-select: none;
+      }
+
+      .nav-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover:not(:disabled) {
+          background: var(--accent-primary);
+          color: #fff;
+        }
+
+        &:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+      }
+    }
+
+    .calendar-months {
+      display: flex;
+      gap: 16px;
+
+      @include mix.respond(phone) {
+        .second-month {
+          display: none;
+        }
+      }
+    }
+
+    .second-month-label {
+      @include mix.respond(phone) {
+        display: none;
+      }
+    }
+
+    .calendar-grid {
+      flex: 1;
+      border-collapse: separate;
+      border-spacing: 1px;
+
+      thead th {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-align: center;
+        padding: 2px 0 6px;
+        font-family: $font-stack;
+        user-select: none;
+      }
+
+      tbody td {
+        text-align: center;
+        padding: 1px;
+
+        &.empty-cell {
+          pointer-events: none;
+        }
+      }
+
+      .day-btn {
+        width: 30px;
+        height: 30px;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--text-primary);
+        font-size: 12px;
+        font-weight: 500;
+        font-family: $font-stack;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        &:hover:not(.disabled):not(.selected) {
+          background: rgba(var(--accent-primary-rgb, 229, 57, 53), 0.15);
+          color: var(--accent-primary);
+        }
+
+        &.today:not(.selected) {
+          border: 2px solid var(--accent-primary);
+          font-weight: 700;
+        }
+
+        &.selected {
+          background: var(--accent-primary, #e53935);
+          color: #fff;
+          font-weight: 700;
+        }
+
+        &.disabled {
+          color: var(--text-muted);
+          opacity: 0.35;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+
+  // ── Manual date input ──
+  &__manual-date {
+    margin-top: 12px;
+
+    > label {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-family: $font-stack;
+    }
+
+    .manual-date-inputs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+
+      input {
+        width: 52px;
+        padding: 7px 8px;
+        border: 1px solid var(--input-border);
+        background-color: var(--input-bg);
+        color: var(--text-primary);
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: $font-stack;
+        text-align: center;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+        &:focus {
+          border-color: var(--accent-primary);
+          box-shadow: 0 0 0 2px var(--input-focus);
+        }
+
+        &::placeholder {
+          color: var(--text-muted);
+          font-size: 11px;
+        }
+
+        // Year field is wider
+        &:last-of-type {
+          width: 64px;
+        }
+      }
+
+      .date-sep {
+        color: var(--text-muted);
+        font-size: 14px;
+        font-weight: 600;
+        user-select: none;
+      }
+    }
+  }
+
+  // ── Time picker (always visible) ──
+  &__time-picker {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 20px;
+
+    @include mix.respond(phone) {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .time-columns {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .time-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .spin-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover {
+        background: var(--accent-primary);
+        color: #fff;
+      }
+    }
+
+    .time-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-family: $font-stack;
+      user-select: none;
+      min-width: 52px;
+      text-align: center;
+      line-height: 1.1;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background 0.15s ease;
+
+      &:hover {
+        background: rgba(var(--accent-primary-rgb, 229, 57, 53), 0.1);
+      }
+    }
+
+    .time-input {
+      width: 52px;
+      max-width: 52px;
+      min-width: 52px;
+      padding: 2px 0;
+      border: none;
+      border-bottom: 2px solid var(--accent-primary, #e53935);
+      background: transparent;
+      outline: none;
+      cursor: text;
+      box-sizing: border-box;
+
+      &:hover {
+        background: transparent;
+      }
+    }
+
+    .time-sep {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text-muted);
+      user-select: none;
+      align-self: center;
+      line-height: 1;
+    }
+
+    .ampm-col {
+      margin-left: 8px;
+
+      .ampm-btn {
+        padding: 10px 14px;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--accent-primary, #e53935);
+        border-radius: 6px;
+        font-size: 15px;
+        font-weight: 700;
+        font-family: $font-stack;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+
+        &:hover {
+          background: var(--accent-primary);
+          color: #fff;
+        }
+      }
+    }
+  }
+
+  // ── UTC info underneath ──
+  &__utc-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    font-family: $font-stack;
+
+    svg {
+      color: var(--accent-primary, #e53935);
+      flex-shrink: 0;
+    }
+
+    span {
+      font-weight: 500;
+    }
+  }
+
+  // ── Past warning ──
+  &__past-warning {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(229, 57, 53, 0.12);
+    border: 1px solid rgba(229, 57, 53, 0.3);
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #e53935;
+    font-family: $font-stack;
+  }
+}

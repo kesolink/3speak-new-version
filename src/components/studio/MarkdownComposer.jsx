@@ -45,6 +45,25 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
   const [isDragOver, setIsDragOver] = useState(false);
   const [renderedContent, setRenderedContent] = useState('');
 
+  // Auto-resize textarea to fit content, capped by parent max-height
+  const autoResize = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const composer = textarea.closest('.markdown-composer');
+    const maxH = composer ? parseFloat(getComputedStyle(composer).maxHeight) : Infinity;
+    const desired = textarea.scrollHeight;
+    if (Number.isFinite(maxH) && desired > maxH) {
+      textarea.style.height = maxH + 'px';
+    } else {
+      textarea.style.height = desired + 'px';
+    }
+  }, []);
+
+  useEffect(() => {
+    autoResize();
+  }, [value, viewMode, autoResize]);
+
   // Render preview when content or viewMode changes
   useEffect(() => {
     if (viewMode === 'editor') return;
@@ -420,7 +439,7 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className="preview-panel">
             {renderedContent ? (
-              <div 
+              <div
                 className="preview-content markdown-view"
                 dangerouslySetInnerHTML={{ __html: renderedContent }}
               />

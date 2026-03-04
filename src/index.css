@@ -141,6 +141,12 @@ body{
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+@media (max-width: 767px) {
+  body:has(.short-main) {
+    background-color: #000 !important;
+  }
+}
+
 a{
   text-decoration: none;
   color: var(--link-color);

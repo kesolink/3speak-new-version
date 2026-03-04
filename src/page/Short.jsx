@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import "./Short.scss";
 import {
   Heart,
@@ -31,6 +33,8 @@ import {
   Moon,
   Lightbulb,
   Sun,
+  Film,
+  Music,
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 import { MdTranslate, MdClosedCaption, MdClosedCaptionOff } from 'react-icons/md';
@@ -67,6 +71,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import ShortsIcon from '../components/icons/ShortsIcon';
+import ShortsLoadingScreen from '../components/ShortsLoadingScreen/ShortsLoadingScreen';
 import { markByReputation } from '../utils/reputation';
 import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
@@ -101,6 +106,46 @@ const getRenderer = async () => {
   return rendererPromise;
 };
 
+/* ---- Caption renderer: markdown links → clickable badges, strips HTML ---- */
+function renderCaption(text) {
+  if (!text) return null;
+  // Remove <sup>...</sup> blocks (reply-to metadata)
+  let cleaned = text.replace(/<sup>[\s\S]*?<\/sup>/gi, '');
+  // Remove any remaining HTML tags
+  cleaned = cleaned.replace(/<[^>]+>/g, '');
+  // Remove standalone URLs (not inside markdown link syntax)
+  cleaned = cleaned.replace(/(?<!\()https?:\/\/\S+/g, '');
+  // Remove markdown bold/italic
+  cleaned = cleaned.replace(/[*_]{1,3}/g, '');
+  // Remove markdown headers
+  cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
+  // Remove horizontal rules
+  cleaned = cleaned.replace(/^---+$/gm, '');
+  // Collapse whitespace
+  cleaned = cleaned.replace(/\n{2,}/g, '\n').trim();
+
+  // Split on markdown links: [text](url)
+  const parts = cleaned.split(/(\[[^\]]*\]\([^)]*\))/g);
+  const elements = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const linkMatch = part.match(/^\[([^\]]*)\]\(([^)]*)\)$/);
+    if (linkMatch) {
+      const [, label, href] = linkMatch;
+      if (label.trim()) {
+        elements.push(
+          <a key={i} href={href} className="captionBadge" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            {label}
+          </a>
+        );
+      }
+    } else if (part.trim()) {
+      elements.push(<span key={i}>{part}</span>);
+    }
+  }
+  return elements.length > 0 ? elements : null;
+}
+
 /* ================= COMPONENT ================= */
 const VideoShort = () => {
   const { user, authenticated, watchHistoryEnabled } = useAppStore();
@@ -118,8 +163,13 @@ const VideoShort = () => {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [parentCardVisible, setParentCardVisible] = useState(true);
+  const [parentCardVisible, setParentCardVisible] = useState(() => {
+    const stored = localStorage.getItem('3speak-chain-visible');
+    return stored !== null ? stored === '1' : true;
+  });
   const [expandedChainCard, setExpandedChainCard] = useState(null);
+  const chainRowRef = useRef(null);
+  const chainDragRef = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
   const [shortNavLoading, setShortNavLoading] = useState(false);
   const [firstPlayerReady, setFirstPlayerReady] = useState(false);
   const shortHistoryRef = useRef([]); // Stack of {author, permlink} for back navigation
@@ -129,6 +179,12 @@ const VideoShort = () => {
   const [showEditorModal, setShowEditorModal] = useState(false);
   const [editorVideoUrl, setEditorVideoUrl] = useState(null);
   const [editorVideoName, setEditorVideoName] = useState(null);
+  const [editorOriginalAuthor, setEditorOriginalAuthor] = useState(null);
+  const [editorOriginalPermlink, setEditorOriginalPermlink] = useState(null);
+  const [editorOriginalShortPermlink, setEditorOriginalShortPermlink] = useState(null);
+  const [editorVideoType, setEditorVideoType] = useState('video');
+  const [remixDropdownOpen, setRemixDropdownOpen] = useState(false);
+  const remixDropdownRef = useRef(null);
 
   // Ambient glow
   const { glowMode, toggleGlow } = useAmbientGlow();
@@ -246,6 +302,8 @@ const VideoShort = () => {
   const accessToken = localStorage.getItem("access_token");
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
+  const isStoriesMode = location.pathname.includes('/shorts/stories');
 
   // User-specific feed mode: when ?user=username is in the URL, load from the per-user endpoint
   const feedUser = useMemo(() => {
@@ -537,6 +595,21 @@ const VideoShort = () => {
       recordWatch(user, currentVid.author, currentVid.hivePermlink || currentVid.permlink, { short: true });
     }
 
+    // Decrement unseen_count for the current creator in the stories bar cache
+    if (isStoriesMode && feedUser) {
+      queryClient.setQueryData(['shorts-stories', user], (old) => {
+        if (!old?.creators) return old;
+        return {
+          ...old,
+          creators: old.creators.map(c =>
+            c.username === feedUser && c.unseen_count > 0
+              ? { ...c, unseen_count: c.unseen_count - 1 }
+              : c
+          ),
+        };
+      });
+    }
+
     // Reset player state
     setIsPlaying(false);
     setVideoEnded(false);
@@ -544,7 +617,7 @@ const VideoShort = () => {
     currentTimeRef.current = 0;
     durationRef.current = 0;
     updateProgressBar();
-    setParentCardVisible(true);
+    setParentCardVisible(localStorage.getItem('3speak-chain-visible') !== '0');
     setCaptionExpanded(false);
     setTranslatedCaption(null);
 
@@ -655,6 +728,7 @@ const VideoShort = () => {
             parentShort: enriched.parentShort || null,
             reactionChain: enriched.reactionChain || null,
             childReactions: enriched.childReactions || null,
+            reusable: enriched.reusable,
             _enriched: true,
           };
         }));
@@ -1178,13 +1252,18 @@ const VideoShort = () => {
     subtitleStyle,
   } = useSubtitles(currentVideo?.author, currentVideo?.permlink);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const [subtitleMenuPos, setSubtitleMenuPos] = useState(null);
   const subtitleMenuRef = useRef(null);
+  const subtitleDropdownRef = useRef(null);
 
   // Close subtitle menu on outside click
   useEffect(() => {
     if (!subtitleMenuOpen) return;
     const handler = (e) => {
-      if (subtitleMenuRef.current && !subtitleMenuRef.current.contains(e.target)) {
+      if (
+        subtitleMenuRef.current && !subtitleMenuRef.current.contains(e.target) &&
+        (!subtitleDropdownRef.current || !subtitleDropdownRef.current.contains(e.target))
+      ) {
         setSubtitleMenuOpen(false);
       }
     };
@@ -1195,6 +1274,16 @@ const VideoShort = () => {
       document.removeEventListener('touchstart', handler);
     };
   }, [subtitleMenuOpen]);
+
+  const openSubtitleMenu = useCallback(() => {
+    setSubtitleMenuOpen(prev => {
+      if (!prev && subtitleMenuRef.current) {
+        const rect = subtitleMenuRef.current.getBoundingClientRect();
+        setSubtitleMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+      }
+      return !prev;
+    });
+  }, []);
 
   /* ---------- CAPTION TRANSLATE ---------- */
   const handleCaptionTranslate = useCallback(async (langCode) => {
@@ -1422,7 +1511,7 @@ const VideoShort = () => {
     }
   };
 
-  const handleRemix = useCallback(async () => {
+  const handleRemix = useCallback(async (mediaType = 'video') => {
     const currentVid = videos[currentIndex];
     if (!currentVid) return;
 
@@ -1438,6 +1527,10 @@ const VideoShort = () => {
       if (directUrl) {
         setEditorVideoUrl(directUrl);
         setEditorVideoName(`${currentVid.author} - ${currentVid.caption || currentVid.permlink}`);
+        setEditorOriginalAuthor(currentVid.author);
+        setEditorOriginalPermlink(currentVid.hivePermlink || currentVid.permlink);
+        setEditorOriginalShortPermlink(currentVid.permlink);
+        setEditorVideoType(mediaType);
         setShowEditorModal(true);
       } else {
         toast.error('Could not resolve video URL for remix');
@@ -1447,6 +1540,18 @@ const VideoShort = () => {
       toast.error('Failed to load video for remix');
     }
   }, [videos, currentIndex]);
+
+  // Close remix dropdown on click outside
+  useEffect(() => {
+    if (!remixDropdownOpen) return;
+    const handleClickOutside = (e) => {
+      if (remixDropdownRef.current && !remixDropdownRef.current.contains(e.target)) {
+        setRemixDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [remixDropdownOpen]);
 
   /* ---------- INTERACTIONS ---------- */
 
@@ -1962,10 +2067,7 @@ const VideoShort = () => {
   if (loading && videos.length === 0) {
     return (
       <main className="short-main">
-        <div className="loadingState">
-          <ShortsIcon className="shorts-breathe-logo" size={72} />
-          <p>Loading shorts...</p>
-        </div>
+        <ShortsLoadingScreen />
       </main>
     );
   }
@@ -1996,6 +2098,16 @@ const VideoShort = () => {
 
   return (
     <main className="short-main">
+      <div className="landscape-block"
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        onTouchMove={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); }}
+        onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+      >
+        <RotateCcw size={48} />
+        <p>Please rotate your device to portrait mode</p>
+      </div>
       <AmbientGlow getVideoEl={() => videoElRef.current} glowMode={glowMode} />
       <div
         tabIndex={0}
@@ -2083,24 +2195,7 @@ const VideoShort = () => {
 
           {/* Full "Loading shorts..." overlay for the very first video until its player is ready */}
           {showInitialLoadingOverlay && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                zIndex: 10,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#000',
-              }}
-            >
-              <ShortsIcon className="shorts-breathe-logo" size={72} />
-              <p style={{ color: '#fff', marginTop: 12 }}>Loading shorts...</p>
-            </div>
+            <ShortsLoadingScreen overlay />
           )}
 
           {/* Chain preload videos are prefetched via API + manifest only (no <video> elements) */}
@@ -2127,45 +2222,6 @@ const VideoShort = () => {
             <div className={`heartAnimation ${showHeartAnimation ? 'visible' : ''}`}>
               <Heart size={80} fill="#ff2d55" color="#ff2d55" />
             </div>
-            {/* Subtitle/CC toggle */}
-            {subtitleLanguages && subtitleLanguages.length > 0 && (
-              <div className={`subtitleIndicator${selectedSubtitleLang ? ' active' : ''}`}
-                ref={subtitleMenuRef}
-                onClick={(e) => { e.stopPropagation(); setSubtitleMenuOpen(o => !o); }}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setSubtitleMenuOpen(o => !o); }}
-              >
-                {selectedSubtitleLang ? <MdClosedCaption size={18} /> : <MdClosedCaptionOff size={18} />}
-                {subtitleMenuOpen && (
-                  <div className="shortsSubtitleMenu"
-                    onClick={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      className={`shortsSubtitleItem${!selectedSubtitleLang ? ' active' : ''}`}
-                      onClick={() => { selectSubtitleLang(null); setSubtitleMenuOpen(false); }}
-                    >
-                      Off
-                    </button>
-                    {subtitleLanguages.map((sub) => {
-                      const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === sub.lang);
-                      const label = langInfo ? langInfo.native : sub.lang;
-                      return (
-                        <button
-                          key={sub.lang}
-                          className={`shortsSubtitleItem${selectedSubtitleLang === sub.lang ? ' active' : ''}`}
-                          onClick={() => { selectSubtitleLang(sub.lang); setSubtitleMenuOpen(false); }}
-                        >
-                          {label}
-                          {subtitleLoading && selectedSubtitleLang === sub.lang && ' ...'}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
             {/* Ambient glow toggle */}
             <div className={`glowIndicator${glowMode !== 'off' ? ' active' : ''}`}
               onClick={(e) => { e.stopPropagation(); toggleGlow(); }}
@@ -2251,6 +2307,56 @@ const VideoShort = () => {
             </button>
           )}
 
+          {/* Stories mode button (next to back button on mobile) — only in stories mode */}
+          {isStoriesMode && (
+            <button className="shortStoriesBtn mobileOnly" onClick={(e) => { e.stopPropagation(); navigate('/shorts'); }}>
+              <ShortsIcon size={18} />
+            </button>
+          )}
+
+          {/* Subtitle/CC toggle (outside videoOverlay; dropdown via portal to escape stacking contexts) */}
+          {subtitleLanguages && subtitleLanguages.length > 0 && (
+            <div className={`subtitleIndicator${selectedSubtitleLang ? ' active' : ''}${isStoriesMode ? ' stories-mode' : ''}`}
+              ref={subtitleMenuRef}
+              onClick={(e) => { e.stopPropagation(); openSubtitleMenu(); }}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); openSubtitleMenu(); }}
+            >
+              {selectedSubtitleLang ? <MdClosedCaption size={18} /> : <MdClosedCaptionOff size={18} />}
+            </div>
+          )}
+          {subtitleMenuOpen && subtitleMenuPos && createPortal(
+            <div className="shortsSubtitleMenu"
+              ref={subtitleDropdownRef}
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              style={{ position: 'fixed', top: subtitleMenuPos.top, right: subtitleMenuPos.right, zIndex: 99999 }}
+            >
+              <button
+                className={`shortsSubtitleItem${!selectedSubtitleLang ? ' active' : ''}`}
+                onClick={() => { selectSubtitleLang(null); setSubtitleMenuOpen(false); }}
+              >
+                Off
+              </button>
+              {subtitleLanguages.map((sub) => {
+                const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === sub.lang);
+                const label = langInfo ? langInfo.native : sub.lang;
+                return (
+                  <button
+                    key={sub.lang}
+                    className={`shortsSubtitleItem${selectedSubtitleLang === sub.lang ? ' active' : ''}`}
+                    onClick={() => { selectSubtitleLang(sub.lang); setSubtitleMenuOpen(false); }}
+                  >
+                    {label}
+                    {subtitleLoading && selectedSubtitleLang === sub.lang && ' ...'}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body
+          )}
+
           {/* Back button (visible after navigating to a parent short) */}
           {shortHistoryRef.current.length > 0 && (
             <button className="shortBackBtn" onClick={(e) => { e.stopPropagation(); handleShortBack(); }}>
@@ -2259,10 +2365,11 @@ const VideoShort = () => {
             </button>
           )}
 
-          {/* Reaction chain overlay (for reactions) */}
-          {currentVideo.reactionChain && currentVideo.reactionChain.length > 0 && (() => {
-            const rootStep = currentVideo.reactionChain.find(s => s.isRoot);
-            const childSteps = currentVideo.reactionChain.filter(s => !s.isRoot);
+          {/* Reaction chain overlay (for reactions and remixes) */}
+          {((currentVideo.reactionChain && currentVideo.reactionChain.length > 0) || (currentVideo.childReactions && currentVideo.childReactions.length > 0)) && (() => {
+            const chain = currentVideo.reactionChain || [];
+            const rootStep = chain.find(s => s.isRoot);
+            const childSteps = chain.filter(s => !s.isRoot);
             const rootUrl = rootStep ? `/watch?v=${rootStep.author}/${rootStep.permlink}${currentVideo.parentTimestamp != null ? `&t=${currentVideo.parentTimestamp}` : ''}` : null;
             return (
               <div className={`reactionChainOverlay${parentCardVisible ? '' : ' collapsed'}${shortHistoryRef.current.length > 0 ? ' has-back' : ''}`} onClick={(e) => e.stopPropagation()}>
@@ -2292,8 +2399,26 @@ const VideoShort = () => {
                     )}
 
                     {/* Child steps — horizontal scroll row */}
-                    {childSteps.length > 0 && (
-                      <div className="chainChildRow">
+                    {(childSteps.length > 0 || currentVideo.childReactions?.length > 0) && (
+                      <div
+                        className="chainChildRow"
+                        ref={chainRowRef}
+                        onMouseDown={(e) => {
+                          const el = chainRowRef.current;
+                          if (!el) return;
+                          chainDragRef.current = { isDown: true, startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft };
+                          el.style.cursor = 'grabbing';
+                        }}
+                        onMouseLeave={() => { chainDragRef.current.isDown = false; if (chainRowRef.current) chainRowRef.current.style.cursor = ''; }}
+                        onMouseUp={() => { chainDragRef.current.isDown = false; if (chainRowRef.current) chainRowRef.current.style.cursor = ''; }}
+                        onMouseMove={(e) => {
+                          if (!chainDragRef.current.isDown) return;
+                          e.preventDefault();
+                          const el = chainRowRef.current;
+                          const x = e.pageX - el.offsetLeft;
+                          el.scrollLeft = chainDragRef.current.scrollLeft - (x - chainDragRef.current.startX);
+                        }}
+                      >
                         {childSteps.map((step, i) => {
                           const isExpanded = expandedChainCard === i;
                           return (
@@ -2332,7 +2457,7 @@ const VideoShort = () => {
                             </React.Fragment>
                           );
                         })}
-                        <span className="chainDash">&mdash;</span>
+                        {childSteps.length > 0 && <span className="chainDash">&mdash;</span>}
                         {(() => {
                           const currentIdx = childSteps.length;
                           const isCurExpanded = expandedChainCard === currentIdx;
@@ -2357,12 +2482,12 @@ const VideoShort = () => {
                             <div className="chainChild chainChild--video chainChild--downstream">
                               <div className="chainChildHeader">
                                 <AuthorBadge author={child.author} compact noLink />
-                                <Link to={`/shorts?v=${child.author}/${child.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
+                                <Link to={`/shorts?v=${child.shortAuthor || child.author}/${child.shortPermlink}`} className="chainActionBtn chainActionBtn--sm" onClick={(e) => e.stopPropagation()} title="Open short">
                                   <Camera size={11} />
                                 </Link>
                               </div>
                               <span className="chainChildTitle">
-                                {child.title || 'Reaction'}
+                                {child.title || 'Remix'}
                               </span>
                               {child.duration > 0 && (
                                 <span className="chainChildDuration">
@@ -2376,7 +2501,7 @@ const VideoShort = () => {
                     )}
                   </div>
                 )}
-                <button className="chainToggleBtn" onClick={(e) => { e.stopPropagation(); setParentCardVisible(prev => !prev); }}>
+                <button className="chainToggleBtn" onClick={(e) => { e.stopPropagation(); setParentCardVisible(prev => { const next = !prev; localStorage.setItem('3speak-chain-visible', next ? '1' : '0'); return next; }); }}>
                   {!parentCardVisible && <span className="chainToggleLabel">show reaction chain</span>}
                   {parentCardVisible ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </button>
@@ -2425,7 +2550,7 @@ const VideoShort = () => {
               />
             </div>
             <div className={`caption${captionExpanded ? ' caption--expanded' : ''}`} onClick={(e) => { e.stopPropagation(); setCaptionExpanded(prev => !prev); }}>
-              <p className="captionText">{translatedCaption || currentVideo.caption}</p>
+              <p className="captionText">{renderCaption(translatedCaption || currentVideo.caption)}</p>
               {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && (
                 <span className="captionDate">{currentVideo.timeAgo}</span>
               )}
@@ -2520,14 +2645,17 @@ const VideoShort = () => {
             <span className="actionLabel">{reshareCount || 0}</span>
           </div>
 
-          {FEATURE_EDITOR && authenticated && (
-            <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleRemix(); }}>
-              <div className="actionButton">
-                <WandSparkles size={24} />
+          {FEATURE_EDITOR && authenticated && (() => {
+            const vid = videos[currentIndex];
+            return vid?.reusable === true ? (
+              <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleRemix('video'); }}>
+                <div className="actionButton">
+                  <WandSparkles size={24} />
+                </div>
+                <span className="actionLabel">Remix</span>
               </div>
-              <span className="actionLabel">Remix</span>
-            </div>
-          )}
+            ) : null;
+          })()}
 
 
         </div>
@@ -2627,14 +2755,19 @@ const VideoShort = () => {
           <div className="commentInputAvatar">
             <img src={user ? `https://images.hive.blog/u/${user}/avatar` : "https://images.hive.blog/u/guest/avatar"} alt="" />
           </div>
-          <input
-            type="text"
+          <textarea
+            rows={1}
             placeholder={user ? "Add a comment..." : "Login to comment"}
             value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
+            onChange={(e) => {
+              setNewComment(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
             disabled={!user || postingComment}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && !postingComment) {
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !postingComment) {
+                e.preventDefault();
                 handlePostComment(currentVideo.author, currentVideo.hivePermlink, newComment, false);
               }
             }}
@@ -2654,7 +2787,10 @@ const VideoShort = () => {
         onClose={() => setShowEditorModal(false)}
         videoUrl={editorVideoUrl}
         videoName={editorVideoName}
-        videoType="video"
+        videoType={editorVideoType}
+        originalAuthor={editorOriginalAuthor}
+        originalPermlink={editorOriginalPermlink}
+        originalShortPermlink={editorOriginalShortPermlink}
       />
     </main>
   );

@@ -1,7 +1,7 @@
 @use "../../mixins.scss" as mix;
 .step-progress {
   width: 100%;
-  margin-bottom: 2rem; // equivalent to map-get($spacing, 8)
+  margin-bottom: 1rem;
 
   .step-progress__container {
     display: flex;
@@ -22,10 +22,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 2.5rem; // equivalent to map-get($spacing, 10)
-        height: 2.5rem; // same
+        width: 2.5rem;
+        height: 2.5rem;
         border-radius: 50%;
-        font-size: 0.875rem; // equivalent to map-get($font-sizes, sm)
+        font-size: 0.875rem;
         font-weight: 500;
         transition: all 0.3s ease;
         @include mix.respond(phone) {
@@ -34,26 +34,27 @@
         }
 
         &.step-progress__circle--completed {
-          background-color: #22c55e; // success green
+          background-color: var(--accent-primary, #e53935);
           color: #ffffff;
-          box-shadow: 0 0 10px rgba(34, 197, 94, 0.6); // success glow
+          box-shadow: 0 0 10px rgba(229, 57, 53, 0.5);
         }
 
         &.step-progress__circle--active {
-          background-color: #1c64e0; // primary blue
+          background-color: var(--accent-primary, #e53935);
           color: #ffffff;
-          box-shadow: 0 0 10px rgba(28, 100, 224, 0.6); // primary glow
+          box-shadow: 0 0 10px rgba(229, 57, 53, 0.5);
+          opacity: 0.85;
         }
 
         &.step-progress__circle--inactive {
-          background-color: #e5e7eb; // light gray
-          color: #9ca3af; // muted gray
+          background-color: var(--bg-tertiary, #e5e7eb);
+          color: var(--text-muted, #9ca3af);
         }
       }
 
       .step-progress__label {
-        margin-top: 0.5rem; // equivalent to map-get($spacing, 2)
-        font-size: 0.75rem; // xs
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
         font-weight: 500;
         transition: color 0.3s ease;
 
@@ -62,26 +63,20 @@
         }
 
         &.step-progress__label--active {
-          color: #111827; // dark text
-          [data-theme="dark"] & {
-            color: var(--text-primary);
-          }
+          color: var(--text-primary, #111827);
         }
 
         &.step-progress__label--inactive {
-          color: #9ca3af; // muted gray
-          [data-theme="dark"] & {
-            color: #9ca3af;
-          }
+          color: var(--text-muted, #9ca3af);
         }
       }
 
       .step-progress__connector {
-        width: 6rem; // equivalent to map-get($spacing, 24)
+        width: 6rem;
         height: 2px;
-        margin: 0 1rem; // equivalent to map-get($spacing, 4)
+        margin: 0 1rem;
         position: absolute;
-        top: 1.25rem; // aligns with center of the circle (map-get($spacing, 5))
+        top: 1.25rem;
         left: 100%;
         transition: background-color 0.3s ease;
         @include mix.respond(phone) {
@@ -89,11 +84,11 @@
         }
 
         &.step-progress__connector--completed {
-          background-color: #22c55e; // same as completed
+          background-color: var(--accent-primary, #e53935);
         }
 
         &.step-progress__connector--inactive {
-          background-color: #e5e7eb; // light gray
+          background-color: var(--bg-tertiary, #e5e7eb);
         }
       }
     }

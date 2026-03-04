@@ -6,7 +6,7 @@
 
 import axios from "axios";
 import { convert } from "html-to-text";
-import { HIVE_API_URL } from "../utils/config";
+import { HIVE_API_URL, CHECKER_URL } from "../utils/config";
 
 /* -----------------------------
    Hive RPC setup
@@ -102,12 +102,20 @@ export async function getAccounts(accounts) {
  */
 function bodyToPlaintext(body) {
   if (!body) return "";
+  // Preserve markdown links [text](url) by replacing them with placeholders before HTML conversion
+  const links = [];
+  let text = body.replace(/\[([^\]]*)\]\(([^)]*)\)/g, (match) => {
+    links.push(match);
+    return `%%LINK${links.length - 1}%%`;
+  });
   // Convert any HTML to text
-  let text = convert(body, { wordwrap: false, selectors: [{ selector: 'a', options: { ignoreHref: true } }, { selector: 'img', format: 'skip' }] });
-  // Remove URLs
-  text = text.replace(/https?:\/\/\S+/gi, '');
-  // Remove markdown image/link syntax leftovers: ![alt](url) or [text](url)
-  text = text.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1');
+  text = convert(text, { wordwrap: false, selectors: [{ selector: 'a', options: { ignoreHref: true } }, { selector: 'img', format: 'skip' }] });
+  // Restore markdown links
+  text = text.replace(/%%LINK(\d+)%%/g, (_, i) => links[parseInt(i)]);
+  // Remove standalone URLs (not inside markdown link syntax)
+  text = text.replace(/(?<!\()https?:\/\/\S+/gi, '');
+  // Remove markdown images (but keep regular links)
+  text = text.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
   // Remove markdown bold/italic markers
   text = text.replace(/[*_]{1,3}/g, '');
   // Remove markdown headers
@@ -290,8 +298,24 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
           ? JSON.parse(post.json_metadata || '{}')
           : (post.json_metadata || {});
 
-        if (jm.parentTimestamp != null && post.parent_author) {
-          base.parentTimestamp = jm.parentTimestamp;
+        // Extract reusable flag from MongoDB via checker endpoint
+        try {
+          const reusableRes = await axios.get(`${CHECKER_URL}/api/video/${author}/${playerPermlink}`);
+          if (reusableRes.data?.success) {
+            base.reusable = !!reusableRes.data.reusable;
+          }
+        } catch {
+          // Fallback to Hive json_metadata if checker unavailable
+          if (jm.video && jm.video.reusable != null) {
+            base.reusable = !!jm.video.reusable;
+          }
+        }
+
+        // Detect remix shorts: video.originalAuthor set but no parentTimestamp
+        const isRemix = !jm.parentTimestamp && jm.video?.originalAuthor && jm.video?.originalPermlink && post.parent_author;
+
+        if ((jm.parentTimestamp != null || isRemix) && post.parent_author) {
+          if (jm.parentTimestamp != null) base.parentTimestamp = jm.parentTimestamp;
           try {
             const immediateParent = await getPostDetails(post.parent_author, post.parent_permlink);
             if (immediateParent) {
@@ -550,7 +574,23 @@ export async function findShortByEmbedUrl(author, hivePermlink) {
   const cached = _shortsByEmbedUrl.get(target);
   if (cached) return cached;
 
-  // Slow fallback: paginate the API (only hits shorts not yet in our index)
+  // Try the user-specific shorts endpoint first (much faster than paginating global feed)
+  try {
+    const url = `${USER_SHORTS_API}/${encodeURIComponent(author)}?page=1&limit=100`;
+    const response = await axios.get(url);
+    if (response.data?.shorts) {
+      for (const s of response.data.shorts) {
+        if (s.embed_url) _shortsByEmbedUrl.set(s.embed_url, s);
+        if (s.permlink) _shortsByPermlink.set(s.permlink, s);
+      }
+      const found = _shortsByEmbedUrl.get(target);
+      if (found) return found;
+    }
+  } catch (e) {
+    console.warn('findShortByEmbedUrl: user endpoint failed:', e.message);
+  }
+
+  // Fallback: paginate the global feed
   let page = 1;
   const limit = 50;
   const maxPages = 10;
@@ -559,7 +599,6 @@ export async function findShortByEmbedUrl(author, hivePermlink) {
     const data = await fetchShortsList(page, limit);
     if (!data?.shorts) break;
 
-    // fetchShortsList already indexes results, so just re-check the map
     const found = _shortsByEmbedUrl.get(target);
     if (found) return found;
 

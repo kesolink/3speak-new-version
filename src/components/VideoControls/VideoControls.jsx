@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo, FaCog } from 'react-icons/fa';
-import { MdClosedCaption, MdClosedCaptionOff } from 'react-icons/md';
+import { MdClosedCaption, MdClosedCaptionOff, MdHighQuality } from 'react-icons/md';
 import { TbRewindBackward10, TbRewindForward10, TbArrowsMaximize, TbPictureInPicture, TbBulbFilled, TbMoonFilled, TbSunFilled, TbPlayerTrackNextFilled } from 'react-icons/tb';
 import { SUPPORTED_LANGUAGES } from '../../utils/translate';
 import { SUBTITLE_FONTS } from '../SubtitleOverlay/SubtitleOverlay';
@@ -74,14 +74,23 @@ function VideoControls({
   subtitleLoading,
   subtitleStyle,
   onSubtitleStyleChange,
+  playbackRate,
+  onPlaybackRateChange,
+  onHoldControls,
+  onReleaseControls,
 }) {
   const resolvedMarkers = markers || [];
 
   const [hovering, setHovering] = useState(false);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const qualityMenuRef = useRef(null);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const speedMenuRef = useRef(null);
+  const speedPortalRef = useRef(null);
   const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
   const subtitleMenuRef = useRef(null);
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const mobileSettingsRef = useRef(null);
   const isTouchDevice = typeof window !== 'undefined' && 'ontouchstart' in window;
   const [hoveredMarker, setHoveredMarker] = useState(null);
   const trackRef = useRef(null);
@@ -202,6 +211,20 @@ function VideoControls({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [qualityMenuOpen]);
 
+  // Close speed menu when clicking outside
+  useEffect(() => {
+    if (!speedMenuOpen) return;
+    const handleClickOutside = (e) => {
+      const inWrap = speedMenuRef.current?.contains(e.target);
+      const inPortal = speedPortalRef.current?.contains(e.target);
+      if (!inWrap && !inPortal) {
+        setSpeedMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [speedMenuOpen]);
+
   // Close subtitle menu when clicking outside
   useEffect(() => {
     if (!subtitleMenuOpen) return;
@@ -215,6 +238,32 @@ function VideoControls({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [subtitleMenuOpen]);
+
+  // Hold controls visible while any menu is open on mobile
+  const anyMenuOpen = mobileSettingsOpen || speedMenuOpen || qualityMenuOpen || subtitleMenuOpen;
+  useEffect(() => {
+    if (anyMenuOpen) {
+      onHoldControls?.();
+    } else {
+      onReleaseControls?.();
+    }
+  }, [anyMenuOpen]);
+
+  // Close mobile settings when clicking outside
+  useEffect(() => {
+    if (!mobileSettingsOpen) return;
+    const handleClickOutside = (e) => {
+      if (!mobileSettingsRef.current?.contains(e.target)) {
+        setMobileSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [mobileSettingsOpen]);
 
   // On mobile, compute fixed position for menus to escape overflow:hidden
   const getPortalStyle = useCallback((wrapRef) => {
@@ -234,6 +283,7 @@ function VideoControls({
 
   const subtitlePortalStyle = subtitleMenuOpen ? getPortalStyle(subtitleMenuRef) : null;
   const qualityPortalStyle = qualityMenuOpen ? getPortalStyle(qualityMenuRef) : null;
+  const speedPortalStyle = speedMenuOpen ? getPortalStyle(speedMenuRef) : null;
 
   const handleMarkerClick = useCallback((e, time, index) => {
     e.stopPropagation();
@@ -498,6 +548,36 @@ function VideoControls({
               )}
             </div>
           )}
+          {onPlaybackRateChange && (
+            <div className="vc-speed-wrap" ref={speedMenuRef}>
+              <button
+                className={`vc-btn vc-btn--speed${playbackRate !== 1 ? ' active' : ''}`}
+                onClick={() => { setSpeedMenuOpen(o => !o); setQualityMenuOpen(false); setSubtitleMenuOpen(false); }}
+                title="Playback speed"
+              >
+                {playbackRate !== 1 ? `${playbackRate}x` : '1x'}
+              </button>
+              {speedMenuOpen && (
+                <PortalIf condition={!!speedPortalStyle}>
+                <div
+                  className="vc-speed-menu"
+                  ref={speedPortalStyle ? speedPortalRef : undefined}
+                  style={speedPortalStyle || undefined}
+                >
+                  {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                    <button
+                      key={rate}
+                      className={`vc-speed-item${playbackRate === rate ? ' active' : ''}`}
+                      onClick={() => { onPlaybackRateChange(rate); setSpeedMenuOpen(false); }}
+                    >
+                      {rate === 1 ? 'Normal' : `${rate}x`}
+                    </button>
+                  ))}
+                </div>
+                </PortalIf>
+              )}
+            </div>
+          )}
           {qualityLevels && qualityLevels.length > 0 && (
             <div className="vc-quality-wrap" ref={qualityMenuRef}>
               <button className="vc-btn" onClick={() => { setQualityMenuOpen(o => !o); setSubtitleMenuOpen(false); }} title="Quality">
@@ -530,6 +610,56 @@ function VideoControls({
               )}
             </div>
           )}
+          {/* Mobile-only settings gear — groups speed, quality, CC, autoplay */}
+          <div className="vc-mobile-settings-wrap" ref={mobileSettingsRef}>
+            <button
+              className={`vc-btn vc-btn--mobile-settings${mobileSettingsOpen ? ' active' : ''}`}
+              onClick={() => setMobileSettingsOpen(o => !o)}
+              title="Settings"
+            >
+              <FaCog size={14} />
+            </button>
+            {mobileSettingsOpen && (
+              <div className="vc-mobile-settings-menu">
+                {onToggleAutoplay && (
+                  <button
+                    className={`vc-mobile-settings-item${autoplayNext ? ' active' : ''}`}
+                    onClick={() => { onToggleAutoplay(); }}
+                    title={autoplayNext ? 'Autoplay: on' : 'Autoplay: off'}
+                  >
+                    <TbPlayerTrackNextFilled size={15} />
+                  </button>
+                )}
+                {subtitleLanguages && subtitleLanguages.length > 0 && (
+                  <button
+                    className={`vc-mobile-settings-item${selectedSubtitleLang ? ' active' : ''}`}
+                    onClick={() => { setMobileSettingsOpen(false); setSubtitleMenuOpen(o => !o); }}
+                    title="Subtitles"
+                  >
+                    {selectedSubtitleLang ? <MdClosedCaption size={18} /> : <MdClosedCaptionOff size={18} />}
+                  </button>
+                )}
+                {onPlaybackRateChange && (
+                  <button
+                    className={`vc-mobile-settings-item${playbackRate !== 1 ? ' active' : ''}`}
+                    onClick={() => { setMobileSettingsOpen(false); setSpeedMenuOpen(o => !o); }}
+                    title="Playback speed"
+                  >
+                    {playbackRate !== 1 ? `${playbackRate}x` : '1x'}
+                  </button>
+                )}
+                {qualityLevels && qualityLevels.length > 0 && (
+                  <button
+                    className={`vc-mobile-settings-item`}
+                    onClick={() => { setMobileSettingsOpen(false); setQualityMenuOpen(o => !o); }}
+                    title="Quality"
+                  >
+                    <MdHighQuality size={16} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <button className="vc-btn" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
             {isFullscreen ? <FaCompress size={14} /> : <FaExpand size={14} />}
           </button>

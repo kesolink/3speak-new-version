@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Loader2 } from 'lucide-react';
+import { generateVideoThumbnails } from '@rajesh896/video-thumbnails-generator';
 import { getEditorUrl } from '../../utils/config';
 import { useAppStore } from '../../lib/store';
+import { useEmbedUpload } from '../../context/EmbedUploadContext';
 import './EditorModal.scss';
 
-function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStart, clipEnd }) {
+function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStart, clipEnd, originalAuthor, originalPermlink, originalShortPermlink }) {
+  const navigate = useNavigate();
+  const { setVideoFile, setPrevVideoFile, setGeneratedThumbnail, setVideoDuration, setOriginalAuthor, setOriginalPermlink, setOriginalShortPermlink, setFromStories, setList, setRemaingPercent } = useEmbedUpload();
   const iframeRef = useRef(null);
   const mediaLoadedRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
   const { theme, getEffectiveTheme } = useAppStore();
-  const [renderStatus, setRenderStatus] = useState(null); // null | 'sending' | 'rendering' | 'complete' | 'error'
+  const [renderStatus, setRenderStatus] = useState(null); // null | 'sending' | 'rendering' | 'complete' | 'error' | 'preparing'
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderedVideoUrl, setRenderedVideoUrl] = useState(null);
   const pollIntervalRef = useRef(null);
@@ -46,6 +51,8 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
     }
     return () => {
       document.body.style.overflow = 'auto';
@@ -59,10 +66,11 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
     }
   }, [resolvedUrl]);
 
-  // Send theme to editor when ready or when theme changes
+  // Send theme and desktop flag to editor when ready or when theme changes
   useEffect(() => {
     if (editorReady) {
       sendToEditor({ type: 'set-theme', theme: getEffectiveTheme() });
+      sendToEditor({ type: 'set-desktop', isDesktop: window.matchMedia('(min-width: 768px)').matches });
     }
   }, [editorReady, theme, sendToEditor, getEffectiveTheme]);
 
@@ -88,20 +96,31 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
           // If we have a video to pre-load (remix mode), send it once
           if (videoUrl && !mediaLoadedRef.current) {
             mediaLoadedRef.current = true;
+            // Convert raw IPFS URLs to HLS playlist URLs for the editor
+            let editorUrl = videoUrl;
+            if (editorUrl.includes('/ipfs/') && !editorUrl.endsWith('.m3u8')) {
+              editorUrl = editorUrl.replace(/\/+$/, '') + '/480p/index.m3u8';
+            }
             const msg = {
               type: 'load-media',
-              url: videoUrl,
+              url: editorUrl,
               name: videoName || 'Short Video',
               mediaType: videoType || 'video'
             };
             if (clipStart != null) msg.clipStart = clipStart;
             if (clipEnd != null) msg.clipEnd = clipEnd;
+            if (originalAuthor) msg.parentAuthor = originalAuthor;
+            if (originalPermlink) msg.parentPermlink = originalPermlink;
             sendToEditor(msg);
           }
           break;
 
         case 'render-request':
           handleRenderRequest(data.timeline);
+          break;
+
+        case 'post-to-3speak':
+          handlePostTo3Speak(data.outputUrl);
           break;
 
         case 'editor-closed':
@@ -113,6 +132,45 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [isOpen, resolvedUrl, videoUrl, videoName, videoType, clipStart, clipEnd, sendToEditor]);
+
+  // Prevent navigation away while the editor is open
+  useEffect(() => {
+    if (!isOpen || !editorReady) return;
+
+    // Block real page unloads (refresh, close tab)
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    // Intercept internal link clicks (SPA navigation) in capture phase
+    const handleClick = (e) => {
+      const anchor = e.target.closest('a[href]');
+      if (!anchor) return;
+
+      const href = anchor.getAttribute('href');
+      // Only intercept internal SPA links
+      if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto:')) return;
+
+      const leave = window.confirm(
+        'The editor is still open. Leaving this page will close the editor and unsaved changes will be lost.\n\nOK = Close editor & leave\nCancel = Stay on this page'
+      );
+
+      if (!leave) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      // If they confirm, let the click proceed — the component will unmount naturally
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('click', handleClick, true);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('click', handleClick, true);
+    };
+  }, [isOpen, editorReady]);
 
   // Handle render request from editor
   const handleRenderRequest = async (timeline) => {
@@ -152,6 +210,93 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
       console.error('[EditorModal] Render request error:', err);
       console.log('[EditorModal] Timeline state for future render:', JSON.stringify(timeline, null, 2));
       setRenderStatus('error');
+    }
+  };
+
+  // Handle "Post to 3Speak" from editor — fetch rendered video, navigate to embed-studio
+  const handlePostTo3Speak = async (outputUrl) => {
+    if (!outputUrl) return;
+
+    try {
+      setRenderStatus('preparing');
+      console.log('[EditorModal] Post to 3Speak: fetching', outputUrl);
+
+      // Fetch the rendered video as a blob
+      const res = await fetch(outputUrl);
+      if (!res.ok) throw new Error(`Failed to fetch rendered video: ${res.status}`);
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.startsWith('text/')) {
+        throw new Error(`Expected video file but got ${contentType}`);
+      }
+      const blob = await res.blob();
+      const file = new File([blob], 'rendered-video.mp4', { type: blob.type || 'video/mp4' });
+      console.log('[EditorModal] Post to 3Speak: fetched', file.size, 'bytes, type:', file.type);
+
+      // Calculate video duration
+      try {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        const duration = await new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            URL.revokeObjectURL(video.src);
+            resolve(video.duration);
+          };
+          video.onerror = () => resolve(0);
+          video.src = URL.createObjectURL(file);
+        });
+        setVideoDuration(duration);
+      } catch { /* duration will be 0 */ }
+
+      // Generate thumbnails from the video file (with timeout to avoid hanging)
+      try {
+        const thumbs = await Promise.race([
+          generateVideoThumbnails(file, 2, 'url'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Thumbnail timeout')), 10000))
+        ]);
+        setGeneratedThumbnail(thumbs);
+      } catch (thumbErr) {
+        console.warn('[EditorModal] Thumbnail generation failed, continuing without:', thumbErr);
+      }
+
+      // Force-close the editor without confirmation
+      setEditorReady(false);
+      setRenderStatus(null);
+      setRenderProgress(0);
+      setRenderedVideoUrl(null);
+      setResolvedUrl(null);
+      setResolveError(false);
+      mediaLoadedRef.current = false;
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      onClose();
+
+      // Pre-set the file in embed context
+      setVideoFile(file);
+      setPrevVideoFile(file);
+
+      // Set original author/permlink for credit attribution
+      if (originalAuthor) setOriginalAuthor(originalAuthor);
+      if (originalPermlink) setOriginalPermlink(originalPermlink);
+      if (originalShortPermlink) setOriginalShortPermlink(originalShortPermlink);
+
+      // Remix from shorts should use the short upload form (no title/tags)
+      setFromStories(true);
+
+      // Pre-populate beneficiary list with locked minimums
+      const lockedBeneficiaries = [
+        { account: 'threespeakfund', percent: 10, locked: true, minPercent: 10 },
+      ];
+      if (originalAuthor) {
+        lockedBeneficiaries.push({ account: originalAuthor, percent: 5, locked: true, minPercent: 5 });
+      }
+      setList(lockedBeneficiaries);
+      const usedPercent = lockedBeneficiaries.reduce((sum, b) => sum + b.percent, 0);
+      setRemaingPercent(100 - usedPercent);
+
+      // Navigate to embed-studio thumbnail step (video uploads at publish time)
+      navigate('/embed-studio/thumbnail?from=stories');
+    } catch (err) {
+      console.error('[EditorModal] Post to 3Speak failed:', err);
+      setRenderStatus('post-error');
     }
   };
 
@@ -213,16 +358,17 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
 
   return (
     <div className="editor-modal">
-      <div className="editor-modal-overlay" onClick={handleClose}></div>
+      <div className="editor-modal-overlay"></div>
       <div className="editor-modal-content">
         <div className="editor-modal-body">
           {/* Show iframe only after a working URL is resolved */}
           {resolvedUrl && (
             <iframe
               ref={iframeRef}
-              src={resolvedUrl}
+              src={`${resolvedUrl}?compact=true`}
               className="editor-iframe"
-              allow="cross-origin-isolated; camera; microphone"
+              allow="cross-origin-isolated; camera; microphone; fullscreen"
+              allowFullScreen
               title="3Speak Video Editor"
             />
           )}
@@ -270,9 +416,23 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
                   </button>
                 </div>
               )}
+              {renderStatus === 'preparing' && (
+                <div className="render-status">
+                  <Loader2 size={32} className="spinner" />
+                  <span>Preparing video for upload...</span>
+                </div>
+              )}
               {renderStatus === 'error' && (
                 <div className="render-status render-error">
                   <span>Render service not available yet. Timeline data logged to console.</span>
+                  <button className="render-btn" onClick={() => setRenderStatus(null)}>
+                    Back to Editor
+                  </button>
+                </div>
+              )}
+              {renderStatus === 'post-error' && (
+                <div className="render-status render-error">
+                  <span>Failed to prepare video for upload. Please try downloading instead.</span>
                   <button className="render-btn" onClick={() => setRenderStatus(null)}>
                     Back to Editor
                   </button>

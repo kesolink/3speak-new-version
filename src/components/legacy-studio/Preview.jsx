@@ -4,7 +4,7 @@ import axios from "axios";
 import { Navigate, useNavigate } from "react-router-dom";
 import { CheckCircle } from "lucide-react";
 import { toast } from 'sonner';
-import { UPLOAD_TOKEN, UPLOAD_URL } from "../../utils/config";
+import { UPLOAD_TOKEN, UPLOAD_URL, CHECKER_URL } from "../../utils/config";
 import BlogContent from "../playVideo/BlogContent";
 import VideoPreview from "../studio/VideoPreview";
 import { StepProgress } from "./StepProgress";
@@ -55,7 +55,9 @@ function Preview() {
     encodingIntervalRef,
     setIsUploadLocked,
     isUploadLocked,
-    setHasBackgroundJob
+    setHasBackgroundJob,
+    reusable,
+    startTusUpload,
   } = useLegacyUpload();
 
   const navigate = useNavigate();
@@ -164,10 +166,21 @@ function Preview() {
     }, 5000);
   };
 
-  const handlePostVideo = () => {
+  const handlePostVideo = async () => {
     if (uploadStatus) {
+      // Upload already complete, finalize immediately
       uploadVideoTo3Speak();
+    } else if (!uploadId) {
+      // Upload hasn't started yet — start TUS upload now, then auto-finalize on completion
+      setUploading(true);
+      setStatusText("Uploading video…");
+      addMessage("Starting video upload…");
+      setHasBackgroundJob(true);
+      await startTusUpload(videoFile);
+      // startTusUpload triggers onSuccess → uploadStatus=true → auto-check will finalize
+      onSaveClicked();
     } else {
+      // Upload in progress but not finished
       setShowUploadModal(true);
     }
   };
@@ -208,6 +221,11 @@ function Preview() {
       return;
     }
 
+    if (isScheduled && !scheduleDateTime) {
+      toast.error("Please select a date and time for your scheduled post.");
+      return;
+    }
+
     stopAutoCheck();
     setIsSubmitting(true);
     setUploading(true);
@@ -227,6 +245,13 @@ function Preview() {
 
       const schedulingParams = getSchedulingParams(isScheduled, scheduleDateTime);
 
+      if (schedulingParams.publish_type === 'error') {
+        toast.error("The scheduled time is in the past. Please select a future date and time.");
+        setIsSubmitting(false);
+        setUploading(false);
+        return;
+      }
+
       const res = await axios.post(
         `${UPLOAD_URL}/api/upload/finalize`,
         {
@@ -242,7 +267,8 @@ function Preview() {
           declineRewards,
           rewardPowerup,
           beneficiaries: parsedBeneficiaries,
-          ...schedulingParams
+          reusable: !!reusable,
+          ...schedulingParams,
         },
         {
           headers: {
@@ -265,6 +291,18 @@ function Preview() {
       setPermlink(perm);
 
       addMessage("✔ Upload finalized successfully");
+
+      // Set reusable flag via checker (workaround until upload service is redeployed)
+      try {
+        await axios.patch(
+          `${CHECKER_URL}/api/video/${user}/${perm}/reusable`,
+          { reusable: !!reusable },
+          { headers: { Authorization: `Bearer ${UPLOAD_TOKEN}` } }
+        );
+        console.log(`✔ Reusable flag set to ${reusable} via checker`);
+      } catch (e) {
+        console.warn('⚠ Failed to set reusable via checker:', e.message);
+      }
 
       await uploadThumbnail(vid);
       startEncodingPolling(vid);

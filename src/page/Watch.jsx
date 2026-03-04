@@ -119,6 +119,7 @@ function Watch() {
   const hideTimerRef = useRef(null);
   const [videoEnded, setVideoEnded] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const clipModeActiveRef = useRef(false);
 
   // Autoplay next video preference
   const AUTOPLAY_STORAGE_KEY = '3speak-autoplay';
@@ -168,6 +169,7 @@ function Watch() {
     setVolume: sdkSetVolume,
     togglePip,
     setQuality: sdkSetQuality,
+    setPlaybackRate,
   } = usePlayer({
     apiBase: PLAYER_URL,
     muted: storedMuted,
@@ -325,6 +327,11 @@ function Watch() {
     });
 
     const unsubEnded = player.on('ended', () => {
+      // Don't autoplay when user is selecting clip start/end
+      if (clipModeActiveRef.current) {
+        setVideoEnded(true);
+        return;
+      }
       if (playlistDataRef.current && showPlaylistRef.current) {
         navigateToNextVideoRef.current();
       } else if (autoplayNextRef.current && suggestedVideosRef.current?.length > 0) {
@@ -553,6 +560,18 @@ function Watch() {
     });
   }, []);
 
+  // Hold controls visible (e.g. while a menu is open) — cancel auto-hide
+  const holdControls = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    setControlsVisible(true);
+  }, []);
+
+  // Release hold — restart auto-hide timer
+  const releaseControls = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+  }, []);
+
   const handleToggleFullscreen = useCallback(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
@@ -585,14 +604,38 @@ function Watch() {
       if (!wrapper) return;
 
       const isLandscape = screen.orientation.type.startsWith('landscape');
-      if (isLandscape && !videoIsVerticalRef.current) {
+      const shortSide = Math.min(screen.width, screen.height);
+      const isPhoneLandscape = isLandscape && shortSide <= 500;
+
+      console.log('[orientation]', {
+        type: screen.orientation.type,
+        isLandscape,
+        screenW: screen.width,
+        screenH: screen.height,
+        shortSide,
+        innerW: window.innerWidth,
+        innerH: window.innerHeight,
+        isVertical: videoIsVerticalRef.current,
+        isPhoneLandscape,
+        willAddFullscreen: isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape,
+      });
+
+      if (isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape) {
         wrapper.classList.add('landscape-fullscreen');
         setIsFullscreen(true);
       } else if (wrapper.classList.contains('landscape-fullscreen')) {
         wrapper.classList.remove('landscape-fullscreen');
         setIsFullscreen(false);
       }
+
+      // Collapse reactions in phone landscape to save vertical space
+      if (isPhoneLandscape) {
+        setIsReactionPlayerVisible(false);
+      }
     };
+
+    // Also run on mount in case page loads in landscape
+    handleOrientationChange();
 
     screen.orientation.addEventListener('change', handleOrientationChange);
     return () => screen.orientation.removeEventListener('change', handleOrientationChange);
@@ -632,6 +675,7 @@ function Watch() {
   // Hive fallback: when GraphQL doesn't have the video, fetch directly from blockchain
   const [hiveFallback, setHiveFallback] = useState(null);
   const [hiveFallbackLoading, setHiveFallbackLoading] = useState(false);
+  const [hiveFallbackDone, setHiveFallbackDone] = useState(false);
 
   useEffect(() => {
     if (videoLoading || videoData?.socialPost || !author || author === 'unknown') return;
@@ -688,7 +732,7 @@ function Watch() {
       } catch (err) {
         console.error('Hive fallback failed:', err);
       } finally {
-        if (!cancelled) setHiveFallbackLoading(false);
+        if (!cancelled) { setHiveFallbackLoading(false); setHiveFallbackDone(true); }
       }
     })();
 
@@ -842,9 +886,9 @@ function Watch() {
     if (index < 0 || index >= (reactions?.length ?? 0)) return;
     setSelectedReactionIndex(index);
     setReactionsVisible(true);
-    // Seek main video to this reaction's timeline position
+    // Seek main video to this reaction's timeline position (only if it has a timestamp)
     const reaction = reactions[index];
-    if (reaction && playerState.duration > 0) {
+    if (reaction && reaction.pct !== null && playerState.duration > 0) {
       seek(reaction.pct);
     }
   }, [reactions, playerState.duration, seek]);
@@ -872,17 +916,20 @@ function Watch() {
     setReactionsVisible(true);
   }, [reactions, searchParams]);
 
-  const isNetworkError = videoError && videoError.networkError;
-  const isLoading = videoLoading || hiveFallbackLoading || (suggestionsLoading && trendingLoading && authorVideosLoading);
+  const isNetworkError = videoError && videoError.networkError && !hiveFallback;
+  // Also wait while Hive fallback hasn't been attempted yet (covers the gap between
+  // GraphQL completing and the fallback useEffect firing)
+  const awaitingFallback = !videoLoading && !videoData?.socialPost && !hiveFallbackDone && author !== 'unknown';
+  const isLoading = videoLoading || hiveFallbackLoading || awaitingFallback || (suggestionsLoading && trendingLoading && authorVideosLoading);
 
   if (isLoading) {
     return <BarLoader />;
   }
 
-  if (videoError || !videoDetails) {
+  if (!videoDetails) {
     return (
       <div className="watch-error">
-        <p>{isNetworkError ? 'Network error. Please check your connection.' : videoError ? 'Error loading video.' : 'Video not found or failed to load.'}</p>
+        <p>{isNetworkError ? 'Network error. Please check your connection.' : 'Video not found or failed to load.'}</p>
         <button className="watch-error-retry" onClick={() => refetchVideo()}>Retry</button>
       </div>
     );
@@ -934,6 +981,7 @@ function Watch() {
           onTogglePip: handleTogglePip,
           videoEnded,
           onReplay: handleReplay,
+          onClipModeChange: (active) => { clipModeActiveRef.current = active; },
           autoplayBlocked,
           onAutoplayTap: togglePlay,
           autoplayNext,
@@ -958,6 +1006,10 @@ function Watch() {
           subtitleCurrentTime: playerState.currentTime,
           subtitleStyle,
           onSubtitleStyleChange: updateSubtitleStyle,
+          playbackRate: playerState.playbackRate,
+          onPlaybackRateChange: setPlaybackRate,
+          onHoldControls: holdControls,
+          onReleaseControls: releaseControls,
         }}
         mobileReactionPanel={
           <>

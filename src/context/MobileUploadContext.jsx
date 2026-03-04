@@ -27,7 +27,7 @@ export function MobileUploadProvider({ children }) {
     loading: false,
     BeneficiaryList: 2,
     list: [],
-    remaingPercent: 89,
+    remaingPercent: 100,
     step: 1,
     selectedIndex: null,
     isOpenAuth: false,
@@ -64,7 +64,7 @@ export function MobileUploadProvider({ children }) {
   const navigate = useNavigate();
   const [BeneficiaryList, setBeneficiaryList] = useState(2);
   const [list, setList] = useState([]);
-  const [remaingPercent, setRemaingPercent] = useState(89);
+  const [remaingPercent, setRemaingPercent] = useState(100);
   const [step, setStep] = useState(1);
   const [isOpenAuth, setIsOpenAuth] = useState(false);
   const [isOpen, setIsOpen] = useState(false);

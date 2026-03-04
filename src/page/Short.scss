@@ -1,5 +1,40 @@
 @import '../components/LanguageSelector/translate-common';
 
+// Portal-rendered dropdown (on document.body, escapes all stacking contexts)
+.shortsSubtitleMenu {
+  background: rgba(20, 20, 20, 0.95);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 120px;
+  max-height: 280px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.shortsSubtitleItem {
+  display: block;
+  width: 100%;
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+  }
+
+  &.active {
+    color: var(--accent-primary, #e53935);
+    font-weight: 700;
+  }
+}
+
 .short-main {
   flex: 1;
   display: flex;
@@ -11,6 +46,34 @@
   height: calc(100vh - 64px);
   max-height: calc(100vh - 64px);
   background-color: transparent;
+
+  // Landscape blocker — covers everything when phone is rotated
+  .landscape-block {
+    display: none;
+
+    @media screen and (orientation: landscape) and (max-height: 500px) {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      position: fixed;
+      inset: 0;
+      z-index: 999999;
+      background: #000;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+
+      svg { color: #fff; }
+
+      p {
+        color: #fff;
+        font-size: 0.95rem;
+        margin: 0;
+      }
+    }
+  }
 
   @media (max-width: 768px) {
     position: absolute;
@@ -333,7 +396,7 @@
     background: rgba(0, 0, 0, 0.35);
     pointer-events: auto;
     cursor: pointer;
-    z-index: 6;
+    z-index: 55;
     transition: background 0.2s, color 0.2s;
 
     &:hover {
@@ -347,44 +410,12 @@
     &.active svg {
       color: var(--accent-primary, #e53935);
     }
-  }
 
-  .shortsSubtitleMenu {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 6px;
-    background: rgba(20, 20, 20, 0.95);
-    border-radius: 6px;
-    padding: 4px 0;
-    min-width: 120px;
-    max-height: 280px;
-    overflow-y: auto;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    z-index: 20;
-  }
-
-  .shortsSubtitleItem {
-    display: block;
-    width: 100%;
-    padding: 6px 14px;
-    border: none;
-    background: none;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 12px;
-    font-weight: 500;
-    text-align: left;
-    cursor: pointer;
-    white-space: nowrap;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-    }
-
-    &.active {
-      color: var(--accent-primary, #e53935);
-      font-weight: 700;
+    // Shift left when glow button is hidden in stories mode on mobile
+    &.stories-mode {
+      @media (max-width: 767px) {
+        right: 100px;
+      }
     }
   }
 
@@ -393,6 +424,12 @@
 
     &.active svg {
       color: #fbbf24;
+    }
+
+    @media (max-width: 767px) {
+      .shorts-story-feed & {
+        display: none;
+      }
     }
   }
 
@@ -548,7 +585,7 @@
     position: absolute;
     top: 12px;
     left: 12px;
-    z-index: 12;
+    z-index: 55;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -583,6 +620,40 @@
       left: 12px;
       right: auto;
 
+      @media (max-width: 767px) {
+        display: flex;
+      }
+    }
+  }
+
+  // Stories mode button (next to back button)
+  .shortStoriesBtn {
+    position: absolute;
+    top: 12px;
+    left: 52px;
+    z-index: 55;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.2);
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: scale(1.04);
+    }
+
+    &:active {
+      transform: scale(0.97);
+    }
+
+    &.mobileOnly {
       @media (max-width: 767px) {
         display: flex;
       }
@@ -706,6 +777,9 @@
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    cursor: grab;
+    user-select: none;
+    -webkit-overflow-scrolling: touch;
     &::-webkit-scrollbar { display: none; }
   }
 
@@ -809,7 +883,7 @@
   // Reaction chain overlay
   .reactionChainOverlay {
     position: absolute;
-    top: 12px;
+    top: 56px;
     left: 8px;
     right: 8px;
     z-index: 11;
@@ -819,7 +893,7 @@
     gap: 6px;
 
     &.has-back {
-      top: 52px;
+      top: 56px;
     }
 
     &.collapsed {
@@ -1105,6 +1179,25 @@
       overflow: visible;
     }
 
+    .captionBadge {
+      display: inline-block;
+      padding: 2px 8px;
+      margin: 1px 3px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.75rem;
+      text-decoration: none;
+      pointer-events: auto;
+      white-space: nowrap;
+      vertical-align: middle;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.25);
+        color: #fff;
+      }
+    }
+
     .captionActions {
       margin-top: 6px;
       pointer-events: auto;
@@ -1322,6 +1415,44 @@
     }
   }
 
+  .remix-dropdown-short {
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-right: 8px;
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    min-width: 150px;
+    overflow: hidden;
+
+    button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 14px;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      & + button {
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+    }
+  }
+
   .actionLabel {
     font-size: 0.875rem;
     font-weight: 500;
@@ -1383,6 +1514,7 @@
     height: 3rem;
     border-radius: 50%;
     background-color: var(--bg-tertiary);
+    backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1391,12 +1523,20 @@
     transition: background-color 150ms;
     box-shadow: var(--shadow-sm);
 
+    :root:not([data-theme="dark"]) & {
+      background-color: rgba(0, 0, 0, 0.12);
+    }
+
     [data-theme="dark"] & {
-      background-color: #272727;
+      background-color: rgba(39, 39, 39, 0.8);
     }
 
     &:hover {
       background-color: var(--bg-elevated);
+
+      :root:not([data-theme="dark"]) & {
+        background-color: rgba(0, 0, 0, 0.18);
+      }
 
       [data-theme="dark"] & {
         background-color: #3f3f3f;
@@ -1455,11 +1595,22 @@
     color: var(--text-primary);
     gap: 1rem;
 
+    @media (max-width: 767px) {
+      background: #000;
+      color: #fff;
+
+      svg { color: #fff; }
+    }
+
     p {
       font-size: 0.8rem;
       font-family: inherit;
       color: var(--text-secondary);
       animation: pulseText 1.5s ease-in-out infinite;
+
+      @media (max-width: 767px) {
+        color: rgba(255, 255, 255, 0.7);
+      }
     }
 
     button {
@@ -1998,7 +2149,7 @@
   /* Comment Input */
   .commentInput {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 0.75rem;
     padding: 1rem 1.25rem;
     border-top: 1px solid var(--border-color);
@@ -2030,15 +2181,20 @@
     }
   }
 
-  .commentInput input {
+  .commentInput textarea {
     flex: 1;
     background: none;
     border: none;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-primary);
     font-size: 0.875rem;
+    font-family: inherit;
     padding: 0.5rem 0;
     outline: none;
+    resize: none;
+    overflow: hidden;
+    max-height: 120px;
+    line-height: 1.4;
 
     [data-theme="dark"] & {
       border-bottom-color: #3f3f3f;

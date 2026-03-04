@@ -296,10 +296,29 @@
             .info-buttons-row {
                 display: flex;
                 align-items: center;
-                justify-content: flex-end;
+                justify-content: space-between;
                 gap: 7px;
                 @include mix.respond(phone) {
                     gap: 5px;
+                }
+
+                .info-buttons-left {
+                    display: flex;
+                    align-items: center;
+                    gap: 7px;
+
+                    @include mix.respond(phone) {
+                        display: none;
+                    }
+                }
+
+                .info-buttons-right {
+                    display: flex;
+                    align-items: center;
+                    gap: 7px;
+                    @include mix.respond(phone) {
+                        gap: 5px;
+                    }
                 }
             }
 
@@ -428,69 +447,152 @@
 
     }
 
+    .tools-row-label {
+        display: inline;
+    }
+
+    .remix-btn,
+    .clip-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 4px 8px;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--text-secondary);
+        border: none;
+        border-radius: 5px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background-color: var(--accent-primary);
+          color: var(--text-inverse);
+        }
+
+        &.active {
+          color: var(--accent-primary);
+          background-color: rgba(var(--accent-primary-rgb, 255, 0, 0), 0.15);
+        }
+
+        &:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+          &:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+          }
+        }
+
+        @include mix.respond(phone) {
+            flex: 1;
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 13px;
+        }
+    }
+
+    .remix-dropdown-wrap {
+        position: relative;
+        display: inline-flex;
+    }
+
+    .remix-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 4px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 100;
+        min-width: 150px;
+        overflow: hidden;
+
+        button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s ease;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.1);
+            }
+
+            & + button {
+                border-top: 1px solid var(--border-color);
+            }
+        }
+    }
+
     .tools-row {
         display: flex;
         align-items: center;
         gap: 7px;
         margin-top: 8px;
 
-        .tools-row-label {
+        &.mobile-only {
             display: none;
-        }
-
-        @include mix.respond(phone) {
-            gap: 8px;
-
-            .tools-row-label {
-                display: inline;
-            }
-        }
-
-        .remix-btn,
-        .clip-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            padding: 4px 8px;
-            background-color: rgba(255, 255, 255, 0.1);
-            color: var(--text-secondary);
-            border: none;
-            border-radius: 5px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-
-            &:hover {
-              background-color: var(--accent-primary);
-              color: var(--text-inverse);
-            }
-
-            &.active {
-              color: var(--accent-primary);
-              background-color: rgba(var(--accent-primary-rgb, 255, 0, 0), 0.15);
-            }
-
-            &:disabled {
-              opacity: 0.35;
-              cursor: not-allowed;
-              &:hover {
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
-              }
-            }
 
             @include mix.respond(phone) {
-                flex: 1;
-                padding: 6px 14px;
-                border-radius: 16px;
-                font-size: 13px;
+                display: flex;
+                gap: 8px;
+
+                .tools-row-label {
+                    display: inline;
+                }
             }
         }
     }
 
-    .clip-bar {
+    .clip-bar-inline {
       display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .clip-bar-inline-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .clip-action-btn {
+        padding: 4px 10px;
+        background-color: var(--accent-primary);
+        color: var(--text-inverse);
+        border: none;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: opacity 0.2s;
+
+        &:hover { opacity: 0.85; }
+      }
+
+      @include mix.respond(phone) {
+        display: none;
+      }
+    }
+
+    .clip-bar {
+      display: none;
+
+      @include mix.respond(phone) {
+        display: flex;
+      }
+
       align-items: center;
       justify-content: space-between;
       gap: 12px;
@@ -932,18 +1034,21 @@
             border-radius: 4px;
             // border: solid grey 1px;
             margin-top: 5px;
-            height: 120px;
+            min-height: 120px;
             outline: none;
             padding: 10px;
             box-sizing: border-box;
+            resize: none;
+            overflow: hidden;
             background-color: var(--card-bg);
             color: var(--text-primary);
+            font-family: inherit;
             @include mix.respond(phone) {
-                height: 60px;
+                min-height: 60px;
               }
             &.sub{
-                height: 50px; 
-                border-radius: 12px; 
+                min-height: 50px;
+                border-radius: 12px;
             }
             &::placeholder {
                 color: var(--text-muted);
@@ -1008,8 +1113,8 @@
         flex-direction: column;
         align-items: flex-end;
         position: fixed;
-        bottom: 24px;
-        right: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        right: calc(12px + env(safe-area-inset-right, 0px));
         z-index: 50;
     }
 }
@@ -1113,4 +1218,137 @@
         opacity: 1;
         transform: translateY(0) scale(1);
     }
+}
+
+/* Remix dropdown inside FAB — position to the left */
+.fab-action {
+    position: relative;
+}
+
+.remix-dropdown--fab {
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-right: 8px;
+    background: var(--bg-elevated, #2a2a2a);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 110;
+    min-width: 150px;
+    overflow: hidden;
+
+    button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 14px;
+        background: none;
+        border: none;
+        color: var(--text-primary, #fff);
+        font-size: 13px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        & + button {
+            border-top: 1px solid var(--border-color);
+        }
+    }
+}
+
+// ===== Phone landscape overrides =====
+// When a phone rotates, width > 767px so `respond(phone)` no longer matches.
+// Use max-height to detect phone-in-landscape and replicate key mobile rules.
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .play-video {
+    flex-basis: 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+
+    .top-container {
+      display: contents;
+    }
+
+    .video-iframe-wrapper {
+      position: relative !important;
+      z-index: auto !important;
+      border-radius: 0;
+      // Height = viewport minus nav bar. Width = 16:9 from that height.
+      // Leaves space on the sides for scrolling.
+      padding-top: 0 !important;
+      height: calc(100svh - 75px) !important;
+      width: calc((100svh - 75px) * 16 / 9) !important;
+      max-width: 100% !important;
+      margin: 0 auto;
+    }
+
+    .video-title-row {
+      margin-top: 0;
+      padding: 8px 10px;
+      background-color: var(--card-bg);
+    }
+
+    .video-details-collapsible {
+      padding: 8px 10px 10px;
+      background-color: var(--card-bg);
+
+      &.collapsed {
+        display: none;
+      }
+    }
+
+    .mobile-title-toggle {
+      display: flex;
+    }
+
+    .mobile-title-meta {
+      display: flex !important;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .badges-row {
+      display: none;
+    }
+
+    .info-buttons-left {
+      display: none !important;
+    }
+
+    .mobile-reactions-slot {
+      display: block !important;
+    }
+
+    .cinema-reactions-slot {
+      display: none !important;
+    }
+  }
+
+  // Show FAB in landscape phone
+  .fab-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 49;
+  }
+
+  .fab-speed-dial {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    position: fixed;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    z-index: 50;
+  }
 }

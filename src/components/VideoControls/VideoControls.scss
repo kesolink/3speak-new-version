@@ -370,6 +370,59 @@
   }
 }
 
+// Speed picker — mirrors quality picker
+.vc-speed-wrap {
+  position: relative;
+}
+
+.vc-btn--speed {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 28px;
+  letter-spacing: -0.02em;
+
+  &.active {
+    color: var(--accent-primary, #e53935);
+  }
+}
+
+.vc-speed-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 6px;
+  background: rgba(20, 20, 20, 0.95);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 100px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+.vc-speed-item {
+  display: block;
+  width: 100%;
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+  }
+
+  &.active {
+    color: var(--accent-primary, #e53935);
+    font-weight: 700;
+  }
+}
+
 // Subtitle picker — mirrors quality picker
 .vc-subtitle-wrap {
   position: relative;
@@ -575,6 +628,11 @@
   }
 }
 
+// Hide mobile settings gear on desktop
+.vc-mobile-settings-wrap {
+  display: none;
+}
+
 // Mobile controls layout
 @media (max-width: 767px) {
   // Container always visible (for progress bar) but non-interactive
@@ -627,18 +685,23 @@
     }
 
     .vc-controls-left {
-      gap: 20px;
+      gap: 15px;
     }
 
     .vc-btn {
-      width: 44px;
-      height: 44px;
+      width: 24px;
+      height: 24px;
       background: rgba(0, 0, 0, 0.35);
+
+      svg {
+        width: 75%;
+        height: 75%;
+      }
     }
 
     .vc-btn--play {
-      width: 52px;
-      height: 52px;
+      width: 27px;
+      height: 27px;
       background: rgba(0, 0, 0, 0.45);
     }
 
@@ -648,10 +711,10 @@
       bottom: 12px;
       left: 8px;
       margin-left: 0;
-      font-size: 11px;
+      font-size: 9px;
       background: rgba(0, 0, 0, 0.45);
-      padding: 2px 6px;
-      border-radius: 4px;
+      padding: 1px 4px;
+      border-radius: 3px;
       opacity: 0;
       transition: opacity 0.3s ease;
       z-index: 1;
@@ -667,15 +730,69 @@
       z-index: 1;
     }
 
-    // Hide resize, glow, autoplay, and volume slider on mobile
+    // Hide individual trigger buttons on mobile (menus are opened via settings gear instead)
     .vc-btn--resize,
     .vc-btn--glow,
     .vc-btn--autoplay {
       display: none;
     }
 
+    // Hide the trigger buttons inside wraps, but keep the wraps so menus can render
+    .vc-subtitle-wrap > .vc-btn--subtitle,
+    .vc-speed-wrap > .vc-btn--speed,
+    .vc-quality-wrap > .vc-btn {
+      display: none;
+    }
+
+    // Wraps should take no space when their button is hidden
+    .vc-subtitle-wrap,
+    .vc-speed-wrap,
+    .vc-quality-wrap {
+      width: 0;
+      overflow: visible;
+    }
+
     .vc-volume-slider-wrap {
       display: none !important;
+    }
+
+    // Mobile settings gear — visible only on mobile
+    .vc-mobile-settings-wrap {
+      position: relative;
+      display: flex;
+    }
+
+    .vc-mobile-settings-menu {
+      position: absolute;
+      bottom: 100%;
+      right: 0;
+      margin-bottom: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background: none;
+      padding: 0;
+      z-index: 100;
+    }
+
+    .vc-mobile-settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.35);
+      color: rgba(255, 255, 255, 0.85);
+      cursor: pointer;
+      font-size: 9px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+
+      &.active {
+        color: var(--accent-primary, #e53935);
+      }
     }
 
     // When visible: show gradient + controls (not progress bar — already visible)
@@ -698,9 +815,10 @@
       }
     }
 
-    // Subtitle & quality menus — open downward on mobile
+    // Subtitle, quality & speed menus — open downward on mobile
     .vc-subtitle-menu,
-    .vc-quality-menu {
+    .vc-quality-menu,
+    .vc-speed-menu {
       bottom: auto;
       top: 100%;
       margin-bottom: 0;
@@ -709,6 +827,199 @@
     }
 
     // Simplify markers on mobile — hide avatars, keep colored lines
+    .vc-marker {
+      .vc-marker-avatar-wrap { display: none; }
+      .vc-marker-tooltip { display: none; }
+      .vc-marker-line { height: 10px; }
+
+      &--active .vc-marker-line,
+      &:hover .vc-marker-line {
+        height: 14px;
+      }
+    }
+  }
+}
+
+// Phone landscape — same mobile controls layout (settings gear instead of individual buttons)
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .video-controls,
+  .video-controls.visible {
+    top: 0;
+    padding: 0;
+    opacity: 1;
+    background: none;
+    pointer-events: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .video-controls {
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        rgba(0, 0, 0, 0.3) 0%,
+        rgba(0, 0, 0, 0.12) 30%,
+        rgba(0, 0, 0, 0.12) 60%,
+        rgba(0, 0, 0, 0.55) 100%
+      );
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .vc-progress-row {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      margin-bottom: 0;
+      padding: 0 8px 3px;
+      pointer-events: auto;
+      z-index: 1;
+    }
+
+    .vc-controls-row {
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 1;
+    }
+
+    .vc-controls-left {
+      gap: 15px;
+    }
+
+    .vc-btn {
+      width: 24px;
+      height: 24px;
+      background: rgba(0, 0, 0, 0.35);
+
+      svg {
+        width: 75%;
+        height: 75%;
+      }
+    }
+
+    .vc-btn--play {
+      width: 27px;
+      height: 27px;
+      background: rgba(0, 0, 0, 0.45);
+    }
+
+    .vc-time {
+      position: absolute;
+      bottom: 12px;
+      left: 8px;
+      margin-left: 0;
+      font-size: 9px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 1px 4px;
+      border-radius: 3px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 1;
+    }
+
+    .vc-controls-right {
+      position: absolute;
+      bottom: 10px;
+      right: 8px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 1;
+    }
+
+    .vc-btn--resize,
+    .vc-btn--glow,
+    .vc-btn--autoplay {
+      display: none;
+    }
+
+    .vc-subtitle-wrap > .vc-btn--subtitle,
+    .vc-speed-wrap > .vc-btn--speed,
+    .vc-quality-wrap > .vc-btn {
+      display: none;
+    }
+
+    .vc-subtitle-wrap,
+    .vc-speed-wrap,
+    .vc-quality-wrap {
+      width: 0;
+      overflow: visible;
+    }
+
+    .vc-volume-slider-wrap {
+      display: none !important;
+    }
+
+    .vc-mobile-settings-wrap {
+      position: relative;
+      display: flex;
+    }
+
+    .vc-mobile-settings-menu {
+      position: absolute;
+      bottom: 100%;
+      right: 0;
+      margin-bottom: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background: none;
+      padding: 0;
+      z-index: 100;
+    }
+
+    .vc-mobile-settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.35);
+      color: rgba(255, 255, 255, 0.85);
+      cursor: pointer;
+      font-size: 9px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+
+      &.active {
+        color: var(--accent-primary, #e53935);
+      }
+    }
+
+    &.visible {
+      &::before { opacity: 1; }
+
+      .vc-controls-row {
+        opacity: 1;
+        animation: vc-enable-clicks 0s 0.35s forwards;
+      }
+
+      .vc-time {
+        opacity: 1;
+      }
+
+      .vc-controls-right {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+
+    .vc-subtitle-menu,
+    .vc-quality-menu,
+    .vc-speed-menu {
+      bottom: auto;
+      top: 100%;
+      margin-bottom: 0;
+      margin-top: 6px;
+      max-height: 60vh;
+    }
+
     .vc-marker {
       .vc-marker-avatar-wrap { display: none; }
       .vc-marker-tooltip { display: none; }

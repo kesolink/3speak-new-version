@@ -99,6 +99,34 @@ export async function reorderInPlaylist(playlistId, author, permlink, newPositio
 }
 
 /**
+ * Update a playlist (thumbnail, metadata)
+ * @param {string} playlistId - Playlist ID
+ * @param {object} fields - Fields to update
+ * @param {string} [fields.thumbnail] - Thumbnail URL
+ * @param {object} [fields.metadata] - JSON metadata object
+ * @returns {Promise<object>} Result from Aioha
+ */
+export async function updatePlaylist(playlistId, fields = {}) {
+  const payload = {
+    playlist_id: playlistId,
+  };
+
+  if (fields.thumbnail !== undefined) {
+    payload.thumbnail = fields.thumbnail;
+  }
+  if (fields.metadata !== undefined) {
+    payload.metadata = fields.metadata;
+  }
+
+  return customJsonWithAioha(
+    KeyTypes.Posting,
+    `${PLAYLIST_PREFIX}update`,
+    JSON.stringify(payload),
+    'Update Playlist'
+  );
+}
+
+/**
  * Delete a playlist
  * @param {string} playlistId - Playlist ID
  * @returns {Promise<object>} Result from Aioha

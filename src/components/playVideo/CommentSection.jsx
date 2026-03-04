@@ -230,10 +230,10 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
         try {
           const meta = typeof comment.json_metadata === 'string' ? JSON.parse(comment.json_metadata) : comment.json_metadata;
           if (meta?.parentTimestamp != null) parentTimestamp = meta.parentTimestamp;
-          if (meta?.video?.url || meta?.video?.platform === '3speak') {
+          if (meta?.video?.url) {
             hasVideo = true;
             // Try extracting player permlink from video.url
-            const videoUrl = meta.video?.url || '';
+            const videoUrl = meta.video.url;
             // Handle full URLs like https://3speak.tv/watch?v=author/perm or https://play.3speak.tv/embed?v=author/perm
             const urlMatch = videoUrl.match(/[?&]v=([^&\s"']+)/);
             if (urlMatch) {
@@ -247,19 +247,6 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
             // Handle simple @author/permlink format
             if (!shortAuthor) {
               const cleaned = videoUrl.startsWith('@') ? videoUrl.slice(1) : videoUrl;
-              const parts = cleaned.split('/');
-              if (parts.length >= 2 && parts[0] && parts[1]) {
-                shortAuthor = parts[0];
-                shortPermlink = parts[1];
-              }
-            }
-          }
-          // Also scan the comment body for 3speak embed/watch URLs
-          if (!shortAuthor && comment.body) {
-            const bodyMatch = comment.body.match(/https?:\/\/[^\s]*3speak[^\s]*[?&]v=([^&\s"')]+)/);
-            if (bodyMatch) {
-              hasVideo = true;
-              const cleaned = bodyMatch[1].startsWith('@') ? bodyMatch[1].slice(1) : bodyMatch[1];
               const parts = cleaned.split('/');
               if (parts.length >= 2 && parts[0] && parts[1]) {
                 shortAuthor = parts[0];
@@ -511,7 +498,11 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
             placeholder="Write your comment here..."
             className="textarea-box"
             value={commentInfo}
-            onChange={(e) => setCommentInfo(e.target.value)}
+            onChange={(e) => {
+              setCommentInfo(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
             onFocus={handleTextareaFocus}
           />
           <div className="comment-form-row">
@@ -721,7 +712,7 @@ function Comment({
                   className="comment-shorts-link"
                 >
                   <MdVideocam size={13} />
-                  <span>Open in Shorts</span>
+                  <span className="comment-btn-label">Open in Shorts</span>
                 </Link>
               )}
               <Button text="Reply" onClick={() => {
@@ -784,7 +775,11 @@ function Comment({
                 placeholder="Write your reply here..."
                 className="textarea-box sub"
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+                onChange={(e) => {
+                  setReplyText(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
               />
               <div className="btn-wrap">
                 <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />

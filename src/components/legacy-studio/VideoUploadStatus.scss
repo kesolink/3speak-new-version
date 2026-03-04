@@ -459,24 +459,20 @@
     width: 70px;
     height: 70px;
     margin: 0 auto 24px;
-    // background: linear-gradient(135deg, #e40a0aa8 0%, #d34634 100%);
-    background-color: green;
+    background-color: var(--accent-primary, #e53935);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #ffffff;
-    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 8px 24px rgba(229, 57, 53, 0.3);
   }
 
   h3 {
     font-size: 32px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text-primary, #1a1a1a);
     margin: 0 0 16px 0;
-         [data-theme="dark"] & {
-color: var(--text-primary);
-  }
     @include mix.respond(phone) {
       font-size: 22px;
     }
@@ -484,7 +480,7 @@ color: var(--text-primary);
 
   p {
     font-size: 16px;
-    color: #6b7280;
+    color: var(--text-secondary, #6b7280);
     margin: 0 0 32px 0;
     font-weight: 600;
     @include mix.respond(phone) {
@@ -493,7 +489,7 @@ color: var(--text-primary);
   }
 
   .profile-btn {
-    background: linear-gradient(135deg, #1536ca96 0%, #0e22d3 100%);
+    background-color: var(--accent-primary, #e53935);
     color: #ffffff;
     border: none;
     padding: 10px 32px;
@@ -502,11 +498,11 @@ color: var(--text-primary);
     font-weight: 500;
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 4px 12px rgba(139, 159, 247, 0.3);
+    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.3);
 
     &:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(139, 159, 247, 0.4);
+      box-shadow: 0 6px 16px rgba(229, 57, 53, 0.4);
     }
 
     &:active {
@@ -529,4 +525,9 @@ color: var(--text-primary);
     transform: scale(1);
     opacity: 1;
   }
+}
+
+// Embed studio override — green progress bar
+.embed-status .progress-fill.embed-fill {
+  background: linear-gradient(90deg, #2ecc71 0%, #27ae60 100%);
 }

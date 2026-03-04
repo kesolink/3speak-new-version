@@ -27,7 +27,7 @@ import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
-import { FEED_URL, HIVE_API_URL, FEATURE_EDITOR } from '../../utils/config';
+import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
 import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo } from "react-icons/md";
@@ -40,7 +40,7 @@ import { removeFromPlaylist } from "../../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import Button from "../Button/Button";
-import { Repeat2, Scissors, Tornado } from 'lucide-react';
+import { Repeat2, Scissors, Tornado, Film, Music } from 'lucide-react';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
 import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
@@ -84,17 +84,30 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [reshareCount, setReshareCount] = useState(0);
   const [hasReshared, setHasReshared] = useState(false);
 
+  // Remix/clip eligibility (embed videos only, except meno)
+  const [canRemixClip, setCanRemixClip] = useState(false);
+
   // Editor modal state
   const [showEditorModal, setShowEditorModal] = useState(false);
   const [editorVideoUrl, setEditorVideoUrl] = useState(null);
   const [editorVideoName, setEditorVideoName] = useState(null);
   const [editorClipStart, setEditorClipStart] = useState(null);
   const [editorClipEnd, setEditorClipEnd] = useState(null);
+  const [editorVideoType, setEditorVideoType] = useState('video');
+  const [remixDropdownOpen, setRemixDropdownOpen] = useState(false);
+  const remixDropdownRef = useRef(null);
 
   // Clip mode state
   const [clipMode, setClipMode] = useState(false); // false | 'start' | 'end' | 'done'
   const [clipStart, setClipStart] = useState(null);
   const [clipEnd, setClipEnd] = useState(null);
+
+  // Notify parent when clip mode changes (disables autoplay)
+  useEffect(() => {
+    if (videoControls?.onClipModeChange) {
+      videoControls.onClipModeChange(!!clipMode);
+    }
+  }, [clipMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -221,6 +234,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       setOptimisticVoteCount(updates.optimisticVoteCount || 0);
       setIsVoted(updates.isVoted || false);
       setTooltipVoters(updates.tooltipVoters || []);
+
+      // Determine remix/clip eligibility from MongoDB via checker
+      try {
+        const reusableRes = await axios.get(`${CHECKER_URL}/api/video/${author}/${permlink}`);
+        setCanRemixClip(reusableRes.data?.success && !!reusableRes.data.reusable);
+      } catch {
+        setCanRemixClip(false);
+      }
     } catch (error) {
       console.error("Error fetching upvotes:", error);
     }
@@ -359,17 +380,31 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     }
   }, [authenticated, user, author, permlink, hasReshared]);
 
-  const handleRemix = useCallback(() => {
+  const handleRemix = useCallback((mediaType = 'video') => {
     if (!videoUrlSelected) {
       toast.error('Could not resolve video URL for remix');
       return;
     }
+    if (videoControls?.onPause) videoControls.onPause();
     setEditorVideoUrl(videoUrlSelected);
     setEditorVideoName(`${author} - ${videoDetails?.title || permlink}`);
     setEditorClipStart(null);
     setEditorClipEnd(null);
+    setEditorVideoType(mediaType);
     setShowEditorModal(true);
-  }, [videoUrlSelected, author, permlink, videoDetails?.title]);
+  }, [videoUrlSelected, author, permlink, videoDetails?.title, videoControls]);
+
+  // Close remix dropdown on click outside
+  useEffect(() => {
+    if (!remixDropdownOpen) return;
+    const handleClickOutside = (e) => {
+      if (remixDropdownRef.current && !remixDropdownRef.current.contains(e.target)) {
+        setRemixDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [remixDropdownOpen]);
 
   // Clip mode helpers
   const formatTime = (seconds) => {
@@ -393,18 +428,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   }, [videoControls?.currentTime]);
 
   const handleSetClipEnd = useCallback(() => {
-    const time = Math.floor(videoControls?.currentTime || 0);
+    let time = Math.floor(videoControls?.currentTime || 0);
     if (clipStart !== null && time <= clipStart) {
       toast.error('End time must be after start time');
       return;
     }
-    if (clipStart !== null && time - clipStart > 30) {
-      toast.error('Clip cannot be longer than 30 seconds');
-      return;
+    if (clipStart !== null && time - clipStart > 60) {
+      time = clipStart + 60;
+      toast.info('Clip trimmed to 1 minute — we will trim the clip at the end of the timeline.');
     }
     setClipEnd(time);
     setClipMode('done');
-    toast.success(`Clip set: ${formatTime(clipStart)} – ${formatTime(time)}`);
+    toast.success(`Clip set: ${formatTime(clipStart)} – ${formatTime(time)}. Now click on "Create Clip"`);
   }, [videoControls?.currentTime, clipStart]);
 
   const handleCancelClip = useCallback(() => {
@@ -418,13 +453,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       toast.error('Could not resolve video URL');
       return;
     }
+    if (videoControls?.onPause) videoControls.onPause();
     setEditorVideoUrl(videoUrlSelected);
     setEditorVideoName(`${author} - ${videoDetails?.title || permlink} (clip)`);
     setEditorClipStart(clipStart);
     setEditorClipEnd(clipEnd);
     setShowEditorModal(true);
     setClipMode(false);
-  }, [videoUrlSelected, author, permlink, videoDetails?.title, clipStart, clipEnd]);
+  }, [videoUrlSelected, author, permlink, videoDetails?.title, clipStart, clipEnd, videoControls]);
 
   const handleProfileNavigate = useCallback((userName) => {
     navigate(`/p/${userName}`);
@@ -598,6 +634,10 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     subtitleLoading={videoControls.subtitleLoading}
                     subtitleStyle={videoControls.subtitleStyle}
                     onSubtitleStyleChange={videoControls.onSubtitleStyleChange}
+                    playbackRate={videoControls.playbackRate}
+                    onPlaybackRateChange={videoControls.onPlaybackRateChange}
+                    onHoldControls={videoControls.onHoldControls}
+                    onReleaseControls={videoControls.onReleaseControls}
                   />
                 </>
               )}
@@ -695,77 +735,103 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
 
             <div className="info-buttons-row">
-              <button
-                className="share-btn"
-                onClick={handleShare}
-                title="Share with timestamp"
-              >
-                <MdShare size={16} />
-              </button>
-
-              <button
-                className={`reshare-btn${hasReshared ? ' reshared' : ''}`}
-                onClick={handleReshare}
-                title={hasReshared ? 'Reshared' : 'Reshare'}
-              >
-                <Repeat2 size={16} />
-                {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
-              </button>
-
-              {isInWatchLater && (
-                <button
-                  className={`watch-later-remove-btn ${isRemovingWatchLater ? 'loading' : ''}`}
-                  onClick={handleRemoveFromWatchLater}
-                  disabled={isRemovingWatchLater}
-                  title="Remove from Watch Later"
-                >
-                  <span className="watch-later-icon-wrap">
-                    <MdWatchLater />
-                    <span className="x-badge">&times;</span>
-                  </span>
-                </button>
-              )}
-
-              {authenticated && isLoggedIn() && (
-                <>
-                  <button className="playlist-btn" onClick={() => setIsPlaylistModalOpen(true)} title="Add to playlist">
-                    <MdPlaylistAdd />
+              {FEATURE_EDITOR && canRemixClip && (
+                <div className="info-buttons-left">
+                  <button
+                    className={`clip-btn${clipMode ? ' active' : ''}`}
+                    onClick={clipMode ? handleCancelClip : handleStartClipMode}
+                    title={!authenticated ? 'Log in to clip' : clipMode ? 'Cancel clip' : 'Clip video'}
+                    disabled={!authenticated}
+                  >
+                    <Scissors size={16} />
+                    <span className="tools-row-label">Clip Video</span>
                   </button>
-                  <Button text="Tip" prominent onClick={() => setIsTipModalOpen(true)} />
-                </>
+                  {clipMode && (
+                    <div className="clip-bar-inline">
+                      <span className="clip-bar-inline-label">
+                        {clipMode === 'start' && 'Seek to start'}
+                        {clipMode === 'end' && `${formatTime(clipStart)} →`}
+                        {clipMode === 'done' && `${formatTime(clipStart)} – ${formatTime(clipEnd)}`}
+                      </span>
+                      {clipMode === 'start' && (
+                        <button className="clip-action-btn" onClick={handleSetClipStart}>Set Start</button>
+                      )}
+                      {clipMode === 'end' && (
+                        <button className="clip-action-btn" onClick={handleSetClipEnd}>Set End</button>
+                      )}
+                      {clipMode === 'done' && (
+                        <button className="clip-action-btn" onClick={handleCreateClip}>Create Clip</button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
 
-              <CommentVoteTooltip
-                showTooltip={showTooltip}
-                setShowTooltip={setShowTooltip}
-                author={author}
-                permlink={permlink}
-                weight={weight}
-                setWeight={setWeight}
-                voteValue={voteValue}
-                setVoteValue={setVoteValue}
-                accountData={accountData}
-                setAccountData={setAccountData}
-                compact
-                onVoteSuccess={(a, p, isNewVote) => {
-                  setIsVoted(true);
-                  if (isNewVote) setOptimisticVoteCount(prev => prev + 1);
-                }}
-              />
+              <div className="info-buttons-right">
+                <button
+                  className="share-btn"
+                  onClick={handleShare}
+                  title="Share with timestamp"
+                >
+                  <MdShare size={16} />
+                </button>
+
+                <button
+                  className={`reshare-btn${hasReshared ? ' reshared' : ''}`}
+                  onClick={handleReshare}
+                  title={hasReshared ? 'Reshared' : 'Reshare'}
+                >
+                  <Repeat2 size={16} />
+                  {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
+                </button>
+
+                {isInWatchLater && (
+                  <button
+                    className={`watch-later-remove-btn ${isRemovingWatchLater ? 'loading' : ''}`}
+                    onClick={handleRemoveFromWatchLater}
+                    disabled={isRemovingWatchLater}
+                    title="Remove from Watch Later"
+                  >
+                    <span className="watch-later-icon-wrap">
+                      <MdWatchLater />
+                      <span className="x-badge">&times;</span>
+                    </span>
+                  </button>
+                )}
+
+                {authenticated && isLoggedIn() && (
+                  <>
+                    <button className="playlist-btn" onClick={() => setIsPlaylistModalOpen(true)} title="Add to playlist">
+                      <MdPlaylistAdd />
+                    </button>
+                    <Button text="Tip" prominent onClick={() => setIsTipModalOpen(true)} />
+                  </>
+                )}
+
+                <CommentVoteTooltip
+                  showTooltip={showTooltip}
+                  setShowTooltip={setShowTooltip}
+                  author={author}
+                  permlink={permlink}
+                  weight={weight}
+                  setWeight={setWeight}
+                  voteValue={voteValue}
+                  setVoteValue={setVoteValue}
+                  accountData={accountData}
+                  setAccountData={setAccountData}
+                  compact
+                  onVoteSuccess={(a, p, isNewVote) => {
+                    setIsVoted(true);
+                    if (isNewVote) setOptimisticVoteCount(prev => prev + 1);
+                  }}
+                />
+              </div>
             </div>
           </div>
 
-          {FEATURE_EDITOR && (
-            <div className="tools-row">
-              <button
-                className="remix-btn"
-                onClick={handleRemix}
-                title={!authenticated ? 'Log in to remix' : !videoUrlSelected || !videoControls?.duration ? 'Loading video...' : videoControls.duration > 60 ? 'Remix only available for videos under 60s' : 'Remix in editor'}
-                disabled={!authenticated || !videoUrlSelected || !videoControls?.duration || videoControls.duration > 60}
-              >
-                <Tornado size={16} />
-                <span className="tools-row-label">Remix</span>
-              </button>
+          {/* Mobile-only tools row (Clip hidden from info-buttons-left on mobile) */}
+          {FEATURE_EDITOR && canRemixClip && (
+            <div className="tools-row mobile-only">
               <button
                 className={`clip-btn${clipMode ? ' active' : ''}`}
                 onClick={clipMode ? handleCancelClip : handleStartClipMode}
@@ -773,7 +839,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 disabled={!authenticated}
               >
                 <Scissors size={16} />
-                <span className="tools-row-label">Clip</span>
+                <span className="tools-row-label">Clip Video</span>
               </button>
             </div>
           )}
@@ -880,8 +946,11 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         onClose={() => setShowEditorModal(false)}
         videoUrl={editorVideoUrl}
         videoName={editorVideoName}
+        videoType={editorVideoType}
         clipStart={editorClipStart}
         clipEnd={editorClipEnd}
+        originalAuthor={author}
+        originalPermlink={permlink}
       />
 
       {/* Mobile FAB — speed-dial for quick actions */}
@@ -949,6 +1018,19 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     aria-label="Tip"
                   >
                     <MdAttachMoney size={20} />
+                  </button>
+                </div>
+              )}
+
+              {FEATURE_EDITOR && canRemixClip && authenticated && isLoggedIn() && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Clip Video</span>
+                  <button
+                    className={`fab-action-btn${clipMode ? ' fab-action-btn--active' : ''}`}
+                    onClick={() => { setMobileDetailsExpanded(true); handleStartClipMode(); setFabOpen(false); }}
+                    aria-label="Clip"
+                  >
+                    <Scissors size={18} />
                   </button>
                 </div>
               )}

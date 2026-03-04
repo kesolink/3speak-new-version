@@ -1,25 +1,45 @@
-import { GiToggles } from "react-icons/gi";
 import logo from "../../assets/image/3S_logo.svg";
 import logoDark from "../../assets/image/3S_logodark.png";
 import "./nav.scss";
 import { CiSearch } from "react-icons/ci";
 import Sidebar from "../Sidebar/Sidebar";
-import { Link, NavLink } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
-import { useGetMyQuery } from "../../hooks/getUserDetails";
 import ThemeToggle from "./ThemeToggle";
 import { AiOutlineClose} from "react-icons/ai";
 import { IoCloudUploadSharp } from "react-icons/io5";
-import { MdOutlineDashboard, MdOutlineDynamicFeed, MdOutlineLeaderboard, MdPlaylistPlay } from "react-icons/md";
-import { FaFire, FaRegSmile } from "react-icons/fa";
-import { LuNewspaper } from "react-icons/lu";
-import apple_icon from "../../assets/image/app-store.png"
-import play_store from "../../assets/image/playstore.png"
 import { useEffect, useRef, useState } from "react";
 import SearchList from "./SearchList";
 import SearchList_Sm from "./SearchList_Sm";
 import { TiThMenu } from "react-icons/ti";
-import ShortsIcon from "../icons/ShortsIcon";
+import UploadLinks from "../UploadLinks";
+
+function NavUploadDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="nav-upload-wrapper" ref={ref}>
+      <div className="nav-upload-btn" onClick={() => setOpen(!open)} title="Upload">
+        <IoCloudUploadSharp size={18} />
+        <span className="nav-upload-label">Upload</span>
+      </div>
+      {open && (
+        <div className="nav-upload-flyout" onClick={() => setOpen(false)}>
+          <UploadLinks linkClass="nav-upload-flyout-item" iconClass="nav-upload-flyout-icon" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
@@ -97,70 +117,17 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
         <SearchList searchTerm={searchTerm} setSearchTerm={setSearchTerm} searchBoxRef={searchBoxRef} isDropdownOpen={isDropdownOpen} setIsDropdownOpen={setIsDropdownOpen} />
       </div>
       <div className={nav ? "side-nav" : "side-nav-else"} ref={sideNavRef}>
-      <AiOutlineClose className="close-nav" onClick={handleNav}/> 
-
-      <div >
-            <div className="shortcut-links" >
-
-            <div className="search-wrap-sm" >
-                <div className="wrap" ref={searchBoxRefsm}>
-                 <input onFocus={() => setIsDropdownOpensm(true)} type="text" value={searchTermSm}  onChange={(e)=> setSearchTermSm(e.target.value.toLowerCase()) } />
-                 <CiSearch size={20} color="green" />
-                </div>
-                <SearchList_Sm searchTerm={searchTermSm} setSearchTerm={setSearchTermSm} handleNav={handleNav} searchBoxRefsm={searchBoxRefsm} isDropdownOpensm={isDropdownOpensm} setIsDropdownOpensm={setIsDropdownOpensm} />
-              </div>
-              <Link to="/" className="side-link-n" onClick={handleNav}>
-                <MdOutlineDashboard className="icon" /> <span>Home</span>
-              </Link>
-              <Link to="/shorts" className="side-link-n" onClick={handleNav}>
-                <ShortsIcon className="icon" outlineWidth={30} /> <span>Shorts</span>
-              </Link>
-              {authenticated && <Link to="/studio" className="side-link-n" onClick={handleNav}>
-                <IoCloudUploadSharp className="icon" /> <span>Upload Video</span>
-              </Link>}
-              {authenticated && <Link to="/profile?tab=playlists" className="side-link-n" onClick={handleNav}>
-                <MdPlaylistPlay className="icon" /> <span>My Playlists</span>
-              </Link>}
-              <Link to="/firstupload" className="side-link-n" onClick={handleNav}>
-                <FaRegSmile className="icon"/> <span>First Uploads</span>
-              </Link>
-
-              <Link to="/trend" className="side-link-n" onClick={handleNav}>
-                <FaFire className="icon" /> <span>Trending Content</span>
-              </Link>
-              <Link to="/new" className="side-link-n" onClick={handleNav}>
-                <LuNewspaper className="icon" /> <span>New Content</span>
-              </Link>
-              <Link to="/communities" className="side-link-n" onClick={handleNav}>
-                <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>
-              </Link>
-              {/* <Link to="/leaderboard" className="side-link-n" onClick={handleNav}>
-                <MdOutlineLeaderboard className="icon" /> <span>Leaderboard</span>
-              </Link> */}
-              <Link to="/about" className="side-link-n" onClick={handleNav}>
-                <MdOutlineLeaderboard className="icon" /> <span>About</span>
-              </Link>
-              {/* <div className="side-link-n" onClick={handleNav}>
-                <HiInformationCircle className="icon" /> <span>About 3speak</span>
-              </div> */}
-              
-
-          
-      
-              <hr />
-            </div>
-            <div className="subscibed-list">
-              <h3>Download</h3>
-              <div className="side-link-n">
-                <img src={apple_icon} alt=""className="store-icon" /> <span>Apple Store</span>
-              </div>
-              <div className="side-link-n">
-              <img src={play_store} alt=""className="store-icon" /> <span>Play Store</span>
-              </div>
-              
-              
-            </div>
+      <AiOutlineClose className="close-nav" onClick={handleNav}/>
+      <div className="side-nav-search">
+        <div className="search-wrap-sm">
+          <div className="wrap" ref={searchBoxRefsm}>
+            <input onFocus={() => setIsDropdownOpensm(true)} type="text" value={searchTermSm} onChange={(e) => setSearchTermSm(e.target.value.toLowerCase())} placeholder="Search..." />
+            <CiSearch size={20} color="green" />
           </div>
+          <SearchList_Sm searchTerm={searchTermSm} setSearchTerm={setSearchTermSm} handleNav={handleNav} searchBoxRefsm={searchBoxRefsm} isDropdownOpensm={isDropdownOpensm} setIsDropdownOpensm={setIsDropdownOpensm} />
+        </div>
+      </div>
+      <Sidebar sidebar={true} onNavigate={handleNav} />
       </div>
 
 
@@ -168,6 +135,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
 
       {authenticated ? (
         <div className="nav-right flex-div">
+          <NavUploadDropdown />
           <ThemeToggle />
           <span>{user}</span>
           {/* <IoIosNotifications size={20} /> */}

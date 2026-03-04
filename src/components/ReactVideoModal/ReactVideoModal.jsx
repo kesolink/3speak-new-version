@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { MdUploadFile, MdVideocam, MdStop, MdFiberManualRecord } from 'react-icons/md';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
-import { EMBED_UPLOAD_URL, EMBED_API_KEY } from '../../utils/config';
+import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY } from '../../utils/config';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
 import './ReactVideoModal.scss';
@@ -270,6 +270,31 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
       );
 
       if (result.success) {
+        // Link the embed video to the Hive post
+        try {
+          // Extract embed permlink from embedUrl (format: .../embed?v=owner/permlink)
+          const vParam = new URL(embedUrl).searchParams.get('v');
+          const embedPermlink = vParam ? vParam.split('/').pop() : null;
+          if (embedPermlink && EMBED_API_URL) {
+            await fetch(`${EMBED_API_URL}/video/${embedPermlink}/hive`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
+              },
+              body: JSON.stringify({
+                hive_author: user,
+                hive_permlink: newPermlink,
+                hive_title: '',
+                hive_body: commentBody,
+                hive_tags: ['3speak', 'reaction'],
+              }),
+            });
+          }
+        } catch (linkErr) {
+          console.warn('Failed to link embed video to Hive post:', linkErr);
+        }
+
         toast.success('Video reaction posted!');
         setStatusText('Done!');
         if (onPosted) onPosted();

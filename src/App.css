@@ -17,6 +17,17 @@
   margin: 0 !important;
 }
 
+/* Remove container padding when Shorts page is active */
+.container:has(.short-main) {
+  padding: 0 !important;
+}
+
+@media (max-width: 767px) {
+  .container:has(.short-main) {
+    background: #000 !important;
+  }
+}
+
 @media (max-width: 767px) {
   .container {
     padding-left: 2%;
@@ -39,5 +50,13 @@
   }
   .large-container {
     padding-left: 2%;
+  }
+}
+
+/* Phone landscape: remove container padding so video fills the viewport height */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .container {
+    padding-top: 0;
+    padding-bottom: 0;
   }
 }

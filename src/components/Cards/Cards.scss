@@ -20,9 +20,9 @@
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
     @include respond(phone) {
       border-radius: 8px;
+      min-width: 0;
+      overflow: hidden;
    }
-    
-    
 
     .img-wrap {
       // width: 270px;
@@ -404,6 +404,26 @@
   }
 }
 
+
+// Shorts grid: 9:16 vertical thumbnails
+.card-container--shorts {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+
+  @include respond(phone) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .card .img-wrap {
+    // 9:16 aspect ratio container
+    aspect-ratio: 9 / 16;
+    height: auto;
+
+    img {
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+}
 
 @keyframes fadeIn {
   from {

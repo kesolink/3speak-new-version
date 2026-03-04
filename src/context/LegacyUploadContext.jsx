@@ -4,8 +4,9 @@ import { useAppStore } from "../lib/store";
 import { toast } from 'sonner'
 import * as tus from "tus-js-client";
 import axios from "axios";
-import { UPLOAD_TOKEN, UPLOAD_URL } from "../utils/config";
+import { UPLOAD_TOKEN, UPLOAD_URL, CHECKER_URL } from "../utils/config";
 import { getTusUploadOptions } from "../utils/tusConfig";
+import { getSchedulingParams } from "../utils/schedulingHelpers";
 
 const LegacyUploadContext = createContext();
 
@@ -53,6 +54,9 @@ export function LegacyUploadProvider({ children }) {
     // SCHEDULING STATES
     isScheduled: false,
     scheduleDateTime: '',
+
+    // REUSABLE (allow remix/clip)
+    reusable: true,
 
     // State for VideoUploadStatus
       uploading: false,
@@ -132,6 +136,7 @@ export function LegacyUploadProvider({ children }) {
   // ============================================
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState('');
+  const [reusable, setReusable] = useState(true);
 
 
   // Keep ref updated on every uploadStatus change
@@ -284,6 +289,14 @@ export function LegacyUploadProvider({ children }) {
         }
       }
 
+      const schedulingParams = getSchedulingParams(isScheduled, scheduleDateTime);
+
+      if (schedulingParams.publish_type === 'error') {
+        toast.error(schedulingParams.error || 'Invalid schedule time');
+        setIsSubmitting(false);
+        return;
+      }
+
       const raw = {
         upload_id: uploadId,
         owner: username,
@@ -296,9 +309,11 @@ export function LegacyUploadProvider({ children }) {
         community,
         declineRewards,
         rewardPowerup,
+        reusable,
         beneficiaries: parsedBeneficiaries,
+        ...schedulingParams,
       }
-      
+
       console.log('Finalizing upload with:', raw);
 
       const res = await axios.post(
@@ -326,6 +341,18 @@ export function LegacyUploadProvider({ children }) {
 
       console.log('✔ Upload finalized successfully');
 
+      // Set reusable flag via checker (workaround until upload service is redeployed)
+      try {
+        await axios.patch(
+          `${CHECKER_URL}/api/video/${username}/${perm}/reusable`,
+          { reusable: !!reusable },
+          { headers: { Authorization: `Bearer ${UPLOAD_TOKEN}` } }
+        );
+        console.log(`✔ Reusable flag set to ${reusable} via checker`);
+      } catch (e) {
+        console.warn('⚠ Failed to set reusable via checker:', e.message);
+      }
+
       // Upload thumbnail if exists
       if (thumbnailFile) {
         try {
@@ -346,9 +373,6 @@ export function LegacyUploadProvider({ children }) {
           console.warn("Thumbnail upload failed:", err);
         }
       }
-
-
-
 
       startEncodingPolling (vid)
       // resetUploadState();
@@ -489,7 +513,16 @@ const startTusUpload = async (file) => {
     if (!result.success) throw new Error(result.error || "Upload init failed");
 
     const upload_id = result.data.upload_id;
-    const tus_endpoint = result.data.tus_endpoint;
+    let tus_endpoint = result.data.tus_endpoint;
+
+    // If UPLOAD_URL is a proxy path (starts with /), rewrite the absolute TUS
+    // endpoint to go through the same proxy to avoid CORS issues.
+    if (UPLOAD_URL.startsWith('/') && tus_endpoint.startsWith('http')) {
+      try {
+        const parsed = new URL(tus_endpoint);
+        tus_endpoint = UPLOAD_URL + parsed.pathname;
+      } catch { /* keep original if URL parsing fails */ }
+    }
 
     setUploadId(upload_id);
 
@@ -600,6 +633,7 @@ const startTusUpload = async (file) => {
     encodingIntervalRef.current = initialState.encodingIntervalRef; // or null
 
     setIsUploadLocked(initialState.isUploadLocked)
+    setReusable(initialState.reusable)
 
   };
  
@@ -672,6 +706,9 @@ const startTusUpload = async (file) => {
         // Scheduling states
         isScheduled, setIsScheduled,
         scheduleDateTime, setScheduleDateTime,
+
+        // Reusable (allow remix/clip)
+        reusable, setReusable,
 
         startTusUpload,
         uploadVideoTo3Speak,

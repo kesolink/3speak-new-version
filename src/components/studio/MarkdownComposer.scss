@@ -3,8 +3,7 @@
 .markdown-composer {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 300px;
+  min-height: 120px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background-color: var(--bg-secondary);
@@ -155,7 +154,6 @@
     display: flex;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
 
     &.editor {
       .editor-panel {
@@ -203,12 +201,13 @@
     flex-direction: column;
 
     textarea {
-      flex: 1;
       width: 100%;
+      min-height: 120px;
       padding: 16px;
       border: none;
       outline: none;
       resize: none;
+      overflow-y: auto;
       font-family: "SF Mono", "Fira Code", "Monaco", "Inconsolata", monospace;
       font-size: 14px;
       line-height: 1.6;
@@ -263,6 +262,8 @@
 
   // Preview panel
   .preview-panel {
+    flex: 1;
+    min-width: 0;
     overflow-y: auto;
     padding: 16px;
     background-color: var(--bg-secondary);
@@ -370,6 +371,33 @@
         height: auto;
         border-radius: 8px;
         margin: 1em 0;
+      }
+
+      iframe {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        border-radius: 8px;
+        margin: 1em 0;
+      }
+
+      .video-container {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        position: relative;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 1em 0;
+
+        iframe {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border: 0;
+        }
       }
 
       table {

@@ -106,11 +106,28 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
   };
 
   const handleDelete = (index) => {
+  if (list[index].locked) return; // locked items cannot be deleted
   const deletedPercent = list[index].percent; // get the percent of the item being deleted
   const updatedList = list.filter((_, i) => i !== index); // remove the item
   setList(updatedList);
   setRemaingPercent((prev) => prev + deletedPercent); // add back the deleted percent
 };
+
+  const handleLockedPercentChange = (index, newPercent) => {
+    const item = list[index];
+    if (!item.locked) return;
+    const minP = item.minPercent || 1;
+    const value = Math.max(minP, parseFloat(newPercent) || minP);
+    const diff = value - item.percent;
+    if (diff > remaingPercent) {
+      setError(`Cannot increase beyond remaining ${remaingPercent}%`);
+      return;
+    }
+    setError('');
+    const updatedList = list.map((it, i) => i === index ? { ...it, percent: value } : it);
+    setList(updatedList);
+    setRemaingPercent(prev => prev - diff);
+  };
 
   const handleSave = () => {
     // Map the list to the required format
@@ -160,11 +177,27 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
             {list.map((item, index) => (
               <div className="wrap" key={index}>
                 <span>@{item.account}</span>
-                <span>{item.percent}%</span>
-                <MdDeleteForever
-                  className="delete-icon"
-                  onClick={() => handleDelete(index)}
-                />
+                {item.locked ? (
+                  <>
+                    <input
+                      type="number"
+                      value={item.percent}
+                      min={item.minPercent || 1}
+                      step="1"
+                      style={{ width: '50px', textAlign: 'center' }}
+                      onChange={(e) => handleLockedPercentChange(index, e.target.value)}
+                    />
+                    <span>% (min {item.minPercent}%)</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{item.percent}%</span>
+                    <MdDeleteForever
+                      className="delete-icon"
+                      onClick={() => handleDelete(index)}
+                    />
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -232,15 +265,18 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
             <button onClick={handleSave}>Continue</button>
           </div>
 
-          <div className="default-bene-wrap">
-            <p>Default Beneficiaries (2)</p>
-            <div className="wrap">
-              <span>spk.beneficiary</span> <span>10% === Infrastructure</span>
+          {!list.some(item => item.locked) && (
+            <div className="default-bene-wrap">
+              <p>Default Beneficiaries (2)</p>
+              <div className="wrap">
+                <span>spk.beneficiary</span> <span>10% === Infrastructure</span>
+              </div>
+              <div className="wrap">
+                 <span> Video Encoding === 1%</span>
+              </div>
             </div>
-            <div className="wrap">
-               <span> Video Encoding === 1%</span>
-            </div>
-          </div>
+          )}
+
         </div>
       </div>
     </div>
