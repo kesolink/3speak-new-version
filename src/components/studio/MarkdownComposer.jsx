@@ -439,7 +439,7 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className="preview-panel">
             {renderedContent ? (
-              <div 
+              <div
                 className="preview-content markdown-view"
                 dangerouslySetInnerHTML={{ __html: renderedContent }}
               />

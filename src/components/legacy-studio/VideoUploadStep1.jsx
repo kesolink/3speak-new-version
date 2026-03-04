@@ -146,11 +146,11 @@ function VideoUploadStep1() {
                 </label>
               ) : (
                 <div className="button-group">
-                  <label onClick={() => videoInputRef.current?.click()} className="button button-secondary">
-                    Choose Different Video
-                  </label>
                   <label onClick={uploadVideo} className="button">
                     Proceed to Thumbnails
+                  </label>
+                  <label onClick={() => videoInputRef.current?.click()} className="button button-secondary">
+                    Choose Different Video
                   </label>
                 </div>
               )}
