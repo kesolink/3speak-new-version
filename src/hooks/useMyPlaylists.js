@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAppStore } from '../lib/store';
-import { PLAYLISTS_API_URL } from '../utils/config';
+import { PLAYLISTS_API_URL, HIVE_API_URL } from '../utils/config';
 
 /**
  * Fetch ALL playlists for the authenticated user (public + private)
@@ -29,11 +29,43 @@ export function useMyPlaylists(options = {}) {
       const playlists = response.data?.playlists || [];
 
       // Sort by updated_at descending (most recently modified first)
-      return playlists.sort((a, b) => {
+      playlists.sort((a, b) => {
         const dateA = new Date(a.updated_at || a.created_at || 0);
         const dateB = new Date(b.updated_at || b.created_at || 0);
         return dateB - dateA;
       });
+
+      // Fetch thumbnails from the first video in each playlist
+      const playlistsWithThumbnails = await Promise.all(
+        playlists.map(async (playlist) => {
+          if (playlist.items?.length > 0) {
+            const firstItem = playlist.items[0];
+            try {
+              const res = await axios.post(HIVE_API_URL, {
+                jsonrpc: '2.0',
+                method: 'condenser_api.get_content',
+                params: [firstItem.author, firstItem.permlink],
+                id: 1,
+              });
+              const jsonMetadata = res.data?.result?.json_metadata;
+              if (jsonMetadata) {
+                const metadata = typeof jsonMetadata === 'string' ? JSON.parse(jsonMetadata) : jsonMetadata;
+                if (metadata.image?.[0]) {
+                  return { ...playlist, thumbnail: metadata.image[0] };
+                }
+                if (metadata.video?.info?.ipfsThumbnail) {
+                  return { ...playlist, thumbnail: `https://ipfs-3speak.b-cdn.net/ipfs/${metadata.video.info.ipfsThumbnail}` };
+                }
+              }
+            } catch (e) {
+              // ignore, fall through to no thumbnail
+            }
+          }
+          return playlist;
+        })
+      );
+
+      return playlistsWithThumbnails;
     },
     enabled: !!user,
     staleTime: 2 * 60 * 1000, // 2 minutes
