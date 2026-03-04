@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { getFollowers, getRelationshipBetweenAccounts } from '../../hive-api/api';
+import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '../../hive-api/api';
 import { followWithAioha } from '../../hive-api/aioha';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import icon from "../../../public/images/stack.png"
@@ -57,6 +57,14 @@ function UserProfilePage() {
         navigate(redirectUrl, { replace: true });
       }
     }, [isOwnProfile, navigate, searchParams]);
+
+    // Check if account exists on Hive
+    const [userExists, setUserExists] = useState(null); // null = loading, true/false = result
+    useEffect(() => {
+      if (!user || isOwnProfile) return;
+      setUserExists(null);
+      isAccountValid(user).then(setUserExists);
+    }, [user, isOwnProfile]);
 
     // Fetch user's public playlists
     const { data: playlists = [], isLoading: playlistsLoading, error: playlistsError, refetch: refetchPlaylists } = useUserPlaylists(user);
@@ -241,6 +249,26 @@ const {
         navigate(`/wallet/${user}`)
       }
     
+  if (userExists === null && !isOwnProfile) {
+    return <div className="profile-page-container"><BarLoader /></div>;
+  }
+
+  if (userExists === false) {
+    return (
+      <div className="profile-page-container">
+        <div className="empty-wrap" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>404</h2>
+          <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+            User <strong>@{user}</strong> does not exist
+          </p>
+          <button onClick={() => navigate('/')} style={{ padding: '10px 24px', borderRadius: '8px', background: 'var(--accent-primary, #e53935)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="profile-page-container">
       <div className="profile-card">

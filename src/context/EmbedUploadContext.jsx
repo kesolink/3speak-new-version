@@ -272,7 +272,7 @@ export function EmbedUploadProvider({ children }) {
       const jsonMetadata = {
         app: '3speak/embed',
         format: 'markdown',
-        tags: ['3speak', ...tagsPreview],
+        tags: ['3speak', 'hive-181335', 'short', ...tagsPreview.filter(t => !['3speak', 'hive-181335', 'short'].includes(t))],
         ...(thumbnailUrl ? { image: [thumbnailUrl] } : {}),
         video: {
           platform: '3speak',
@@ -310,8 +310,8 @@ export function EmbedUploadProvider({ children }) {
       const commentOptions = {
         author: user,
         permlink: hivePermlink,
-        max_accepted_payout: '1000000.000 HBD',
-        percent_hbd: 10000,
+        max_accepted_payout: declineRewards ? '0.000 HBD' : '1000000.000 HBD',
+        percent_hbd: rewardPowerup ? 0 : 10000,
         allow_votes: true,
         allow_curation_rewards: true,
         extensions: [[0, { beneficiaries: allBeneficiaries }]],
