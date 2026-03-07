@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { usePlayer } from '@mantequilla-soft/3speak-player';
+import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { MdClose, MdPlayArrow, MdPause } from 'react-icons/md';
 import { useAppStore } from '../../lib/store';
 import { PLAYER_URL } from '../../utils/config';

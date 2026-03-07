@@ -1077,6 +1077,9 @@
 
         @include mix.respond(phone) {
             display: block;
+            width: 100%;
+            min-width: 0;
+            overflow: hidden;
         }
     }
 
