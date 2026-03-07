@@ -5,6 +5,13 @@
     min-width: 0;
     @include mix.respond(phone) {
         display: contents;
+
+        // With display:contents, direct children become flex items of .play-container
+        > * {
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+        }
       }
     
     video{
