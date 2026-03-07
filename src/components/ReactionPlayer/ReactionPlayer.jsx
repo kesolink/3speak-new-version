@@ -239,7 +239,9 @@ function ReactionPlayer({
           return Promise.all(replies.map(async (c) => {
             let bodyHtml = '';
             if (render && c.body) {
-              try { bodyHtml = render(c.body); } catch (_) { bodyHtml = c.body; }
+              // Strip timestamp-linked 3speak URLs so renderer doesn't embed them
+              const cleaned = c.body.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]\((https?:\/\/(?:3speak\.tv|play\.3speak\.tv)[^)]*)\)/g, '$1');
+              try { bodyHtml = render(cleaned); } catch (_) { bodyHtml = c.body; }
             } else {
               bodyHtml = c.body || '';
             }

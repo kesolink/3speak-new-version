@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useRef, useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { Link } from "react-router-dom";
@@ -12,6 +12,7 @@ import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
+import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
@@ -185,6 +186,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 
 const HomeGrouped = () => {
   const { authenticated, user } = useAppStore();
+  const queryClient = useQueryClient();
 
   const { data: homeData, isLoading: homeLoading } = useQuery({
     queryKey: authenticated ? ["follow-feed", user] : ["home-grouped"],
@@ -230,7 +232,17 @@ const HomeGrouped = () => {
   // Batch fetch view counts
   const { getViewCount } = useViewCounts(allVideos);
 
+  const handleRefresh = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: authenticated ? ["follow-feed", user] : ["home-grouped"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["firstuploads-grouped"] }),
+      queryClient.invalidateQueries({ queryKey: ["trending-grouped"] }),
+      queryClient.invalidateQueries({ queryKey: ["newcontent-grouped"] }),
+    ]);
+  }, [queryClient, authenticated, user]);
+
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container">
       <ShortsStories />
 
@@ -274,6 +286,7 @@ const HomeGrouped = () => {
         getViewCount={getViewCount}
       />
     </div>
+    </PullToRefresh>
   );
 };
 

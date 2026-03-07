@@ -4,9 +4,7 @@
     max-width: 69%;
     min-width: 0;
     @include mix.respond(phone) {
-        flex-basis: 100%;
-        width: 100%;
-        max-width: 100%;
+        display: contents;
       }
     
     video{
@@ -663,9 +661,10 @@
 
   @include mix.respond(phone) {
     position: sticky;
-    top: 50px; // below nav bar
+    top: var(--nav-top-offset, 50px);
     z-index: 9;
     border-radius: 0;
+    transition: top 0.3s ease;
   }
 
   &:fullscreen,
@@ -1113,7 +1112,7 @@
         flex-direction: column;
         align-items: flex-end;
         position: fixed;
-        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(56px + 16px + env(safe-area-inset-bottom, 0px));
         right: calc(12px + env(safe-area-inset-right, 0px));
         z-index: 50;
     }

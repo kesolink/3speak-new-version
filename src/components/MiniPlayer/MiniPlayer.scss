@@ -1,0 +1,105 @@
+@use "../../mixins.scss" as mix;
+
+.mini-player {
+  display: none;
+  position: fixed;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-light);
+  z-index: 99;
+  align-items: center;
+  cursor: pointer;
+  overflow: hidden;
+
+  @include mix.respond(phone) {
+    display: flex;
+  }
+
+  @include mix.respond(tab) {
+    display: flex;
+  }
+}
+
+.mini-player-video {
+  width: 100px;
+  height: 56px;
+  flex-shrink: 0;
+  background: #000;
+  overflow: hidden;
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.mini-player-info {
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mini-player-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player-author {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+  flex-shrink: 0;
+}
+
+.mini-player-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+}
+
+.mini-player-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-light);
+}
+
+.mini-player-progress-bar {
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width 0.3s linear;
+}

@@ -63,7 +63,7 @@ function Watch() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, watchHistoryEnabled } = useAppStore();
+  const { user, watchHistoryEnabled, setMiniPlayer, clearMiniPlayer } = useAppStore();
   const v = searchParams.get('v'); // Extract the "v" query parameter
   const playlistId = searchParams.get('playlist');
   const posParam = searchParams.get('pos');
@@ -755,6 +755,28 @@ function Watch() {
     recordedWatchRef.current.add(watchKey);
     recordWatch(user, author, permlink);
   }, [user, author, permlink, watchHistoryEnabled]);
+
+  // Save mini player state on unmount (for persistent playback across navigation)
+  const miniPlayerDataRef = useRef(null);
+  useEffect(() => {
+    miniPlayerDataRef.current = {
+      author,
+      permlink,
+      title: videoDetails?.title || '',
+      currentTime: playerState.currentTime || 0,
+      duration: playerState.duration || 0,
+    };
+  });
+  useEffect(() => {
+    // Clear mini player when arriving at watch page
+    clearMiniPlayer();
+    return () => {
+      const d = miniPlayerDataRef.current;
+      if (d && d.author && d.author !== 'unknown' && d.duration > 0 && d.currentTime < d.duration - 2) {
+        setMiniPlayer(d);
+      }
+    };
+  }, []);
 
   // Fetch related videos
   const { data: suggestionsData, loading: suggestionsLoading } = useQuery(GET_RELATED, {

@@ -1,0 +1,25 @@
+.ptr-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: height 0.2s ease, opacity 0.2s ease;
+  color: var(--text-secondary);
+
+  &.ptr-refreshing {
+    transition: none;
+  }
+}
+
+.ptr-spinner {
+  transition: transform 0.2s ease;
+
+  &.ptr-active {
+    animation: ptr-spin 0.8s linear infinite;
+  }
+}
+
+@keyframes ptr-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

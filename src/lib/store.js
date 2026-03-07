@@ -6,6 +6,7 @@ import { createUserDetailsSlice } from './slices/createUserStore';
 import { createVideoSlice } from './slices/createVideoSlice';
 import {createPostProcessingSlice} from "./slices/createPostProcessingSlice"
 import { createThemeSlice } from './slices/createThemeSlice';
+import { createMiniPlayerSlice } from './slices/createMiniPlayerSlice';
 
 export const useAppStore = create(
   persist(
@@ -16,6 +17,7 @@ export const useAppStore = create(
       ...createVideoSlice(...a),
       ...createPostProcessingSlice(...a),
       ...createThemeSlice(...a),
+      ...createMiniPlayerSlice(...a),
       watchHistoryEnabled: true,
       setWatchHistoryEnabled: (enabled) => a[0]({ watchHistoryEnabled: enabled }),
       sidebarOpen: false,

@@ -1,0 +1,67 @@
+@use "../mixins.scss" as mix;
+
+.discover-container {
+  .card-container .card .img-wrap img {
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+.discover-search-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin-bottom: 16px;
+
+  .discover-search-icon {
+    pointer-events: none;
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+  }
+
+  .discover-search-input {
+    width: 100%;
+    border-radius: 9999px;
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+    background: var(--input-bg);
+    color: var(--text-primary);
+    padding: 10px 14px 10px 38px;
+    font-size: 15px;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 2px var(--input-focus);
+    }
+  }
+}
+
+.discover-search-results-anchor {
+  position: relative;
+
+  .search-list {
+    position: absolute;
+    left: 0;
+    right: auto;
+    top: 0;
+    width: 100%;
+    max-width: 500px;
+    z-index: 50;
+  }
+
+  .search-list.list {
+    right: auto;
+    left: 0;
+  }
+}

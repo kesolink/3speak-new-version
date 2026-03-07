@@ -11,6 +11,16 @@
   z-index: 1000;
   transition: background-color 0.3s ease, box-shadow 0.3s ease;
 
+  // Auto-hide on mobile scroll — margin-bottom collapses the sticky space
+  @include mix.respond(phone) {
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, margin-bottom 0.3s ease;
+    &.nav-hidden { transform: translateY(-100%); margin-bottom: calc(-1 * var(--nav-height, 56px)); }
+  }
+  @include mix.respond(tab) {
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, margin-bottom 0.3s ease;
+    &.nav-hidden { transform: translateY(-100%); margin-bottom: calc(-1 * var(--nav-height, 56px)); }
+  }
+
   .nav-left {
     display: flex;
     align-items: center;
@@ -42,9 +52,7 @@
     }
 
     .menu-icon {
-      width: 30px;
-      margin-right: 20px;
-      color: var(--text-primary);
+      display: none;
     }
     .logo {
       width: 130px;
@@ -199,6 +207,12 @@
       width: 35px;
       height: 35px;
       border-radius: 50%;
+      @include mix.respond(phone) {
+        display: none;
+      }
+      @include mix.respond(tab) {
+        display: none;
+      }
     }
   }
   button {

@@ -52,6 +52,43 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const searchBoxRefsm = useRef(null);
    const sideNavRef = useRef(null); // Ref for the side nav container
   const menuIconRef = useRef(null); // Ref for the menu toggle button
+  const [navHidden, setNavHidden] = useState(false);
+  const lastScrollY = useRef(0);
+  const navContainerRef = useRef(null);
+
+  // Measure nav height and set CSS variables globally
+  useEffect(() => {
+    const el = navContainerRef.current;
+    if (!el) return;
+    const updateHeight = () => {
+      const h = `${el.offsetHeight}px`;
+      el.style.setProperty('--nav-height', h);
+      document.documentElement.style.setProperty('--nav-height', h);
+    };
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
+
+  // Expose nav hidden state as CSS variable
+  useEffect(() => {
+    document.documentElement.style.setProperty('--nav-top-offset', navHidden ? '0px' : 'var(--nav-height, 50px)');
+  }, [navHidden]);
+
+  // Auto-hide top nav on scroll down (mobile)
+  useEffect(() => {
+    const onScroll = () => {
+      const currentY = window.scrollY;
+      if (currentY > lastScrollY.current && currentY > 80) {
+        setNavHidden(true);
+      } else {
+        setNavHidden(false);
+      }
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
 
 
@@ -90,7 +127,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
 
 
   return (
-    <nav className="nav-container">
+    <nav ref={navContainerRef} className={`nav-container${navHidden ? ' nav-hidden' : ''}`}>
       <div className="nav-left flex-dev">
         <TiThMenu size={25} className="menu-icon" onClick={() => setSideBar((prev) => (prev === false ? true : false))}/>
         <Link to="/"><img className="logo" src={theme === 'dark' ? logoDark : logo} alt="3Speak" /></Link>
