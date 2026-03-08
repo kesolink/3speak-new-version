@@ -9,7 +9,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  z-index: 9999;
+  @include mix.respond(phone) {
+    align-items: flex-end;
+  }
   &.add {
     background: transparent;
   }
@@ -24,7 +27,11 @@
   border: 1px solid var(--border-light, transparent);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   @include mix.respond(phone) {
-    width: 85%;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    animation: modal-slide-up 0.3s ease forwards;
   }
   &.add {
     padding: 0px;
@@ -146,4 +153,9 @@
     font-size: 12px;
     padding: 8px 12px;
   }
+}
+
+@keyframes modal-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }

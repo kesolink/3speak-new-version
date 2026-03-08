@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom';
 import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '../../hive-api/api';
-import { followWithAioha } from '../../hive-api/aioha';
+import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import icon from "../../../public/images/stack.png"
 import "./UserProfilePage.scss"
@@ -12,6 +13,9 @@ import axios from 'axios';
 import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
+import { MdAdd, MdClose, MdPlayArrow } from 'react-icons/md';
+import { RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
+import { BiDollar } from 'react-icons/bi';
 import Follower from './Follower';
 import PlaylistCard from '../Cards/PlaylistCard';
 import { useUserPlaylists } from '../../hooks/useUserPlaylists';
@@ -22,6 +26,8 @@ import { useContentBatch } from '../../hooks/useContentBatch';
 import { useWatchHistory } from '../../hooks/useWatchHistory';
 import useViewCounts from '../../hooks/useViewCounts';
 import { fetchUserShortsWithDetails } from '../../hive-api/hiveApi';
+import ShortsIcon from '../icons/ShortsIcon';
+import TipModal from '../tip-reward/TipModal';
 
 
 
@@ -44,6 +50,8 @@ function UserProfilePage() {
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [newPlaylistAccess, setNewPlaylistAccess] = useState('public');
     const [isCreating, setIsCreating] = useState(false);
+    const [fabOpen, setFabOpen] = useState(false);
+    const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
     // Check if viewing own profile and redirect to /profile
     const isOwnProfile = authenticatedUser && authenticatedUser.toLowerCase() === user?.toLowerCase();
@@ -152,7 +160,8 @@ const {
                 }
                 return undefined;
               },
-              enabled: show === 'shorts',
+              // Always fetch first page so FAB can show "Latest Short"
+              enabled: true,
             });
 
             // Flatten shorts pages and map to Card3 format
@@ -193,6 +202,10 @@ const {
 
             // Flatten all pages into a single array
             const videos = useMemo(() => data?.pages.flat() || [], [data?.pages]);
+
+            // Latest video & short for FAB quick-access
+            const latestVideo = videos[0];
+            const latestShort = shortsVideos[0];
 
             // Batch fetch content data
             const { getContentForVideo } = useContentBatch(videos);
@@ -435,6 +448,99 @@ const {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tip Modal — only mount when open */}
+      {isTipModalOpen && (
+        <TipModal
+          recipient={user}
+          isOpen={isTipModalOpen}
+          onClose={() => setIsTipModalOpen(false)}
+        />
+      )}
+
+      {/* Mobile FAB — speed-dial for quick actions on other users' profiles */}
+      {createPortal(
+        <>
+          {fabOpen && (
+            <div className="profile-fab-backdrop" onClick={() => setFabOpen(false)} />
+          )}
+          <div className={`profile-fab-speed-dial${fabOpen ? ' open' : ''}`}>
+            {fabOpen && (
+              <div className="profile-fab-actions">
+                {authenticated && isLoggedIn() && (
+                  <div className="profile-fab-action">
+                    <span className="profile-fab-action-label">
+                      {isFollowing ? 'Unfollow' : 'Follow'}
+                    </span>
+                    <button
+                      className={`profile-fab-action-btn${isFollowing ? ' profile-fab-action-btn--active' : ''}`}
+                      onClick={() => { handleFollowToggle(); setFabOpen(false); }}
+                      disabled={followLoading}
+                      aria-label={isFollowing ? 'Unfollow' : 'Follow'}
+                    >
+                      {isFollowing ? <RiUserUnfollowLine size={20} /> : <RiUserFollowLine size={20} />}
+                    </button>
+                  </div>
+                )}
+
+                {authenticated && isLoggedIn() && (
+                  <div className="profile-fab-action">
+                    <span className="profile-fab-action-label">Tip</span>
+                    <button
+                      className="profile-fab-action-btn"
+                      onClick={() => { setIsTipModalOpen(true); setFabOpen(false); }}
+                      aria-label="Tip creator"
+                    >
+                      <BiDollar size={20} />
+                    </button>
+                  </div>
+                )}
+
+                {latestVideo && (
+                  <div className="profile-fab-action">
+                    <span className="profile-fab-action-label">Latest Video</span>
+                    <button
+                      className="profile-fab-action-btn"
+                      onClick={() => {
+                        setFabOpen(false);
+                        navigate(`/watch?v=${latestVideo.author}/${latestVideo.permlink}`);
+                      }}
+                      aria-label="Watch latest video"
+                    >
+                      <MdPlayArrow size={22} />
+                    </button>
+                  </div>
+                )}
+
+                {latestShort && (
+                  <div className="profile-fab-action">
+                    <span className="profile-fab-action-label">Latest Short</span>
+                    <button
+                      className="profile-fab-action-btn"
+                      onClick={() => {
+                        setFabOpen(false);
+                        navigate(`/shorts?v=${latestShort.author}/${latestShort.permlink}&user=${user}`);
+                      }}
+                      aria-label="Watch latest short"
+                    >
+                      <ShortsIcon className="profile-fab-shorts-icon" outlineWidth={30} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              className="profile-fab-main"
+              onClick={() => setFabOpen(prev => !prev)}
+              aria-label={fabOpen ? 'Close menu' : 'Open actions'}
+            >
+              {fabOpen ? <MdClose size={24} /> : <MdAdd size={24} />}
+            </button>
+          </div>
+        </>,
+        document.body
       )}
     </div>
   )

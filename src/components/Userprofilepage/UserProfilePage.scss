@@ -607,3 +607,129 @@
     }
   }
 }
+
+// ===== Profile page mobile FAB =====
+.profile-fab-backdrop {
+  display: none;
+
+  @include mix.respond(phone) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 9998;
+    animation: profile-fab-fade-in 0.2s ease;
+  }
+}
+
+.profile-fab-speed-dial {
+  display: none;
+
+  @include mix.respond(phone) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    position: fixed;
+    bottom: calc(56px + 16px + env(safe-area-inset-bottom, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    z-index: 9999;
+  }
+}
+
+.profile-fab-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-right: calc((56px - 44px) / 2);
+}
+
+.profile-fab-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  opacity: 0;
+  transform: translateY(12px) scale(0.8);
+  animation: profile-fab-action-in 0.25s ease forwards;
+
+  @for $i from 1 through 5 {
+    &:nth-last-child(#{$i}) {
+      animation-delay: #{$i * 0.04}s;
+    }
+  }
+}
+
+.profile-fab-action-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #fff);
+  background: var(--bg-elevated, #2a2a2a);
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.profile-fab-action-btn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-elevated, #2a2a2a);
+  color: var(--text-primary, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: background 0.15s ease, transform 0.15s ease;
+
+  &:active {
+    transform: scale(0.9);
+  }
+
+  &--active {
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+  }
+}
+
+.profile-fab-shorts-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.profile-fab-main {
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(229, 57, 53, 0.4);
+  z-index: 51;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:active {
+    transform: scale(0.92);
+  }
+}
+
+@keyframes profile-fab-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes profile-fab-action-in {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

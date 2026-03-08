@@ -1,13 +1,15 @@
 import "./FirstUploads.scss";
 import CardSkeleton from "../components/Cards/CardSkeleton";
-import { useEffect } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect, useCallback } from "react";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
 import { TRENDING_SORTED_URL } from '../utils/config';
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
+import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
+import { TrendingIcon } from "../components/FeedIcons";
 
 const LIMIT = 50;
 
@@ -17,6 +19,8 @@ const fetchVideos = async ({ pageParam = 1 }) => {
 };
 
 const Trend = () => {
+  const queryClient = useQueryClient();
+
   const {
     data,
     fetchNextPage,
@@ -62,9 +66,17 @@ const Trend = () => {
   // Batch fetch view counts
   const { getViewCount } = useViewCounts(videos);
 
+  const handleRefresh = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ["trending"] });
+  }, [queryClient]);
+
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="firstupload-container">
-      <div className="headers">TRENDING</div>
+      <div className="feed-page-header">
+        <TrendingIcon />
+        <h2>Trending</h2>
+      </div>
 
       {isLoading ? (
         <CardSkeleton />
@@ -78,6 +90,7 @@ const Trend = () => {
         <p style={{ textAlign: "center" }}>Loading more...</p>
       )}
     </div>
+    </PullToRefresh>
   );
 };
 

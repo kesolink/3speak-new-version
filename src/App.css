@@ -32,6 +32,7 @@
   .container {
     padding-left: 2%;
     padding-top: 10px;
+    padding-bottom: 70px;
   }
   .large-container {
     padding-left: 2%;
@@ -39,6 +40,13 @@
   .shorts-mobile-container {
     padding: 0 !important;
     padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .container {
+    padding-bottom: 70px;
   }
 }
 

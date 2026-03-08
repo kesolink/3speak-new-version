@@ -1,7 +1,6 @@
 import logo from "../../assets/image/3S_logo.svg";
 import logoDark from "../../assets/image/3S_logodark.png";
 import "./nav.scss";
-import { CiSearch } from "react-icons/ci";
 import Sidebar from "../Sidebar/Sidebar";
 import { Link } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
@@ -9,8 +8,7 @@ import ThemeToggle from "./ThemeToggle";
 import { AiOutlineClose} from "react-icons/ai";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { useEffect, useRef, useState } from "react";
-import SearchList from "./SearchList";
-import SearchList_Sm from "./SearchList_Sm";
+import NavSearch from "./NavSearch";
 import { TiThMenu } from "react-icons/ti";
 import UploadLinks from "../UploadLinks";
 
@@ -44,14 +42,45 @@ function NavUploadDropdown() {
 function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
   const [nav, setNav] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const searchBoxRef = useRef(null);
-  const [searchTermSm, setSearchTermSm] = useState('');
-  const [isDropdownOpensm, setIsDropdownOpensm] = useState(false);
-  const searchBoxRefsm = useRef(null);
    const sideNavRef = useRef(null); // Ref for the side nav container
   const menuIconRef = useRef(null); // Ref for the menu toggle button
+  const [navHidden, setNavHidden] = useState(false);
+  const lastScrollY = useRef(0);
+  const navContainerRef = useRef(null);
+
+  // Measure nav height and set CSS variables globally
+  useEffect(() => {
+    const el = navContainerRef.current;
+    if (!el) return;
+    const updateHeight = () => {
+      const h = `${el.offsetHeight}px`;
+      el.style.setProperty('--nav-height', h);
+      document.documentElement.style.setProperty('--nav-height', h);
+    };
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
+
+  // Expose nav hidden state as CSS variable
+  useEffect(() => {
+    document.documentElement.style.setProperty('--nav-top-offset', navHidden ? '0px' : 'var(--nav-height, 50px)');
+  }, [navHidden]);
+
+  // Auto-hide top nav on scroll down (mobile)
+  useEffect(() => {
+    const onScroll = () => {
+      const currentY = window.scrollY;
+      if (currentY > lastScrollY.current && currentY > 80) {
+        setNavHidden(true);
+      } else {
+        setNavHidden(false);
+      }
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
 
 
@@ -90,7 +119,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
 
 
   return (
-    <nav className="nav-container">
+    <nav ref={navContainerRef} className={`nav-container${navHidden ? ' nav-hidden' : ''}`}>
       <div className="nav-left flex-dev">
         <TiThMenu size={25} className="menu-icon" onClick={() => setSideBar((prev) => (prev === false ? true : false))}/>
         <Link to="/"><img className="logo" src={theme === 'dark' ? logoDark : logo} alt="3Speak" /></Link>
@@ -101,32 +130,10 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
         <Link to="/"><img className="logo" src={theme === 'dark' ? logoDark : logo} alt="3Speak" /></Link>
       </div>
       <div className="nav-middle flex-dev">
-        <div className="search-wrapper" >
-          <span className="search-icon" ref={searchBoxRef}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="7"></circle>
-              <path d="m16 16 4 4"></path>
-            </svg>
-          </span>
-          <input onFocus={() => setIsDropdownOpen(true)} value={searchTerm} onChange={(e)=> setSearchTerm(e.target.value.toLowerCase()) } type="search" placeholder="Search users or communities..." className="search-input" />
-        </div>
-
-
-
-
-        <SearchList searchTerm={searchTerm} setSearchTerm={setSearchTerm} searchBoxRef={searchBoxRef} isDropdownOpen={isDropdownOpen} setIsDropdownOpen={setIsDropdownOpen} />
+        <NavSearch />
       </div>
       <div className={nav ? "side-nav" : "side-nav-else"} ref={sideNavRef}>
       <AiOutlineClose className="close-nav" onClick={handleNav}/>
-      <div className="side-nav-search">
-        <div className="search-wrap-sm">
-          <div className="wrap" ref={searchBoxRefsm}>
-            <input onFocus={() => setIsDropdownOpensm(true)} type="text" value={searchTermSm} onChange={(e) => setSearchTermSm(e.target.value.toLowerCase())} placeholder="Search..." />
-            <CiSearch size={20} color="green" />
-          </div>
-          <SearchList_Sm searchTerm={searchTermSm} setSearchTerm={setSearchTermSm} handleNav={handleNav} searchBoxRefsm={searchBoxRefsm} isDropdownOpensm={isDropdownOpensm} setIsDropdownOpensm={setIsDropdownOpensm} />
-        </div>
-      </div>
       <Sidebar sidebar={true} onNavigate={handleNav} />
       </div>
 

@@ -63,7 +63,7 @@ function Watch() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, watchHistoryEnabled } = useAppStore();
+  const { user, watchHistoryEnabled, setMiniPlayer, clearMiniPlayer } = useAppStore();
   const v = searchParams.get('v'); // Extract the "v" query parameter
   const playlistId = searchParams.get('playlist');
   const posParam = searchParams.get('pos');
@@ -755,6 +755,42 @@ function Watch() {
     recordedWatchRef.current.add(watchKey);
     recordWatch(user, author, permlink);
   }, [user, author, permlink, watchHistoryEnabled]);
+
+  // Save mini player state on unmount or when switching videos
+  const miniPlayerDataRef = useRef(null);
+  const prevVideoRef = useRef(v);
+  useEffect(() => {
+    miniPlayerDataRef.current = {
+      author,
+      permlink,
+      title: videoDetails?.title || '',
+      currentTime: playerState.currentTime || 0,
+      duration: playerState.duration || 0,
+    };
+  });
+  // When the video param changes (clicking another video), save previous video to mini player
+  useEffect(() => {
+    const prevV = prevVideoRef.current;
+    prevVideoRef.current = v;
+
+    if (prevV && prevV !== v) {
+      // Save the previous video's data to mini player
+      const d = miniPlayerDataRef.current;
+      if (d && d.author && d.author !== 'unknown') {
+        setMiniPlayer(d);
+      }
+    }
+  }, [v]);
+  useEffect(() => {
+    // Clear mini player when arriving at watch page
+    clearMiniPlayer();
+    return () => {
+      const d = miniPlayerDataRef.current;
+      if (d && d.author && d.author !== 'unknown') {
+        setMiniPlayer(d);
+      }
+    };
+  }, []);
 
   // Fetch related videos
   const { data: suggestionsData, loading: suggestionsLoading } = useQuery(GET_RELATED, {

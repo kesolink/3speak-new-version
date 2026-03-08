@@ -15,6 +15,7 @@
 .home-grouped-container {
   // padding: 20px 0;
   max-width: 100%;
+  overflow-x: hidden;
 
   @include respond(phone) {
     // padding: 15px 0;

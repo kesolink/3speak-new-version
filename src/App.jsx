@@ -10,6 +10,7 @@ import Sidebar from "./components/Sidebar/Sidebar";
 import Feed from "./components/Feed/Feed";
 import FirstUploads from "./page/FirstUploads";
 import Trend from "./page/Trend";
+import Discover from "./page/Discover";
 import NewVideos from "./page/NewVideos";
 import HomeGrouped from "./page/HomeGrouped";
 import UploadVideo from "./page/UploadVideo";
@@ -70,6 +71,8 @@ import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
 import EditorModal from "./components/modal/EditorModal";
 import { FEATURE_EDITOR } from "./utils/config";
+import BottomNav from "./components/BottomNav/BottomNav";
+import MiniPlayer from "./components/MiniPlayer/MiniPlayer";
 import { KeyTypes } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
@@ -275,6 +278,7 @@ function App() {
             <Route path="/upload" element={<UploadVideo />} />
             <Route path="/firstupload" element={<FirstUploads />} />
             <Route path="/trend" element={<Trend />} />
+            <Route path="/discover" element={<Discover />} />
             <Route path="/new" element={<NewVideos />} />
             <Route path="/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
             <Route path="/auth/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
@@ -317,6 +321,8 @@ function App() {
         {!hideNavOnMobile && (
           <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} toggleAddAccount={toggleAddAccount} openLoginModal={openLoginModal} />
         )}
+        <MiniPlayer />
+        <BottomNav openLoginModal={openLoginModal} />
         {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} /> }
         <LoginModal
           displayed={loginModalOpen}
