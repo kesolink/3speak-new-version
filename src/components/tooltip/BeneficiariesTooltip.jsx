@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { IoClose } from 'react-icons/io5'
 
-import "./ToolTip.scss"
+import "./BeneficiariesTooltip.scss"
 
-function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
+function BeneficiariesTooltip({ beneficiaries, anchorRef, pinned, onClose }) {
   const tipRef = useRef(null);
   const navigate = useNavigate();
   const [pos, setPos] = useState(null);
@@ -26,7 +26,7 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
       left = window.innerWidth - tip.width - 8;
 
     setPos({ top: top + window.scrollY, left });
-  }, [anchorRef, tooltipVoters, pinned]);
+  }, [anchorRef, beneficiaries, pinned]);
 
   // Close on click outside when pinned
   useEffect(() => {
@@ -43,39 +43,36 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
   const content = (
     <div
       ref={tipRef}
-      className={`votes-tooltip${pinned ? ' pinned' : ''}`}
+      className={`beneficiaries-tooltip${pinned ? ' pinned' : ''}`}
       style={pos ? { top: pos.top, left: pos.left, opacity: 1 } : { opacity: 0 }}
     >
-      <div className="votes-tooltip-header">
-        <span>Top Voters</span>
+      <div className="beneficiaries-tooltip-header">
+        <span>Beneficiaries</span>
         {pinned && (
-          <button className="votes-tooltip-close" onClick={onClose}>
+          <button className="beneficiaries-tooltip-close" onClick={onClose}>
             <IoClose size={14} />
           </button>
         )}
       </div>
-      <div className="votes-tooltip-list">
-        {tooltipVoters.map((voter, index) => (
-          <div key={index} className="votes-tooltip-row">
+      <div className="beneficiaries-tooltip-list">
+        {beneficiaries.map((b, index) => (
+          <div key={index} className="beneficiaries-tooltip-row">
             <img
-              className="votes-tooltip-avatar"
-              src={`https://images.hive.blog/u/${voter.username}/avatar/small`}
+              className="beneficiaries-tooltip-avatar"
+              src={`https://images.hive.blog/u/${b.account}/avatar/small`}
               alt=""
               loading="lazy"
             />
             <a
-              className="votes-tooltip-user"
-              href={`/@${voter.username}`}
-              onClick={(e) => { e.preventDefault(); navigate(`/@${voter.username}`); onClose?.(); }}
+              className="beneficiaries-tooltip-user"
+              href={`/@${b.account}`}
+              onClick={(e) => { e.preventDefault(); navigate(`/@${b.account}`); onClose?.(); }}
             >
-              @{voter.username}
+              @{b.account}
             </a>
-            <span className="votes-tooltip-reward">${voter.reward.toFixed(3)}</span>
+            <span className="beneficiaries-tooltip-pct">{b.weight}%</span>
           </div>
         ))}
-        {tooltipVoters.length === 0 && (
-          <div className="votes-tooltip-empty">No votes yet</div>
-        )}
       </div>
     </div>
   );
@@ -83,4 +80,4 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
   return createPortal(content, document.body);
 }
 
-export default ToolTip
+export default BeneficiariesTooltip

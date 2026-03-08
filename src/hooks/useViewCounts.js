@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { API_URL_FROM_WEST, VIEWS_URL } from '../utils/config';
+import { VIEWS_URL } from '../utils/config';
 
 const BATCH_SIZE = 50;
 

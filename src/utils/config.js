@@ -7,17 +7,20 @@ const PLAYER_URL = import.meta.env.VITE_PLAYER_URL;
 
 const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://techcoderx.com';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
-const VIEWS_URL = import.meta.env.VITE_VIEWS_URL || 'https://views.3speak.tv';
-const MY_VIDEOS_URL = import.meta.env.VITE_MY_VIDEOS_URL || 'https://views.3speak.tv';
 const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://3speak-checker.okinoko.io';
 const TAG_FEED_URL = import.meta.env.VITE_THREESPEAK_TAG_FEED_URL || 'https://legacy.3speak.tv';
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 
-const TRENDING_SORTED_URL = import.meta.env.VITE_TRENDING_SORTED_URL || 'https://tags.3speak.tv/feeds/trendingSorted';
-const FOLLOW_FEED_URL = import.meta.env.VITE_FOLLOW_FEED_URL || 'https://tags.3speak.tv/feed';
-const NEW_CONTENT_URL = import.meta.env.VITE_NEW_CONTENT_URL || 'https://tags.3speak.tv/feeds/new';
-const FIRST_UPLOADS_URL = import.meta.env.VITE_FIRST_UPLOADS_URL || 'https://tags.3speak.tv/feeds/firstUploads';
-const SHORTS_STORIES_URL = import.meta.env.VITE_SHORTS_STORIES_URL || 'https://tags.3speak.tv/shorts/stories';
+// All derived from CHECKER_URL
+const VIEWS_URL = CHECKER_URL;
+const MY_VIDEOS_URL = CHECKER_URL;
+const TRENDING_SORTED_URL = `${CHECKER_URL}/feeds/trendingSorted`;
+const FOLLOW_FEED_URL = `${CHECKER_URL}/feed`;
+const NEW_CONTENT_URL = `${CHECKER_URL}/feeds/new`;
+const FIRST_UPLOADS_URL = `${CHECKER_URL}/feeds/firstUploads`;
+const SHORTS_STORIES_URL = `${CHECKER_URL}/shorts/stories`;
+const SHORTS_API_URL = `${CHECKER_URL}/shortssorted`;
+const USER_SHORTS_API_URL = `${CHECKER_URL}/shorts`;
 
 // Editor URLs — comma-separated list; a random reachable one is selected at runtime
 const EDITOR_URLS = (import.meta.env.VITE_EDITOR_URLS || import.meta.env.VITE_EDITOR_URL || 'https://editor.3speak.tv')
@@ -96,6 +99,8 @@ export {
   NEW_CONTENT_URL,
   FIRST_UPLOADS_URL,
   SHORTS_STORIES_URL,
+  SHORTS_API_URL,
+  USER_SHORTS_API_URL,
   EDITOR_URLS,
   getEditorUrl,
   FEATURE_EDITOR,
