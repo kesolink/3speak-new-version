@@ -756,8 +756,9 @@ function Watch() {
     recordWatch(user, author, permlink);
   }, [user, author, permlink, watchHistoryEnabled]);
 
-  // Save mini player state on unmount (for persistent playback across navigation)
+  // Save mini player state on unmount or when switching videos
   const miniPlayerDataRef = useRef(null);
+  const prevVideoRef = useRef(v);
   useEffect(() => {
     miniPlayerDataRef.current = {
       author,
@@ -767,12 +768,25 @@ function Watch() {
       duration: playerState.duration || 0,
     };
   });
+  // When the video param changes (clicking another video), save previous video to mini player
+  useEffect(() => {
+    const prevV = prevVideoRef.current;
+    prevVideoRef.current = v;
+
+    if (prevV && prevV !== v) {
+      // Save the previous video's data to mini player
+      const d = miniPlayerDataRef.current;
+      if (d && d.author && d.author !== 'unknown') {
+        setMiniPlayer(d);
+      }
+    }
+  }, [v]);
   useEffect(() => {
     // Clear mini player when arriving at watch page
     clearMiniPlayer();
     return () => {
       const d = miniPlayerDataRef.current;
-      if (d && d.author && d.author !== 'unknown' && d.duration > 0 && d.currentTime < d.duration - 2) {
+      if (d && d.author && d.author !== 'unknown') {
         setMiniPlayer(d);
       }
     };

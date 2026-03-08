@@ -1,25 +1,25 @@
-import React, { useEffect } from 'react'
+import { useCallback } from 'react'
 import "./FirstUploads.scss"
-import { useQuery } from '@apollo/client';
-import { FIRST_UPLOAD_FEED } from '../graphql/queries'
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import axios from 'axios'
 import Card3 from '../components/Cards/Card3';
 import { FEED_URL } from '../utils/config';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useContentBatch } from '../hooks/useContentBatch';
 import { useWatchHistory } from '../hooks/useWatchHistory';
 import useViewCounts from '../hooks/useViewCounts';
+import PullToRefresh from '../components/PullToRefresh/PullToRefresh';
+import { FirstUploadIcon } from '../components/FeedIcons';
 
 const fetchVideos = async ({ pageParam = 1 }) => {
-  const LIMIT = 300;
   const res = await axios.get(
     `${FEED_URL}/apiv2/feeds/firstUploads?page=${pageParam}`
-    // `${FEED_URL}/apiv2/feeds/firstUploads?limit=${LIMIT}`
   );
   return res.data;
 };
+
 const FirstUploads = () => {
+  const queryClient = useQueryClient();
 
   const {
     data,
@@ -27,57 +27,41 @@ const FirstUploads = () => {
     hasNextPage,
     isFetchingNextPage,
     isLoading,
-    isError,     
+    isError,
   } = useInfiniteQuery({
     queryKey: ["firstupload"],
     queryFn: fetchVideos,
     getNextPageParam: (lastPage, allPages) => {
-      // If the last page has items, calculate next skip value
     if (lastPage.length > 0) {
-      return allPages.flat().length; // next skip = total items loaded so far
+      return allPages.flat().length;
     }
-    return undefined; // stop if no more data
+    return undefined;
     },
   });
 
-  // useEffect(() => {
-  //     const handleScroll = () => {
-  //       if (
-  //         window.innerHeight + window.scrollY >=
-  //           document.body.offsetHeight - 200 &&
-  //         !isFetchingNextPage &&
-  //         hasNextPage
-  //       ) {
-  //         fetchNextPage();
-  //       }
-  //     };
-  
-  //     window.addEventListener("scroll", handleScroll);
-  //     return () => window.removeEventListener("scroll", handleScroll);
-  //   }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
-  
-    // Flatten all pages into a single array
     const videos = data?.pages.flat() || [];
-
-    // Batch fetch content data
     const { getContentForVideo } = useContentBatch(videos);
-
-    // Batch check watch history
     const { isWatched } = useWatchHistory(videos);
-
-    // Batch fetch view counts
     const { getViewCount } = useViewCounts(videos);
 
+    const handleRefresh = useCallback(async () => {
+      await queryClient.invalidateQueries({ queryKey: ["firstupload"] });
+    }, [queryClient]);
+
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className='firstupload-container'>
-        <div className='headers'>FIRST TIME UPLOADS</div>
+        <div className='feed-page-header'>
+          <FirstUploadIcon />
+          <h2>First Time Uploads</h2>
+        </div>
         {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />}
     {isError && <p>Error fetching videos</p>}
       {isFetchingNextPage && (
         <p style={{ textAlign: "center" }}>Loading more...</p>
       )}
-
     </div>
+    </PullToRefresh>
   )
 }
 

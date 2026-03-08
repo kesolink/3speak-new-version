@@ -1,34 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import CardSkeleton from '../components/Cards/CardSkeleton';
 import { useLocation, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Card3 from '../components/Cards/Card3';
 import { TAG_FEED_URL } from '../utils/config';
 import { useContentBatch } from '../hooks/useContentBatch';
 import { useWatchHistory } from '../hooks/useWatchHistory';
 import useViewCounts from '../hooks/useViewCounts';
+import PullToRefresh from '../components/PullToRefresh/PullToRefresh';
 
 function TagFeed() {
-  const { tag } = useParams(); 
+  const { tag } = useParams();
   const { state } = useLocation();
+  const queryClient = useQueryClient();
 
-  // ---------------------------
-  // FETCH COMMUNITY VIDEOS
-  // ---------------------------
   const fetchVideos = async ({ pageParam = 1 }) => {
     const LIMIT = 100;
-    const trend = false;
-    let url;
-
-    if (trend) {
-      // 🔥 Trending feed
-      url = `${TAG_FEED_URL}/videos/tag/${tag}?page=${pageParam}&limit=${LIMIT}`;
-    } else {
-      // 🆕 New feed
-      url = `${TAG_FEED_URL}/videos/tag/${tag}?page=${pageParam}&limit=${LIMIT}`;
-    }
-
+    const url = `${TAG_FEED_URL}/videos/tag/${tag}?page=${pageParam}&limit=${LIMIT}`;
     const res = await axios.get(url);
     return res.data;
   };
@@ -50,7 +39,6 @@ function TagFeed() {
     },
   });
 
-  // Infinite scroll
   useEffect(() => {
     const handleScroll = () => {
       if (
@@ -67,20 +55,17 @@ function TagFeed() {
   }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
 
   const videos = data?.pages.flatMap(page => page.videos) || [];
-
-  // Batch fetch content data
   const { getContentForVideo } = useContentBatch(videos);
-
-  // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
-
-  // Batch fetch view counts
   const { getViewCount } = useViewCounts(videos);
 
-  return (
-    <div className="firstupload-container">
-      {/* <div className='headers'>{state.commuintyName}</div> */}
+  const handleRefresh = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['homeCommunityFeed', tag] });
+  }, [queryClient, tag]);
 
+  return (
+    <PullToRefresh onRefresh={handleRefresh}>
+    <div className="firstupload-container">
       {loading ? (
         <CardSkeleton />
       ) : (
@@ -94,6 +79,7 @@ function TagFeed() {
         />
       )}
     </div>
+    </PullToRefresh>
   );
 }
 

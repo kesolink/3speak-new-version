@@ -60,6 +60,11 @@
   }
 
   .nav-middle {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 0 16px;
+
     @include mix.respond(tab) {
       position: relative;
     }
@@ -215,7 +220,7 @@
       }
     }
   }
-  button {
+  > .nav-right button {
     padding: 7px 25px;
     border-radius: 5px;
     font-weight: 500;

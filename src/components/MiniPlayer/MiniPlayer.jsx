@@ -14,7 +14,10 @@ const MiniPlayer = () => {
   const clearMiniPlayer = useAppStore((s) => s.clearMiniPlayer);
   const [loaded, setLoaded] = useState(false);
 
-  const isOnWatchPage = location.pathname === '/watch';
+  // Hide mini player on shorts, upload, and profile pages
+  const hiddenPaths = ['/watch', '/shorts', '/upload', '/upload-video', '/studio'];
+  const pathname = location.pathname;
+  const shouldHide = hiddenPaths.includes(pathname) || pathname.startsWith('/p/');
 
   const {
     ref: videoRef,
@@ -33,7 +36,7 @@ const MiniPlayer = () => {
 
   // Load video when mini player data changes
   useEffect(() => {
-    if (!miniPlayer || !player || isOnWatchPage) return;
+    if (!miniPlayer || !player || shouldHide) return;
     setLoaded(false);
     loadVideo(`${miniPlayer.author}/${miniPlayer.permlink}`)
       .then(() => {
@@ -43,7 +46,7 @@ const MiniPlayer = () => {
         setLoaded(true);
       })
       .catch(() => {});
-  }, [miniPlayer?.author, miniPlayer?.permlink, player, isOnWatchPage]);
+  }, [miniPlayer?.author, miniPlayer?.permlink, player, shouldHide]);
 
   const handleNavigateToWatch = useCallback(() => {
     if (!miniPlayer) return;
@@ -63,7 +66,7 @@ const MiniPlayer = () => {
   }, [togglePlay]);
 
   // Don't show on watch page or if no data
-  if (!miniPlayer || isOnWatchPage) return null;
+  if (!miniPlayer || shouldHide) return null;
 
   const progress = playerState.duration > 0 ? (playerState.currentTime / playerState.duration) * 100 : 0;
 

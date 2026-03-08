@@ -7,7 +7,6 @@
 
     .headers{
         padding: 15px 15px;
-        // background-color: rgba(0, 0, 0, 0.05);
         background: #E32933;
         border-radius: 8px;
         font-weight: 600;
@@ -16,7 +15,33 @@
         @include mix.respond(phone) {
             font-size: 16px;
       }
-        
+    }
+
+    .feed-page-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        margin-bottom: 6px;
+
+        svg {
+            color: var(--text-primary);
+            @include mix.respond(phone) {
+                width: 14px;
+                height: 14px;
+            }
+        }
+
+        h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+
+            @include mix.respond(phone) {
+                font-size: 13px;
+            }
+        }
     }
 
     .load-more-btn {

@@ -1,29 +1,134 @@
 import "./Discover.scss";
 import CardSkeleton from "../components/Cards/CardSkeleton";
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
-import { TRENDING_SORTED_URL } from '../utils/config';
+import { TRENDING_SORTED_URL, CHECKER_URL } from '../utils/config';
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
-import SearchList from "../components/nav/SearchList";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
+import { Link, useNavigate } from "react-router-dom";
+import { MdMusicNote, MdVideoLibrary, MdGroup, MdCheck, MdPerson, MdClose, MdCalendarToday, MdLabel, MdSearch } from "react-icons/md";
+import { RiMovieLine } from "react-icons/ri";
+import { fixVideoThumbnail, fallbackImg } from "../utils/fixThumbnails";
+import TimeAgo from "../components/TimeAgo/TimeAgo";
 
 const LIMIT = 50;
+
+const SEARCH_TYPES = [
+  { key: 'user', label: 'Users', icon: <MdPerson size={16} /> },
+  { key: 'community', label: 'Communities', icon: <MdGroup size={16} /> },
+  { key: 'video', label: 'Videos', icon: <MdVideoLibrary size={16} /> },
+  { key: 'short', label: 'Shorts', icon: <RiMovieLine size={16} /> },
+  { key: 'audio', label: 'Audio', icon: <MdMusicNote size={16} /> },
+];
+
+const DATE_PRESETS = [
+  { label: 'Today', days: 1 },
+  { label: 'This week', days: 7 },
+  { label: 'This month', days: 30 },
+  { label: 'This year', days: 365 },
+];
 
 const fetchVideos = async ({ pageParam = 1 }) => {
   const res = await axios.get(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}`);
   return res.data;
 };
 
+const fetchSearch = async (query, boostRecent, activeTypes, { tag, dateFrom, community } = {}) => {
+  const params = { q: query, limit: activeTypes.length * LIMIT };
+  if (boostRecent) params.sort = 'date';
+  if (activeTypes.length < SEARCH_TYPES.length) {
+    params.type = activeTypes.join(',');
+  }
+  if (tag) params.tag = tag;
+  if (dateFrom) params.from = dateFrom;
+  if (community) params.community = community;
+  const res = await axios.get(`${CHECKER_URL}/search`, { params });
+  return res.data;
+};
+
+const fetchSuggest = async (query) => {
+  const res = await axios.get(`${CHECKER_URL}/search/suggest`, { params: { q: query } });
+  return res.data;
+};
+
+const formatDuration = (seconds) => {
+  if (!seconds) return '';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const STORAGE_KEY = 'discover-search-state';
+const defaultExcluded = SEARCH_TYPES.reduce((acc, t) => ({ ...acc, [t.key]: false }), {});
+
+function loadState() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function saveState(state) {
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+}
+
 const Discover = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const searchBoxRef = useRef(null);
+  const saved = useRef(loadState());
+  const [searchTerm, setSearchTerm] = useState(() => saved.current?.searchTerm || '');
+  const [debouncedTerm, setDebouncedTerm] = useState(() => saved.current?.searchTerm?.trim() || '');
+  const [excludedFilters, setExcludedFilters] = useState(() => saved.current?.filters || defaultExcluded);
+  const [boostRecent, setBoostRecent] = useState(() => saved.current?.boostRecent ?? true);
+  const [tagFilter, setTagFilter] = useState(() => saved.current?.tagFilter || '');
+  const [communityFilter, setCommunityFilter] = useState(() => saved.current?.communityFilter || '');
+  const [datePreset, setDatePreset] = useState(() => saved.current?.datePreset ?? null);
+  const [communitySearch, setCommunitySearch] = useState('');
+  const [communityLabel, setCommunityLabel] = useState(() => saved.current?.communityLabel || '');
+  const [showCommunityDropdown, setShowCommunityDropdown] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const navigate = useNavigate();
+  const searchInputRef = useRef(null);
+  const suggestWrapRef = useRef(null);
+  const communityWrapRef = useRef(null);
+  const scrollRestored = useRef(false);
+  const lastScrollY = useRef(0);
   const queryClient = useQueryClient();
 
+  // Track scroll position continuously so we have it before ScrollToTop zeroes it
+  useEffect(() => {
+    const onScroll = () => { lastScrollY.current = window.scrollY; };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedTerm(searchTerm.trim()), 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Save state on unmount
+  useEffect(() => {
+    return () => {
+      saveState({
+        searchTerm,
+        filters: excludedFilters,
+        boostRecent,
+        tagFilter,
+        communityFilter,
+        communityLabel,
+        datePreset,
+        scrollY: lastScrollY.current,
+      });
+    };
+  });
+
+  // Trending grid query
   const {
     data,
     fetchNextPage,
@@ -40,76 +145,533 @@ const Discover = () => {
     },
   });
 
-  // Infinite scroll effect
+  // Active type keys (non-excluded)
+  const activeTypes = useMemo(
+    () => SEARCH_TYPES.filter(t => !excludedFilters[t.key]).map(t => t.key),
+    [excludedFilters]
+  );
+
+  // Compute dateFrom from preset
+  const dateFrom = useMemo(() => {
+    if (!datePreset) return '';
+    const d = new Date();
+    d.setDate(d.getDate() - datePreset);
+    return d.toISOString().split('T')[0];
+  }, [datePreset]);
+
+  // Extra filters object
+  const extraFilters = useMemo(
+    () => ({ tag: tagFilter, dateFrom, community: communityFilter }),
+    [tagFilter, dateFrom, communityFilter]
+  );
+
+  // Autocomplete suggestions
+  const { data: suggestData } = useQuery({
+    queryKey: ["discover-suggest", debouncedTerm],
+    queryFn: () => fetchSuggest(debouncedTerm),
+    enabled: debouncedTerm.length >= 2 && showSuggestions,
+    staleTime: 15000,
+  });
+
+  // Close dropdowns on outside click
   useEffect(() => {
+    const handle = (e) => {
+      if (suggestWrapRef.current && !suggestWrapRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+      if (communityWrapRef.current && !communityWrapRef.current.contains(e.target)) {
+        setShowCommunityDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
+
+  // Community search query
+  const { data: communityResults } = useQuery({
+    queryKey: ["community-suggest", communitySearch],
+    queryFn: async () => {
+      const res = await axios.get(`${CHECKER_URL}/search`, {
+        params: { q: communitySearch, type: 'community', limit: 8 }
+      });
+      return res.data?.results || [];
+    },
+    enabled: communitySearch.length >= 2 && showCommunityDropdown,
+    staleTime: 15000,
+  });
+
+  // Search query
+  const { data: searchData, isLoading: searchLoading } = useQuery({
+    queryKey: ["discover-search", debouncedTerm, boostRecent, activeTypes, extraFilters],
+    queryFn: () => fetchSearch(debouncedTerm, boostRecent, activeTypes, extraFilters),
+    enabled: debouncedTerm.length >= 2 && activeTypes.length > 0,
+    staleTime: 30000,
+  });
+
+  // Restore scroll position after search results load
+  useEffect(() => {
+    if (scrollRestored.current || !saved.current?.scrollY) return;
+    if (debouncedTerm.length < 2) {
+      scrollRestored.current = true;
+      return;
+    }
+    if (searchData && !searchLoading) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, saved.current.scrollY);
+        scrollRestored.current = true;
+      });
+    }
+  });
+
+  // Infinite scroll for trending
+  useEffect(() => {
+    if (debouncedTerm) return;
     const handleScroll = () => {
       if (
-        window.innerHeight + window.scrollY >=
-          document.body.offsetHeight - 200 &&
-        !isFetchingNextPage &&
-        hasNextPage
+        window.innerHeight + window.scrollY >= document.body.offsetHeight - 200 &&
+        !isFetchingNextPage && hasNextPage
       ) {
         fetchNextPage();
       }
     };
-
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
+  }, [isFetchingNextPage, hasNextPage, fetchNextPage, debouncedTerm]);
 
-  // Flatten all pages into one list
   const videos = data?.pages.flatMap(page => page.videos || []) || [];
-
-  // Batch fetch content data
   const { getContentForVideo } = useContentBatch(videos);
-
-  // Batch check watch history
   const { isWatched } = useWatchHistory(videos);
-
-  // Batch fetch view counts
   const { getViewCount } = useViewCounts(videos);
 
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["trending"] });
-  }, [queryClient]);
+    if (debouncedTerm) {
+      await queryClient.invalidateQueries({ queryKey: ["discover-search", debouncedTerm] });
+    } else {
+      await queryClient.invalidateQueries({ queryKey: ["trending"] });
+    }
+  }, [queryClient, debouncedTerm]);
+
+  const toggleFilter = useCallback((key) => {
+    setExcludedFilters(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const selectSuggestion = useCallback((suggestion) => {
+    // Title suggestions: navigate directly to watch/shorts page
+    if (suggestion.type === 'title' && suggestion.author && suggestion.permlink) {
+      const path = suggestion.content_type === 'short'
+        ? `/shorts?v=${suggestion.author}/${suggestion.permlink}`
+        : `/watch?v=${suggestion.author}/${suggestion.permlink}`;
+      setShowSuggestions(false);
+      navigate(path);
+      return;
+    }
+
+    if (suggestion.type === 'user') {
+      setSearchTerm(suggestion.username);
+    } else if (suggestion.type === 'tag') {
+      setSearchTerm(suggestion.text);
+    } else if (suggestion.type === 'community') {
+      setCommunityFilter(suggestion.name);
+      setCommunityLabel(suggestion.title || suggestion.name);
+      if (!showAdvanced) setShowAdvanced(true);
+    } else {
+      setSearchTerm(suggestion.text);
+    }
+    setShowSuggestions(false);
+  }, [showAdvanced, navigate]);
+
+  const hasAdvancedFilters = tagFilter || communityFilter || datePreset;
+
+  const clearAdvancedFilters = useCallback(() => {
+    setTagFilter('');
+    setCommunityFilter('');
+    setCommunityLabel('');
+    setCommunitySearch('');
+    setDatePreset(null);
+  }, []);
+
+  // Group suggestions by type for compact rendering
+  const groupedSuggestions = useMemo(() => {
+    if (!suggestData?.suggestions) return {};
+    const g = {};
+    for (const s of suggestData.suggestions) {
+      if (!g[s.type]) g[s.type] = [];
+      g[s.type].push(s);
+    }
+    return g;
+  }, [suggestData]);
+
+  // Group search results by type
+  const grouped = useMemo(() => {
+    if (!searchData?.results) return {};
+    const groups = {};
+    for (const item of searchData.results) {
+      if (!groups[item.type]) groups[item.type] = [];
+      groups[item.type].push(item);
+    }
+    return groups;
+  }, [searchData]);
+
+  const isSearching = debouncedTerm.length >= 2;
+  const allExcluded = activeTypes.length === 0;
+  const hasResults = Object.keys(grouped).length > 0;
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="discover-container">
-      <div className="discover-search-wrapper" ref={searchBoxRef}>
-        <svg xmlns="http://www.w3.org/2000/svg" className="discover-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="7"></circle>
-          <path d="m16 16 4 4"></path>
-        </svg>
-        <input
-          onFocus={() => setIsDropdownOpen(true)}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
-          type="search"
-          placeholder="Search users or communities..."
-          className="discover-search-input"
-        />
-      </div>
-      <div className="discover-search-results-anchor">
-        <SearchList
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          searchBoxRef={searchBoxRef}
-          isDropdownOpen={isDropdownOpen}
-          setIsDropdownOpen={setIsDropdownOpen}
-        />
+      <div className="discover-sticky-header">
+        <div className="discover-search-wrapper" ref={suggestWrapRef}>
+          <svg xmlns="http://www.w3.org/2000/svg" className="discover-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m16 16 4 4"></path>
+          </svg>
+          <input
+            ref={searchInputRef}
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setShowSuggestions(true); }}
+            onFocus={() => setShowSuggestions(true)}
+            type="text"
+            placeholder="Search videos, shorts, audio, communities..."
+            className="discover-search-input"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              className="discover-search-clear"
+              onClick={() => { setSearchTerm(''); searchInputRef.current?.focus(); }}
+              aria-label="Clear search"
+            >
+              <MdClose size={18} />
+            </button>
+          )}
+
+          {showSuggestions && debouncedTerm.length >= 2 && (
+            <div className="discover-suggest-dropdown">
+              <button className="discover-suggest-item discover-suggest-search-term" onMouseDown={() => setShowSuggestions(false)}>
+                <MdSearch size={16} className="discover-suggest-icon" />
+                <span className="discover-suggest-primary">Search &ldquo;{debouncedTerm}&rdquo;</span>
+              </button>
+
+              {groupedSuggestions.user?.length > 0 && (
+                <div className="discover-suggest-group">
+                  <span className="discover-suggest-group-label">Users</span>
+                  <div className="discover-suggest-badges">
+                    {groupedSuggestions.user.map((s, i) => (
+                      <button key={i} className="discover-suggest-badge" onMouseDown={() => selectSuggestion(s)}>
+                        <div className="discover-suggest-badge-avatar">
+                          {s.profile_image ? <img src={s.profile_image} alt="" onError={(e) => { e.target.style.display = 'none'; }} /> : <MdPerson size={12} />}
+                        </div>
+                        <span>{s.display_name || s.username}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupedSuggestions.tag?.length > 0 && (
+                <div className="discover-suggest-group">
+                  <span className="discover-suggest-group-label">Tags</span>
+                  <div className="discover-suggest-badges">
+                    {groupedSuggestions.tag.map((s, i) => (
+                      <button key={i} className="discover-suggest-badge" onMouseDown={() => selectSuggestion(s)}>
+                        <MdLabel size={12} />
+                        <span>{s.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupedSuggestions.community?.length > 0 && (
+                <div className="discover-suggest-group">
+                  <span className="discover-suggest-group-label">Communities</span>
+                  <div className="discover-suggest-badges">
+                    {groupedSuggestions.community.map((s, i) => (
+                      <button key={i} className="discover-suggest-badge" onMouseDown={() => selectSuggestion(s)}>
+                        <div className="discover-suggest-badge-avatar">
+                          <img src={`https://images.hive.blog/u/${s.name}/avatar`} alt="" onError={(e) => { e.target.style.display = 'none'; }} />
+                        </div>
+                        <span>{s.title || s.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupedSuggestions.title?.length > 0 && (
+                <div className="discover-suggest-group">
+                  <span className="discover-suggest-group-label">Titles</span>
+                  {groupedSuggestions.title.map((s, i) => (
+                    <button key={i} className="discover-suggest-item" onMouseDown={() => selectSuggestion(s)}>
+                      <MdSearch size={16} className="discover-suggest-icon" />
+                      <span className="discover-suggest-primary">{s.text}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {isSearching && (
+          <div className="discover-filters">
+            {SEARCH_TYPES.filter(t => !communityFilter || (t.key !== 'user' && t.key !== 'community')).map(t => (
+              <label key={t.key} className={`discover-filter-chip${excludedFilters[t.key] ? ' excluded' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={!excludedFilters[t.key]}
+                  onChange={() => toggleFilter(t.key)}
+                />
+                {t.icon}
+                <span>{t.label}</span>
+              </label>
+            ))}
+            <label className={`discover-filter-chip boost${boostRecent ? ' active' : ''}`}>
+              <input
+                type="checkbox"
+                checked={boostRecent}
+                onChange={() => setBoostRecent(prev => !prev)}
+              />
+              <MdCheck size={14} className="discover-filter-check" />
+              <span>Boost recent</span>
+            </label>
+            <button
+              type="button"
+              className={`discover-filter-chip${showAdvanced ? ' active' : ''}${hasAdvancedFilters ? ' has-filters' : ''}`}
+              onClick={() => setShowAdvanced(prev => !prev)}
+            >
+              <MdCalendarToday size={14} />
+              <span>Filters{hasAdvancedFilters ? ' *' : ''}</span>
+            </button>
+          </div>
+        )}
+
+        {isSearching && showAdvanced && (
+          <div className="discover-advanced-filters">
+            <div className="discover-advanced-row">
+              <label className="discover-advanced-label">
+                <MdCalendarToday size={14} />
+                <span>Date</span>
+              </label>
+              <div className="discover-date-presets">
+                {DATE_PRESETS.map(p => (
+                  <button
+                    key={p.days}
+                    type="button"
+                    className={`discover-date-btn${datePreset === p.days ? ' active' : ''}`}
+                    onClick={() => setDatePreset(prev => prev === p.days ? null : p.days)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="discover-advanced-row">
+              <label className="discover-advanced-label">
+                <MdLabel size={14} />
+                <span>Tag</span>
+              </label>
+              <input
+                type="text"
+                className="discover-advanced-input"
+                placeholder="e.g. crypto, gaming..."
+                value={tagFilter}
+                onChange={(e) => setTagFilter(e.target.value.trim().toLowerCase())}
+              />
+              {tagFilter && (
+                <button type="button" className="discover-advanced-clear" onClick={() => setTagFilter('')}>
+                  <MdClose size={14} />
+                </button>
+              )}
+            </div>
+
+            <div className="discover-advanced-row">
+              <label className="discover-advanced-label">
+                <MdGroup size={14} />
+                <span>Community</span>
+              </label>
+              <div className="discover-community-search" ref={communityWrapRef}>
+                {communityFilter ? (
+                  <div className="discover-community-selected">
+                    <div className="discover-community-selected-avatar">
+                      <img src={`https://images.hive.blog/u/${communityFilter}/avatar`} alt="" onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
+                    <span>{communityLabel || communityFilter}</span>
+                    <button type="button" className="discover-advanced-clear" onClick={() => { setCommunityFilter(''); setCommunityLabel(''); setCommunitySearch(''); }}>
+                      <MdClose size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      className="discover-advanced-input"
+                      placeholder="Search communities..."
+                      value={communitySearch}
+                      onChange={(e) => { setCommunitySearch(e.target.value); setShowCommunityDropdown(true); }}
+                      onFocus={() => setShowCommunityDropdown(true)}
+                    />
+                    {showCommunityDropdown && communityResults?.length > 0 && (
+                      <div className="discover-community-dropdown">
+                        {communityResults.map(c => (
+                          <button
+                            key={c.name}
+                            type="button"
+                            className="discover-suggest-item"
+                            onMouseDown={() => {
+                              setCommunityFilter(c.name);
+                              setCommunityLabel(c.title || c.name);
+                              setCommunitySearch('');
+                              setShowCommunityDropdown(false);
+                            }}
+                          >
+                            <div className="discover-suggest-avatar">
+                              <img src={`https://images.hive.blog/u/${c.name}/avatar`} alt="" onError={(e) => { e.target.style.display = 'none'; }} />
+                            </div>
+                            <div className="discover-suggest-text">
+                              <span className="discover-suggest-primary">{c.title || c.name}</span>
+                              <span className="discover-suggest-secondary">{c.subscribers} subscribers</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {hasAdvancedFilters && (
+              <button type="button" className="discover-clear-advanced" onClick={clearAdvancedFilters}>
+                <MdClose size={14} />
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {isLoading ? (
-        <CardSkeleton />
-      ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+      {isSearching && (
+        <div className="discover-search-area">
+          <div className="discover-results">
+            {searchLoading && (
+              <div className="discover-skeleton">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="discover-skeleton-row">
+                    <div className="discover-skeleton-thumb skeleton" />
+                    <div className="discover-skeleton-info">
+                      <div className="discover-skeleton-line skeleton" />
+                      <div className="discover-skeleton-line short skeleton" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!searchLoading && allExcluded && (
+              <p className="discover-no-results">
+                All content types are hidden.{' '}
+                <button className="discover-reset-filters" onClick={() => setExcludedFilters(defaultExcluded)}>
+                  Re-enable all filters
+                </button>
+              </p>
+            )}
+
+            {!searchLoading && !allExcluded && !hasResults && (
+              <p className="discover-no-results">No results found for &ldquo;{debouncedTerm}&rdquo;</p>
+            )}
+
+            {SEARCH_TYPES.filter(t => !communityFilter || (t.key !== 'user' && t.key !== 'community')).map(t => {
+              const items = grouped[t.key];
+              if (!items || items.length === 0) return null;
+              return (
+                <div key={t.key} className="discover-result-group">
+                  <h3 className="discover-group-title">{t.icon} {t.label} ({items.length})</h3>
+                  {t.key === 'community' ? (
+                    <div className="discover-community-list">
+                      {items.map(c => (
+                        <Link to={`/community/${c.name}`} key={c.name} className="discover-community-card">
+                          <div className="discover-community-avatar">
+                            <img src={`https://images.hive.blog/u/${c.name}/avatar`} alt="" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+                          </div>
+                          <div className="discover-community-info">
+                            <span className="discover-community-name">{c.title || c.name}</span>
+                            <span className="discover-community-about">{c.about}</span>
+                          </div>
+                          <div className="discover-community-stats">
+                            <span>{c.subscribers} subscribers</span>
+                            <span>{c.num_authors} authors</span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : t.key === 'user' ? (
+                    <div className="discover-user-list">
+                      {items.map(u => (
+                        <Link to={`/p/${u.username}`} key={u.username} className="discover-user-card">
+                          <div className="discover-user-avatar">
+                            {u.profile_image ? (
+                              <img src={u.profile_image} alt="" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+                            ) : (
+                              <MdPerson size={24} />
+                            )}
+                          </div>
+                          <div className="discover-user-info">
+                            <span className="discover-user-name">{u.display_name || u.username}</span>
+                            <span className="discover-user-handle">@{u.username}</span>
+                            {u.about && <span className="discover-user-about">{u.about}</span>}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="discover-media-list">
+                      {items.map((item, i) => (
+                        <Link
+                          to={t.key === 'short' ? `/shorts?v=${item.author}/${item.permlink}` : `/watch?v=${item.author}/${item.permlink}`}
+                          key={`${item.author}-${item.permlink}-${i}`}
+                          className="discover-media-card"
+                        >
+                          {(item.images?.thumbnail || item.images?.poster) && (
+                            <div className="discover-media-thumb">
+                              <img src={fixVideoThumbnail(item)} onError={(e) => { e.target.src = fallbackImg; }} alt="" loading="lazy" />
+                              {item.duration > 0 && (
+                                <span className="discover-media-duration">{formatDuration(item.duration)}</span>
+                              )}
+                            </div>
+                          )}
+                          <div className="discover-media-info">
+                            <span className="discover-media-title">{item.title}</span>
+                            <span className="discover-media-author">@{item.author || item.owner}</span>
+                            <span className="discover-media-meta">
+                              {item.views > 0 && <span>{item.views.toLocaleString()} views</span>}
+                              {item.created_at && <TimeAgo date={item.created_at} short />}
+                            </span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
-      {isError && <p>Error fetching videos</p>}
-
-      {isFetchingNextPage && (
-        <p style={{ textAlign: "center" }}>Loading more...</p>
+      {!isSearching && (
+        <>
+          {isLoading ? (
+            <CardSkeleton />
+          ) : (
+            <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+          )}
+          {isError && <p>Error fetching videos</p>}
+          {isFetchingNextPage && (
+            <p style={{ textAlign: "center" }}>Loading more...</p>
+          )}
+        </>
       )}
     </div>
     </PullToRefresh>
