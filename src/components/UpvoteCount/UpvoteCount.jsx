@@ -1,7 +1,7 @@
 import { FaHeart } from 'react-icons/fa';
 import './UpvoteCount.scss';
 
-function UpvoteCount({ count, voted, onClick, loading, onCountEnter, onCountLeave, size, children }) {
+function UpvoteCount({ count, voted, onClick, loading, onCountEnter, onCountLeave, onCountClick, size, children }) {
   const iconSize = size ? Math.round(size * 1.08) : undefined;
 
   return (
@@ -15,7 +15,12 @@ function UpvoteCount({ count, voted, onClick, loading, onCountEnter, onCountLeav
           onClick={onClick}
         />
       )}
-      <span onMouseEnter={onCountEnter} onMouseLeave={onCountLeave}>
+      <span
+        onMouseEnter={onCountEnter}
+        onMouseLeave={onCountLeave}
+        onClick={onCountClick}
+        style={onCountClick ? { cursor: 'pointer' } : undefined}
+      >
         {count ?? '…'}
       </span>
     </div>

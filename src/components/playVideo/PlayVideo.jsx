@@ -17,6 +17,7 @@ import { useAppStore } from '../../lib/store';
 import { estimate, getUersContent, getVotePower } from "../../utils/hiveUtils";
 import { getUserReputation } from "../../utils/reputation";
 import ToolTip from "../tooltip/ToolTip";
+import BeneficiariesTooltip from "../tooltip/BeneficiariesTooltip";
 import { ImSpinner9 } from "react-icons/im";
 import { useNavigate } from "react-router-dom";
 import BarLoader from "../Loader/BarLoader";
@@ -60,7 +61,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
   // State
   const [openTooltip, setOpenToolTip] = useState(false);
+  const [pinnedTooltip, setPinnedTooltip] = useState(false);
   const [tooltipVoters, setTooltipVoters] = useState([]);
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [showBeneficiaries, setShowBeneficiaries] = useState(false);
+  const [pinnedBeneficiaries, setPinnedBeneficiaries] = useState(false);
+  const voteCountRef = useRef(null);
+  const payoutRef = useRef(null);
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
   const [isVoted, setIsVoted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -228,6 +235,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           });
 
         updates.tooltipVoters = topVotes;
+      }
+
+      // Extract beneficiaries
+      if (data.beneficiaries?.length) {
+        setBeneficiaries(
+          data.beneficiaries
+            .map(b => ({ account: b.account, weight: b.weight / 100 }))
+            .sort((a, b) => b.weight - a.weight)
+        );
       }
 
       // Single state update
@@ -714,8 +730,24 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </div>
               </div>
               <div className="wrap-right-stats">
-                <PayoutAmount amount={videoDetails?.stats?.total_hive_reward ?? 0} size={13} onClick={toggleTooltip} />
-                <span className="wrap">
+                <span
+                  ref={payoutRef}
+                  onMouseEnter={() => setShowBeneficiaries(true)}
+                  onMouseLeave={() => setShowBeneficiaries(false)}
+                  onClick={() => setPinnedBeneficiaries(prev => !prev)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <PayoutAmount amount={videoDetails?.stats?.total_hive_reward ?? 0} size={13} />
+                </span>
+                {(showBeneficiaries || pinnedBeneficiaries) && beneficiaries.length > 0 && (
+                  <BeneficiariesTooltip
+                    beneficiaries={beneficiaries}
+                    anchorRef={payoutRef}
+                    pinned={pinnedBeneficiaries}
+                    onClose={() => setPinnedBeneficiaries(false)}
+                  />
+                )}
+                <span className="wrap" ref={voteCountRef}>
                   <UpvoteCount
                     count={optimisticVoteCount}
                     voted={isVoted}
@@ -723,13 +755,21 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     loading={isLoading}
                     onCountEnter={() => setOpenToolTip(true)}
                     onCountLeave={() => setOpenToolTip(false)}
+                    onCountClick={() => setPinnedTooltip(prev => !prev)}
                     size={13}
                   >
                     <div className="loader-circle">
                       <TailChase className="loader-circle" size="15" speed="1.5" color="red" />
                     </div>
                   </UpvoteCount>
-                  {openTooltip && <ToolTip tooltipVoters={tooltipVoters} />}
+                  {(openTooltip || pinnedTooltip) && (
+                    <ToolTip
+                      tooltipVoters={tooltipVoters}
+                      anchorRef={voteCountRef}
+                      pinned={pinnedTooltip}
+                      onClose={() => setPinnedTooltip(false)}
+                    />
+                  )}
                 </span>
               </div>
             </div>
