@@ -18,6 +18,7 @@
   &.create-com {
     text-align: start;
   }
+
 }
 
 .search-container {
@@ -37,38 +38,76 @@
 
 .community-list-wrap {
   display: flex;
-  width: 100%;
   flex-wrap: wrap;
-  max-height: 300px;
+  width: 100%;
+  max-height: 400px;
   overflow-y: auto;
+  gap: 8px;
+  padding-top: 6px;
+}
 
-  .wrap-flow {
-    display: flex;
-    align-items: center;
-    flex: wrap;
-    gap: 7px;
-    width: fit-content;
-    background-color: #c1c8e4;
-    margin-right: 10px;
-    border-radius: 6px;
-    padding: 5px 10px;
-    margin-bottom: 10px;
+.community-badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  background-color: var(--border-color, #c1c8e4);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
 
-    img {
-      width: 20px;
-      border-radius: 50%;
-      background: #ccc;
-      background-position: 50% 50%;
-      background-repeat: no-repeat;
-      background-size: cover;
-      display: block;
-    }
+  img {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #ccc;
+    flex-shrink: 0;
+  }
 
-    span {
-      color: black;
-      font-size: 14px;
-      display: flex;
-      word-wrap: normal;
-    }
+  .community-badge-title {
+    color: var(--text-primary, #000);
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+}
+
+// Portal-based detail popup (rendered on document.body)
+.community-badge-detail-portal {
+  position: absolute;
+  z-index: 9999;
+  transform: translateY(-100%);
+  min-width: 200px;
+  max-width: 280px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  padding: 8px 10px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+
+  [data-theme="dark"] & {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .community-badge-about {
+    font-size: 12px;
+    color: var(--text-secondary, #666);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.4;
+  }
+
+  .community-badge-stats {
+    font-size: 11px;
+    color: var(--text-secondary, #888);
   }
 }
