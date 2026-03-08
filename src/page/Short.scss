@@ -98,9 +98,9 @@
     top: 0;
     left: 0;
     right: 0;
-    bottom: 0;
-    height: 100dvh;
-    max-height: 100dvh;
+    bottom: 56px;
+    height: calc(100dvh - 56px);
+    max-height: calc(100dvh - 56px);
     align-items: center;
   }
 

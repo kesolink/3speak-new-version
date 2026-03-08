@@ -35,8 +35,14 @@
       height: 100% !important;
       max-height: 100% !important;
 
-      // Black background on mobile to avoid jarring flash when switching creators
+      // On mobile, keep short-main relative so it respects the story feed container
+      // instead of using position:fixed from Short.scss
       @media (max-width: 767px) {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
         background: #000 !important;
 
         .loadingState,
@@ -141,9 +147,9 @@
     top: 0;
     left: 0;
     right: 0;
-    bottom: 0;
-    height: 100dvh;
-    max-height: 100dvh;
+    bottom: 56px;
+    height: calc(100dvh - 56px);
+    max-height: calc(100dvh - 56px);
   }
 }
 

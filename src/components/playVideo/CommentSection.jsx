@@ -165,10 +165,15 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
         // Pre-render all comment bodies (createHiveRenderer returns a function directly)
         const render = await getRenderer();
         const rendered = {};
+        // Replace timestamp-linked 3speak URLs so the renderer doesn't embed them
+        // Matches [0:00] or [1:23:45] style text linking to 3speak/play.3speak URLs
+        const stripTimestampEmbeds = (body) =>
+          body.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]\((https?:\/\/(?:3speak\.tv|play\.3speak\.tv)[^)]*)\)/g, '$1');
+
         const renderComment = (comment) => {
           if (comment?.body) {
             try {
-              rendered[comment.permlink] = render(comment.body);
+              rendered[comment.permlink] = render(stripTimestampEmbeds(comment.body));
             } catch (err) {
               rendered[comment.permlink] = '';
             }

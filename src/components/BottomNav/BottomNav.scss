@@ -1,0 +1,217 @@
+@use "../../mixins.scss" as mix;
+
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--nav-bg);
+  border-top: 1px solid var(--border-light);
+  height: 56px;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 4px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  transition: background-color 0.3s ease;
+
+  @include mix.respond(phone) {
+    display: flex;
+  }
+
+  @include mix.respond(tab) {
+    display: flex;
+  }
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex: 1;
+  gap: 2px;
+  padding: 6px 0;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+
+  span {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  &.active {
+    color: var(--text-primary);
+
+    .bottom-nav-icon {
+      color: var(--text-primary);
+    }
+
+    .bottom-nav-avatar {
+      border-color: var(--text-primary);
+    }
+
+    // Active dot indicator
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+    }
+  }
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.bottom-nav-icon {
+  width: 26px;
+  height: 26px;
+  font-size: 26px;
+  color: inherit;
+  transition: color 0.2s ease;
+}
+
+.upload-item {
+  .upload-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 32px;
+    color: var(--accent-primary);
+  }
+
+  &.active .upload-icon {
+    color: var(--accent-primary);
+  }
+}
+
+.bottom-nav-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.bottom-nav-avatar-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+// Upload button wrapper (needed for dropdown positioning)
+.bottom-nav-upload-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.bottom-nav-upload-menu {
+  left: 50%;
+  right: auto;
+  animation: bottomNavUploadMenuIn 0.2s ease forwards;
+}
+
+// Compact dropdown menu
+.bottom-nav-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 8px;
+  min-width: 200px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 6px 0;
+  z-index: 200;
+  // Entrance animation
+  animation: bottomNavMenuIn 0.2s ease forwards;
+}
+
+@keyframes bottomNavMenuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes bottomNavUploadMenuIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.9) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1) translateY(0);
+  }
+}
+
+.bottom-nav-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.bottom-nav-menu-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.bottom-nav-menu-user {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.bottom-nav-menu-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 0;
+}
+
+.bottom-nav-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: var(--bg-hover);
+    color: var(--accent-primary);
+  }
+}
+
+.bottom-nav-menu-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}

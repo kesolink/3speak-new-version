@@ -129,6 +129,9 @@
 
 html {
   color-scheme: light;
+  /* Prevent overscroll bounce on iOS which shifts fixed elements */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 [data-theme="dark"] {

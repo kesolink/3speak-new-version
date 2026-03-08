@@ -13,6 +13,11 @@
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+
+  @include respond(phone) {
+    align-items: flex-end;
+    padding: 0;
+  }
 }
 
 .add-to-playlist-modal {
@@ -24,6 +29,15 @@
   max-width: 400px;
   height: 80vh;
   max-height: 80vh;
+
+  @include respond(phone) {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    height: 75vh;
+    max-height: 75vh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: playlist-slide-up 0.3s ease forwards;
+  }
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -516,4 +530,9 @@
     padding: 14px 10px;
     max-height: 80%;
   }
+}
+
+@keyframes playlist-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }

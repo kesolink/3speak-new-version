@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import './UpvoteTooltip.scss';
 import { useAppStore } from '../../lib/store';
 import { IoChevronUpCircleOutline } from 'react-icons/io5';
+import { X, ChevronUp } from 'lucide-react';
 import { estimate, getUersContent, getVotePower } from '../../utils/hiveUtils';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
@@ -9,6 +11,8 @@ import { toast } from 'sonner';
 import { Orbit } from 'ldrs/react';
 import 'ldrs/react/Orbit.css';
 import { voteWithAioha, isLoggedIn } from '../../hive-api/aioha';
+
+const isMobile = () => window.matchMedia('(max-width: 767px)').matches;
 
 
 const CardVoteTooltip = ({
@@ -144,6 +148,49 @@ const CardVoteTooltip = ({
     }
   };
 
+  // Mobile: render as portal bottom sheet
+  if (showTooltip && isMobile()) {
+    return createPortal(
+      <div className="vote-popup-overlay" onMouseDown={() => setShowTooltip(false)}>
+        <div
+          className="vote-popup"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button className="vote-popup-close" onClick={() => setShowTooltip(false)} disabled={isLoading}>
+            <X size={18} />
+          </button>
+
+          <p className="vote-popup-label">Vote Weight: {weight}%</p>
+
+          <input
+            type="range"
+            min="1"
+            max="100"
+            value={weight}
+            onChange={(e) => setWeight(Number(e.target.value))}
+            disabled={isLoading}
+            style={{ width: '100%' }}
+          />
+
+          <p className="vote-popup-value">
+            {isCalculating ? <Orbit size="24" speed="1.5" color="red" /> : `$${voteValue}`}
+          </p>
+
+          <button className="vote-popup-submit" onClick={handleVote} disabled={isLoading}>
+            {isLoading ? (
+              <TailChase size="18" speed="1.5" color="white" />
+            ) : (
+              <><ChevronUp size={20} /> Vote</>
+            )}
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
+  // Desktop: inline tooltip
   return (
     <div className="upvote-tooltip-wrap" ref={tooltipRef} onClick={(e) => e.preventDefault()}>
       {showTooltip && (
@@ -155,8 +202,8 @@ const CardVoteTooltip = ({
                 <TailChase className="loader-circle" size="15" speed="1.5" color="red" />
               </div>
             ) : (
-              <IoChevronUpCircleOutline 
-                size={30} 
+              <IoChevronUpCircleOutline
+                size={30}
                 onClick={handleVote}
                 style={{ cursor: 'pointer' }}
               />
@@ -171,7 +218,6 @@ const CardVoteTooltip = ({
             />
             <p>
               {isCalculating ? (
-
                 <Orbit size="30" speed="1.5" color="red" />
               ) : (
                 `$${voteValue}`
