@@ -6,13 +6,13 @@
 
 import axios from "axios";
 import { convert } from "html-to-text";
-import { HIVE_API_URL, CHECKER_URL } from "../utils/config";
+import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL } from "../utils/config";
 
 /* -----------------------------
    Hive RPC setup
 ------------------------------ */
-const SHORTS_API = import.meta.env.VITE_SHORTS_API_URL || "https://tags.3speak.tv/shortssorted";
-const USER_SHORTS_API = import.meta.env.VITE_USER_SHORTS_API_URL || "https://tags.3speak.tv/shorts";
+const SHORTS_API = SHORTS_API_URL;
+const USER_SHORTS_API = USER_SHORTS_API_URL;
 
 // Random seed for shorts ordering — regenerated each time shorts are opened
 let SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
