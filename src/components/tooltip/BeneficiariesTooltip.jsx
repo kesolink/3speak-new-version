@@ -5,7 +5,7 @@ import { IoClose } from 'react-icons/io5'
 
 import "./BeneficiariesTooltip.scss"
 
-function BeneficiariesTooltip({ beneficiaries, payoutInfo, anchorRef, pinned, onClose }) {
+function BeneficiariesTooltip({ beneficiaries, payoutInfo, displayTotal, anchorRef, pinned, onClose }) {
   const tipRef = useRef(null);
   const navigate = useNavigate();
   const [pos, setPos] = useState(null);
@@ -26,7 +26,7 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, anchorRef, pinned, on
       left = window.innerWidth - tip.width - 8;
 
     setPos({ top: top + window.scrollY, left });
-  }, [anchorRef, beneficiaries, pinned, payoutInfo]);
+  }, [anchorRef, beneficiaries, pinned, payoutInfo, displayTotal]);
 
   // Close on click outside when pinned
   useEffect(() => {
@@ -43,26 +43,17 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, anchorRef, pinned, on
   const isPaidOut = payoutInfo?.isPaidOut;
   const hasPayoutInfo = !!payoutInfo;
 
-  // Calculate amounts — actual for paid out, estimated for pending
-  let curatorPayout = 0;
-  let authorPayout = 0;
-  let totalPayout = 0;
-
-  if (isPaidOut) {
-    curatorPayout = payoutInfo.curatorPayout;
-    authorPayout = payoutInfo.authorPayout;
-    totalPayout = curatorPayout + authorPayout;
-  } else if (hasPayoutInfo && payoutInfo.pendingPayout > 0) {
-    // Estimate: 50% curators, 50% author
-    totalPayout = payoutInfo.pendingPayout;
-    curatorPayout = totalPayout * 0.5;
-    authorPayout = totalPayout * 0.5;
-  }
+  // Use displayTotal (total_hive_reward from 3speak API) as the source of truth
+  // since Hive's total_payout_value only includes the HBD portion (not vesting/HP).
+  const totalPayout = displayTotal || 0;
+  // Hive splits 50% to curators, 50% to author
+  const curatorPayout = totalPayout * 0.5;
+  const authorPayout = totalPayout * 0.5;
 
   const totalBeneWeight = beneficiaries.reduce((sum, b) => sum + b.weight, 0);
   const beneShare = (authorPayout * totalBeneWeight) / 100;
   const authorNet = authorPayout - beneShare;
-  const showBreakdown = hasPayoutInfo && totalPayout > 0;
+  const showBreakdown = totalPayout > 0;
 
   const content = (
     <div
@@ -88,13 +79,13 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, anchorRef, pinned, on
           <div className="beneficiaries-tooltip-breakdown-row">
             <span className="beneficiaries-tooltip-breakdown-label">Curators (50%)</span>
             <span className="beneficiaries-tooltip-breakdown-value">
-              {!isPaidOut && '~'}${curatorPayout.toFixed(3)}
+              {!isPaidOut && '~'}${curatorPayout.toFixed(2)}
             </span>
           </div>
           <div className="beneficiaries-tooltip-breakdown-row">
             <span className="beneficiaries-tooltip-breakdown-label">Author</span>
             <span className="beneficiaries-tooltip-breakdown-value">
-              {!isPaidOut && '~'}${authorNet.toFixed(3)}
+              {!isPaidOut && '~'}${authorNet.toFixed(2)}
             </span>
           </div>
         </div>
@@ -123,7 +114,7 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, anchorRef, pinned, on
               {b.weight}%
               {showBreakdown && (
                 <span className="beneficiaries-tooltip-amount">
-                  {!isPaidOut && '~'}${((authorPayout * b.weight) / 100).toFixed(3)}
+                  {!isPaidOut && '~'}${((authorPayout * b.weight) / 100).toFixed(2)}
                 </span>
               )}
             </span>
@@ -134,7 +125,7 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, anchorRef, pinned, on
       {showBreakdown && (
         <div className="beneficiaries-tooltip-total">
           <span>Total{!isPaidOut && ' (est.)'}</span>
-          <span>{!isPaidOut && '~'}${totalPayout.toFixed(3)}</span>
+          <span>{!isPaidOut && '~'}${totalPayout.toFixed(2)}</span>
         </div>
       )}
     </div>

@@ -752,6 +752,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   <BeneficiariesTooltip
                     beneficiaries={beneficiaries}
                     payoutInfo={payoutInfo}
+                    displayTotal={videoDetails?.stats?.total_hive_reward ?? 0}
                     anchorRef={payoutRef}
                     pinned={pinnedBeneficiaries}
                     onClose={() => setPinnedBeneficiaries(false)}
