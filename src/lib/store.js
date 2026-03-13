@@ -22,6 +22,8 @@ export const useAppStore = create(
       setWatchHistoryEnabled: (enabled) => a[0]({ watchHistoryEnabled: enabled }),
       sidebarOpen: false,
       setSidebarOpen: (open) => a[0]({ sidebarOpen: typeof open === 'function' ? open(a[1]().sidebarOpen) : open }),
+      showNsfw: false,
+      setShowNsfw: (val) => a[0]({ showNsfw: typeof val === 'function' ? val(a[1]().showNsfw) : val }),
     }),
     {
       name: 'user-store', // The storage key for persisting user data
@@ -31,6 +33,7 @@ export const useAppStore = create(
         theme: state.theme, // Persist theme preference
         watchHistoryEnabled: state.watchHistoryEnabled,
         sidebarOpen: state.sidebarOpen,
+        showNsfw: state.showNsfw,
       }),
     }
   )

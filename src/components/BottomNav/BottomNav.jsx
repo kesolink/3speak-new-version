@@ -17,7 +17,7 @@ const SWIPE_TABS = ["/", "/shorts", "/discover"];
 const BottomNav = ({ openLoginModal }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { authenticated, user } = useAppStore();
+  const { authenticated, user, showNsfw, setShowNsfw } = useAppStore();
   const path = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -186,6 +186,12 @@ const BottomNav = ({ openLoginModal }) => {
           <Link to={`/wallet/${user}`} className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <RiWallet3Fill className="bottom-nav-menu-icon" /> Wallet
           </Link>
+          <div className="bottom-nav-menu-item nsfw-toggle-wrap" onClick={() => setShowNsfw(!showNsfw)}>
+            <span className="nsfw-label">Show NSFW</span>
+            <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
+              <div className="nsfw-toggle-thumb" />
+            </div>
+          </div>
           <div className="bottom-nav-menu-divider" />
           <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
             <IoPower className="bottom-nav-menu-icon" /> Change account
