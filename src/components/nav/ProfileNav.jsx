@@ -110,7 +110,7 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
             <FaLanguage className="icon" /> <span>Language Settings</span>
           </Link> */}
           <div className="wrap nsfw-toggle-wrap" onClick={() => setShowNsfw(!showNsfw)}>
-            <span className="nsfw-label">NSFW Content</span>
+            <span>Show NSFW</span>
             <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
               <div className="nsfw-toggle-thumb" />
             </div>

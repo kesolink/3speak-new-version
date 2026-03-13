@@ -70,6 +70,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const voteCountRef = useRef(null);
   const payoutRef = useRef(null);
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+  const [tipNudgeVisible, setTipNudgeVisible] = useState(false);
+  const tipNudgeShownRef = useRef(false);
   const [isVoted, setIsVoted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [followData, setFollowData] = useState(null);
@@ -116,6 +118,28 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       videoControls.onClipModeChange(!!clipMode);
     }
   }, [clipMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tip nudge at 90% playtime
+  useEffect(() => {
+    const duration = videoControls?.duration;
+    const currentTime = videoControls?.currentTime;
+    if (!duration || duration < 10 || tipNudgeShownRef.current) return;
+    if (currentTime >= duration * 0.9) {
+      setTipNudgeVisible(true);
+      tipNudgeShownRef.current = true;
+    }
+  }, [videoControls?.currentTime, videoControls?.duration]);
+
+  // Reset nudge state when video changes
+  useEffect(() => {
+    tipNudgeShownRef.current = false;
+    setTipNudgeVisible(false);
+  }, [author, permlink]);
+
+  // Report popup open state to parent (blocks autoplay)
+  useEffect(() => {
+    videoControls?.onPopupOpen?.(isTipModalOpen || showTooltip);
+  }, [isTipModalOpen, showTooltip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -569,6 +593,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   cues={videoControls.subtitleCues}
                   style={videoControls.subtitleStyle}
                 />
+              )}
+              {tipNudgeVisible && !isTipModalOpen && authenticated && isLoggedIn() && user !== author && (
+                <div className="tip-nudge">
+                  <FaHeart className="tip-nudge-emoji" style={{ color: '#e53935' }} />
+                  <span className="tip-nudge-text">Enjoyed this? Send <strong>@{author}</strong> a tip!</span>
+                  <button className="tip-nudge-btn" onClick={() => { setTipNudgeVisible(false); setIsTipModalOpen(true); }}>
+                    Tip
+                  </button>
+                  <button className="tip-nudge-close" onClick={() => setTipNudgeVisible(false)} aria-label="Dismiss">
+                    <MdClose size={14} />
+                  </button>
+                </div>
               )}
               {videoControls?.videoEnded && (
                 <div className="video-ended-overlay">
