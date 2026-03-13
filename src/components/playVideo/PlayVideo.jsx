@@ -64,6 +64,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [pinnedTooltip, setPinnedTooltip] = useState(false);
   const [tooltipVoters, setTooltipVoters] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
+  const [payoutInfo, setPayoutInfo] = useState(null);
   const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const [pinnedBeneficiaries, setPinnedBeneficiaries] = useState(false);
   const voteCountRef = useRef(null);
@@ -237,13 +238,21 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         updates.tooltipVoters = topVotes;
       }
 
-      // Extract beneficiaries
+      // Extract beneficiaries and payout breakdown
+      const isPaidOut = parseFloat(data.pending_payout_value) === 0 && parseFloat(data.total_payout_value) > 0;
       if (data.beneficiaries?.length) {
         setBeneficiaries(
           data.beneficiaries
             .map(b => ({ account: b.account, weight: b.weight / 100 }))
             .sort((a, b) => b.weight - a.weight)
         );
+      }
+      if (isPaidOut) {
+        const curatorPayout = parseFloat(data.curator_payout_value);
+        const authorPayout = parseFloat(data.total_payout_value);
+        setPayoutInfo({ isPaidOut: true, curatorPayout, authorPayout, totalPayout: curatorPayout + authorPayout });
+      } else {
+        setPayoutInfo({ isPaidOut: false, pendingPayout: parseFloat(data.pending_payout_value) });
       }
 
       // Single state update
@@ -742,6 +751,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 {(showBeneficiaries || pinnedBeneficiaries) && beneficiaries.length > 0 && (
                   <BeneficiariesTooltip
                     beneficiaries={beneficiaries}
+                    payoutInfo={payoutInfo}
                     anchorRef={payoutRef}
                     pinned={pinnedBeneficiaries}
                     onClose={() => setPinnedBeneficiaries(false)}
