@@ -124,7 +124,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     const duration = videoControls?.duration;
     const currentTime = videoControls?.currentTime;
     if (!duration || duration < 10 || tipNudgeShownRef.current) return;
-    if (currentTime >= duration * 0.9) {
+    const triggerAt = Math.max(duration * 0.9, duration - 120);
+    if (currentTime >= triggerAt) {
       setTipNudgeVisible(true);
       tipNudgeShownRef.current = true;
     }
