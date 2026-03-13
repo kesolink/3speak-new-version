@@ -67,15 +67,16 @@ export async function batchCheckWatched(username, videos) {
  * @param {number} limit - Max items to return
  * @param {number} offset - Items to skip
  */
-export async function getWatchHistory(username, limit = 50, offset = 0) {
+export async function getWatchHistory(username, limit = 50, offset = 0, type = '', since = 0) {
   if (!username) {
     return [];
   }
 
   try {
-    const response = await axios.get(
-      `${PLAYLISTS_API_URL}/watch-history/${username}?limit=${limit}&offset=${offset}`
-    );
+    let url = `${PLAYLISTS_API_URL}/watch-history/${username}?limit=${limit}&offset=${offset}`;
+    if (type) url += `&type=${type}`;
+    if (since) url += `&since=${since}`;
+    const response = await axios.get(url);
     return response.data.history || [];
   } catch (error) {
     console.error('Failed to get watch history:', error);
@@ -111,15 +112,18 @@ export async function deleteWatchHistoryEntry(username, author, permlink) {
   }
 }
 
-export async function getWatchHistoryCount(username) {
+export async function getWatchHistoryCount(username, type = '', since = 0) {
   if (!username) {
     return 0;
   }
 
   try {
-    const response = await axios.get(
-      `${PLAYLISTS_API_URL}/watch-history/${username}/count`
-    );
+    let url = `${PLAYLISTS_API_URL}/watch-history/${username}/count`;
+    const params = [];
+    if (type) params.push(`type=${type}`);
+    if (since) params.push(`since=${since}`);
+    if (params.length) url += `?${params.join('&')}`;
+    const response = await axios.get(url);
     return response.data.count || 0;
   } catch (error) {
     console.error('Failed to get watch history count:', error);

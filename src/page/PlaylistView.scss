@@ -99,6 +99,36 @@
       display: flex;
       gap: 12px;
 
+      .btn-reorder {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: transparent;
+        border: 1px solid var(--border-light);
+        color: var(--text-primary);
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover:not(:disabled) {
+          background: var(--card-bg-hover, rgba(255, 255, 255, 0.05));
+        }
+
+        &.active {
+          background: var(--accent-primary, #667eea);
+          border-color: var(--accent-primary, #667eea);
+          color: #fff;
+        }
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+
       .btn-delete-playlist {
         display: flex;
         align-items: center;
@@ -198,8 +228,59 @@
     }
   }
 
-  // Video List
+  // Toolbar (date filters)
+  .playlist-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+
+    @include respond(phone) {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .filter-count {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+  }
+
+  .date-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+
+    .date-filter-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border-light);
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+
+      &:hover {
+        background: var(--card-bg-hover, rgba(255, 255, 255, 0.05));
+        color: var(--text-primary);
+      }
+
+      &.active {
+        background: var(--accent-primary, #667eea);
+        border-color: var(--accent-primary, #667eea);
+        color: #fff;
+      }
+    }
+  }
+
+  // Video views
   .playlist-videos {
+    // Reorder list view
     .video-list {
       display: flex;
       flex-direction: column;
@@ -227,7 +308,7 @@
 
       &.drag-over {
         border-color: var(--accent-primary);
-        background: rgba(229, 57, 53, 0.1);
+        background: rgba(102, 126, 234, 0.1);
       }
 
       .drag-handle {
@@ -240,13 +321,8 @@
         opacity: 0.5;
         transition: opacity 0.2s ease;
 
-        &:hover {
-          opacity: 1;
-        }
-
-        &:active {
-          cursor: grabbing;
-        }
+        &:hover { opacity: 1; }
+        &:active { cursor: grabbing; }
       }
 
       .video-position {
@@ -255,9 +331,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: none;
         color: var(--text-primary);
-        border-radius: 6px;
         font-size: 12px;
         font-weight: 600;
         flex-shrink: 0;
@@ -302,8 +376,8 @@
           bottom: 6px;
           right: 6px;
           padding: 2px 6px;
-          background: rgba(255, 255, 255, 0.7);
-          color: #000;
+          background: rgba(0, 0, 0, 0.75);
+          color: #fff;
           font-size: 11px;
           border-radius: 4px;
         }
@@ -317,13 +391,18 @@
           font-size: 14px;
           font-weight: 500;
           color: var(--text-primary);
-          margin: 0 0 6px;
+          margin: 0 0 4px;
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
         }
 
+        .video-author {
+          font-size: 12px;
+          color: var(--text-secondary);
+          margin: 0;
+        }
       }
 
       .btn-remove-video {
@@ -345,6 +424,115 @@
         svg {
           font-size: 18px;
           display: block;
+        }
+      }
+    }
+
+    // Grid view
+    .playlist-videos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+
+      @include respond(phone) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+    }
+
+    .playlist-video-card {
+      text-decoration: none;
+      border-radius: 10px;
+      overflow: hidden;
+      transition: transform 0.2s ease;
+
+      &:hover {
+        transform: translateY(-2px);
+
+        .video-thumbnail img {
+          transform: scale(1.03);
+        }
+      }
+
+      .video-thumbnail {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+        border-radius: 10px;
+
+        img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.2s ease;
+        }
+
+        .duration {
+          position: absolute;
+          bottom: 6px;
+          right: 6px;
+          padding: 2px 6px;
+          background: rgba(0, 0, 0, 0.75);
+          color: #fff;
+          font-size: 11px;
+          border-radius: 4px;
+          font-weight: 500;
+        }
+
+        .delete-btn {
+          position: absolute;
+          top: 6px;
+          right: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          background: rgba(0, 0, 0, 0.6);
+          border: none;
+          color: #fff;
+          border-radius: 6px;
+          cursor: pointer;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+          font-size: 16px;
+
+          &:hover {
+            background: rgba(229, 57, 53, 0.85);
+          }
+        }
+      }
+
+      &:hover .delete-btn {
+        opacity: 1;
+      }
+
+      .video-meta {
+        padding: 8px 2px;
+
+        h3 {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--text-primary);
+          margin: 0 0 4px;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          line-height: 1.3;
+        }
+
+        .video-author {
+          font-size: 12px;
+          color: var(--text-secondary);
+          margin: 0 0 2px;
+        }
+
+        .added-date {
+          font-size: 11px;
+          color: var(--text-secondary);
+          margin: 0;
+          opacity: 0.7;
         }
       }
     }

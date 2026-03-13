@@ -119,6 +119,9 @@ const Sidebar = ({ sidebar, onNavigate }) => {
             <Link to={`/watched/${user}`} className="side-link" title="Watch History" onClick={nav}>
               <MdHistory className="icon" /> <span>Watch History</span>
             </Link>
+            <Link to="/profile?tab=playlists" className="side-link" title="All Playlists" onClick={nav}>
+              <MdPlaylistPlay className="icon" /> <span>All Playlists</span>
+            </Link>
           </SidebarDropdown>
         )}
 
