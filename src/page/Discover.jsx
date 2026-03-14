@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
-import { TRENDING_SORTED_URL, CHECKER_URL } from '../utils/config';
+import { TRENDING_SORTED_URL, CHECKER_URL, appendNsfw } from '../utils/config';
+import { useAppStore } from "../lib/store";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -33,7 +34,8 @@ const DATE_PRESETS = [
 ];
 
 const fetchVideos = async ({ pageParam = 1 }) => {
-  const res = await axios.get(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}`);
+  const url = appendNsfw(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}`, useAppStore.getState().showNsfw);
+  const res = await axios.get(url);
   return res.data;
 };
 
@@ -46,12 +48,15 @@ const fetchSearch = async (query, boostRecent, activeTypes, { tag, dateFrom, com
   if (tag) params.tag = tag;
   if (dateFrom) params.from = dateFrom;
   if (community) params.community = community;
+  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
   const res = await axios.get(`${CHECKER_URL}/search`, { params });
   return res.data;
 };
 
 const fetchSuggest = async (query) => {
-  const res = await axios.get(`${CHECKER_URL}/search/suggest`, { params: { q: query } });
+  const params = { q: query };
+  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+  const res = await axios.get(`${CHECKER_URL}/search/suggest`, { params });
   return res.data;
 };
 
@@ -78,6 +83,7 @@ function saveState(state) {
 }
 
 const Discover = () => {
+  const showNsfw = useAppStore(s => s.showNsfw);
   const saved = useRef(loadState());
   const [searchTerm, setSearchTerm] = useState(() => saved.current?.searchTerm || '');
   const [debouncedTerm, setDebouncedTerm] = useState(() => saved.current?.searchTerm?.trim() || '');
@@ -137,7 +143,7 @@ const Discover = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["trending"],
+    queryKey: ["trending", showNsfw],
     queryFn: fetchVideos,
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;
@@ -191,9 +197,9 @@ const Discover = () => {
   const { data: communityResults } = useQuery({
     queryKey: ["community-suggest", communitySearch],
     queryFn: async () => {
-      const res = await axios.get(`${CHECKER_URL}/search`, {
-        params: { q: communitySearch, type: 'community', limit: 8 }
-      });
+      const params = { q: communitySearch, type: 'community', limit: 8 };
+      if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+      const res = await axios.get(`${CHECKER_URL}/search`, { params });
       return res.data?.results || [];
     },
     enabled: communitySearch.length >= 2 && showCommunityDropdown,

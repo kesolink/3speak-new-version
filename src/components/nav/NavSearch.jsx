@@ -5,6 +5,7 @@ import axios from "axios";
 import { MdMusicNote, MdVideoLibrary, MdGroup, MdCheck, MdPerson, MdClose, MdCalendarToday, MdLabel, MdSearch } from "react-icons/md";
 import { RiMovieLine } from "react-icons/ri";
 import { CHECKER_URL } from "../../utils/config";
+import { useAppStore } from "../../lib/store";
 import { fixVideoThumbnail, fallbackImg } from "../../utils/fixThumbnails";
 import TimeAgo from "../TimeAgo/TimeAgo";
 import "./NavSearch.scss";
@@ -35,12 +36,15 @@ const fetchSearch = async (query, boostRecent, activeTypes, { tag, dateFrom, com
   if (tag) params.tag = tag;
   if (dateFrom) params.from = dateFrom;
   if (community) params.community = community;
+  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
   const res = await axios.get(`${CHECKER_URL}/search`, { params });
   return res.data;
 };
 
 const fetchSuggest = async (query) => {
-  const res = await axios.get(`${CHECKER_URL}/search/suggest`, { params: { q: query } });
+  const params = { q: query };
+  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+  const res = await axios.get(`${CHECKER_URL}/search/suggest`, { params });
   return res.data;
 };
 
@@ -52,6 +56,7 @@ const formatDuration = (seconds) => {
 };
 
 function NavSearch() {
+  const showNsfw = useAppStore(s => s.showNsfw);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedTerm, setDebouncedTerm] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
@@ -139,7 +144,7 @@ function NavSearch() {
 
   // Autocomplete
   const { data: suggestData } = useQuery({
-    queryKey: ["nav-suggest", debouncedTerm],
+    queryKey: ["nav-suggest", debouncedTerm, showNsfw],
     queryFn: () => fetchSuggest(debouncedTerm),
     enabled: debouncedTerm.length >= 2 && showSuggestions,
     staleTime: 15000,
@@ -147,11 +152,11 @@ function NavSearch() {
 
   // Community search
   const { data: communityResults } = useQuery({
-    queryKey: ["nav-community-suggest", communitySearch],
+    queryKey: ["nav-community-suggest", communitySearch, showNsfw],
     queryFn: async () => {
-      const res = await axios.get(`${CHECKER_URL}/search`, {
-        params: { q: communitySearch, type: 'community', limit: 8 }
-      });
+      const params = { q: communitySearch, type: 'community', limit: 8 };
+      if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+      const res = await axios.get(`${CHECKER_URL}/search`, { params });
       return res.data?.results || [];
     },
     enabled: communitySearch.length >= 2 && showCommunityDropdown,
@@ -160,7 +165,7 @@ function NavSearch() {
 
   // Search results
   const { data: searchData, isLoading: searchLoading } = useQuery({
-    queryKey: ["nav-search", debouncedTerm, boostRecent, activeTypes, extraFilters],
+    queryKey: ["nav-search", debouncedTerm, boostRecent, activeTypes, extraFilters, showNsfw],
     queryFn: () => fetchSearch(debouncedTerm, boostRecent, activeTypes, extraFilters),
     enabled: debouncedTerm.length >= 2 && activeTypes.length > 0 && panelOpen,
     staleTime: 30000,

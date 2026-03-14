@@ -1100,6 +1100,90 @@
     }
 }
 
+// Tip nudge popup
+.tip-nudge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    border-radius: 10px;
+    animation: tipNudgeSlideIn 0.35s ease-out;
+    max-width: 340px;
+    pointer-events: auto;
+
+    @include mix.respond(phone) {
+        right: 6px;
+        left: 6px;
+        max-width: none;
+    }
+}
+
+.tip-nudge-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    line-height: 1;
+    margin-left: -4px;
+
+    &:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.15);
+    }
+}
+
+.tip-nudge-emoji {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.tip-nudge-text {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.3;
+
+    strong {
+        color: #ff6b6b;
+    }
+}
+
+.tip-nudge-btn {
+    flex-shrink: 0;
+    padding: 5px 14px;
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+
+    &:hover {
+        opacity: 0.85;
+    }
+}
+
+@keyframes tipNudgeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
 // FAB Speed-Dial — mobile only
 .fab-backdrop {
     display: none;
@@ -1289,13 +1373,93 @@
       position: relative !important;
       z-index: auto !important;
       border-radius: 0;
-      // Height = viewport minus nav bar. Width = 16:9 from that height.
-      // Leaves space on the sides for scrolling.
       padding-top: 0 !important;
-      height: calc(100svh - 75px) !important;
-      width: calc((100svh - 75px) * 16 / 9) !important;
+      height: 100svh !important;
+      width: calc(100svh * 16 / 9) !important;
       max-width: 100% !important;
       margin: 0 auto;
+
+      // Replicate mobile centered controls layout in landscape
+      .video-controls,
+      .video-controls.visible {
+        top: 0;
+        bottom: 0;
+        padding: 0;
+        background: none;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .video-controls::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          rgba(0, 0, 0, 0.3) 0%,
+          rgba(0, 0, 0, 0.12) 30%,
+          rgba(0, 0, 0, 0.12) 60%,
+          rgba(0, 0, 0, 0.55) 100%
+        );
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+
+      .video-controls.visible::before {
+        opacity: 1;
+      }
+
+      .video-controls .vc-progress-row {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin-bottom: 0;
+        padding: 0 8px 3px;
+        pointer-events: auto;
+        z-index: 1;
+      }
+
+      .video-controls .vc-controls-row {
+        justify-content: center;
+        z-index: 1;
+      }
+
+      .video-controls .vc-time {
+        position: absolute;
+        bottom: 12px;
+        left: 8px;
+        margin-left: 0;
+        z-index: 1;
+      }
+
+      .video-controls .vc-controls-right {
+        position: absolute;
+        bottom: 10px;
+        right: 8px;
+        z-index: 1;
+      }
+
+      .video-controls .vc-controls-left {
+        gap: 20px;
+      }
+
+      .video-controls .vc-btn {
+        width: 36px;
+        height: 36px;
+        background: rgba(0, 0, 0, 0.35);
+
+        svg {
+          width: 75%;
+          height: 75%;
+        }
+      }
+
+      .video-controls .vc-btn--play {
+        width: 44px;
+        height: 44px;
+        background: rgba(0, 0, 0, 0.45);
+      }
     }
 
     .video-title-row {
@@ -1342,6 +1506,16 @@
     }
   }
 
+  // Top nav in landscape on watch page: use existing nav-hidden transform logic
+  // (JS flips the scroll direction so it shows on scroll down, hides on scroll up)
+  .nav-container {
+    transition: transform 0.3s ease, margin-bottom 0.3s ease;
+    &.nav-hidden {
+      transform: translateY(-100%);
+      margin-bottom: calc(-1 * var(--nav-height, 56px));
+    }
+  }
+
   // Show FAB in landscape phone
   .fab-backdrop {
     display: block;
@@ -1356,8 +1530,32 @@
     flex-direction: column;
     align-items: flex-end;
     position: fixed;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     right: calc(12px + env(safe-area-inset-right, 0px));
     z-index: 50;
+  }
+
+  .fab-actions {
+    flex-direction: row-reverse;
+    flex-wrap: wrap-reverse;
+    justify-content: flex-start;
+    gap: 10px;
+    max-width: calc(100vw - 80px);
+    padding-right: 0;
+  }
+
+  .fab-action {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .fab-action-label {
+    font-size: 11px;
+    padding: 2px 6px;
+    order: 1;
+  }
+
+  .fab-action-btn {
+    order: 0;
   }
 }

@@ -1,26 +1,23 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { MdHistory, MdDelete } from 'react-icons/md';
-import { IoArrowBack } from 'react-icons/io5';
+import { IoArrowBack, IoChevronBack, IoChevronForward } from 'react-icons/io5';
 import BarLoader from '../components/Loader/BarLoader';
+import Card3 from '../components/Cards/Card3';
 import icon from '../../public/images/stack.png';
 import { useAppStore } from '../lib/store';
-import { getWatchHistory, deleteWatchHistoryEntry } from '../utils/watchHistory';
+import { getWatchHistory, getWatchHistoryCount, deleteWatchHistoryEntry } from '../utils/watchHistory';
 import { HIVE_API_URL } from '../utils/config';
 import { toast } from 'sonner';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
 import { findShortByEmbedUrl } from '../hive-api/hiveApi';
 import './WatchedView.scss';
 
-/**
- * Fetch video data from Hive for a list of watched items
- */
 async function fetchVideosFromHistory(items) {
   if (!items?.length) return [];
 
-  // Fetch all video data in parallel
   const videoPromises = items.map(async (item) => {
     try {
       const response = await axios.post(HIVE_API_URL, {
@@ -33,7 +30,6 @@ async function fetchVideosFromHistory(items) {
       const post = response.data?.result;
       if (!post || !post.author) return null;
 
-      // Parse json_metadata for video info
       let metadata = {};
       try {
         metadata = typeof post.json_metadata === 'string'
@@ -43,21 +39,17 @@ async function fetchVideosFromHistory(items) {
         console.error('Error parsing metadata:', e);
       }
 
-      // Extract thumbnail
       let thumbnail = null;
       if (metadata.image?.[0]) {
         thumbnail = metadata.image[0];
       }
 
-      // Extract duration from video metadata
       const duration = metadata.video?.info?.duration || 0;
 
-      // Detect shorts: use API flag first, fall back to metadata heuristics
       const isShort = item.short === true
         || (metadata.tags || []).includes('shorts')
         || (!!metadata.video?.platform && duration > 0 && duration <= 60);
 
-      // For shorts, look up the player/embed permlink from the shorts DB
       let embedPermlink = null;
       if (isShort) {
         try {
@@ -72,8 +64,7 @@ async function fetchVideosFromHistory(items) {
 
       return {
         author: post.author,
-        permlink: post.permlink,
-        embedPermlink,
+        permlink: embedPermlink || post.permlink,
         title: post.title,
         created_at: post.created,
         images: { thumbnail },
@@ -92,6 +83,100 @@ async function fetchVideosFromHistory(items) {
   return videos.filter(Boolean);
 }
 
+const LIMIT = 20;
+
+const DATE_FILTERS = [
+  { key: 'all', label: 'All Time' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+];
+
+function getSinceTimestamp(filterKey) {
+  if (filterKey === 'all') return 0;
+  const now = new Date();
+  if (filterKey === 'today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.floor(start.getTime() / 1000);
+  }
+  if (filterKey === 'week') {
+    const day = now.getDay();
+    const diff = day === 0 ? 6 : day - 1; // Monday as start of week
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+    return Math.floor(start.getTime() / 1000);
+  }
+  if (filterKey === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return Math.floor(start.getTime() / 1000);
+  }
+  return 0;
+}
+
+function formatWatchedDate(timestamp) {
+  if (!timestamp) return '';
+  const date = new Date(typeof timestamp === 'number' && timestamp < 1e12 ? timestamp * 1000 : timestamp);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function Pagination({ page, totalPages, onPageChange }) {
+  if (totalPages <= 1) return null;
+
+  const pages = [];
+  const maxVisible = 5;
+  let start = Math.max(1, page - Math.floor(maxVisible / 2));
+  let end = Math.min(totalPages, start + maxVisible - 1);
+  if (end - start < maxVisible - 1) {
+    start = Math.max(1, end - maxVisible + 1);
+  }
+
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+
+  return (
+    <div className="pagination">
+      <button type="button" className="page-btn" disabled={page === 1} onClick={() => onPageChange(page - 1)}>
+        <IoChevronBack />
+      </button>
+      {start > 1 && (
+        <>
+          <button type="button" className="page-btn" onClick={() => onPageChange(1)}>1</button>
+          {start > 2 && <span className="page-ellipsis">...</span>}
+        </>
+      )}
+      {pages.map(p => (
+        <button
+          key={p}
+          type="button"
+          className={`page-btn ${p === page ? 'active' : ''}`}
+          onClick={() => onPageChange(p)}
+        >
+          {p}
+        </button>
+      ))}
+      {end < totalPages && (
+        <>
+          {end < totalPages - 1 && <span className="page-ellipsis">...</span>}
+          <button type="button" className="page-btn" onClick={() => onPageChange(totalPages)}>{totalPages}</button>
+        </>
+      )}
+      <button type="button" className="page-btn" disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>
+        <IoChevronForward />
+      </button>
+    </div>
+  );
+}
+
 function WatchedView() {
   const { username } = useParams();
   const navigate = useNavigate();
@@ -99,35 +184,54 @@ function WatchedView() {
   const { user: authenticatedUser, watchHistoryEnabled, setWatchHistoryEnabled } = useAppStore();
   const [deletedKeys, setDeletedKeys] = useState(new Set());
   const [activeTab, setActiveTab] = useState('videos');
+  const [videosPage, setVideosPage] = useState(1);
+  const [shortsPage, setShortsPage] = useState(1);
+  const [dateFilter, setDateFilter] = useState('all');
 
-  // Check if viewing own watch history
   const isOwner = authenticatedUser && username?.toLowerCase() === authenticatedUser.toLowerCase();
 
-  // Fetch watched videos with infinite scroll
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-    error,
-  } = useInfiniteQuery({
-    queryKey: ['watchedVideos', username],
-    queryFn: async ({ pageParam = 0 }) => {
-      const limit = 20;
-      const historyItems = await getWatchHistory(username, limit, pageParam * limit);
-      const videos = await fetchVideosFromHistory(historyItems);
-      return { videos, nextOffset: historyItems.length === limit ? pageParam + 1 : undefined };
-    },
-    getNextPageParam: (lastPage) => lastPage.nextOffset,
+  const since = useMemo(() => getSinceTimestamp(dateFilter), [dateFilter]);
+
+  const apiType = activeTab === 'shorts' ? 'shorts' : 'videos';
+  const currentPage = activeTab === 'shorts' ? shortsPage : videosPage;
+  const setCurrentPage = activeTab === 'shorts' ? setShortsPage : setVideosPage;
+
+  const handleDateFilterChange = useCallback((key) => {
+    setDateFilter(key);
+    setVideosPage(1);
+    setShortsPage(1);
+  }, []);
+
+  const { data: videosCount = 0 } = useQuery({
+    queryKey: ['watchedVideosCount', username, 'videos', since],
+    queryFn: () => getWatchHistoryCount(username, 'videos', since),
     enabled: !!username,
+    staleTime: 60 * 1000,
   });
 
-  const allVideos = data?.pages.flatMap(page => page.videos) || [];
-  const nonDeleted = allVideos.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
-  const videosList = nonDeleted.filter(v => !v.isShort);
-  const shortsList = nonDeleted.filter(v => v.isShort);
-  const videos = activeTab === 'shorts' ? shortsList : videosList;
+  const { data: shortsCount = 0 } = useQuery({
+    queryKey: ['watchedVideosCount', username, 'shorts', since],
+    queryFn: () => getWatchHistoryCount(username, 'shorts', since),
+    enabled: !!username,
+    staleTime: 60 * 1000,
+  });
+
+  const currentCount = activeTab === 'shorts' ? shortsCount : videosCount;
+  const totalPages = Math.max(1, Math.ceil(currentCount / LIMIT));
+  const offset = (currentPage - 1) * LIMIT;
+
+  const { data: items = [], isLoading, isError } = useQuery({
+    queryKey: ['watchedVideos', username, apiType, currentPage, since],
+    queryFn: async () => {
+      const historyItems = await getWatchHistory(username, LIMIT, offset, apiType, since);
+      return fetchVideosFromHistory(historyItems);
+    },
+    enabled: !!username,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
+  const filtered = items.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
 
   const handleDelete = useCallback(async (e, author, permlink) => {
     e.preventDefault();
@@ -143,37 +247,8 @@ function WatchedView() {
     }
   }, [username, queryClient]);
 
-  // Handle scroll for infinite loading
-  const handleScroll = (e) => {
-    const bottom = e.target.scrollHeight - e.target.scrollTop <= e.target.clientHeight + 200;
-    if (bottom && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="watched-view-container">
-        <BarLoader />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="watched-view-container">
-        <div className="error-wrap">
-          <p>Error loading watch history: {error.message}</p>
-          <Link to="/" className="back-link">
-            <IoArrowBack /> Back to Home
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="watched-view-container" onScroll={handleScroll}>
+    <div className="watched-view-container">
       {/* Header */}
       <div className="watched-header">
         <div className="watched-info">
@@ -187,7 +262,7 @@ function WatchedView() {
                 @{username}
               </Link>
               <span className="separator">-</span>
-              <span>{nonDeleted.length} watched</span>
+              <span>{videosCount + shortsCount} watched</span>
             </div>
           </div>
         </div>
@@ -203,7 +278,7 @@ function WatchedView() {
               <span>Track history</span>
             </label>
           )}
-          <button className="back-btn" onClick={() => navigate(-1)}>
+          <button type="button" className="back-btn" onClick={() => navigate(-1)}>
             <IoArrowBack /> Back
           </button>
         </div>
@@ -215,71 +290,96 @@ function WatchedView() {
           className={`tab-btn ${activeTab === 'videos' ? 'active' : ''}`}
           onClick={() => setActiveTab('videos')}
         >
-          Videos ({videosList.length})
+          Videos ({videosCount})
         </button>
         <button
           className={`tab-btn ${activeTab === 'shorts' ? 'active' : ''}`}
           onClick={() => setActiveTab('shorts')}
         >
-          Shorts ({shortsList.length})
+          Shorts ({shortsCount})
         </button>
       </div>
 
-      {/* Videos List */}
-      <div className="watched-videos">
-        {videos.length === 0 ? (
+      {/* Date filter + Pagination top */}
+      <div className="watched-toolbar">
+        <div className="date-filters">
+          {DATE_FILTERS.map(f => (
+            <button
+              key={f.key}
+              className={`date-filter-btn ${dateFilter === f.key ? 'active' : ''}`}
+              onClick={() => handleDateFilterChange(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <Pagination page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+      </div>
+
+      {/* Content */}
+      <div className="watched-content">
+        {isLoading ? (
+          <div className="loading-more"><BarLoader /></div>
+        ) : isError ? (
+          <div className="empty-wrap">
+            <span>Failed to load watch history. Please try again.</span>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="empty-wrap">
             <img src={icon} alt="" />
             <span>No watched {activeTab === 'shorts' ? 'shorts' : 'videos'} yet</span>
           </div>
+        ) : activeTab === 'shorts' ? (
+          <div className="watched-shorts-grid">
+            <Card3
+              videos={filtered}
+              linkPrefix="/shorts"
+              shortsGrid
+            />
+          </div>
         ) : (
-          <div className="video-list">
-            {videos.map((video, index) => (
+          <div className="watched-videos-grid">
+            {filtered.map((video) => (
               <Link
                 key={`${video.author}-${video.permlink}`}
-                to={video.isShort
-                  ? `/shorts?v=${video.author}/${video.embedPermlink || video.permlink}`
-                  : `/watch?v=${video.author}/${video.permlink}`}
-                className="video-item"
+                to={`/watch?v=${video.author}/${video.permlink}`}
+                className="watched-video-card"
               >
-                <span className="video-position">{index + 1}</span>
                 <div className="video-thumbnail">
                   <img src={fixVideoThumbnail(video)} alt={video.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
-                  {video.isShort ? (
-                    <span className="short-badge">Short</span>
-                  ) : video.duration > 0 && (
+                  {video.duration > 0 && (
                     <span className="duration">
                       {Math.floor(video.duration / 60)}:{String(Math.floor(video.duration % 60)).padStart(2, '0')}
                     </span>
                   )}
-                </div>
-                <div className="video-info">
-                  <h3>{video.title}</h3>
-                  <p className="video-author">@{video.author}</p>
-                  {video.watch_count > 1 && (
-                    <p className="watch-count">Watched {video.watch_count} times</p>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="delete-btn"
+                      onClick={(e) => handleDelete(e, video.author, video.permlink)}
+                      title="Remove from watch history"
+                    >
+                      <MdDelete />
+                    </button>
                   )}
                 </div>
-                {isOwner && (
-                  <button
-                    className="delete-btn"
-                    onClick={(e) => handleDelete(e, video.author, video.permlink)}
-                    title="Remove from watch history"
-                  >
-                    <MdDelete />
-                  </button>
-                )}
+                <div className="video-meta">
+                  <h3>{video.title}</h3>
+                  <p className="video-author">@{video.author}</p>
+                  <p className="watched-date">Watched {formatWatchedDate(video.watched_at)}</p>
+                </div>
               </Link>
             ))}
-
-            {isFetchingNextPage && (
-              <div className="loading-more">
-                <BarLoader />
-              </div>
-            )}
           </div>
         )}
       </div>
+
+      {/* Pagination bottom */}
+      {totalPages > 1 && (
+        <div className="watched-pagination-bottom">
+          <Pagination page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+        </div>
+      )}
     </div>
   );
 }

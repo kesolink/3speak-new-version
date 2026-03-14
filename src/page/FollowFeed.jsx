@@ -4,7 +4,7 @@ import { useEffect, useCallback } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
-import { FOLLOW_FEED_URL } from "../utils/config";
+import { FOLLOW_FEED_URL, appendNsfw } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -15,12 +15,13 @@ import { TrendingIcon } from "../components/FeedIcons";
 const LIMIT = 50;
 
 const fetchVideos = async ({ pageParam = 1 }, username) => {
-  const res = await axios.get(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${LIMIT}`);
+  const url = appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${LIMIT}`, useAppStore.getState().showNsfw);
+  const res = await axios.get(url);
   return res.data;
 };
 
 const FollowFeed = () => {
-  const { user } = useAppStore();
+  const { user, showNsfw } = useAppStore();
   const queryClient = useQueryClient();
 
   const {
@@ -31,7 +32,7 @@ const FollowFeed = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["follow-feed-page", user],
+    queryKey: ["follow-feed-page", user, showNsfw],
     queryFn: (ctx) => fetchVideos(ctx, user),
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;

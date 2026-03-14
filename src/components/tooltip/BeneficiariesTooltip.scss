@@ -49,6 +49,39 @@
   }
 }
 
+.beneficiaries-tooltip-breakdown {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+}
+
+.beneficiaries-tooltip-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.beneficiaries-tooltip-breakdown-label {
+  color: var(--text-secondary, #666);
+  font-weight: 500;
+}
+
+.beneficiaries-tooltip-breakdown-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #222);
+}
+
+.beneficiaries-tooltip-section-label {
+  padding: 5px 12px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary, #888);
+}
+
 .beneficiaries-tooltip-list {
   padding: 4px 0;
 }
@@ -92,4 +125,26 @@ a.beneficiaries-tooltip-user {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary, #666);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.beneficiaries-tooltip-amount {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary, #222);
+}
+
+.beneficiaries-tooltip-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary, #222);
+  border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+  background: var(--border-color, rgba(0, 0, 0, 0.03));
 }

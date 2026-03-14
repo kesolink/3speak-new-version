@@ -10,6 +10,7 @@ import "./ShortsStories.scss";
 const fetchShortsStories = async (username) => {
   const params = {};
   if (username) params.currentuser = username;
+  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
   const res = await axios.get(SHORTS_STORIES_URL, { params });
   return res.data;
 };
@@ -20,10 +21,10 @@ const fetchShortsStories = async (username) => {
  * without rendering the stories bar.
  */
 export const useShortsStories = () => {
-  const { user } = useAppStore();
+  const { user, showNsfw } = useAppStore();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["shorts-stories", user],
+    queryKey: ["shorts-stories", user, showNsfw],
     queryFn: () => fetchShortsStories(user),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,

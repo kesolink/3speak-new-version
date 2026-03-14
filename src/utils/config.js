@@ -74,7 +74,19 @@ const HIVE_API_NODES = [
   'https://api.openhive.network',
 ];
 
+/**
+ * Append nsfw=true to a URL when NSFW content is enabled.
+ * @param {string} url - The URL to modify
+ * @param {boolean} showNsfw - Whether NSFW content should be shown
+ */
+function appendNsfw(url, showNsfw) {
+  if (!showNsfw) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}nsfw=true`;
+}
+
 export {
+  appendNsfw,
   API_URL_FROM_WEST,
   GRAPHQL_API_URL,
   VIDEO_CDN_DOMAIN,
