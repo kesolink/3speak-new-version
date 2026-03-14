@@ -6,7 +6,8 @@
 
 import axios from "axios";
 import { convert } from "html-to-text";
-import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL } from "../utils/config";
+import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL, appendNsfw } from "../utils/config";
+import { useAppStore } from "../lib/store";
 
 /* -----------------------------
    Hive RPC setup
@@ -54,7 +55,7 @@ const _shortsByEmbedUrl = new Map(); // embed_url → short object
 const _shortsByPermlink = new Map(); // permlink → short object
 
 export async function fetchShortsList(page = 1, limit = 20, currentuser = null) {
-  let url = `${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`;
+  let url = appendNsfw(`${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`, useAppStore.getState().showNsfw);
   if (currentuser) url += `&currentuser=${encodeURIComponent(currentuser)}`;
   console.log('Shorts API URL:', url);
   const response = await axios.get(url);
@@ -576,7 +577,7 @@ export async function findShortByEmbedUrl(author, hivePermlink) {
 
   // Try the user-specific shorts endpoint first (much faster than paginating global feed)
   try {
-    const url = `${USER_SHORTS_API}/${encodeURIComponent(author)}?page=1&limit=100`;
+    const url = appendNsfw(`${USER_SHORTS_API}/${encodeURIComponent(author)}?page=1&limit=100`, useAppStore.getState().showNsfw);
     const response = await axios.get(url);
     if (response.data?.shorts) {
       for (const s of response.data.shorts) {
@@ -704,7 +705,7 @@ export async function fetchShortsWithDetails(page = 1, limit = 10, loggedInUser 
 ------------------------------ */
 
 export async function fetchUserShortsList(username, page = 1, limit = 20) {
-  const url = `${USER_SHORTS_API}/${username}?page=${page}&limit=${limit}`;
+  const url = appendNsfw(`${USER_SHORTS_API}/${username}?page=${page}&limit=${limit}`, useAppStore.getState().showNsfw);
   const response = await axios.get(url);
 
   // Index results in the same maps so findShortByPermlink works

@@ -4,7 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { MdMusicNote, MdVideoLibrary, MdGroup, MdCheck, MdPerson, MdClose, MdCalendarToday, MdLabel, MdSearch } from "react-icons/md";
 import { RiMovieLine } from "react-icons/ri";
-import { CHECKER_URL } from "../../utils/config";
+import { CHECKER_URL, appendNsfw } from "../../utils/config";
+import { useAppStore } from "../../lib/store";
 import { fixVideoThumbnail, fallbackImg } from "../../utils/fixThumbnails";
 import TimeAgo from "../TimeAgo/TimeAgo";
 import "./NavSearch.scss";
@@ -35,12 +36,15 @@ const fetchSearch = async (query, boostRecent, activeTypes, { tag, dateFrom, com
   if (tag) params.tag = tag;
   if (dateFrom) params.from = dateFrom;
   if (community) params.community = community;
+  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
   const res = await axios.get(`${CHECKER_URL}/search`, { params });
   return res.data;
 };
 
 const fetchSuggest = async (query) => {
-  const res = await axios.get(`${CHECKER_URL}/search/suggest`, { params: { q: query } });
+  const params = { q: query };
+  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+  const res = await axios.get(`${CHECKER_URL}/search/suggest`, { params });
   return res.data;
 };
 
@@ -149,9 +153,9 @@ function NavSearch() {
   const { data: communityResults } = useQuery({
     queryKey: ["nav-community-suggest", communitySearch],
     queryFn: async () => {
-      const res = await axios.get(`${CHECKER_URL}/search`, {
-        params: { q: communitySearch, type: 'community', limit: 8 }
-      });
+      const params = { q: communitySearch, type: 'community', limit: 8 };
+      if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+      const res = await axios.get(`${CHECKER_URL}/search`, { params });
       return res.data?.results || [];
     },
     enabled: communitySearch.length >= 2 && showCommunityDropdown,

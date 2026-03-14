@@ -6,7 +6,7 @@ import { has3SpeakPostAuth } from '../../utils/hiveUtils';
 import { useAppStore } from '../../lib/store';
 import CardSkeleton from "../Cards/CardSkeleton"
 import axios from "axios"
-import { FEED_URL, FOLLOW_FEED_URL } from '../../utils/config'
+import { FEED_URL, FOLLOW_FEED_URL, appendNsfw } from '../../utils/config'
 import { useInfiniteQuery } from "@tanstack/react-query"
 import Card3 from "../Cards/Card3"
 import { useContentBatch } from "../../hooks/useContentBatch"
@@ -18,7 +18,8 @@ import useViewCounts from "../../hooks/useViewCounts"
 const FOLLOW_LIMIT = 50;
 
 const fetchFollowFeedVideos = async ({ pageParam = 1 }, username) => {
-  const res = await axios.get(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${FOLLOW_LIMIT}`);
+  const url = appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${FOLLOW_LIMIT}`, useAppStore.getState().showNsfw);
+  const res = await axios.get(url);
   return res.data;
 };
 

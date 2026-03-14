@@ -3,13 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FaChevronLeft, FaChevronRight, FaPlus } from "react-icons/fa";
-import { SHORTS_STORIES_URL } from "../../utils/config";
+import { SHORTS_STORIES_URL, appendNsfw } from "../../utils/config";
 import { useAppStore } from "../../lib/store";
 import "./ShortsStories.scss";
 
 const fetchShortsStories = async (username) => {
   const params = {};
   if (username) params.currentuser = username;
+  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
   const res = await axios.get(SHORTS_STORIES_URL, { params });
   return res.data;
 };

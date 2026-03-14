@@ -7,6 +7,8 @@ import {
   MdOutlineDynamicFeed,
   MdOutlineLeaderboard,
   MdPlaylistPlay,
+  MdWatchLater,
+  MdHistory,
 } from "react-icons/md";
 import { LuNewspaper } from "react-icons/lu";
 import { FaFire, FaRegSmile } from "react-icons/fa";
@@ -20,6 +22,7 @@ import { useAppStore } from "../../lib/store";
 import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
 import { COMPACT_SIDEBAR } from "../../utils/config";
+import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 
 const SidebarDropdown = ({ icon: Icon, label, children, sidebar }) => {
   const [open, setOpen] = useState(false);
@@ -57,6 +60,9 @@ const SidebarDropdown = ({ icon: Icon, label, children, sidebar }) => {
 
 const Sidebar = ({ sidebar, onNavigate }) => {
   const { authenticated, user } = useAppStore();
+  const { data: playlists = [] } = useMyPlaylists({ enabled: !!authenticated });
+  const watchLaterPlaylist = playlists.find(p => p.name === 'Watch Later');
+  const watchLaterLink = watchLaterPlaylist ? `/playlist/${watchLaterPlaylist.id}` : '/profile?tab=playlists';
   const nav = onNavigate || undefined;
 
   return (
@@ -105,9 +111,19 @@ const Sidebar = ({ sidebar, onNavigate }) => {
           </>
         )}
 
-        {authenticated && <Link to="/profile?tab=playlists" className="side-link" title="Playlists" onClick={nav}>
-          <MdPlaylistPlay className="icon" /> <span>Playlists</span>
-        </Link>}
+        {authenticated && (
+          <SidebarDropdown icon={MdPlaylistPlay} label="Playlists" sidebar={sidebar}>
+            <Link to={watchLaterLink} className="side-link" title="Watch Later" onClick={nav}>
+              <MdWatchLater className="icon" /> <span>Watch Later{watchLaterPlaylist?.items?.length > 0 ? ` (${watchLaterPlaylist.items.length})` : ''}</span>
+            </Link>
+            <Link to={`/watched/${user}`} className="side-link" title="Watch History" onClick={nav}>
+              <MdHistory className="icon" /> <span>Watch History</span>
+            </Link>
+            <Link to="/profile?tab=playlists" className="side-link" title="All Playlists" onClick={nav}>
+              <MdPlaylistPlay className="icon" /> <span>All Playlists</span>
+            </Link>
+          </SidebarDropdown>
+        )}
 
         <Link to="/communities" className="side-link" title="Communities" onClick={nav}>
           <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>

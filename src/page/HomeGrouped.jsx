@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import "./HomeGrouped.scss";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL, FIRST_UPLOADS_URL } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL, FIRST_UPLOADS_URL, appendNsfw } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -23,22 +23,22 @@ const fetchHome = async () => {
 };
 
 const fetchFollowFeed = async (username) => {
-  const res = await axios.get(`${FOLLOW_FEED_URL}/${username}?page=1&limit=50`);
+  const res = await axios.get(appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=1&limit=50`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 
 const fetchFirstUploads = async () => {
-  const res = await axios.get(`${FIRST_UPLOADS_URL}?page=1&limit=50`);
+  const res = await axios.get(appendNsfw(`${FIRST_UPLOADS_URL}?page=1&limit=50`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 
 const fetchTrending = async () => {
-  const res = await axios.get(`${TRENDING_SORTED_URL}?page=1&limit=50`);
+  const res = await axios.get(appendNsfw(`${TRENDING_SORTED_URL}?page=1&limit=50`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 
 const fetchNewContent = async () => {
-  const res = await axios.get(`${NEW_CONTENT_URL}?page=1&limit=50`);
+  const res = await axios.get(appendNsfw(`${NEW_CONTENT_URL}?page=1&limit=50`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 

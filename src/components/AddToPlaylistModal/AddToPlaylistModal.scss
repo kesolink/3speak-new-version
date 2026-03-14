@@ -27,13 +27,12 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 400px;
-  height: 80vh;
   max-height: 80vh;
 
   @include respond(phone) {
     max-width: 100%;
     border-radius: 16px 16px 0 0;
-    height: 75vh;
+    min-height: 55vh;
     max-height: 75vh;
     padding-bottom: env(safe-area-inset-bottom, 0px);
     animation: playlist-slide-up 0.3s ease forwards;

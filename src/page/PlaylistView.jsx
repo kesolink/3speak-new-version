@@ -1,9 +1,9 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { useState, useCallback } from 'react';
-import { MdPlaylistPlay, MdDragIndicator, MdDelete, MdClose } from 'react-icons/md';
-import { IoArrowBack, IoTrash, IoSave } from 'react-icons/io5';
+import { useState, useMemo } from 'react';
+import { MdPlaylistPlay, MdClose, MdDragIndicator } from 'react-icons/md';
+import { IoArrowBack, IoTrash, IoSave, IoReorderThree } from 'react-icons/io5';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import BarLoader from '../components/Loader/BarLoader';
@@ -18,9 +18,50 @@ import { toast } from 'sonner';
 import './PlaylistView.scss';
 import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
-import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
-
 dayjs.extend(relativeTime);
+
+const DATE_FILTERS = [
+  { key: 'all', label: 'All Time' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+];
+
+function getSinceTimestamp(filterKey) {
+  if (filterKey === 'all') return 0;
+  const now = new Date();
+  if (filterKey === 'today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.floor(start.getTime() / 1000);
+  }
+  if (filterKey === 'week') {
+    const day = now.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+    return Math.floor(start.getTime() / 1000);
+  }
+  if (filterKey === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return Math.floor(start.getTime() / 1000);
+  }
+  return 0;
+}
+
+function formatAddedDate(timestamp) {
+  if (!timestamp) return '';
+  const date = new Date(typeof timestamp === 'number' && timestamp < 1e12 ? timestamp * 1000 : timestamp);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 /**
  * Fetch video data from Hive for a list of playlist items
@@ -71,6 +112,7 @@ async function fetchVideosForPlaylist(items) {
         images: { thumbnail },
         duration,
         position: item.position,
+        added_at: item.added_at,
       };
     } catch (error) {
       console.error(`Error fetching video ${item.author}/${item.permlink}:`, error);
@@ -94,6 +136,8 @@ function PlaylistView() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [dateFilter, setDateFilter] = useState('all');
+  const [reorderMode, setReorderMode] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
@@ -124,47 +168,49 @@ function PlaylistView() {
   });
 
   // Initialize editable videos when videos change
-  const displayVideos = editableVideos || videos;
+  const allVideos = editableVideos || videos;
+
+  const since = useMemo(() => getSinceTimestamp(dateFilter), [dateFilter]);
+
+  const displayVideos = useMemo(() => {
+    if (!since) return allVideos;
+    return allVideos.filter(v => {
+      const addedAt = v.added_at;
+      if (!addedAt) return true;
+      const ts = typeof addedAt === 'number' && addedAt < 1e12 ? addedAt : Math.floor(addedAt / 1000);
+      return ts >= since;
+    });
+  }, [allVideos, since]);
 
   // Check if there are unsaved changes
   const hasChanges = pendingChanges.length > 0;
 
-  // Handle drag start
+  // Drag handlers for reorder mode
   const handleDragStart = (e, index) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', index);
   };
 
-  // Handle drag over
   const handleDragOver = (e, index) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverIndex(index);
   };
 
-  // Handle drag leave
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
-
-  // Handle drop - reorder videos
   const handleDrop = (e, dropIndex) => {
     e.preventDefault();
     const dragIndex = draggedIndex;
-
     if (dragIndex === null || dragIndex === dropIndex) {
       setDraggedIndex(null);
       setDragOverIndex(null);
       return;
     }
 
-    // Create new array with reordered items
-    const newVideos = [...displayVideos];
+    const newVideos = [...allVideos];
     const [draggedItem] = newVideos.splice(dragIndex, 1);
     newVideos.splice(dropIndex, 0, draggedItem);
 
-    // Update positions
     const updatedVideos = newVideos.map((video, idx) => ({
       ...video,
       position: idx,
@@ -172,7 +218,6 @@ function PlaylistView() {
 
     setEditableVideos(updatedVideos);
 
-    // Track the reorder change
     setPendingChanges(prev => [
       ...prev,
       {
@@ -189,7 +234,7 @@ function PlaylistView() {
 
   // Handle remove video
   const handleRemoveVideo = (video, index) => {
-    const newVideos = displayVideos.filter((_, idx) => idx !== index);
+    const newVideos = allVideos.filter((_, idx) => idx !== index);
 
     // Update positions
     const updatedVideos = newVideos.map((v, idx) => ({
@@ -251,6 +296,7 @@ function PlaylistView() {
   const handleDiscardChanges = () => {
     setEditableVideos(videos);
     setPendingChanges([]);
+    setReorderMode(false);
   };
 
   // Handle delete playlist
@@ -322,7 +368,7 @@ function PlaylistView() {
                 @{playlist.owner}
               </Link>
               <span className="separator">•</span>
-              <span>{displayVideos.length} videos</span>
+              <span>{allVideos.length} videos</span>
               <span className="separator">•</span>
               <span>Created {dayjs.unix(playlist.created_at).fromNow()}</span>
             </div>
@@ -332,6 +378,13 @@ function PlaylistView() {
         {/* Owner Actions */}
         {isOwner && (
           <div className="owner-actions">
+            <button
+              className={`btn-reorder ${reorderMode ? 'active' : ''}`}
+              onClick={() => setReorderMode(!reorderMode)}
+              disabled={isSaving}
+            >
+              <IoReorderThree /> {reorderMode ? 'Done' : 'Reorder'}
+            </button>
             <button
               className="btn-delete-playlist"
               onClick={() => setShowDeleteConfirm(true)}
@@ -360,40 +413,54 @@ function PlaylistView() {
         </div>
       )}
 
-      {/* Videos List */}
+      {/* Date filter toolbar */}
+      <div className="playlist-toolbar">
+        <div className="date-filters">
+          {DATE_FILTERS.map(f => (
+            <button
+              key={f.key}
+              className={`date-filter-btn ${dateFilter === f.key ? 'active' : ''}`}
+              onClick={() => setDateFilter(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {dateFilter !== 'all' && (
+          <span className="filter-count">{displayVideos.length} of {allVideos.length} videos</span>
+        )}
+      </div>
+
+      {/* Videos */}
       <div className="playlist-videos">
         {videosLoading ? (
           <BarLoader />
         ) : displayVideos.length === 0 ? (
           <div className="empty-wrap">
             <img src={icon} alt="" />
-            <span>No videos in this playlist</span>
+            <span>{dateFilter !== 'all' ? 'No videos added in this period' : 'No videos in this playlist'}</span>
           </div>
-        ) : (
+        ) : reorderMode ? (
+          /* List view for reorder mode */
           <div className="video-list">
-            {displayVideos.map((video, index) => (
+            {allVideos.map((video, index) => (
               <div
                 key={`${video.author}-${video.permlink}`}
                 className={`video-item ${draggedIndex === index ? 'dragging' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`}
-                draggable={isOwner}
-                onDragStart={(e) => isOwner && handleDragStart(e, index)}
-                onDragOver={(e) => isOwner && handleDragOver(e, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => isOwner && handleDrop(e, index)}
-                onDragEnd={() => {
-                  setDraggedIndex(null);
-                  setDragOverIndex(null);
-                }}
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragLeave={() => setDragOverIndex(null)}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={() => { setDraggedIndex(null); setDragOverIndex(null); }}
               >
-                {isOwner && (
-                  <div className="drag-handle">
-                    <MdDragIndicator />
-                  </div>
-                )}
+                <div className="drag-handle">
+                  <MdDragIndicator />
+                </div>
                 <span className="video-position">{index + 1}</span>
                 <Link
                   to={`/watch?v=${video.author}/${video.permlink}&playlist=${playlistId}&pos=${index}`}
-                  state={{ playlist, videos: displayVideos, currentIndex: index }}
+                  state={{ playlist, videos: allVideos, currentIndex: index }}
                   className="video-link"
                 >
                   <div className="video-thumbnail">
@@ -410,23 +477,64 @@ function PlaylistView() {
                   </div>
                   <div className="video-info">
                     <h3>{video.title}</h3>
-                    <AuthorBadge author={video.author} noLink />
+                    <p className="video-author">@{video.author}</p>
                   </div>
                 </Link>
-                {isOwner && (
-                  <button
-                    className="btn-remove-video"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleRemoveVideo(video, index);
-                    }}
-                    title="Remove from playlist"
-                  >
-                    <MdClose />
-                  </button>
-                )}
+                <button
+                  className="btn-remove-video"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleRemoveVideo(video, index);
+                  }}
+                  title="Remove from playlist"
+                >
+                  <MdClose />
+                </button>
               </div>
+            ))}
+          </div>
+        ) : (
+          /* Grid view (default) */
+          <div className="playlist-videos-grid">
+            {displayVideos.map((video) => (
+              <Link
+                key={`${video.author}-${video.permlink}`}
+                to={`/watch?v=${video.author}/${video.permlink}&playlist=${playlistId}&pos=${video.position}`}
+                state={{ playlist, videos: allVideos, currentIndex: video.position }}
+                className="playlist-video-card"
+              >
+                <div className="video-thumbnail">
+                  <img
+                    src={fixVideoThumbnail(video)}
+                    alt={video.title}
+                    onError={(e) => (e.currentTarget.src = fallbackImg)}
+                  />
+                  {video.duration > 0 && (
+                    <span className="duration">
+                      {Math.floor(video.duration / 60)}:{String(Math.floor(video.duration % 60)).padStart(2, '0')}
+                    </span>
+                  )}
+                  {isOwner && (
+                    <button
+                      className="delete-btn"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRemoveVideo(video, allVideos.indexOf(video));
+                      }}
+                      title="Remove from playlist"
+                    >
+                      <MdClose />
+                    </button>
+                  )}
+                </div>
+                <div className="video-meta">
+                  <h3>{video.title}</h3>
+                  <p className="video-author">@{video.author}</p>
+                  <p className="added-date">Added {formatAddedDate(video.added_at)}</p>
+                </div>
+              </Link>
             ))}
           </div>
         )}

@@ -64,11 +64,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [pinnedTooltip, setPinnedTooltip] = useState(false);
   const [tooltipVoters, setTooltipVoters] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
+  const [payoutInfo, setPayoutInfo] = useState(null);
   const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const [pinnedBeneficiaries, setPinnedBeneficiaries] = useState(false);
   const voteCountRef = useRef(null);
   const payoutRef = useRef(null);
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+  const [tipNudgeVisible, setTipNudgeVisible] = useState(false);
+  const tipNudgeShownRef = useRef(false);
   const [isVoted, setIsVoted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [followData, setFollowData] = useState(null);
@@ -115,6 +118,29 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
       videoControls.onClipModeChange(!!clipMode);
     }
   }, [clipMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tip nudge at 90% playtime
+  useEffect(() => {
+    const duration = videoControls?.duration;
+    const currentTime = videoControls?.currentTime;
+    if (!duration || duration < 10 || tipNudgeShownRef.current) return;
+    const triggerAt = Math.max(duration * 0.9, duration - 120);
+    if (currentTime >= triggerAt) {
+      setTipNudgeVisible(true);
+      tipNudgeShownRef.current = true;
+    }
+  }, [videoControls?.currentTime, videoControls?.duration]);
+
+  // Reset nudge state when video changes
+  useEffect(() => {
+    tipNudgeShownRef.current = false;
+    setTipNudgeVisible(false);
+  }, [author, permlink]);
+
+  // Report popup open state to parent (blocks autoplay)
+  useEffect(() => {
+    videoControls?.onPopupOpen?.(isTipModalOpen || showTooltip);
+  }, [isTipModalOpen, showTooltip]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -237,13 +263,21 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         updates.tooltipVoters = topVotes;
       }
 
-      // Extract beneficiaries
+      // Extract beneficiaries and payout breakdown
+      const isPaidOut = parseFloat(data.pending_payout_value) === 0 && parseFloat(data.total_payout_value) > 0;
       if (data.beneficiaries?.length) {
         setBeneficiaries(
           data.beneficiaries
             .map(b => ({ account: b.account, weight: b.weight / 100 }))
             .sort((a, b) => b.weight - a.weight)
         );
+      }
+      if (isPaidOut) {
+        const curatorPayout = parseFloat(data.curator_payout_value);
+        const authorPayout = parseFloat(data.total_payout_value);
+        setPayoutInfo({ isPaidOut: true, curatorPayout, authorPayout, totalPayout: curatorPayout + authorPayout });
+      } else {
+        setPayoutInfo({ isPaidOut: false, pendingPayout: parseFloat(data.pending_payout_value) });
       }
 
       // Single state update
@@ -561,6 +595,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   style={videoControls.subtitleStyle}
                 />
               )}
+              {tipNudgeVisible && !isTipModalOpen && authenticated && isLoggedIn() && user !== author && (
+                <div className="tip-nudge">
+                  <FaHeart className="tip-nudge-emoji" style={{ color: '#e53935' }} />
+                  <span className="tip-nudge-text">Enjoyed this? Send <strong>@{author}</strong> a tip!</span>
+                  <button className="tip-nudge-btn" onClick={() => { setTipNudgeVisible(false); setIsTipModalOpen(true); }}>
+                    Tip
+                  </button>
+                  <button className="tip-nudge-close" onClick={() => setTipNudgeVisible(false)} aria-label="Dismiss">
+                    <MdClose size={14} />
+                  </button>
+                </div>
+              )}
               {videoControls?.videoEnded && (
                 <div className="video-ended-overlay">
                   <button className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
@@ -742,6 +788,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 {(showBeneficiaries || pinnedBeneficiaries) && beneficiaries.length > 0 && (
                   <BeneficiariesTooltip
                     beneficiaries={beneficiaries}
+                    payoutInfo={payoutInfo}
+                    displayTotal={videoDetails?.stats?.total_hive_reward ?? 0}
                     anchorRef={payoutRef}
                     pinned={pinnedBeneficiaries}
                     onClose={() => setPinnedBeneficiaries(false)}

@@ -4,7 +4,8 @@ import { useEffect, useCallback } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
-import { TRENDING_SORTED_URL } from '../utils/config';
+import { TRENDING_SORTED_URL, appendNsfw } from '../utils/config';
+import { useAppStore } from '../lib/store';
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -14,7 +15,8 @@ import { TrendingIcon } from "../components/FeedIcons";
 const LIMIT = 50;
 
 const fetchVideos = async ({ pageParam = 1 }) => {
-  const res = await axios.get(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}`);
+  const url = appendNsfw(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}`, useAppStore.getState().showNsfw);
+  const res = await axios.get(url);
   return res.data;
 };
 
