@@ -25,6 +25,8 @@ import CommunitiesRender from "./components/Communities/CommunitiesRender";
 import CommunityPage from "./components/Communities/CommunityPage";
 import TagFeed from "./page/TagFeed";
 import LeaderBoard from "./page/LeaderBoard";
+
+
 import ProfilePage from "./page/ProfilePage";
 import Wallet from "./page/Wallet";
 import Testing from "./components/Testingfile/Testing";
@@ -184,31 +186,31 @@ function App() {
 
 
 
-  const tokenVaildation = ()=>{
+  const tokenVaildation = () => {
     const token = window.localStorage.getItem("access_token")
-    if (token && authenticated){
+    if (token && authenticated) {
       try {
-    const decoded = jwtDecode(token);
-    console.log(decoded)
+        const decoded = jwtDecode(token);
+        console.log(decoded)
 
-    // exp is in seconds, Date.now() is in ms
-    const isExpired = decoded.exp * 1000 < Date.now();
-    if (isExpired) {
+        // exp is in seconds, Date.now() is in ms
+        const isExpired = decoded.exp * 1000 < Date.now();
+        if (isExpired) {
           // console.warn("Token expired — logging out user");
           toast.error("Secssion expired")
           LogOut(decoded.user_id); // this will already remove the token
           return false;
         }
-    return !isExpired;
-  } catch (err) {
-    console.error("Invalid token:", err);
-    return false;
-  }
+        return !isExpired;
+      } catch (err) {
+        console.error("Invalid token:", err);
+        return false;
+      }
     }
 
   }
 
-  
+
 
   // const closeProfileNav = ()=>{
   //   setProfileNavVisible(!profileNavVisible)
@@ -254,91 +256,93 @@ function App() {
 
   return (
     <HiveAuthProvider>
-    <LegacyUploadProvider>
-    <EmbedUploadProvider>
-    <div onClick={()=> {setGlobalCloseRender(true)}}>
-      <Toaster richColors position="top-right" />
-      <ShortsPreloader />
-      {!hideNavOnMobile && (
-        <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
-      )}
-      <div>
-        {!hideNavOnMobile && <Sidebar sidebar={sidebar} />}
-        <div className={`container ${sidebar ? "" : "large-container"} ${hideNavOnMobile ? "shorts-mobile-container" : ""}`}>
-          <ScrollToTop />
-          {/* <Toaster richColors position="top-right" /> */}
-          <Routes>
-            <Route path="/" element={<HomeGrouped />} />
-            <Route path="/home-feed" element={<Feed />} />
-            <Route path="/follow-feed" element={<FollowFeed />} />
-            <Route path="/watch" element={<Watch />} />
-            <Route path="/upload" element={<UploadVideo />} />
-            <Route path="/firstupload" element={<FirstUploads />} />
-            <Route path="/trend" element={<Trend />} />
-            <Route path="/new" element={<NewVideos />} />
-            <Route path="/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
-            <Route path="/auth/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
-             <Route path="/auth/callback" element={<AuthCallback />} />
-            {/* <Route path="/email" element={<Email/>} />  */}
-            <Route path="/newlogin" element={<LoginNew />} />
-            <Route path="/studio" element={<StudioPage />} />
-            <Route path="/studio/thumbnail" element={<Thumbnail />} />
-            <Route path="/studio/details" element={<Details />} />
-            <Route path="/studio/preview" element={<Preview />} />
-            {/* Embed studio (uses embed.okinoko.io upload service) */}
-            <Route path="/embed-studio" element={<EmbedStudioPage />} />
-            <Route path="/embed-studio/thumbnail" element={<EmbedThumbnail />} />
-            <Route path="/embed-studio/details" element={<EmbedDetails />} />
-            <Route path="/embed-studio/preview" element={<EmbedPreview />} />
-            {/* <Route path="/studio2" element={<StudioPage2 />} /> */}
-            <Route path="/draft" element={<DraftStudio />} />
-            <Route path="/editvideo/:d" element={<EditVideo />} />
-            <Route path="/communities" element={<CommunitiesRender />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/shorts/stories" element={<ShortsStoryFeed />} />
-            <Route path="/shorts" element={<Short />} />
-            <Route
-              path="/community/:communityName"
-              element={<CommunityPage />}
-            />
-            <Route path="/t/:tag" element={<TagFeed />} />
-            <Route path="/leaderboard" element={<LeaderBoard />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/p/:user" element={<UserProfilePage />} />
-            <Route path="/user/:user" element={<UserProfilePage />} />
-            <Route path="/playlist/:playlistId" element={<PlaylistView />} />
-            <Route path="/watched/:username" element={<WatchedView />} />
-            <Route path="/wallet/:user" element={<Wallet />} />
-            <Route path="/test" element={<ProfileModal />} />
-            <Route path="/image" element={<HiveImageUploader />} />
-            <Route path="*" element={<HiveLinkRedirect />} />
-          </Routes>
-        </div>
-        {!hideNavOnMobile && (
-          <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} toggleAddAccount={toggleAddAccount} openLoginModal={openLoginModal} />
-        )}
-        {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} /> }
-        <LoginModal
-          displayed={loginModalOpen}
-          onLogin={handleAiohaLogin}
-          onClose={closeLoginModal}
-          loginTitle="Login to 3Speak"
-          loginOptions={{
-            msg: `${loginProof}`,
-            keyType: KeyTypes.Posting
-          }}
-        />
-        {FEATURE_EDITOR && (
-          <EditorModal
-            isOpen={editorModalOpen}
-            onClose={() => setEditorModalOpen(false)}
-          />
-        )}
-      </div>
-    </div>
+      <LegacyUploadProvider>
+        <EmbedUploadProvider>
+          <div onClick={() => { setGlobalCloseRender(true) }}>
+            <Toaster richColors position="top-right" />
+            <ShortsPreloader />
+            {!hideNavOnMobile && (
+              <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
+            )}
+            <div>
+              {!hideNavOnMobile && <Sidebar sidebar={sidebar} />}
+              <div className={`container ${sidebar ? "" : "large-container"} ${hideNavOnMobile ? "shorts-mobile-container" : ""}`}>
+                <ScrollToTop />
+                {/* <Toaster richColors position="top-right" /> */}
+                <Routes>
+                  <Route path="/" element={<HomeGrouped />} />
+                  <Route path="/home-feed" element={<Feed />} />
+                  <Route path="/follow-feed" element={<FollowFeed />} />
+                  <Route path="/watch" element={<Watch />} />
+                  <Route path="/upload" element={<UploadVideo />} />
+                  <Route path="/firstupload" element={<FirstUploads />} />
+                  <Route path="/trend" element={<Trend />} />
+                  <Route path="/new" element={<NewVideos />} />
+                  <Route path="/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
+                  <Route path="/auth/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
+                  {/* <Route path="/email" element={<Email/>} />  */}
+                  <Route path="/newlogin" element={<LoginNew />} />
+                  <Route path="/studio" element={<StudioPage />} />
+                  <Route path="/studio/thumbnail" element={<Thumbnail />} />
+                  <Route path="/studio/details" element={<Details />} />
+                  <Route path="/studio/preview" element={<Preview />} />
+                  {/* Embed studio (uses embed.okinoko.io upload service) */}
+                  <Route path="/embed-studio" element={<EmbedStudioPage />} />
+                  <Route path="/embed-studio/thumbnail" element={<EmbedThumbnail />} />
+                  <Route path="/embed-studio/details" element={<EmbedDetails />} />
+                  <Route path="/embed-studio/preview" element={<EmbedPreview />} />
+                  {/* <Route path="/studio2" element={<StudioPage2 />} /> */}
+                  <Route path="/draft" element={<DraftStudio />} />
+                  <Route path="/editvideo/:d" element={<EditVideo />} />
+                  <Route path="/communities" element={<CommunitiesRender />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/shorts/stories" element={<ShortsStoryFeed />} />
+                  <Route path="/shorts" element={<Short />} />
+                  <Route
+                    path="/community/:communityName"
+                    element={<CommunityPage />}
+                  />
+                  <Route path="/t/:tag" element={<TagFeed />} />
+                  <Route path="/leaderboard" element={<LeaderBoard />} />
 
-    </EmbedUploadProvider>
-    </LegacyUploadProvider>
+
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/p/:user" element={<UserProfilePage />} />
+                  <Route path="/user/:user" element={<UserProfilePage />} />
+                  <Route path="/playlist/:playlistId" element={<PlaylistView />} />
+                  <Route path="/watched/:username" element={<WatchedView />} />
+                  <Route path="/wallet/:user" element={<Wallet />} />
+                  <Route path="/test" element={<ProfileModal />} />
+                  <Route path="/image" element={<HiveImageUploader />} />
+                  <Route path="*" element={<HiveLinkRedirect />} />
+                </Routes>
+              </div>
+              {!hideNavOnMobile && (
+                <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} toggleAddAccount={toggleAddAccount} openLoginModal={openLoginModal} />
+              )}
+              {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} />}
+              <LoginModal
+                displayed={loginModalOpen}
+                onLogin={handleAiohaLogin}
+                onClose={closeLoginModal}
+                loginTitle="Login to 3Speak"
+                loginOptions={{
+                  msg: `${loginProof}`,
+                  keyType: KeyTypes.Posting
+                }}
+              />
+              {FEATURE_EDITOR && (
+                <EditorModal
+                  isOpen={editorModalOpen}
+                  onClose={() => setEditorModalOpen(false)}
+                />
+              )}
+            </div>
+          </div>
+
+        </EmbedUploadProvider>
+      </LegacyUploadProvider>
     </HiveAuthProvider>
   );
 }

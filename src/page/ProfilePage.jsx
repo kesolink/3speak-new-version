@@ -18,6 +18,8 @@ import { fetchUserShortsWithDetails } from "../hive-api/hiveApi";
 
 import { FaVideo } from "react-icons/fa";
 import { IoMdShare, IoMdAdd } from "react-icons/io";
+import { MdRssFeed } from "react-icons/md";
+
 import { MdLock, MdPublic } from "react-icons/md";
 
 import { LineSpinner, Quantum } from "ldrs/react";
@@ -41,7 +43,7 @@ const WATCH_LATER_NAME = 'Watch Later';
 
 function ProfilePage() {
 
-  const  {uploadVideoProgress, uploadStatus, hasBackgroundJob} = useLegacyUpload();
+  const { uploadVideoProgress, uploadStatus, hasBackgroundJob } = useLegacyUpload();
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -149,7 +151,7 @@ function ProfilePage() {
   /* ===============================
      START POLLING ON LOAD
   =============================== */
-  useEffect(() => { 
+  useEffect(() => {
     if (!user) return;
 
     // Clear any existing interval first
@@ -159,18 +161,18 @@ function ProfilePage() {
     }
 
     // Run immediately
-    fetchInProgressUploads(); 
+    fetchInProgressUploads();
 
     // Set up polling interval
-    pollingRef.current = setInterval(() => { 
-      fetchInProgressUploads(); 
-    }, 5000); 
+    pollingRef.current = setInterval(() => {
+      fetchInProgressUploads();
+    }, 5000);
 
-    return () => { 
-      if (pollingRef.current) { 
-        clearInterval(pollingRef.current); 
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
         pollingRef.current = null;
-      } 
+      }
     };
   }, [user, fetchInProgressUploads]);
 
@@ -213,13 +215,13 @@ function ProfilePage() {
 
       const responseData = res.data?.data || {};
       const allVideos = responseData.videos || [];
-      
+
       // Filter out "uploaded" status videos (incomplete uploads)
       const filteredVideos = allVideos.filter(video => video.status !== 'uploaded');
-      
+
       // Attach original count for pagination logic
       filteredVideos._originalCount = allVideos.length;
-      
+
       return filteredVideos;
     } catch (error) {
       console.error('Failed to fetch videos:', error.response?.status, error.response?.data);
@@ -313,7 +315,7 @@ function ProfilePage() {
     const handleScroll = () => {
       if (
         window.innerHeight + window.scrollY >=
-          document.body.offsetHeight - 200
+        document.body.offsetHeight - 200
       ) {
         if (show === 'shorts' && !isFetchingNextShortsPage && hasNextShortsPage) {
           fetchNextShortsPage();
@@ -405,6 +407,16 @@ function ProfilePage() {
               >
                 <IoMdShare />
               </button>
+
+              {/* RSS Feed button */}
+              <button
+                className="btn btn-rss"
+                title={`Subscribe to @${user}'s podcast RSS feed`}
+                onClick={() => window.open(`/rss/${user}.xml`, '_blank')}
+              >
+                <MdRssFeed />
+              </button>
+
             </div>
           </div>
         </div>
@@ -435,65 +447,66 @@ function ProfilePage() {
       {/* ================= IN-PROGRESS BANNER ================= */}
 
       {hasBackgroundJob && !uploadStatus && (<div className="progressbar-container">
-            <div className="content-wrap">
-              <div className="wrap">
-                <div className="wrap-top"><h3>Fetching Video </h3> <div>{uploadVideoProgress}%</div></div>
-                {uploadVideoProgress > 0 && <div className="progress-bars">
-                  <div className="progress-bar-fill" style={{ width: `${uploadVideoProgress}%` }}>
-                    {/* {uploadVideoProgress > 0 && <span className="progress-bar-text">{uploadVideoProgress}%</span>} */}
-                  </div>
-                </div>}
+        <div className="content-wrap">
+          <div className="wrap">
+            <div className="wrap-top"><h3>Fetching Video </h3> <div>{uploadVideoProgress}%</div></div>
+            {uploadVideoProgress > 0 && <div className="progress-bars">
+              <div className="progress-bar-fill" style={{ width: `${uploadVideoProgress}%` }}>
+                {/* {uploadVideoProgress > 0 && <span className="progress-bar-text">{uploadVideoProgress}%</span>} */}
               </div>
-              <div className="wrap">
-                <div className="wrap-upload"><h3>{!uploadStatus ? "Uploading video" : 'Video uploaded'} </h3> <div>{!uploadStatus ? <LineSpinner size="20" stroke="3" speed="1" color="black" /> : <img src={checker} alt="" />}</div></div>
-              </div>
+            </div>}
+          </div>
+          <div className="wrap">
+            <div className="wrap-upload"><h3>{!uploadStatus ? "Uploading video" : 'Video uploaded'} </h3> <div>{!uploadStatus ? <LineSpinner size="20" stroke="3" speed="1" color="black" /> : <img src={checker} alt="" />}</div></div>
+          </div>
           <div className="background-text">
             <p>Please do not close your browser while the upload is in progress.</p>
             <p>A background job is currently running and will automatically publish your post.</p>
           </div>
 
 
-            </div>
-          </div>
-      )}
-
-    {inProgress?.count > 0 && (
-      <div className="active-renders">
-        {inProgress.videos.map(video => { 
-          const progress = Number(video.progress_percent).toFixed(2);
-
-          return (
-          <div key={video.video_id} className="render-card">
-          <div className="left">
-            <div className="icon">▶</div>
-            <div className="info">
-              <h3>{video.title}</h3>
-              <p className="sub">🎬 Processing your videos</p>
-              <div className="meta">
-                <span className="status">{video.status_label}</span>
-                <span className="time">{video.elapsed_minutes} min ago</span>
-              </div>
-            </div>
-          </div>
-
-         <div className="wrap-progress">
-          <div className="right">
-            <div className="percent">{progress}%</div>
-          </div>
-          <div className="progress">
-            <div className="bar" style={{ width: `${progress}%` }}></div>
-          </div>
         </div>
-        </div>
-      )})}
       </div>
       )}
 
+      {inProgress?.count > 0 && (
+        <div className="active-renders">
+          {inProgress.videos.map(video => {
+            const progress = Number(video.progress_percent).toFixed(2);
 
-      
+            return (
+              <div key={video.video_id} className="render-card">
+                <div className="left">
+                  <div className="icon">▶</div>
+                  <div className="info">
+                    <h3>{video.title}</h3>
+                    <p className="sub">🎬 Processing your videos</p>
+                    <div className="meta">
+                      <span className="status">{video.status_label}</span>
+                      <span className="time">{video.elapsed_minutes} min ago</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="wrap-progress">
+                  <div className="right">
+                    <div className="percent">{progress}%</div>
+                  </div>
+                  <div className="progress">
+                    <div className="bar" style={{ width: `${progress}%` }}></div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
 
-      
+
+
+
+
 
       {/* ================= VIDEO LIST / PLAYLISTS ================= */}
       <div className="container-video">
@@ -602,7 +615,7 @@ function ProfilePage() {
               </button>
               <button className="btn-create" onClick={handleCreatePlaylist} disabled={isCreating}>
                 {isCreating ? 'Creating...' : 'Create Playlist'}
-              </button>
+              </button>the ser
             </div>
           </div>
         </div>

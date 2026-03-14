@@ -69,7 +69,7 @@ $bg: #ffffff;
   }
 
   // Override the container styles for child cards to fit in the grid
-  > div {
+  >div {
     display: contents;
   }
 }
@@ -116,7 +116,8 @@ $bg: #ffffff;
       color: var(--text-secondary, #aaa);
     }
 
-    input, select {
+    input,
+    select {
       width: 100%;
       padding: 12px;
       border: 1px solid var(--border-light, #333);
@@ -215,16 +216,24 @@ $bg: #ffffff;
 .profile-page-container {
   .com-profile-img-wrap {
     position: relative;
+
     img {
-      width: 100%; /* Make the image take up 100% of its container's width */
-      height: auto; /* Maintain aspect ratio */
-      border-radius: 20px; /* Rounded corners */
-      object-fit: cover; /* Ensure the image covers the entire area without stretching */
-      display: block; /* Remove any extra space below the image */
+      width: 100%;
+      /* Make the image take up 100% of its container's width */
+      height: auto;
+      /* Maintain aspect ratio */
+      border-radius: 20px;
+      /* Rounded corners */
+      object-fit: cover;
+      /* Ensure the image covers the entire area without stretching */
+      display: block;
+
+      /* Remove any extra space below the image */
       @include mix.respond(phone) {
         height: 100px;
       }
     }
+
     .wrap {
       position: absolute;
       display: flex;
@@ -232,14 +241,17 @@ $bg: #ffffff;
       gap: 7px;
       bottom: 10%;
       left: 10px;
+
       img {
         width: 30%;
+
         @include mix.respond(phone) {
           width: 40px;
           height: 40px;
           border-radius: 50%;
         }
       }
+
       span {
         font-size: 28px;
         font-weight: bold;
@@ -248,12 +260,14 @@ $bg: #ffffff;
         letter-spacing: 2px;
         -webkit-text-stroke-width: 1px;
         -webkit-text-fill-color: transparent;
+
         @include mix.respond(phone) {
           font-size: 20px;
         }
       }
     }
   }
+
   .toggle-wrap {
     display: flex;
     justify-content: space-between;
@@ -262,33 +276,40 @@ $bg: #ffffff;
     border-bottom: 1px solid grey;
     padding: 0px 10px;
     padding-bottom: 7px;
+
     @include mix.respond(phone) {
       padding: 0px 5px;
       padding-bottom: 7px;
     }
+
     .wrap {
       display: flex;
       align-items: center;
       gap: 15px;
       color: #000;
+
       [data-theme="dark"] & {
         color: var(--text-primary);
       }
+
       a {
         color: #000;
         padding: 5px 15px;
         border-radius: 7px;
         box-shadow: 0px 1px 7px 0px #00000040;
         font-size: 13.5px;
+
         @include mix.respond(phone) {
           padding: 4px 4px;
         }
       }
+
       .vn {
         @include mix.respond(phone) {
           // display: none;
         }
       }
+
       @include mix.respond(phone) {
         padding-bottom: 0px;
       }
@@ -301,20 +322,24 @@ $bg: #ffffff;
         box-shadow: 0px 1px 7px 0px #00000040;
         font-size: 13.5px;
         cursor: pointer;
+
         [data-theme="dark"] & {
           color: var(--text-primary);
           border: 1px solid #1e293b;
         }
+
         @include mix.respond(phone) {
           padding-bottom: 0px;
           padding: 4px 4px;
         }
       }
     }
+
     .wrap-in {
       display: flex;
       align-items: center;
       gap: 10px;
+
       .wrap-upload-video {
         display: flex;
         justify-content: center;
@@ -360,6 +385,7 @@ $bg: #ffffff;
   .details {
     display: flex;
     flex-direction: column;
+
     .wrap {
       display: flex;
       align-items: center;
@@ -382,6 +408,7 @@ $bg: #ffffff;
   0% {
     background-position: -1000px 0;
   }
+
   100% {
     background-position: 1000px 0;
   }
@@ -427,6 +454,7 @@ $bg: #ffffff;
       height: 100%;
       object-fit: cover;
       object-position: center;
+
       @include mix.respond(phone) {
         height: 100%;
       }
@@ -486,9 +514,11 @@ $bg: #ffffff;
 
         .user-metas {
           margin-top: 40px;
+
           @include mix.respond(phone) {
             margin-top: 20px;
           }
+
           h2 {
             margin-top: 10px;
             font-size: 28px;
@@ -498,6 +528,7 @@ $bg: #ffffff;
             letter-spacing: 2px;
             -webkit-text-stroke-width: 1px;
             -webkit-text-fill-color: transparent;
+
             @include mix.respond(phone) {
               font-size: 20px;
               margin-top: 20px;
@@ -544,6 +575,7 @@ $bg: #ffffff;
       .button-group {
         display: flex;
         gap: 0.5rem;
+
         @include mix.respond(phone) {
           justify-content: center;
         }
@@ -564,6 +596,23 @@ $bg: #ffffff;
           &:hover {
             border-color: #64748b;
             background: #0f172a;
+          }
+
+          // RSS feed button — orange accent
+          &.btn-rss {
+            color: #ff6600;
+            border-color: rgba(255, 102, 0, 0.35);
+            padding: 0.35rem 0.55rem;
+
+            &:hover {
+              border-color: #ff6600;
+              background: rgba(255, 102, 0, 0.1);
+              color: #ff6600;
+            }
+
+            svg {
+              font-size: 1rem;
+            }
           }
 
           .icon {
