@@ -28,7 +28,7 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, displayTotal, anchorR
     setPos({ top: top + window.scrollY, left });
   }, [anchorRef, beneficiaries, pinned, payoutInfo, displayTotal]);
 
-  // Close on click outside when pinned
+  // Close on click outside or scroll when pinned
   useEffect(() => {
     if (!pinned) return;
     const handleClick = (e) => {
@@ -36,12 +36,16 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, displayTotal, anchorR
       if (anchorRef?.current?.contains(e.target)) return;
       onClose?.();
     };
+    const handleScroll = () => onClose?.();
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, [pinned, onClose, anchorRef]);
 
   const isPaidOut = payoutInfo?.isPaidOut;
-  const hasPayoutInfo = !!payoutInfo;
 
   // Use displayTotal (total_hive_reward from 3speak API) as the source of truth
   // since Hive's total_payout_value only includes the HBD portion (not vesting/HP).
@@ -68,7 +72,7 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, displayTotal, anchorR
             : 'Beneficiaries'}
         </span>
         {pinned && (
-          <button className="beneficiaries-tooltip-close" onClick={onClose}>
+          <button type="button" className="beneficiaries-tooltip-close" onClick={onClose}>
             <IoClose size={14} />
           </button>
         )}

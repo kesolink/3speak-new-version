@@ -109,12 +109,12 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           {/* <Link className="wrap">
             <FaLanguage className="icon" /> <span>Language Settings</span>
           </Link> */}
-          <div className="wrap nsfw-toggle-wrap" onClick={() => setShowNsfw(!showNsfw)}>
+          <button type="button" className="wrap nsfw-toggle-wrap" role="switch" aria-checked={showNsfw} onClick={() => setShowNsfw(prev => !prev)}>
             <span>Show NSFW</span>
             <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
               <div className="nsfw-toggle-thumb" />
             </div>
-          </div>
+          </button>
           <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
             <IoPower className="icon" /> <span>Change account</span>
           </a>

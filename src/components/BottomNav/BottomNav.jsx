@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { MdOutlineHome, MdOutlineSearch } from "react-icons/md";
 import { IoAddCircleOutline, IoPower, IoCloudUploadSharp } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
+import { GiAstronautHelmet } from "react-icons/gi";
 import { RiWallet3Fill } from "react-icons/ri";
 import { Clapperboard } from "lucide-react";
 import { useAppStore } from "../../lib/store";
@@ -21,6 +22,8 @@ const BottomNav = ({ openLoginModal }) => {
   const path = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [landscapeHidden, setLandscapeHidden] = useState(true);
+  const lastScrollY = useRef(0);
   const menuRef = useRef(null);
   const uploadRef = useRef(null);
 
@@ -39,6 +42,45 @@ const BottomNav = ({ openLoginModal }) => {
     if (menuOpen || uploadOpen) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen, uploadOpen]);
+
+  // Landscape watch page: show bottom nav on scroll up, hide on scroll down
+  // Auto-hide after 2s when user reaches the top
+  const hideTimerRef = useRef(null);
+
+  useEffect(() => {
+    const isLandscapeWatch = () =>
+      path === '/watch' &&
+      window.matchMedia('(orientation: landscape) and (max-height: 500px)').matches;
+
+    const onScroll = () => {
+      if (!isLandscapeWatch()) {
+        setLandscapeHidden(true);
+        if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+        return;
+      }
+      const currentY = window.scrollY;
+
+      // Clear any pending auto-hide timer on new scroll
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+
+      if (currentY < lastScrollY.current) {
+        setLandscapeHidden(false); // scrolling up → show
+
+        // At the top → auto-hide after 2s
+        if (currentY <= 5) {
+          hideTimerRef.current = setTimeout(() => setLandscapeHidden(true), 2000);
+        }
+      } else if (currentY > lastScrollY.current && currentY > 80) {
+        setLandscapeHidden(true); // scrolling down → hide
+      }
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [path]);
 
   // Close menus on route change
   useEffect(() => {
@@ -122,7 +164,7 @@ const BottomNav = ({ openLoginModal }) => {
   };
 
   return createPortal(
-    <nav className="bottom-nav" ref={menuRef}>
+    <nav className={`bottom-nav${path === '/watch' ? ' bottom-nav--watch' : ''}${landscapeHidden ? ' bottom-nav--landscape-hidden' : ''}`} ref={menuRef}>
       <Link to="/" className={`bottom-nav-item ${isActive("/") ? "active" : ""}`}>
         <MdOutlineHome className="bottom-nav-icon" />
         <span>Home</span>
@@ -168,7 +210,9 @@ const BottomNav = ({ openLoginModal }) => {
             className="bottom-nav-avatar"
           />
         ) : (
-          <div className="bottom-nav-avatar-placeholder" />
+          <div className="bottom-nav-avatar-placeholder">
+            <GiAstronautHelmet />
+          </div>
         )}
         <span>{authenticated ? "Profile" : "Login"}</span>
       </a>
@@ -186,12 +230,12 @@ const BottomNav = ({ openLoginModal }) => {
           <Link to={`/wallet/${user}`} className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <RiWallet3Fill className="bottom-nav-menu-icon" /> Wallet
           </Link>
-          <div className="bottom-nav-menu-item nsfw-toggle-wrap" onClick={() => setShowNsfw(!showNsfw)}>
+          <button type="button" className="bottom-nav-menu-item nsfw-toggle-wrap" role="switch" aria-checked={showNsfw} onClick={() => setShowNsfw(prev => !prev)}>
             <span className="nsfw-label">Show NSFW</span>
             <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
               <div className="nsfw-toggle-thumb" />
             </div>
-          </div>
+          </button>
           <div className="bottom-nav-menu-divider" />
           <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
             <IoPower className="bottom-nav-menu-icon" /> Change account

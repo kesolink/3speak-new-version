@@ -139,13 +139,16 @@
   // Overlay buttons container (top-right of video)
   .overlay-buttons {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 0;
+    right: 0;
     z-index: 8;
     display: flex;
-    gap: 4px;
+    gap: 0;
     opacity: 0;
     transition: opacity 0.2s ease;
+    background: #fff;
+    border-radius: 0 0 0 8px;
+    padding: 2px;
   }
 
   .reaction-video-wrap:hover .overlay-buttons {
@@ -162,25 +165,26 @@
   .overlay-count {
     font-size: 11px;
     font-weight: 600;
-    color: var(--text-primary, #fff);
+    color: #333;
+    padding: 4px 4px;
   }
 
   .size-overlay-btn {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 8px;
+    padding: 4px 6px;
     border: none;
     border-radius: 6px;
-    background: rgba(0, 0, 0, 0.6);
-    color: #fff;
+    background: transparent;
+    color: #333;
     cursor: pointer;
     font-size: 11px;
     font-weight: 600;
     transition: all 0.2s ease;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(0, 0, 0, 0.08);
     }
 
     svg {
@@ -400,7 +404,7 @@
     .reaction-count {
       font-size: 12px;
       color: var(--text-primary, #fff);
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--bg-tertiary, #2a2a3e);
       padding: 2px 8px;
       border-radius: 12px;
       white-space: nowrap;
@@ -415,13 +419,13 @@
       height: 28px;
       border: none;
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--bg-tertiary, #2a2a3e);
       color: var(--text-primary, #fff);
       cursor: pointer;
       transition: all 0.2s ease;
 
       &:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.2);
+        background: var(--bg-hover, #3a3a4e);
       }
 
       &:disabled {

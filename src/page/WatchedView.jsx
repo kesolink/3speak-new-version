@@ -145,18 +145,19 @@ function Pagination({ page, totalPages, onPageChange }) {
 
   return (
     <div className="pagination">
-      <button className="page-btn" disabled={page === 1} onClick={() => onPageChange(page - 1)}>
+      <button type="button" className="page-btn" disabled={page === 1} onClick={() => onPageChange(page - 1)}>
         <IoChevronBack />
       </button>
       {start > 1 && (
         <>
-          <button className="page-btn" onClick={() => onPageChange(1)}>1</button>
+          <button type="button" className="page-btn" onClick={() => onPageChange(1)}>1</button>
           {start > 2 && <span className="page-ellipsis">...</span>}
         </>
       )}
       {pages.map(p => (
         <button
           key={p}
+          type="button"
           className={`page-btn ${p === page ? 'active' : ''}`}
           onClick={() => onPageChange(p)}
         >
@@ -166,10 +167,10 @@ function Pagination({ page, totalPages, onPageChange }) {
       {end < totalPages && (
         <>
           {end < totalPages - 1 && <span className="page-ellipsis">...</span>}
-          <button className="page-btn" onClick={() => onPageChange(totalPages)}>{totalPages}</button>
+          <button type="button" className="page-btn" onClick={() => onPageChange(totalPages)}>{totalPages}</button>
         </>
       )}
-      <button className="page-btn" disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>
+      <button type="button" className="page-btn" disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>
         <IoChevronForward />
       </button>
     </div>
@@ -219,7 +220,7 @@ function WatchedView() {
   const totalPages = Math.max(1, Math.ceil(currentCount / LIMIT));
   const offset = (currentPage - 1) * LIMIT;
 
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = [], isLoading, isError } = useQuery({
     queryKey: ['watchedVideos', username, apiType, currentPage, since],
     queryFn: async () => {
       const historyItems = await getWatchHistory(username, LIMIT, offset, apiType, since);
@@ -227,7 +228,7 @@ function WatchedView() {
     },
     enabled: !!username,
     staleTime: 60 * 1000,
-    keepPreviousData: true,
+    placeholderData: (prev) => prev,
   });
 
   const filtered = items.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
@@ -277,7 +278,7 @@ function WatchedView() {
               <span>Track history</span>
             </label>
           )}
-          <button className="back-btn" onClick={() => navigate(-1)}>
+          <button type="button" className="back-btn" onClick={() => navigate(-1)}>
             <IoArrowBack /> Back
           </button>
         </div>
@@ -319,6 +320,10 @@ function WatchedView() {
       <div className="watched-content">
         {isLoading ? (
           <div className="loading-more"><BarLoader /></div>
+        ) : isError ? (
+          <div className="empty-wrap">
+            <span>Failed to load watch history. Please try again.</span>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="empty-wrap">
             <img src={icon} alt="" />
@@ -331,14 +336,6 @@ function WatchedView() {
               linkPrefix="/shorts"
               shortsGrid
             />
-            {/* Watched date overlay per short */}
-            <div className="watched-dates-overlay">
-              {filtered.map(v => (
-                <span key={`${v.author}-${v.permlink}`} className="watched-date-tag">
-                  {formatWatchedDate(v.watched_at)}
-                </span>
-              ))}
-            </div>
           </div>
         ) : (
           <div className="watched-videos-grid">
@@ -357,6 +354,7 @@ function WatchedView() {
                   )}
                   {isOwner && (
                     <button
+                      type="button"
                       className="delete-btn"
                       onClick={(e) => handleDelete(e, video.author, video.permlink)}
                       title="Remove from watch history"

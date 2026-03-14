@@ -177,8 +177,14 @@ function PlaylistView() {
     return allVideos.filter(v => {
       const addedAt = v.added_at;
       if (!addedAt) return true;
-      const ts = typeof addedAt === 'number' && addedAt < 1e12 ? addedAt : Math.floor(addedAt / 1000);
-      return ts >= since;
+      let ts;
+      if (typeof addedAt === 'number') {
+        ts = addedAt < 1e12 ? addedAt : Math.floor(addedAt / 1000);
+      } else {
+        const ms = new Date(addedAt).getTime();
+        ts = Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+      }
+      return ts == null || ts >= since;
     });
   }, [allVideos, since]);
 
@@ -379,6 +385,7 @@ function PlaylistView() {
         {isOwner && (
           <div className="owner-actions">
             <button
+              type="button"
               className={`btn-reorder ${reorderMode ? 'active' : ''}`}
               onClick={() => setReorderMode(!reorderMode)}
               disabled={isSaving}
@@ -386,6 +393,7 @@ function PlaylistView() {
               <IoReorderThree /> {reorderMode ? 'Done' : 'Reorder'}
             </button>
             <button
+              type="button"
               className="btn-delete-playlist"
               onClick={() => setShowDeleteConfirm(true)}
               disabled={isSaving}
@@ -403,10 +411,10 @@ function PlaylistView() {
             <span>{pendingChanges.length} unsaved change{pendingChanges.length > 1 ? 's' : ''}</span>
           </div>
           <div className="changes-actions">
-            <button className="btn-discard" onClick={handleDiscardChanges} disabled={isSaving}>
+            <button type="button" className="btn-discard" onClick={handleDiscardChanges} disabled={isSaving}>
               Discard
             </button>
-            <button className="btn-save" onClick={handleSaveChanges} disabled={isSaving}>
+            <button type="button" className="btn-save" onClick={handleSaveChanges} disabled={isSaving}>
               {isSaving ? 'Saving...' : <><IoSave /> Save Changes</>}
             </button>
           </div>
@@ -418,6 +426,7 @@ function PlaylistView() {
         <div className="date-filters">
           {DATE_FILTERS.map(f => (
             <button
+              type="button"
               key={f.key}
               className={`date-filter-btn ${dateFilter === f.key ? 'active' : ''}`}
               onClick={() => setDateFilter(f.key)}
@@ -481,6 +490,7 @@ function PlaylistView() {
                   </div>
                 </Link>
                 <button
+                  type="button"
                   className="btn-remove-video"
                   onClick={(e) => {
                     e.preventDefault();
@@ -517,6 +527,7 @@ function PlaylistView() {
                   )}
                   {isOwner && (
                     <button
+                      type="button"
                       className="delete-btn"
                       onClick={(e) => {
                         e.preventDefault();
@@ -547,10 +558,10 @@ function PlaylistView() {
             <h3>Delete Playlist?</h3>
             <p>Are you sure you want to delete "{playlist.name}"? This action cannot be undone.</p>
             <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting}>
+              <button type="button" className="btn-cancel" onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting}>
                 Cancel
               </button>
-              <button className="btn-confirm-delete" onClick={handleDeletePlaylist} disabled={isDeleting}>
+              <button type="button" className="btn-confirm-delete" onClick={handleDeletePlaylist} disabled={isDeleting}>
                 {isDeleting ? 'Deleting...' : 'Delete Playlist'}
               </button>
             </div>

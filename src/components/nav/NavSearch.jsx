@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { MdMusicNote, MdVideoLibrary, MdGroup, MdCheck, MdPerson, MdClose, MdCalendarToday, MdLabel, MdSearch } from "react-icons/md";
 import { RiMovieLine } from "react-icons/ri";
-import { CHECKER_URL, appendNsfw } from "../../utils/config";
+import { CHECKER_URL } from "../../utils/config";
 import { useAppStore } from "../../lib/store";
 import { fixVideoThumbnail, fallbackImg } from "../../utils/fixThumbnails";
 import TimeAgo from "../TimeAgo/TimeAgo";
@@ -56,6 +56,7 @@ const formatDuration = (seconds) => {
 };
 
 function NavSearch() {
+  const showNsfw = useAppStore(s => s.showNsfw);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedTerm, setDebouncedTerm] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
@@ -143,7 +144,7 @@ function NavSearch() {
 
   // Autocomplete
   const { data: suggestData } = useQuery({
-    queryKey: ["nav-suggest", debouncedTerm],
+    queryKey: ["nav-suggest", debouncedTerm, showNsfw],
     queryFn: () => fetchSuggest(debouncedTerm),
     enabled: debouncedTerm.length >= 2 && showSuggestions,
     staleTime: 15000,
@@ -151,7 +152,7 @@ function NavSearch() {
 
   // Community search
   const { data: communityResults } = useQuery({
-    queryKey: ["nav-community-suggest", communitySearch],
+    queryKey: ["nav-community-suggest", communitySearch, showNsfw],
     queryFn: async () => {
       const params = { q: communitySearch, type: 'community', limit: 8 };
       if (useAppStore.getState().showNsfw) params.nsfw = 'true';
@@ -164,7 +165,7 @@ function NavSearch() {
 
   // Search results
   const { data: searchData, isLoading: searchLoading } = useQuery({
-    queryKey: ["nav-search", debouncedTerm, boostRecent, activeTypes, extraFilters],
+    queryKey: ["nav-search", debouncedTerm, boostRecent, activeTypes, extraFilters, showNsfw],
     queryFn: () => fetchSearch(debouncedTerm, boostRecent, activeTypes, extraFilters),
     enabled: debouncedTerm.length >= 2 && activeTypes.length > 0 && panelOpen,
     staleTime: 30000,
