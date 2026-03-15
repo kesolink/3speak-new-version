@@ -435,6 +435,74 @@
           }
         }
 
+        .tags-input-wrap {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          padding: 8px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--border-light, #444);
+          border-radius: 8px;
+          min-height: 42px;
+
+          &:focus-within {
+            border-color: var(--accent-primary, #e53935);
+          }
+
+          .tags-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+
+            .tag-chip {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              padding: 4px 8px;
+              background: rgba(229, 57, 53, 0.2);
+              border: 1px solid rgba(229, 57, 53, 0.4);
+              border-radius: 6px;
+              font-size: 12px;
+              color: var(--text-primary, #fff);
+
+              button {
+                display: flex;
+                align-items: center;
+                background: none;
+                border: none;
+                color: var(--text-secondary, #aaa);
+                cursor: pointer;
+                padding: 0;
+                font-size: 14px;
+
+                &:hover {
+                  color: #e53935;
+                }
+              }
+            }
+          }
+
+          input {
+            flex: 1;
+            min-width: 80px;
+            padding: 4px;
+            background: transparent;
+            border: none;
+            color: var(--text-primary, #fff);
+            font-size: 13px;
+
+            &::placeholder {
+              color: var(--text-muted, #666);
+            }
+
+            &:focus {
+              outline: none;
+              border-color: transparent;
+            }
+          }
+        }
+
         .privacy-options {
           display: flex;
           gap: 8px;

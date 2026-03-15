@@ -20,6 +20,8 @@ function AddToPlaylistModal({ isOpen, onClose, author, permlink, videoTitle }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistAccess, setNewPlaylistAccess] = useState('public');
+  const [newPlaylistTags, setNewPlaylistTags] = useState([]);
+  const [tagInput, setTagInput] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
   // Find the Watch Later playlist if it exists
@@ -108,7 +110,7 @@ function AddToPlaylistModal({ isOpen, onClose, author, permlink, videoTitle }) {
 
       // Single batched transaction: Create playlist + Add video
       toast.info('Creating playlist and adding video...');
-      await createPlaylistAndAdd(playlistName, newPlaylistAccess, playlistId, author, permlink);
+      await createPlaylistAndAdd(playlistName, newPlaylistAccess, playlistId, author, permlink, newPlaylistTags);
 
       toast.success(`Created "${playlistName}" and added video!`);
 
@@ -121,6 +123,8 @@ function AddToPlaylistModal({ isOpen, onClose, author, permlink, videoTitle }) {
 
       setNewPlaylistName('');
       setNewPlaylistAccess('public');
+      setNewPlaylistTags([]);
+      setTagInput('');
       setShowCreateForm(false);
       onClose();
     } catch (error) {
@@ -255,6 +259,40 @@ function AddToPlaylistModal({ isOpen, onClose, author, permlink, videoTitle }) {
                   >
                     <MdLock /> Private
                   </button>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Tags</label>
+                <div className="tags-input-wrap">
+                  <div className="tags-list">
+                    {newPlaylistTags.map((tag) => (
+                      <span key={tag} className="tag-chip">
+                        {tag}
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setNewPlaylistTags(prev => prev.filter(t => t !== tag)); }}>
+                          <MdClose />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ',' || e.key === ' ') && tagInput.trim()) {
+                        e.preventDefault();
+                        const tag = tagInput.trim().toLowerCase().replace(/,/g, '');
+                        if (tag && !newPlaylistTags.includes(tag)) {
+                          setNewPlaylistTags(prev => [...prev, tag]);
+                        }
+                        setTagInput('');
+                      } else if (e.key === 'Backspace' && !tagInput && newPlaylistTags.length > 0) {
+                        setNewPlaylistTags(prev => prev.slice(0, -1));
+                      }
+                    }}
+                    placeholder={newPlaylistTags.length === 0 ? 'Type a tag and press Enter' : 'Add more...'}
+                  />
                 </div>
               </div>
               <div className="form-actions">
