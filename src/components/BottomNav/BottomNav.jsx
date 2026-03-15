@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MdOutlineHome, MdOutlineSearch } from "react-icons/md";
-import { IoAddCircleOutline, IoPower, IoCloudUploadSharp } from "react-icons/io5";
+import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload } from "react-icons/md";
+import { IoAddCircleOutline, IoPower, IoCloudUploadSharp, IoShareOutline } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
 import { GiAstronautHelmet } from "react-icons/gi";
 import { RiWallet3Fill } from "react-icons/ri";
@@ -10,6 +10,7 @@ import ShortsIcon from "../icons/ShortsIcon";
 import { FEATURE_EDITOR } from "../../utils/config";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import "./BottomNav.scss";
 
 // Swipeable tab routes in order
@@ -29,6 +30,33 @@ const BottomNav = ({ openLoginModal }) => {
 
   const isActive = (route) => path === route;
   const isShortsActive = path.startsWith("/shorts");
+
+  // PWA install prompt
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async (e) => {
+    e.preventDefault();
+    setMenuOpen(false);
+    if (installPrompt) {
+      installPrompt.prompt();
+      await installPrompt.userChoice;
+      setInstallPrompt(null);
+    }
+  };
+
+  // Detect iOS Safari (no beforeinstallprompt, needs manual instructions)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -153,10 +181,18 @@ const BottomNav = ({ openLoginModal }) => {
     window.dispatchEvent(new CustomEvent('open-shorts-editor'));
   };
 
+  const showInstallOption = !isStandalone && (installPrompt || isIOS);
+
   const handleProfileClick = (e) => {
     e.preventDefault();
     if (!authenticated) {
-      openLoginModal();
+      // If install is available, show a mini menu; otherwise just open login
+      if (showInstallOption) {
+        setMenuOpen((prev) => !prev);
+        setUploadOpen(false);
+      } else {
+        openLoginModal();
+      }
     } else {
       setMenuOpen((prev) => !prev);
       setUploadOpen(false);
@@ -236,9 +272,44 @@ const BottomNav = ({ openLoginModal }) => {
               <div className="nsfw-toggle-thumb" />
             </div>
           </button>
+          {!isStandalone && (installPrompt || isIOS) && (
+            <>
+              <div className="bottom-nav-menu-divider" />
+              {installPrompt ? (
+                <a href="#" className="bottom-nav-menu-item bottom-nav-install" onClick={handleInstallClick}>
+                  <MdOutlineDownload className="bottom-nav-menu-icon" /> Install App
+                </a>
+              ) : isIOS ? (
+                <a href="#" className="bottom-nav-menu-item bottom-nav-install" onClick={(e) => { e.preventDefault(); setMenuOpen(false); toast('Tap the Share button in Safari, then "Add to Home Screen"', { icon: '📲' }); }}>
+                  <MdOutlineDownload className="bottom-nav-menu-icon" />
+                  <span className="bottom-nav-install-label">Install App</span>
+                  <span className="bottom-nav-install-hint">via <IoShareOutline style={{ verticalAlign: 'middle', fontSize: 14 }} /> Share</span>
+                </a>
+              ) : null}
+            </>
+          )}
           <div className="bottom-nav-menu-divider" />
           <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
             <IoPower className="bottom-nav-menu-icon" /> Change account
+          </a>
+        </div>
+      )}
+
+      {menuOpen && !authenticated && showInstallOption && (
+        <div className="bottom-nav-menu">
+          {installPrompt ? (
+            <a href="#" className="bottom-nav-menu-item bottom-nav-install" onClick={handleInstallClick}>
+              <MdOutlineDownload className="bottom-nav-menu-icon" /> Install App
+            </a>
+          ) : isIOS ? (
+            <div className="bottom-nav-menu-item bottom-nav-install bottom-nav-ios-hint">
+              <MdOutlineDownload className="bottom-nav-menu-icon" />
+              <span>Tap <strong>Share</strong> then <strong>Add to Home Screen</strong></span>
+            </div>
+          ) : null}
+          <div className="bottom-nav-menu-divider" />
+          <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
+            <IoMdPerson className="bottom-nav-menu-icon" /> Login
           </a>
         </div>
       )}

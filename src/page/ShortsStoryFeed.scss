@@ -150,6 +150,7 @@
     bottom: 56px;
     height: calc(100dvh - 56px);
     max-height: calc(100dvh - 56px);
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 

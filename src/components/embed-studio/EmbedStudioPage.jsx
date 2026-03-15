@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import "../legacy-studio/StudioPage.scss";
 import { StepProgress } from "../legacy-studio/StepProgress";
 import EmbedVideoUploadStep1 from "./EmbedVideoUploadStep1";
@@ -11,6 +11,7 @@ import { useEmbedUpload } from "../../context/EmbedUploadContext";
 import { HIVE_API_URL } from "../../utils/config";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
+import { generateVideoThumbnails } from "@rajesh896/video-thumbnails-generator";
 
 function EmbedStudioPage() {
   const navigate = useNavigate();
@@ -25,6 +26,10 @@ function EmbedStudioPage() {
     fromStories, setFromStories,
     completed,
     resetUploadState,
+    setVideoFile,
+    setPrevVideoFile,
+    setVideoDuration,
+    setGeneratedThumbnail,
   } = useEmbedUpload();
 
   // Detect stories origin from URL param
@@ -48,6 +53,51 @@ function EmbedStudioPage() {
       resetUploadState();
     } else {
       setStep(1);
+    }
+  }, []);
+
+  // Pick up file shared from StudioPage (vertical short redirect) or PWA file_handlers
+  const sharedFileHandled = useRef(false);
+  useEffect(() => {
+    if (sharedFileHandled.current) return;
+
+    const processFile = async (file) => {
+      if (!file || !file.type.startsWith('video/')) return;
+      sharedFileHandled.current = true;
+
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      const duration = await new Promise((resolve) => {
+        video.onloadedmetadata = () => {
+          URL.revokeObjectURL(video.src);
+          resolve(video.duration);
+        };
+        video.src = URL.createObjectURL(file);
+      });
+
+      const thumbs = await generateVideoThumbnails(file, 2, 'url');
+      setGeneratedThumbnail(thumbs);
+      setVideoFile(file);
+      setPrevVideoFile(file);
+      setVideoDuration(duration);
+    };
+
+    // Check for file passed from StudioPage redirect (vertical short)
+    if (window.__pwaSharedFile) {
+      const file = window.__pwaSharedFile;
+      delete window.__pwaSharedFile;
+      processFile(file);
+      return;
+    }
+
+    // Handle PWA file_handlers (editor "Open with" action)
+    if ('launchQueue' in window) {
+      window.launchQueue.setConsumer(async (launchParams) => {
+        if (!launchParams.files?.length) return;
+        const handle = launchParams.files[0];
+        const file = await handle.getFile();
+        processFile(file);
+      });
     }
   }, []);
 

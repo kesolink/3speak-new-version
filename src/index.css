@@ -132,6 +132,8 @@ html {
   /* Prevent overscroll bounce on iOS which shifts fixed elements */
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
+  /* Fill safe area zones with the app background */
+  background-color: var(--bg-primary);
 }
 
 [data-theme="dark"] {
