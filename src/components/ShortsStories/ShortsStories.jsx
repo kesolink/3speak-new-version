@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FaChevronLeft, FaChevronRight, FaPlus } from "react-icons/fa";
-import { SHORTS_STORIES_URL, appendNsfw } from "../../utils/config";
+import { SHORTS_STORIES_URL } from "../../utils/config";
 import { useAppStore } from "../../lib/store";
 import "./ShortsStories.scss";
 
@@ -21,10 +21,10 @@ const fetchShortsStories = async (username) => {
  * without rendering the stories bar.
  */
 export const useShortsStories = () => {
-  const { user } = useAppStore();
+  const { user, showNsfw } = useAppStore();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["shorts-stories", user],
+    queryKey: ["shorts-stories", user, showNsfw],
     queryFn: () => fetchShortsStories(user),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,

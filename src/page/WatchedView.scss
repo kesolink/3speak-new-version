@@ -339,8 +339,15 @@
         }
       }
 
-      &:hover .delete-btn {
+      &:hover .delete-btn,
+      &:focus-within .delete-btn {
         opacity: 1;
+      }
+
+      @media (pointer: coarse) {
+        .delete-btn {
+          opacity: 0.8;
+        }
       }
 
       .video-meta {

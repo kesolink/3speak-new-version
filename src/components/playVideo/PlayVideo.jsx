@@ -119,17 +119,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     }
   }, [clipMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Tip nudge at 90% playtime
+  // Tip nudge at 90% playtime (only for logged-in viewers watching someone else's video)
   useEffect(() => {
     const duration = videoControls?.duration;
     const currentTime = videoControls?.currentTime;
     if (!duration || duration < 10 || tipNudgeShownRef.current) return;
-    const triggerAt = Math.max(duration * 0.9, duration - 120);
+    if (!authenticated || !isLoggedIn() || user === author) return;
+    const triggerAt = duration * 0.9;
     if (currentTime >= triggerAt) {
       setTipNudgeVisible(true);
       tipNudgeShownRef.current = true;
     }
-  }, [videoControls?.currentTime, videoControls?.duration]);
+  }, [videoControls?.currentTime, videoControls?.duration, authenticated, user, author]);
 
   // Reset nudge state when video changes
   useEffect(() => {
@@ -139,8 +140,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
   // Report popup open state to parent (blocks autoplay)
   useEffect(() => {
-    videoControls?.onPopupOpen?.(isTipModalOpen || showTooltip);
-  }, [isTipModalOpen, showTooltip]); // eslint-disable-line react-hooks/exhaustive-deps
+    const isVotePopupOpen = showTooltip && authenticated && isLoggedIn();
+    videoControls?.onPopupOpen?.(tipNudgeVisible || isTipModalOpen || isVotePopupOpen);
+  }, [tipNudgeVisible, isTipModalOpen, showTooltip, authenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -198,9 +200,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const tags = useMemo(() => videoDetails?.tags?.slice(0, 7) || [], [videoDetails?.tags]);
   const comunity_name = useMemo(() => videoDetails?.community?.title, [videoDetails?.community?.title]);
   const community_id = useMemo(() => {
-  const raw = videoDetails?.community?._id;
-  return raw ? raw.split('/').pop() : null;
-}, [videoDetails?.community?._id]);
+    const raw = videoDetails?.community?._id;
+    return raw ? raw.split('/').pop() : null;
+  }, [videoDetails?.community?._id]);
 
   // Memoized video URL
   const videoUrlSelected = useMemo(() => {
@@ -271,6 +273,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             .map(b => ({ account: b.account, weight: b.weight / 100 }))
             .sort((a, b) => b.weight - a.weight)
         );
+      } else {
+        setBeneficiaries([]);
       }
       if (isPaidOut) {
         const curatorPayout = parseFloat(data.curator_payout_value);
@@ -517,8 +521,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   }, [navigate]);
 
   const toggleTooltip = useCallback(() => {
+    if (!authenticated || !isLoggedIn()) return;
     setShowTooltip((prev) => !prev);
-  }, []);
+  }, [authenticated]);
 
   const handleShare = useCallback(async () => {
     const time = Math.floor(videoControls?.currentTime || 0);
@@ -599,17 +604,17 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 <div className="tip-nudge">
                   <FaHeart className="tip-nudge-emoji" style={{ color: '#e53935' }} />
                   <span className="tip-nudge-text">Enjoyed this? Send <strong>@{author}</strong> a tip!</span>
-                  <button className="tip-nudge-btn" onClick={() => { setTipNudgeVisible(false); setIsTipModalOpen(true); }}>
+                  <button type="button" className="tip-nudge-btn" onClick={() => { setTipNudgeVisible(false); setIsTipModalOpen(true); }}>
                     Tip
                   </button>
-                  <button className="tip-nudge-close" onClick={() => setTipNudgeVisible(false)} aria-label="Dismiss">
+                  <button type="button" className="tip-nudge-close" onClick={() => setTipNudgeVisible(false)} aria-label="Dismiss">
                     <MdClose size={14} />
                   </button>
                 </div>
               )}
               {videoControls?.videoEnded && (
                 <div className="video-ended-overlay">
-                  <button className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
+                  <button type="button" className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
                     <MdReplay size={48} />
                   </button>
                   {!videoControls.autoplayNext && videoControls.endSuggestions?.length > 0 && (
@@ -637,7 +642,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               )}
               {videoControls?.autoplayBlocked && !videoControls?.videoEnded && (
                 <div className="video-replay-overlay" onClick={videoControls.onAutoplayTap}>
-                  <button className="video-replay-btn" title="Play">
+                  <button type="button" className="video-replay-btn" title="Play">
                     <MdPlayArrow size={48} />
                   </button>
                 </div>
@@ -730,6 +735,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               </div>
             </div>
             <button
+              type="button"
               className="mobile-title-toggle"
               onClick={() => setMobileDetailsExpanded(prev => !prev)}
             >
@@ -826,6 +832,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               {FEATURE_EDITOR && canRemixClip && (
                 <div className="info-buttons-left">
                   <button
+                    type="button"
                     className={`clip-btn${clipMode ? ' active' : ''}`}
                     onClick={clipMode ? handleCancelClip : handleStartClipMode}
                     title={!authenticated ? 'Log in to clip' : clipMode ? 'Cancel clip' : 'Clip video'}
@@ -842,13 +849,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                         {clipMode === 'done' && `${formatTime(clipStart)} – ${formatTime(clipEnd)}`}
                       </span>
                       {clipMode === 'start' && (
-                        <button className="clip-action-btn" onClick={handleSetClipStart}>Set Start</button>
+                        <button type="button" className="clip-action-btn" onClick={handleSetClipStart}>Set Start</button>
                       )}
                       {clipMode === 'end' && (
-                        <button className="clip-action-btn" onClick={handleSetClipEnd}>Set End</button>
+                        <button type="button" className="clip-action-btn" onClick={handleSetClipEnd}>Set End</button>
                       )}
                       {clipMode === 'done' && (
-                        <button className="clip-action-btn" onClick={handleCreateClip}>Create Clip</button>
+                        <button type="button" className="clip-action-btn" onClick={handleCreateClip}>Create Clip</button>
                       )}
                     </div>
                   )}
@@ -857,6 +864,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
               <div className="info-buttons-right">
                 <button
+                  type="button"
                   className="share-btn"
                   onClick={handleShare}
                   title="Share with timestamp"
@@ -865,9 +873,11 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </button>
 
                 <button
+                  type="button"
                   className={`reshare-btn${hasReshared ? ' reshared' : ''}`}
                   onClick={handleReshare}
-                  title={hasReshared ? 'Reshared' : 'Reshare'}
+                  disabled={!authenticated || !isLoggedIn()}
+                  title={!authenticated ? 'Log in to reshare' : hasReshared ? 'Reshared' : 'Reshare'}
                 >
                   <Repeat2 size={16} />
                   {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
@@ -875,6 +885,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
                 {isInWatchLater && (
                   <button
+                    type="button"
                     className={`watch-later-remove-btn ${isRemovingWatchLater ? 'loading' : ''}`}
                     onClick={handleRemoveFromWatchLater}
                     disabled={isRemovingWatchLater}
@@ -889,30 +900,32 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
                 {authenticated && isLoggedIn() && (
                   <>
-                    <button className="playlist-btn" onClick={() => setIsPlaylistModalOpen(true)} title="Add to playlist">
+                    <button type="button" className="playlist-btn" onClick={() => setIsPlaylistModalOpen(true)} title="Add to playlist">
                       <MdPlaylistAdd />
                     </button>
                     <Button text="Tip" prominent onClick={() => setIsTipModalOpen(true)} />
                   </>
                 )}
 
-                <CommentVoteTooltip
-                  showTooltip={showTooltip}
-                  setShowTooltip={setShowTooltip}
-                  author={author}
-                  permlink={permlink}
-                  weight={weight}
-                  setWeight={setWeight}
-                  voteValue={voteValue}
-                  setVoteValue={setVoteValue}
-                  accountData={accountData}
-                  setAccountData={setAccountData}
-                  compact
-                  onVoteSuccess={(a, p, isNewVote) => {
-                    setIsVoted(true);
-                    if (isNewVote) setOptimisticVoteCount(prev => prev + 1);
-                  }}
-                />
+                {authenticated && isLoggedIn() && (
+                  <CommentVoteTooltip
+                    showTooltip={showTooltip}
+                    setShowTooltip={setShowTooltip}
+                    author={author}
+                    permlink={permlink}
+                    weight={weight}
+                    setWeight={setWeight}
+                    voteValue={voteValue}
+                    setVoteValue={setVoteValue}
+                    accountData={accountData}
+                    setAccountData={setAccountData}
+                    compact
+                    onVoteSuccess={(a, p, isNewVote) => {
+                      setIsVoted(true);
+                      if (isNewVote) setOptimisticVoteCount(prev => prev + 1);
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -921,6 +934,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           {FEATURE_EDITOR && canRemixClip && (
             <div className="tools-row mobile-only">
               <button
+                type="button"
                 className={`clip-btn${clipMode ? ' active' : ''}`}
                 onClick={clipMode ? handleCancelClip : handleStartClipMode}
                 title={!authenticated ? 'Log in to clip' : clipMode ? 'Cancel clip' : 'Clip video'}
@@ -945,15 +959,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
             <div className="clip-bar-actions">
               {clipMode === 'start' && (
-                <button className="clip-action-btn" onClick={handleSetClipStart}>Set Start</button>
+                <button type="button" className="clip-action-btn" onClick={handleSetClipStart}>Set Start</button>
               )}
               {clipMode === 'end' && (
-                <button className="clip-action-btn" onClick={handleSetClipEnd}>Set End</button>
+                <button type="button" className="clip-action-btn" onClick={handleSetClipEnd}>Set End</button>
               )}
               {clipMode === 'done' && (
-                <button className="clip-action-btn" onClick={handleCreateClip}>Create Clip</button>
+                <button type="button" className="clip-action-btn" onClick={handleCreateClip}>Create Clip</button>
               )}
-              <button className="clip-cancel-btn" onClick={handleCancelClip}>Cancel</button>
+              <button type="button" className="clip-cancel-btn" onClick={handleCancelClip}>Cancel</button>
             </div>
           </div>
         )}
@@ -977,6 +991,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
           </div>
           <button
+            type="button"
             className="description-toggle-btn"
             onClick={() => setDescriptionExpanded(prev => !prev)}
           >
@@ -1123,27 +1138,31 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </div>
               )}
 
-              <div className="fab-action">
-                <span className="fab-action-label">Reshare{reshareCount > 0 ? ` (${reshareCount})` : ''}</span>
-                <button
-                  className={`fab-action-btn${hasReshared ? ' fab-action-btn--voted' : ''}`}
-                  onClick={() => { handleReshare(); setFabOpen(false); }}
-                  aria-label="Reshare"
-                >
-                  <Repeat2 size={20} />
-                </button>
-              </div>
+              {authenticated && isLoggedIn() && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Reshare{reshareCount > 0 ? ` (${reshareCount})` : ''}</span>
+                  <button
+                    className={`fab-action-btn${hasReshared ? ' fab-action-btn--voted' : ''}`}
+                    onClick={() => { handleReshare(); setFabOpen(false); }}
+                    aria-label="Reshare"
+                  >
+                    <Repeat2 size={20} />
+                  </button>
+                </div>
+              )}
 
-              <div className="fab-action">
-                <span className="fab-action-label">Vote</span>
-                <button
-                  className={`fab-action-btn${isVoted ? ' fab-action-btn--voted' : ''}`}
-                  onClick={() => { setMobileDetailsExpanded(true); setShowTooltip(true); setFabOpen(false); }}
-                  aria-label="Vote"
-                >
-                  <FaHeart size={18} />
-                </button>
-              </div>
+              {authenticated && isLoggedIn() && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Vote</span>
+                  <button
+                    className={`fab-action-btn${isVoted ? ' fab-action-btn--voted' : ''}`}
+                    onClick={() => { setMobileDetailsExpanded(true); setShowTooltip(true); setFabOpen(false); }}
+                    aria-label="Vote"
+                  >
+                    <FaHeart size={18} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

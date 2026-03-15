@@ -12,6 +12,7 @@ import { getWatchHistory, getWatchHistoryCount, deleteWatchHistoryEntry } from '
 import { HIVE_API_URL } from '../utils/config';
 import { toast } from 'sonner';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
+import { DATE_FILTERS, getSinceTimestamp, formatRelativeDate } from '../utils/dateFilters';
 import { findShortByEmbedUrl } from '../hive-api/hiveApi';
 import './WatchedView.scss';
 
@@ -85,48 +86,6 @@ async function fetchVideosFromHistory(items) {
 
 const LIMIT = 20;
 
-const DATE_FILTERS = [
-  { key: 'all', label: 'All Time' },
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-];
-
-function getSinceTimestamp(filterKey) {
-  if (filterKey === 'all') return 0;
-  const now = new Date();
-  if (filterKey === 'today') {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return Math.floor(start.getTime() / 1000);
-  }
-  if (filterKey === 'week') {
-    const day = now.getDay();
-    const diff = day === 0 ? 6 : day - 1; // Monday as start of week
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
-    return Math.floor(start.getTime() / 1000);
-  }
-  if (filterKey === 'month') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return Math.floor(start.getTime() / 1000);
-  }
-  return 0;
-}
-
-function formatWatchedDate(timestamp) {
-  if (!timestamp) return '';
-  const date = new Date(typeof timestamp === 'number' && timestamp < 1e12 ? timestamp * 1000 : timestamp);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHr < 24) return `${diffHr}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 function Pagination({ page, totalPages, onPageChange }) {
   if (totalPages <= 1) return null;
@@ -145,18 +104,19 @@ function Pagination({ page, totalPages, onPageChange }) {
 
   return (
     <div className="pagination">
-      <button className="page-btn" disabled={page === 1} onClick={() => onPageChange(page - 1)}>
+      <button type="button" className="page-btn" disabled={page === 1} onClick={() => onPageChange(page - 1)}>
         <IoChevronBack />
       </button>
       {start > 1 && (
         <>
-          <button className="page-btn" onClick={() => onPageChange(1)}>1</button>
+          <button type="button" className="page-btn" onClick={() => onPageChange(1)}>1</button>
           {start > 2 && <span className="page-ellipsis">...</span>}
         </>
       )}
       {pages.map(p => (
         <button
           key={p}
+          type="button"
           className={`page-btn ${p === page ? 'active' : ''}`}
           onClick={() => onPageChange(p)}
         >
@@ -166,10 +126,10 @@ function Pagination({ page, totalPages, onPageChange }) {
       {end < totalPages && (
         <>
           {end < totalPages - 1 && <span className="page-ellipsis">...</span>}
-          <button className="page-btn" onClick={() => onPageChange(totalPages)}>{totalPages}</button>
+          <button type="button" className="page-btn" onClick={() => onPageChange(totalPages)}>{totalPages}</button>
         </>
       )}
-      <button className="page-btn" disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>
+      <button type="button" className="page-btn" disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>
         <IoChevronForward />
       </button>
     </div>
@@ -219,7 +179,7 @@ function WatchedView() {
   const totalPages = Math.max(1, Math.ceil(currentCount / LIMIT));
   const offset = (currentPage - 1) * LIMIT;
 
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = [], isLoading, isError } = useQuery({
     queryKey: ['watchedVideos', username, apiType, currentPage, since],
     queryFn: async () => {
       const historyItems = await getWatchHistory(username, LIMIT, offset, apiType, since);
@@ -227,7 +187,7 @@ function WatchedView() {
     },
     enabled: !!username,
     staleTime: 60 * 1000,
-    keepPreviousData: true,
+    placeholderData: (prev) => prev,
   });
 
   const filtered = items.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
@@ -277,7 +237,7 @@ function WatchedView() {
               <span>Track history</span>
             </label>
           )}
-          <button className="back-btn" onClick={() => navigate(-1)}>
+          <button type="button" className="back-btn" onClick={() => navigate(-1)}>
             <IoArrowBack /> Back
           </button>
         </div>
@@ -319,6 +279,10 @@ function WatchedView() {
       <div className="watched-content">
         {isLoading ? (
           <div className="loading-more"><BarLoader /></div>
+        ) : isError ? (
+          <div className="empty-wrap">
+            <span>Failed to load watch history. Please try again.</span>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="empty-wrap">
             <img src={icon} alt="" />
@@ -331,14 +295,6 @@ function WatchedView() {
               linkPrefix="/shorts"
               shortsGrid
             />
-            {/* Watched date overlay per short */}
-            <div className="watched-dates-overlay">
-              {filtered.map(v => (
-                <span key={`${v.author}-${v.permlink}`} className="watched-date-tag">
-                  {formatWatchedDate(v.watched_at)}
-                </span>
-              ))}
-            </div>
           </div>
         ) : (
           <div className="watched-videos-grid">
@@ -357,6 +313,7 @@ function WatchedView() {
                   )}
                   {isOwner && (
                     <button
+                      type="button"
                       className="delete-btn"
                       onClick={(e) => handleDelete(e, video.author, video.permlink)}
                       title="Remove from watch history"
@@ -368,7 +325,7 @@ function WatchedView() {
                 <div className="video-meta">
                   <h3>{video.title}</h3>
                   <p className="video-author">@{video.author}</p>
-                  <p className="watched-date">Watched {formatWatchedDate(video.watched_at)}</p>
+                  <p className="watched-date">Watched {formatRelativeDate(video.watched_at)}</p>
                 </div>
               </Link>
             ))}

@@ -1,7 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MdOutlineHome, MdOutlineSearch } from "react-icons/md";
-import { IoAddCircleOutline, IoPower, IoCloudUploadSharp } from "react-icons/io5";
+import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload } from "react-icons/md";
+import { IoAddCircleOutline, IoPower, IoCloudUploadSharp, IoShareOutline } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
+import { GiAstronautHelmet } from "react-icons/gi";
 import { RiWallet3Fill } from "react-icons/ri";
 import { Clapperboard } from "lucide-react";
 import { useAppStore } from "../../lib/store";
@@ -9,6 +10,7 @@ import ShortsIcon from "../icons/ShortsIcon";
 import { FEATURE_EDITOR } from "../../utils/config";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import "./BottomNav.scss";
 
 // Swipeable tab routes in order
@@ -21,11 +23,40 @@ const BottomNav = ({ openLoginModal }) => {
   const path = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [landscapeHidden, setLandscapeHidden] = useState(true);
+  const lastScrollY = useRef(0);
   const menuRef = useRef(null);
   const uploadRef = useRef(null);
 
   const isActive = (route) => path === route;
   const isShortsActive = path.startsWith("/shorts");
+
+  // PWA install prompt
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async (e) => {
+    e.preventDefault();
+    setMenuOpen(false);
+    if (installPrompt) {
+      installPrompt.prompt();
+      await installPrompt.userChoice;
+      setInstallPrompt(null);
+    }
+  };
+
+  // Detect iOS Safari (no beforeinstallprompt, needs manual instructions)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -39,6 +70,45 @@ const BottomNav = ({ openLoginModal }) => {
     if (menuOpen || uploadOpen) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen, uploadOpen]);
+
+  // Landscape watch page: show bottom nav on scroll up, hide on scroll down
+  // Auto-hide after 2s when user reaches the top
+  const hideTimerRef = useRef(null);
+
+  useEffect(() => {
+    const isLandscapeWatch = () =>
+      path === '/watch' &&
+      window.matchMedia('(orientation: landscape) and (max-height: 500px)').matches;
+
+    const onScroll = () => {
+      if (!isLandscapeWatch()) {
+        setLandscapeHidden(true);
+        if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+        return;
+      }
+      const currentY = window.scrollY;
+
+      // Clear any pending auto-hide timer on new scroll
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+
+      if (currentY < lastScrollY.current) {
+        setLandscapeHidden(false); // scrolling up → show
+
+        // At the top → auto-hide after 2s
+        if (currentY <= 5) {
+          hideTimerRef.current = setTimeout(() => setLandscapeHidden(true), 2000);
+        }
+      } else if (currentY > lastScrollY.current && currentY > 80) {
+        setLandscapeHidden(true); // scrolling down → hide
+      }
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [path]);
 
   // Close menus on route change
   useEffect(() => {
@@ -111,10 +181,18 @@ const BottomNav = ({ openLoginModal }) => {
     window.dispatchEvent(new CustomEvent('open-shorts-editor'));
   };
 
+  const showInstallOption = !isStandalone && (installPrompt || isIOS);
+
   const handleProfileClick = (e) => {
     e.preventDefault();
     if (!authenticated) {
-      openLoginModal();
+      // If install is available, show a mini menu; otherwise just open login
+      if (showInstallOption) {
+        setMenuOpen((prev) => !prev);
+        setUploadOpen(false);
+      } else {
+        openLoginModal();
+      }
     } else {
       setMenuOpen((prev) => !prev);
       setUploadOpen(false);
@@ -122,7 +200,7 @@ const BottomNav = ({ openLoginModal }) => {
   };
 
   return createPortal(
-    <nav className="bottom-nav" ref={menuRef}>
+    <nav className={`bottom-nav${path === '/watch' ? ' bottom-nav--watch' : ''}${landscapeHidden ? ' bottom-nav--landscape-hidden' : ''}`} ref={menuRef}>
       <Link to="/" className={`bottom-nav-item ${isActive("/") ? "active" : ""}`}>
         <MdOutlineHome className="bottom-nav-icon" />
         <span>Home</span>
@@ -168,7 +246,9 @@ const BottomNav = ({ openLoginModal }) => {
             className="bottom-nav-avatar"
           />
         ) : (
-          <div className="bottom-nav-avatar-placeholder" />
+          <div className="bottom-nav-avatar-placeholder">
+            <GiAstronautHelmet />
+          </div>
         )}
         <span>{authenticated ? "Profile" : "Login"}</span>
       </a>
@@ -186,15 +266,50 @@ const BottomNav = ({ openLoginModal }) => {
           <Link to={`/wallet/${user}`} className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <RiWallet3Fill className="bottom-nav-menu-icon" /> Wallet
           </Link>
-          <div className="bottom-nav-menu-item nsfw-toggle-wrap" onClick={() => setShowNsfw(!showNsfw)}>
+          <button type="button" className="bottom-nav-menu-item nsfw-toggle-wrap" role="switch" aria-checked={showNsfw} onClick={() => setShowNsfw(prev => !prev)}>
             <span className="nsfw-label">Show NSFW</span>
             <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
               <div className="nsfw-toggle-thumb" />
             </div>
-          </div>
+          </button>
+          {!isStandalone && (installPrompt || isIOS) && (
+            <>
+              <div className="bottom-nav-menu-divider" />
+              {installPrompt ? (
+                <a href="#" className="bottom-nav-menu-item bottom-nav-install" onClick={handleInstallClick}>
+                  <MdOutlineDownload className="bottom-nav-menu-icon" /> Install App
+                </a>
+              ) : isIOS ? (
+                <a href="#" className="bottom-nav-menu-item bottom-nav-install" onClick={(e) => { e.preventDefault(); setMenuOpen(false); toast('Tap the Share button in Safari, then "Add to Home Screen"', { icon: '📲' }); }}>
+                  <MdOutlineDownload className="bottom-nav-menu-icon" />
+                  <span className="bottom-nav-install-label">Install App</span>
+                  <span className="bottom-nav-install-hint">via <IoShareOutline style={{ verticalAlign: 'middle', fontSize: 14 }} /> Share</span>
+                </a>
+              ) : null}
+            </>
+          )}
           <div className="bottom-nav-menu-divider" />
           <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
             <IoPower className="bottom-nav-menu-icon" /> Change account
+          </a>
+        </div>
+      )}
+
+      {menuOpen && !authenticated && showInstallOption && (
+        <div className="bottom-nav-menu">
+          {installPrompt ? (
+            <a href="#" className="bottom-nav-menu-item bottom-nav-install" onClick={handleInstallClick}>
+              <MdOutlineDownload className="bottom-nav-menu-icon" /> Install App
+            </a>
+          ) : isIOS ? (
+            <div className="bottom-nav-menu-item bottom-nav-install bottom-nav-ios-hint">
+              <MdOutlineDownload className="bottom-nav-menu-icon" />
+              <span>Tap <strong>Share</strong> then <strong>Add to Home Screen</strong></span>
+            </div>
+          ) : null}
+          <div className="bottom-nav-menu-divider" />
+          <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
+            <IoMdPerson className="bottom-nav-menu-icon" /> Login
           </a>
         </div>
       )}

@@ -21,7 +21,7 @@ const fetchVideos = async ({ pageParam = 1 }, username) => {
 };
 
 const FollowFeed = () => {
-  const { user } = useAppStore();
+  const { user, showNsfw } = useAppStore();
   const queryClient = useQueryClient();
 
   const {
@@ -32,7 +32,7 @@ const FollowFeed = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["follow-feed-page", user],
+    queryKey: ["follow-feed-page", user, showNsfw],
     queryFn: (ctx) => fetchVideos(ctx, user),
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;

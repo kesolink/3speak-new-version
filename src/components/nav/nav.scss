@@ -3,6 +3,7 @@
   display: flex;
   align-items: center;
   padding: 10px 2% 10px 1%;
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
   justify-content: space-between;
   box-shadow: var(--nav-shadow);
   background: var(--nav-bg);
@@ -254,7 +255,7 @@
     transition: background-color 0.3s ease,
       transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 0px 20px;
-    padding-top: 50px;
+    padding-top: calc(50px + env(safe-area-inset-top, 0px));
     border-right: none;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
     overflow-y: auto;

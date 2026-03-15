@@ -110,7 +110,12 @@
   height: 24px;
   border-radius: 50%;
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  border: 2px solid var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 // Upload button wrapper (needed for dropdown positioning)
@@ -223,6 +228,11 @@
   justify-content: space-between;
   cursor: pointer;
   user-select: none;
+  background: none;
+  border: none;
+  width: 100%;
+  padding: 10px 16px;
+  font: inherit;
 
   .nsfw-label {
     font-size: 13px;
@@ -231,7 +241,7 @@
   }
 }
 
-.nsfw-toggle {
+.bottom-nav-menu .nsfw-toggle {
   width: 36px;
   height: 20px;
   border-radius: 10px;
@@ -257,5 +267,37 @@
 
   &.on .nsfw-toggle-thumb {
     left: 18px;
+  }
+}
+
+// Install app item
+.bottom-nav-install {
+  color: var(--accent-primary) !important;
+  flex-wrap: wrap;
+
+  .bottom-nav-menu-icon {
+    color: var(--accent-primary);
+  }
+
+  .bottom-nav-install-label {
+    flex: 1;
+  }
+
+  .bottom-nav-install-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    width: 100%;
+    padding-left: 28px; // align with text after icon
+  }
+}
+
+// Bottom nav in landscape on watch page: hidden by default, slides in on scroll up
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .bottom-nav--watch {
+    transition: transform 0.3s ease;
+  }
+
+  .bottom-nav--watch.bottom-nav--landscape-hidden {
+    transform: translateY(100%);
   }
 }

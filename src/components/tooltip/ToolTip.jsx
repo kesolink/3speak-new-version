@@ -28,7 +28,7 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
     setPos({ top: top + window.scrollY, left });
   }, [anchorRef, tooltipVoters, pinned]);
 
-  // Close on click outside when pinned
+  // Close on click outside or scroll when pinned
   useEffect(() => {
     if (!pinned) return;
     const handleClick = (e) => {
@@ -36,8 +36,13 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
       if (anchorRef?.current?.contains(e.target)) return;
       onClose?.();
     };
+    const handleScroll = () => onClose?.();
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, [pinned, onClose, anchorRef]);
 
   const content = (

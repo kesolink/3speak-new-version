@@ -26,7 +26,7 @@ export default function UploadLinks({ linkClass, iconClass = "icon", onClick }) 
     e.preventDefault();
     pauseAllMedia();
     window.dispatchEvent(new CustomEvent('open-shorts-editor'));
-    if (onClick) onClick();
+    if (onClick) onClick(e);
   };
 
   return (

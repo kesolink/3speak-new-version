@@ -163,32 +163,32 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 };
 
 const HomeGrouped = () => {
-  const { authenticated, user } = useAppStore();
+  const { authenticated, user, showNsfw } = useAppStore();
   const queryClient = useQueryClient();
 
   const { data: homeData, isLoading: homeLoading } = useQuery({
-    queryKey: authenticated ? ["follow-feed", user] : ["home-grouped"],
+    queryKey: authenticated ? ["follow-feed", user, showNsfw] : ["home-grouped", showNsfw],
     queryFn: authenticated ? () => fetchFollowFeed(user) : fetchHome,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
   const { data: firstUploadsData, isLoading: firstUploadsLoading } = useQuery({
-    queryKey: ["firstuploads-grouped"],
+    queryKey: ["firstuploads-grouped", showNsfw],
     queryFn: fetchFirstUploads,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
   const { data: trendingData, isLoading: trendingLoading } = useQuery({
-    queryKey: ["trending-grouped"],
+    queryKey: ["trending-grouped", showNsfw],
     queryFn: fetchTrending,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
   const { data: newContentData, isLoading: newContentLoading } = useQuery({
-    queryKey: ["newcontent-grouped"],
+    queryKey: ["newcontent-grouped", showNsfw],
     queryFn: fetchNewContent,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,

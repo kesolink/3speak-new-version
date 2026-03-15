@@ -1,4 +1,4 @@
-import React, { useEffect, useState} from "react";
+import React, { useEffect, useRef, useState} from "react";
 import "./StudioPage.scss";
 import { StepProgress } from "./StepProgress";
 import VideoUploadStep1 from "./VideoUploadStep1";
@@ -11,6 +11,7 @@ import { useLegacyUpload} from "../../context/LegacyUploadContext";
 import BackgroundJobModal from "../modal/BackgroundJobModal";
 import { HIVE_API_URL } from "../../utils/config";
 import { useNavigate } from "react-router-dom";
+import { generateVideoThumbnails } from "@rajesh896/video-thumbnails-generator";
 
 function StudioPage() {
   const navigate = useNavigate();
@@ -65,8 +66,82 @@ function StudioPage() {
     getBanInfo()
   }, [])
 
-  
+  // Shared helper: extract video metadata and auto-route shorts
+  const processIncomingVideo = async (file) => {
+    if (!file || !file.type.startsWith('video/')) return;
 
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    const meta = await new Promise((resolve) => {
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(video.src);
+        resolve({
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        });
+      };
+      video.src = URL.createObjectURL(file);
+    });
+
+    // Vertical video under 60s → route to shorts upload instead
+    if (meta.height > meta.width && meta.duration <= 60) {
+      window.__pwaSharedFile = file;
+      navigate('/embed-studio?from=shorts');
+      return;
+    }
+
+    const thumbs = await generateVideoThumbnails(file, 2, 'url');
+    setGeneratedThumbnail(thumbs);
+    setVideoFile(file);
+    setPrevVideoFile(file);
+    setVideoDuration(meta.duration);
+  };
+
+  // Handle files opened via PWA file_handlers (OS "Open with" / context menu)
+  const launchQueueHandled = useRef(false);
+  useEffect(() => {
+    if (!('launchQueue' in window) || launchQueueHandled.current) return;
+    launchQueueHandled.current = true;
+
+    window.launchQueue.setConsumer(async (launchParams) => {
+      if (!launchParams.files?.length) return;
+      const handle = launchParams.files[0];
+      const file = await handle.getFile();
+      processIncomingVideo(file);
+    });
+  }, []);
+
+  // Handle files received via PWA share_target (iOS Share Sheet / Android share)
+  const shareHandled = useRef(false);
+  useEffect(() => {
+    if (shareHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('shared') !== 'true') return;
+    shareHandled.current = true;
+
+    // Clean the URL
+    window.history.replaceState({}, '', '/studio');
+
+    (async () => {
+      try {
+        const cache = await caches.open('share-target-cache');
+        const response = await cache.match('/shared-video');
+        if (!response) return;
+
+        const blob = await response.blob();
+        const fileName = response.headers.get('X-File-Name') || 'shared-video.mp4';
+        const file = new File([blob], fileName, { type: blob.type });
+
+        // Clean up the cache entry
+        await cache.delete('/shared-video');
+
+        processIncomingVideo(file);
+      } catch (err) {
+        console.error('Failed to retrieve shared video:', err);
+      }
+    })();
+  }, []);
 
     useEffect(() => {
     const fetchCommunities = async () => {

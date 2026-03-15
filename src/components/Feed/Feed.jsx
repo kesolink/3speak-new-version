@@ -38,7 +38,7 @@ const fetchHomeVideos = async ({ pageParam = 0 }) => {
 
 function Feed() {
   const [isOpen, setIsOpen] = useState(false)
-  const {authenticated, user} = useAppStore();
+  const {authenticated, user, showNsfw} = useAppStore();
 
   useEffect(()=>{
     checkPostAuth(user);
@@ -52,7 +52,7 @@ function Feed() {
   isLoading,
   isError,
 } = useInfiniteQuery({
-  queryKey: authenticated ? ["follow-feed", user] : ["home"],
+  queryKey: authenticated ? ["follow-feed", user, showNsfw] : ["home"],
   queryFn: authenticated
     ? (ctx) => fetchFollowFeedVideos(ctx, user)
     : fetchHomeVideos,
