@@ -37,7 +37,9 @@ import {
   Music,
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
-import { MdTranslate, MdClosedCaption, MdClosedCaptionOff } from 'react-icons/md';
+import { MdTranslate, MdClosedCaption, MdClosedCaptionOff, MdFlag } from 'react-icons/md';
+import ReportModal, { isReported } from '../components/modal/ReportModal';
+import { Flag } from 'lucide-react';
 import useTranslation from '../hooks/useTranslation';
 import TranslateButton from '../components/TranslateButton/TranslateButton';
 import useSubtitles from '../hooks/useSubtitles';
@@ -245,6 +247,9 @@ const VideoShort = () => {
   const [reshareCount, setReshareCount] = useState(0);
   const [hasReshared, setHasReshared] = useState(false);
   const [reshareUsers, setReshareUsers] = useState([]); // [{username, reshared_at}]
+
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState({ type: 'video', author: '', permlink: '' });
 
   // Reply state
   const [activeReply, setActiveReply] = useState(null);
@@ -2097,6 +2102,7 @@ const VideoShort = () => {
   }
 
   return (
+    <>
     <main className="short-main">
       <div className="landscape-block"
         onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
@@ -2657,6 +2663,22 @@ const VideoShort = () => {
             ) : null;
           })()}
 
+          {(() => {
+            const vid = videos[currentIndex];
+            const reported = vid && isReported('post', `${vid.author}/${vid.hivePermlink}`);
+            return (
+              <div className="actionItem" onClick={(e) => {
+                e.stopPropagation();
+                setReportTarget({ type: 'video', author: vid?.author, permlink: vid?.hivePermlink });
+                setIsReportOpen(true);
+              }}>
+                <div className={`actionButton${reported ? ' reported' : ''}`}>
+                  <Flag size={24} />
+                </div>
+                <span className="actionLabel">Report</span>
+              </div>
+            );
+          })()}
 
         </div>
 
@@ -2793,6 +2815,15 @@ const VideoShort = () => {
         originalShortPermlink={editorOriginalShortPermlink}
       />
     </main>
+  {isReportOpen && (
+    <ReportModal
+      isOpen={isReportOpen}
+      onClose={() => setIsReportOpen(false)}
+      type={reportTarget.type}
+      target={{ author: reportTarget.author, permlink: reportTarget.permlink }}
+    />
+  )}
+  </>
   );
 };
 
@@ -2892,6 +2923,16 @@ const CommentItem = ({
         )}
         {translateError && <div className="comment-translation comment-translation--error"><p>Translation failed</p></div>}
         <div className="commentActions">
+          <button
+            className={`commentActionBtn${isReported('comment', `${comment.author}/${comment.permlink}`) ? ' reported' : ''}`}
+            onClick={() => {
+              setReportTarget({ type: 'comment', author: comment.author, permlink: comment.permlink });
+              setIsReportOpen(true);
+            }}
+            title="Report comment"
+          >
+            <MdFlag size={14} />
+          </button>
           <TranslateButton onTranslate={handleTranslate} isTranslating={!!translating?.[comment.permlink]} compact />
           <button
             className={`commentActionBtn ${comment.has_voted ? 'liked' : ''}`}

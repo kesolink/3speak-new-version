@@ -85,6 +85,9 @@ function appendNsfw(url, showNsfw) {
   return `${url}${sep}nsfw=true`;
 }
 
+const REPORT_API_URL = import.meta.env.VITE_REPORT_API_URL;
+const REPORT_API_SECRET = import.meta.env.VITE_REPORT_API_SECRET;
+
 export {
   appendNsfw,
   API_URL_FROM_WEST,
@@ -120,4 +123,6 @@ export {
   EMBED_DEBUG,
   IMAGE_UPLOAD_URL,
   IMAGE_UPLOAD_KEY,
+  REPORT_API_URL,
+  REPORT_API_SECRET,
 };

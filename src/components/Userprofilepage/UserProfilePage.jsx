@@ -13,7 +13,8 @@ import axios from 'axios';
 import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
-import { MdAdd, MdClose, MdPlayArrow } from 'react-icons/md';
+import { MdAdd, MdClose, MdPlayArrow, MdFlag } from 'react-icons/md';
+import ReportModal, { isReported } from '../modal/ReportModal';
 import { RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
 import { BiDollar } from 'react-icons/bi';
 import Follower from './Follower';
@@ -50,6 +51,7 @@ function UserProfilePage() {
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [newPlaylistAccess, setNewPlaylistAccess] = useState('public');
     const [isCreating, setIsCreating] = useState(false);
+    const [isReportOpen, setIsReportOpen] = useState(false);
     const [fabOpen, setFabOpen] = useState(false);
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
@@ -347,7 +349,14 @@ const {
                     >
                       <IoMdShare />
                     </button>
-      
+                    <button
+                      className={`btn btn-secondary${isReported('user', user) ? ' reported' : ''}`}
+                      onClick={() => setIsReportOpen(true)}
+                      title="Report user"
+                    >
+                      <MdFlag />
+                    </button>
+
             </div>
           </div>
         </div>
@@ -542,6 +551,12 @@ const {
         </>,
         document.body
       )}
+    <ReportModal
+      isOpen={isReportOpen}
+      onClose={() => setIsReportOpen(false)}
+      type="user"
+      target={{ author: user }}
+    />
     </div>
   )
 }

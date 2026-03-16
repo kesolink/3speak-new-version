@@ -416,6 +416,34 @@
                 }
             }
 
+            .report-btn {
+                display: inline-flex;
+                align-items: center;
+                padding: 4px 8px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: var(--text-secondary);
+                border: none;
+                border-radius: 5px;
+                font-size: 13px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+
+                &:hover {
+                  background-color: var(--accent-primary);
+                  color: var(--text-inverse);
+                }
+
+                &.reported {
+                  color: #e31337;
+                  background-color: rgba(227, 19, 55, 0.12);
+
+                  &:hover {
+                    background-color: rgba(227, 19, 55, 0.2);
+                    color: #e31337;
+                  }
+                }
+            }
+
             .reshare-btn {
                 display: inline-flex;
                 align-items: center;

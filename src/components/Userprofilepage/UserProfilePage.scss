@@ -509,6 +509,17 @@
           }
         }
 
+        .btn.reported {
+          color: #e31337;
+          border-color: rgba(227, 19, 55, 0.4);
+          background: rgba(227, 19, 55, 0.1);
+
+          &:hover {
+            background: rgba(227, 19, 55, 0.2);
+            border-color: #e31337;
+          }
+        }
+
         .btn-follow {
           background: linear-gradient(135deg, var(--accent-primary, #e53935), #c62828);
           border-color: transparent;

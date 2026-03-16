@@ -45,6 +45,8 @@ import { Repeat2, Scissors, Tornado, Film, Music } from 'lucide-react';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
 import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
+import ReportModal, { isReported } from '../modal/ReportModal';
+import { MdFlag } from 'react-icons/md';
 
 dayjs.extend(relativeTime);
 
@@ -83,6 +85,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [view, setView] = useState(0);
   const [speakData, setSpeakData] = useState(null);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
   const [communityData, setCommunityData] = useState(null);
   const [authorReputation, setAuthorReputation] = useState(null);
@@ -883,6 +886,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
                 </button>
 
+                <button
+                  type="button"
+                  className={`report-btn${isReported('post', `${author}/${permlink}`) ? ' reported' : ''}`}
+                  onClick={() => setIsReportOpen(true)}
+                  title="Report video"
+                >
+                  <MdFlag size={16} />
+                </button>
+
                 {isInWatchLater && (
                   <button
                     type="button"
@@ -1054,6 +1066,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         clipEnd={editorClipEnd}
         originalAuthor={author}
         originalPermlink={permlink}
+      />
+
+      <ReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        type="video"
+        target={{ author, permlink }}
       />
 
       {/* Mobile FAB — speed-dial for quick actions */}

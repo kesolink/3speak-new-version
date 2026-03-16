@@ -1383,6 +1383,19 @@
       }
     }
 
+    &.reported {
+      svg {
+        color: #e31337;
+      }
+
+      @media (max-width: 768px) {
+        svg {
+          color: #e31337;
+          filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+        }
+      }
+    }
+
     &.reward {
       svg {
         color: var(--text-primary);
@@ -2013,6 +2026,12 @@
         color: var(--accent-primary);
       }
     }
+
+    &.reported {
+      svg {
+        color: #e31337;
+      }
+    }
   }
 
   .commentReward {
@@ -2044,6 +2063,28 @@
       [data-theme="dark"] & {
         background-color: #272727;
       }
+    }
+  }
+
+  .comment-report-btn {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    opacity: 0.5;
+    transition: all 0.2s;
+
+    &:hover {
+      opacity: 1;
+      color: #e31337;
+    }
+
+    &.reported {
+      opacity: 1;
+      color: #e31337;
     }
   }
 
