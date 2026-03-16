@@ -1,5 +1,6 @@
 import { Fragment, useRef, useState, useEffect, useCallback } from 'react';
-import { MdChevronLeft, MdChevronRight, MdClose, MdAspectRatio, MdVideocam, MdComment, MdKeyboardArrowDown, MdKeyboardArrowUp, MdTranslate } from 'react-icons/md';
+import { MdChevronLeft, MdChevronRight, MdClose, MdAspectRatio, MdVideocam, MdComment, MdKeyboardArrowDown, MdKeyboardArrowUp, MdTranslate, MdFlag } from 'react-icons/md';
+import ReportModal, { isReported } from '../modal/ReportModal';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
 import { Client } from '@hiveio/dhive';
@@ -50,6 +51,7 @@ function CommentNode({ comment, depth, collapsible = true }) {
   const [translatedText, setTranslatedText] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translateError, setTranslateError] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const bodyHtml = depth === 0 ? strip3SpeakEmbeds(comment.body) : stripRepliedTo(comment.body || '');
 
   const handleTranslate = async (langCode) => {
@@ -96,7 +98,25 @@ function CommentNode({ comment, depth, collapsible = true }) {
         </div>
       )}
       {translateError && <div className="comment-translation comment-translation--error"><p>Translation failed</p></div>}
-      <TranslateButton onTranslate={handleTranslate} isTranslating={isTranslating} compact />
+      <div className="rct-comment-actions">
+        <button
+          type="button"
+          className={`rct-report-btn${comment.permlink && isReported('comment', `${comment.author}/${comment.permlink}`) ? ' reported' : ''}`}
+          onClick={() => setIsReportOpen(true)}
+          title="Report"
+        >
+          <MdFlag size={14} />
+        </button>
+        <TranslateButton onTranslate={handleTranslate} isTranslating={isTranslating} compact />
+      </div>
+      {isReportOpen && (
+        <ReportModal
+          isOpen={isReportOpen}
+          onClose={() => setIsReportOpen(false)}
+          type="comment"
+          target={{ author: comment.author, permlink: comment.permlink }}
+        />
+      )}
       {comment.children?.map((child, i) => (
         <CommentNode key={i} comment={child} depth={depth + 1} />
       ))}

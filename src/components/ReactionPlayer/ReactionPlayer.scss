@@ -118,6 +118,41 @@
     }
   }
 
+  .rct-comment-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .rct-report-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-light, rgba(255, 255, 255, 0.15));
+    background: transparent;
+    color: var(--text-secondary, #aaa);
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: var(--bg-tertiary, rgba(255, 255, 255, 0.08));
+      color: var(--text-primary, #fff);
+      border-color: var(--border-color, rgba(255, 255, 255, 0.25));
+    }
+
+    &.reported {
+      color: #e31337;
+      border-color: rgba(227, 19, 55, 0.4);
+
+      &:hover {
+        background: rgba(227, 19, 55, 0.1);
+        border-color: #e31337;
+      }
+    }
+  }
+
   .rct-thread-loading {
     padding: 12px 0;
     font-size: 12px;

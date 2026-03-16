@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
 import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
@@ -120,7 +121,7 @@ export default function ReportModal({ isOpen, onClose, type = 'video', target })
 
   const typeLabel = type === 'user' ? 'User' : type === 'comment' ? 'Comment' : 'Video';
 
-  return (
+  return createPortal(
     <div className="report-modal-overlay" onClick={handleClose}>
       <div className="report-modal-content" onClick={(e) => e.stopPropagation()}>
         <button className="report-close-btn" onClick={handleClose}>
@@ -167,6 +168,7 @@ export default function ReportModal({ isOpen, onClose, type = 'video', target })
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
