@@ -18,7 +18,7 @@ import { fetchUserShortsWithDetails } from "../hive-api/hiveApi";
 
 import { FaVideo } from "react-icons/fa";
 import { IoMdShare, IoMdAdd } from "react-icons/io";
-import { MdLock, MdPublic } from "react-icons/md";
+import { MdLock, MdPublic, MdClose } from "react-icons/md";
 
 import { LineSpinner, Quantum } from "ldrs/react";
 import "ldrs/react/Quantum.css";
@@ -65,6 +65,8 @@ function ProfilePage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistAccess, setNewPlaylistAccess] = useState('public');
+  const [newPlaylistTags, setNewPlaylistTags] = useState([]);
+  const [tagInput, setTagInput] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
   // Fetch user's playlists (all - public and private)
@@ -82,11 +84,13 @@ function ProfilePage() {
 
     setIsCreating(true);
     try {
-      await createPlaylist(newPlaylistName.trim(), newPlaylistAccess);
+      await createPlaylist(newPlaylistName.trim(), newPlaylistAccess, null, newPlaylistTags);
       toast.success('Playlist created! It may take a moment to appear.');
       setShowCreateModal(false);
       setNewPlaylistName('');
       setNewPlaylistAccess('public');
+      setNewPlaylistTags([]);
+      setTagInput('');
       setTimeout(() => {
         refetchPlaylists();
         queryClient.invalidateQueries(['myPlaylists', user]);
@@ -594,6 +598,39 @@ function ProfilePage() {
                 >
                   <MdLock /> Private
                 </button>
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Tags</label>
+              <div className="tags-input-wrap">
+                <div className="tags-list">
+                  {newPlaylistTags.map((tag) => (
+                    <span key={tag} className="tag-chip">
+                      {tag}
+                      <button type="button" onClick={() => setNewPlaylistTags(prev => prev.filter(t => t !== tag))}>
+                        <MdClose />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ',' || e.key === ' ') && tagInput.trim()) {
+                      e.preventDefault();
+                      const tag = tagInput.trim().toLowerCase().replace(/,/g, '');
+                      if (tag && !newPlaylistTags.includes(tag)) {
+                        setNewPlaylistTags(prev => [...prev, tag]);
+                      }
+                      setTagInput('');
+                    } else if (e.key === 'Backspace' && !tagInput && newPlaylistTags.length > 0) {
+                      setNewPlaylistTags(prev => prev.slice(0, -1));
+                    }
+                  }}
+                  placeholder={newPlaylistTags.length === 0 ? 'Type a tag and press Enter' : 'Add more...'}
+                />
               </div>
             </div>
             <div className="modal-actions">

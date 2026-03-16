@@ -10,7 +10,7 @@ const PLAYLIST_PREFIX = '3speak_playlist_';
  * @param {string} playlistId - Optional custom playlist ID
  * @returns {Promise<object>} Result from Aioha
  */
-export async function createPlaylist(name, access = 'public', playlistId = null) {
+export async function createPlaylist(name, access = 'public', playlistId = null, tags = []) {
   const payload = {
     name,
     access,
@@ -18,6 +18,10 @@ export async function createPlaylist(name, access = 'public', playlistId = null)
 
   if (playlistId) {
     payload.playlist_id = playlistId;
+  }
+
+  if (tags.length > 0) {
+    payload.json_metadata = JSON.stringify({ tags });
   }
 
   return customJsonWithAioha(
@@ -111,8 +115,17 @@ export async function updatePlaylist(playlistId, fields = {}) {
     playlist_id: playlistId,
   };
 
+  if (fields.name !== undefined) {
+    payload.name = fields.name;
+  }
+  if (fields.access !== undefined) {
+    payload.access = fields.access;
+  }
   if (fields.thumbnail !== undefined) {
     payload.thumbnail = fields.thumbnail;
+  }
+  if (fields.json_metadata !== undefined) {
+    payload.json_metadata = fields.json_metadata;
   }
   if (fields.metadata !== undefined) {
     payload.metadata = fields.metadata;
@@ -153,7 +166,7 @@ export async function deletePlaylist(playlistId) {
  * @param {string} permlink - Video permlink
  * @returns {Promise<object>} Result from Aioha
  */
-export async function createPlaylistAndAdd(name, access, playlistId, author, permlink) {
+export async function createPlaylistAndAdd(name, access, playlistId, author, permlink, tags = []) {
   const user = getCurrentUser();
 
   const createPayload = {
@@ -161,6 +174,10 @@ export async function createPlaylistAndAdd(name, access, playlistId, author, per
     access,
     playlist_id: playlistId,
   };
+
+  if (tags.length > 0) {
+    createPayload.json_metadata = JSON.stringify({ tags });
+  }
 
   const addPayload = {
     playlist_id: playlistId,
