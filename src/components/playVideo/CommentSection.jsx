@@ -4,7 +4,8 @@ import './BlogContent.scss';
 import { BiDislike } from 'react-icons/bi';
 import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
-import { MdVideocam, MdComment, MdKeyboardArrowUp, MdTranslate } from 'react-icons/md';
+import { MdVideocam, MdComment, MdKeyboardArrowUp, MdTranslate, MdFlag } from 'react-icons/md';
+import ReportModal, { isReported } from '../modal/ReportModal';
 import useTranslation from '../../hooks/useTranslation';
 import TranslateButton from '../TranslateButton/TranslateButton';
 import ReactVideoTab from '../ReactVideoModal/ReactVideoModal';
@@ -633,6 +634,7 @@ function Comment({
   const [collapsed, setCollapsed] = useState(false);
   const [translatedText, setTranslatedText] = useState(null);
   const [translateError, setTranslateError] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   const handleTranslate = async (langCode) => {
     if (!comment?.body) return;
@@ -707,6 +709,14 @@ function Comment({
             />
             <PayoutAmount amount={comment?.stats?.total_hive_reward} />
             <div className="comment-action-right">
+              <button
+                type="button"
+                className={`comment-report-btn${isReported('comment', `${comment.author?.username}/${comment.permlink}`) ? ' reported' : ''}`}
+                onClick={() => setIsReportOpen(true)}
+                title="Report comment"
+              >
+                <MdFlag size={14} />
+              </button>
               <TranslateButton
                 onTranslate={handleTranslate}
                 isTranslating={!!translating?.[comment.permlink]}
@@ -727,6 +737,12 @@ function Comment({
                   setReplyToComment(comment);
                 }} />
             </div>
+            <ReportModal
+              isOpen={isReportOpen}
+              onClose={() => setIsReportOpen(false)}
+              type="comment"
+              target={{ author: comment.author?.username, permlink: comment.permlink }}
+            />
             <CommentVoteTooltip
              author={comment?.author?.username}
              permlink={comment.permlink}

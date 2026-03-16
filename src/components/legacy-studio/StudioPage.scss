@@ -1,7 +1,10 @@
 @use "../../mixins.scss" as mix;
 .studio-main-container {
   min-height: 87vh;
-  // background-color: red;
+
+  @include mix.respond(phone) {
+    padding-bottom: calc(var(--nav-height, 56px) + 16px);
+  }
 }
 .studio-page-header {
   flex-direction: column;

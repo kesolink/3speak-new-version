@@ -164,6 +164,13 @@ export function EmbedUploadProvider({ children }) {
     addMessage('Starting video upload...');
 
     try {
+      // Generate permlink from description (only if description is non-empty)
+      const trimmedDesc = (description || '').trim();
+      const slug = trimmedDesc
+        ? trimmedDesc.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 27).replace(/-+$/, '')
+        : '';
+      const generatedPermlink = slug ? `${slug}-${Date.now() % 1000}` : '';
+
       // ─── Step 1: TUS upload to embed service ───
       let capturedEmbedUrl = '';
 
@@ -207,6 +214,7 @@ export function EmbedUploadProvider({ children }) {
               owner: user,
               short: fromStories ? 'true' : 'false',
               duration: String(Math.round(videoDuration)),
+              ...(generatedPermlink ? { permlink: generatedPermlink } : {}),
             },
             onError: (err) => {
               console.error('TUS upload error:', err);
@@ -268,7 +276,7 @@ export function EmbedUploadProvider({ children }) {
       addMessage('Publishing to Hive blockchain...');
 
       // ─── Step 2: Post to Hive via aioha ───
-      const hivePermlink = `3speak-${Date.now()}`;
+      const hivePermlink = generatedPermlink;
       const communityTag = typeof community === 'string' ? community : community?.name || 'hive-181335';
 
       // Build body: description + embed URL + credit to original author

@@ -297,6 +297,9 @@ export function LegacyUploadProvider({ children }) {
         return;
       }
 
+      const slug = (title || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 27).replace(/-+$/, '');
+      const generatedPermlink = `${slug}-${Date.now() % 1000}`;
+
       const raw = {
         upload_id: uploadId,
         owner: username,
@@ -310,6 +313,7 @@ export function LegacyUploadProvider({ children }) {
         declineRewards,
         rewardPowerup,
         reusable,
+        permlink: generatedPermlink,
         beneficiaries: parsedBeneficiaries,
         ...schedulingParams,
       }

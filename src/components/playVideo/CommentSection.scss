@@ -112,6 +112,37 @@
     margin-left: auto;
   }
 
+  .comment-report-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: transparent;
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
+
+    &:hover {
+      background: var(--bg-tertiary);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    &.reported {
+      color: #e31337;
+      border-color: rgba(227, 19, 55, 0.4);
+
+      &:hover {
+        background: rgba(227, 19, 55, 0.1);
+        border-color: #e31337;
+        color: #e31337;
+      }
+    }
+  }
+
   .comment-shorts-link {
     display: inline-flex;
     align-items: center;

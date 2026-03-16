@@ -45,6 +45,8 @@ import { Repeat2, Scissors, Tornado, Film, Music } from 'lucide-react';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
 import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
+import ReportModal, { isReported } from '../modal/ReportModal';
+import { MdFlag } from 'react-icons/md';
 
 dayjs.extend(relativeTime);
 
@@ -83,6 +85,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [view, setView] = useState(0);
   const [speakData, setSpeakData] = useState(null);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
   const [communityData, setCommunityData] = useState(null);
   const [authorReputation, setAuthorReputation] = useState(null);
@@ -602,8 +605,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               )}
               {tipNudgeVisible && !isTipModalOpen && authenticated && isLoggedIn() && user !== author && (
                 <div className="tip-nudge">
-                  <FaHeart className="tip-nudge-emoji" style={{ color: '#e53935' }} />
-                  <span className="tip-nudge-text">Enjoyed this? Send <strong>@{author}</strong> a tip!</span>
+                  <FaHeart className="tip-nudge-emoji hide-mobile" style={{ color: '#e53935' }} />
+                  <span className="tip-nudge-text">Enjoyed this?<span className="hide-mobile"> Send <strong>@{author}</strong> a tip!</span></span>
                   <button type="button" className="tip-nudge-btn" onClick={() => { setTipNudgeVisible(false); setIsTipModalOpen(true); }}>
                     Tip
                   </button>
@@ -612,34 +615,47 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   </button>
                 </div>
               )}
-              {videoControls?.videoEnded && (
-                <div className="video-ended-overlay">
-                  <button type="button" className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
-                    <MdReplay size={48} />
-                  </button>
-                  {!videoControls.autoplayNext && videoControls.endSuggestions?.length > 0 && (
-                    <div className="video-ended-suggestions">
-                      {videoControls.endSuggestions.map((v, i) => {
-                        const vAuthor = v?.author?.username || v?.author?.id || v?.author || v?.owner;
-                        return (
-                          <a
-                            key={`${vAuthor}-${v.permlink}-${i}`}
-                            className="video-ended-card"
-                            href={`/watch?v=${vAuthor}/${v.permlink}`}
-                            onClick={(e) => { e.preventDefault(); navigate(`/watch?v=${vAuthor}/${v.permlink}`); }}
-                          >
-                            <img src={fixVideoThumbnail(v)} alt={v.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
-                            <div className="video-ended-card-info">
-                              <span className="video-ended-card-title">{v.title?.length > 40 ? v.title.slice(0, 40) + '...' : v.title}</span>
-                              <span className="video-ended-card-author">@{vAuthor}</span>
-                            </div>
-                          </a>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+              {videoControls?.videoEnded && (() => {
+                const suggestions = (!videoControls.autoplayNext && videoControls.endSuggestions?.length > 0) ? videoControls.endSuggestions : [];
+                const renderCard = (v, i) => {
+                  const vAuthor = v?.author?.username || v?.author?.id || v?.author || v?.owner;
+                  return (
+                    <a
+                      key={`${vAuthor}-${v.permlink}-${i}`}
+                      className="video-ended-card"
+                      href={`/watch?v=${vAuthor}/${v.permlink}`}
+                      onClick={(e) => { e.preventDefault(); navigate(`/watch?v=${vAuthor}/${v.permlink}`); }}
+                    >
+                      <img src={fixVideoThumbnail(v)} alt={v.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
+                      <div className="video-ended-card-info">
+                        <span className="video-ended-card-title">{v.title?.length > 40 ? v.title.slice(0, 40) + '...' : v.title}</span>
+                        <span className="video-ended-card-author">@{vAuthor}</span>
+                      </div>
+                    </a>
+                  );
+                };
+                return (
+                  <div className="video-ended-overlay">
+                    {/* Mobile: 1 card left of replay */}
+                    {suggestions.length > 0 && (
+                      <div className="video-ended-mobile-card">{renderCard(suggestions[0], 0)}</div>
+                    )}
+                    <button type="button" className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
+                      <MdReplay size={48} />
+                    </button>
+                    {/* Mobile: 1 card right of replay */}
+                    {suggestions.length > 1 && (
+                      <div className="video-ended-mobile-card">{renderCard(suggestions[1], 1)}</div>
+                    )}
+                    {/* Desktop: all cards below replay */}
+                    {suggestions.length > 0 && (
+                      <div className="video-ended-suggestions">
+                        {suggestions.map((v, i) => renderCard(v, i))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {videoControls?.autoplayBlocked && !videoControls?.videoEnded && (
                 <div className="video-replay-overlay" onClick={videoControls.onAutoplayTap}>
                   <button type="button" className="video-replay-btn" title="Play">
@@ -715,7 +731,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
           )}
 
-          <div className="video-title-row">
+          <div className={`video-title-row${!mobileDetailsExpanded ? ' title-collapsed' : ''}`}>
             <div className="video-title-col">
               <h3>{videoDetails?.title}</h3>
               <div className="mobile-title-meta">
@@ -881,6 +897,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 >
                   <Repeat2 size={16} />
                   {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
+                </button>
+
+                <button
+                  type="button"
+                  className={`report-btn${isReported('post', `${author}/${permlink}`) ? ' reported' : ''}`}
+                  onClick={() => setIsReportOpen(true)}
+                  title="Report video"
+                >
+                  <MdFlag size={16} />
                 </button>
 
                 {isInWatchLater && (
@@ -1054,6 +1079,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         clipEnd={editorClipEnd}
         originalAuthor={author}
         originalPermlink={permlink}
+      />
+
+      <ReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        type="video"
+        target={{ author, permlink }}
       />
 
       {/* Mobile FAB — speed-dial for quick actions */}
