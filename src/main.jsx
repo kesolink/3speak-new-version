@@ -18,27 +18,28 @@ import { AppProviders } from './context/Providers';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AiohaProvider } from '@aioha/react-ui';
 import aioha from './hive-api/aioha';
+import { HelmetProvider } from 'react-helmet-async';
 
 // import { Buffer } from 'buffer';
 // window.Buffer = Buffer;
 const queryClient = new QueryClient();
 createRoot(document.getElementById('root')).render(
-
   <StrictMode>
-    <BrowserRouter>
-    <AiohaProvider aioha={aioha}>
-    <AppProviders>
-      <QueryClientProvider client={queryClient}>
-
-      <ApolloProvider client={client}>
-        <Provider store={store}> {/* Wrap the app with the Redux Provider */}
-          <App />
-          <ToastContainer className="custom-toast-body"/>
-        </Provider>
-      </ApolloProvider>
-      </QueryClientProvider>
-      </AppProviders>
-    </AiohaProvider>
-    </BrowserRouter>
+    <HelmetProvider>
+      <BrowserRouter>
+        <AiohaProvider aioha={aioha}>
+          <AppProviders>
+            <QueryClientProvider client={queryClient}>
+              <ApolloProvider client={client}>
+                <Provider store={store}> {/* Wrap the app with the Redux Provider */}
+                  <App />
+                  <ToastContainer className="custom-toast-body"/>
+                </Provider>
+              </ApolloProvider>
+            </QueryClientProvider>
+          </AppProviders>
+        </AiohaProvider>
+      </BrowserRouter>
+    </HelmetProvider>
   </StrictMode>
 );
