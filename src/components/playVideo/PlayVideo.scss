@@ -828,6 +828,22 @@
   gap: 16px;
   background: rgba(0, 0, 0, 0.65);
   padding: 16px;
+
+  @media (max-width: 768px) {
+    flex-direction: row;
+    gap: 10px;
+    padding: 10px;
+  }
+}
+
+.video-ended-mobile-card {
+  display: none;
+
+  @media (max-width: 768px) {
+    display: block;
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .video-ended-suggestions {
@@ -836,6 +852,10 @@
   width: 100%;
   padding: 0 16px;
   box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 }
 
 .video-ended-card {
@@ -923,6 +943,12 @@
   &:hover {
     background: rgba(255, 255, 255, 0.25);
     transform: scale(1.1);
+  }
+
+  @media (max-width: 768px) {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
   }
 }
 
@@ -1146,9 +1172,15 @@
     pointer-events: auto;
 
     @include mix.respond(phone) {
+        left: auto;
         right: 6px;
-        left: 6px;
-        max-width: none;
+        max-width: fit-content;
+        padding: 6px 10px;
+        gap: 6px;
+
+        .hide-mobile {
+            display: none;
+        }
     }
 }
 
