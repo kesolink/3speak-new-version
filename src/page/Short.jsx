@@ -2556,6 +2556,19 @@ const VideoShort = () => {
               />
             </div>
             <div className={`caption${captionExpanded ? ' caption--expanded' : ''}`} onClick={(e) => { e.stopPropagation(); setCaptionExpanded(prev => !prev); }}>
+              {!captionExpanded && !currentVideo.caption?.trim() && (
+                <button
+                  className={`captionReportBtn${currentVideo && isReported('short', `${currentVideo.author}/${currentVideo.permlink}`) ? ' reported' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setReportTarget({ type: 'short', author: currentVideo.author, permlink: currentVideo.permlink });
+                    setIsReportOpen(true);
+                  }}
+                  title="Report"
+                >
+                  <MdFlag size={14} />
+                </button>
+              )}
               <p className="captionText">{renderCaption(translatedCaption || currentVideo.caption)}</p>
               {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && (
                 <span className="captionDate">{currentVideo.timeAgo}</span>
@@ -2563,10 +2576,10 @@ const VideoShort = () => {
               {captionExpanded && (
                 <div className="captionActions" onClick={(e) => e.stopPropagation()}>
                   <button
-                    className={`captionReportBtn${currentVideo && isReported('post', `${currentVideo.author}/${currentVideo.hivePermlink}`) ? ' reported' : ''}`}
+                    className={`captionReportBtn${currentVideo && isReported('short', `${currentVideo.author}/${currentVideo.permlink}`) ? ' reported' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setReportTarget({ type: 'video', author: currentVideo.author, permlink: currentVideo.hivePermlink });
+                      setReportTarget({ type: 'short', author: currentVideo.author, permlink: currentVideo.permlink });
                       setIsReportOpen(true);
                     }}
                     title="Report"
