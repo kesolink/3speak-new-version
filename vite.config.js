@@ -37,6 +37,9 @@ export default defineConfig({
     }),
     VitePWA({
       registerType: "autoUpdate",
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       devOptions: { enabled: true },
       manifest: {
         name: "3Speak",
@@ -45,7 +48,77 @@ export default defineConfig({
         theme_color: "#1a1a2e",
         background_color: "#1a1a2e",
         display: "standalone",
+        orientation: "portrait-primary",
         start_url: "/",
+        categories: ["video", "social", "entertainment"],
+        shortcuts: [
+          {
+            name: "Shorts",
+            short_name: "Shorts",
+            url: "/shorts",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Discover",
+            short_name: "Discover",
+            url: "/discover",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Upload Video",
+            short_name: "Upload",
+            url: "/studio",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Upload Short",
+            short_name: "Short",
+            url: "/embed-studio?from=shorts",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }],
+          },
+          {
+            name: "Shorts Editor",
+            short_name: "Editor",
+            url: "/embed-studio",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }],
+          },
+        ],
+        file_handlers: [
+          {
+            action: "/studio",
+            accept: {
+              "video/mp4": [".mp4"],
+              "video/webm": [".webm"],
+              "video/quicktime": [".mov"],
+              "video/x-matroska": [".mkv"],
+              "video/avi": [".avi"],
+            },
+          },
+          {
+            action: "/embed-studio",
+            accept: {
+              "video/mp4": [".mp4"],
+              "video/webm": [".webm"],
+              "video/quicktime": [".mov"],
+            },
+          },
+        ],
+        share_target: {
+          action: "/share-target",
+          method: "POST",
+          enctype: "multipart/form-data",
+          params: {
+            title: "title",
+            text: "text",
+            url: "url",
+            files: [
+              {
+                name: "video",
+                accept: ["video/mp4", "video/webm", "video/quicktime", "video/*"],
+              },
+            ],
+          },
+        },
         icons: [
           {
             src: "/pwa-192x192.png",
@@ -65,27 +138,9 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/hivesigner\.html/],
-        globPatterns: ["**/*.html"],
-        runtimeCaching: [
-          {
-            urlPattern: /\.(?:js|css|woff2?)$/i,
-            handler: "StaleWhileRevalidate",
-            options: { cacheName: "static-assets" },
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|webp)$/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "images",
-              expiration: { maxEntries: 50, maxAgeSeconds: 30 * 24 * 60 * 60 },
-            },
-          },
-        ],
+      injectManifest: {
+        globPatterns: ["**/*.{html,js,css,svg}"],
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
     }),
   ],

@@ -29,21 +29,21 @@ const DATE_PRESETS = [
 
 const defaultExcluded = SEARCH_TYPES.reduce((acc, t) => ({ ...acc, [t.key]: false }), {});
 
-const fetchSearch = async (query, boostRecent, activeTypes, { tag, dateFrom, community } = {}) => {
+const fetchSearch = async (query, boostRecent, activeTypes, { tag, dateFrom, community } = {}, nsfw = false) => {
   const params = { q: query, limit: activeTypes.length * LIMIT };
   if (boostRecent) params.sort = 'date';
   if (activeTypes.length < SEARCH_TYPES.length) params.type = activeTypes.join(',');
   if (tag) params.tag = tag;
   if (dateFrom) params.from = dateFrom;
   if (community) params.community = community;
-  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+  if (nsfw) params.nsfw = 'true';
   const res = await axios.get(`${CHECKER_URL}/search`, { params });
   return res.data;
 };
 
-const fetchSuggest = async (query) => {
+const fetchSuggest = async (query, nsfw = false) => {
   const params = { q: query };
-  if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+  if (nsfw) params.nsfw = 'true';
   const res = await axios.get(`${CHECKER_URL}/search/suggest`, { params });
   return res.data;
 };
@@ -145,7 +145,7 @@ function NavSearch() {
   // Autocomplete
   const { data: suggestData } = useQuery({
     queryKey: ["nav-suggest", debouncedTerm, showNsfw],
-    queryFn: () => fetchSuggest(debouncedTerm),
+    queryFn: () => fetchSuggest(debouncedTerm, showNsfw),
     enabled: debouncedTerm.length >= 2 && showSuggestions,
     staleTime: 15000,
   });
@@ -155,7 +155,7 @@ function NavSearch() {
     queryKey: ["nav-community-suggest", communitySearch, showNsfw],
     queryFn: async () => {
       const params = { q: communitySearch, type: 'community', limit: 8 };
-      if (useAppStore.getState().showNsfw) params.nsfw = 'true';
+      if (showNsfw) params.nsfw = 'true';
       const res = await axios.get(`${CHECKER_URL}/search`, { params });
       return res.data?.results || [];
     },
@@ -166,7 +166,7 @@ function NavSearch() {
   // Search results
   const { data: searchData, isLoading: searchLoading } = useQuery({
     queryKey: ["nav-search", debouncedTerm, boostRecent, activeTypes, extraFilters, showNsfw],
-    queryFn: () => fetchSearch(debouncedTerm, boostRecent, activeTypes, extraFilters),
+    queryFn: () => fetchSearch(debouncedTerm, boostRecent, activeTypes, extraFilters, showNsfw),
     enabled: debouncedTerm.length >= 2 && activeTypes.length > 0 && panelOpen,
     staleTime: 30000,
   });

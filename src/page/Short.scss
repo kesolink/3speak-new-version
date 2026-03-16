@@ -102,6 +102,9 @@
     height: calc(100dvh - 56px);
     max-height: calc(100dvh - 56px);
     align-items: center;
+
+    // Safe-area top offset for all overlay controls on iPhone PWA
+    --safe-top: env(safe-area-inset-top, 0px);
   }
 
   /* Mobile Back Button */
@@ -111,7 +114,7 @@
     @media (max-width: 767px) {
       display: flex;
       position: absolute;
-      top: 1rem;
+      top: calc(1rem + var(--safe-top, 0px));
       left: 1rem;
       z-index: 100;
       width: 2.5rem;
@@ -352,7 +355,7 @@
   .playbackModeIndicator,
   .glowIndicator {
     position: absolute;
-    top: 12px;
+    top: calc(12px + var(--safe-top, 0px));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -385,7 +388,7 @@
 
   .subtitleIndicator {
     position: absolute;
-    top: 12px;
+    top: calc(12px + var(--safe-top, 0px));
     right: 144px;
     display: flex;
     align-items: center;
@@ -583,7 +586,7 @@
   // Back button after navigating to parent short
   .shortBackBtn {
     position: absolute;
-    top: 12px;
+    top: calc(12px + var(--safe-top, 0px));
     left: 12px;
     z-index: 55;
     display: flex;
@@ -616,7 +619,7 @@
       background: rgba(0, 0, 0, 0.2);
       box-shadow: none;
       // Top-left corner
-      top: 12px;
+      top: calc(12px + var(--safe-top, 0px));
       left: 12px;
       right: auto;
 
@@ -629,7 +632,7 @@
   // Stories mode button (next to back button)
   .shortStoriesBtn {
     position: absolute;
-    top: 12px;
+    top: calc(12px + var(--safe-top, 0px));
     left: 52px;
     z-index: 55;
     display: none;
@@ -1676,7 +1679,7 @@
     flex-direction: column;
     transform: translateX(100%);
     transition: transform 0.3s ease;
-    z-index: 100;
+    z-index: 150;
 
     [data-theme="dark"] & {
       background-color: #0f0f0f;
@@ -1689,7 +1692,7 @@
 
     @media (max-width: 768px) {
       top: auto;
-      bottom: 0;
+      bottom: var(--nav-height, 56px);
       left: 0;
       right: 0;
       width: 100%;
@@ -1725,7 +1728,7 @@
       right: 0;
       bottom: 0;
       background-color: var(--overlay-bg);
-      z-index: 99;
+      z-index: 149;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.3s ease;

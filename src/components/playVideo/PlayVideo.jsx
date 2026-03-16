@@ -119,17 +119,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     }
   }, [clipMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Tip nudge at 90% playtime
+  // Tip nudge at 90% playtime (only for logged-in viewers watching someone else's video)
   useEffect(() => {
     const duration = videoControls?.duration;
     const currentTime = videoControls?.currentTime;
     if (!duration || duration < 10 || tipNudgeShownRef.current) return;
-    const triggerAt = Math.min(duration * 0.9, duration - 120);
+    if (!authenticated || !isLoggedIn() || user === author) return;
+    const triggerAt = duration * 0.9;
     if (currentTime >= triggerAt) {
       setTipNudgeVisible(true);
       tipNudgeShownRef.current = true;
     }
-  }, [videoControls?.currentTime, videoControls?.duration]);
+  }, [videoControls?.currentTime, videoControls?.duration, authenticated, user, author]);
 
   // Reset nudge state when video changes
   useEffect(() => {
@@ -139,8 +140,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
   // Report popup open state to parent (blocks autoplay)
   useEffect(() => {
-    videoControls?.onPopupOpen?.(tipNudgeVisible || isTipModalOpen || showTooltip);
-  }, [tipNudgeVisible, isTipModalOpen, showTooltip]); // eslint-disable-line react-hooks/exhaustive-deps
+    const isVotePopupOpen = showTooltip && authenticated && isLoggedIn();
+    videoControls?.onPopupOpen?.(tipNudgeVisible || isTipModalOpen || isVotePopupOpen);
+  }, [tipNudgeVisible, isTipModalOpen, showTooltip, authenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Watch Later detection
   const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
@@ -519,8 +521,9 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   }, [navigate]);
 
   const toggleTooltip = useCallback(() => {
+    if (!authenticated || !isLoggedIn()) return;
     setShowTooltip((prev) => !prev);
-  }, []);
+  }, [authenticated]);
 
   const handleShare = useCallback(async () => {
     const time = Math.floor(videoControls?.currentTime || 0);

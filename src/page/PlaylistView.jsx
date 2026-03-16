@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useState, useMemo } from 'react';
-import { MdPlaylistPlay, MdClose, MdDragIndicator } from 'react-icons/md';
+import { MdPlaylistPlay, MdClose, MdDragIndicator, MdEdit, MdLock, MdPublic } from 'react-icons/md';
 import { IoArrowBack, IoTrash, IoSave, IoReorderThree } from 'react-icons/io5';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -12,56 +12,15 @@ import { useAppStore } from '../lib/store';
 import {
   executePlaylistChanges,
   deletePlaylist,
+  updatePlaylist,
   PlaylistActionTypes
 } from '../utils/playlistOperations';
 import { toast } from 'sonner';
 import './PlaylistView.scss';
 import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
+import { DATE_FILTERS, getSinceTimestamp, formatRelativeDate } from '../utils/dateFilters';
 dayjs.extend(relativeTime);
-
-const DATE_FILTERS = [
-  { key: 'all', label: 'All Time' },
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
-];
-
-function getSinceTimestamp(filterKey) {
-  if (filterKey === 'all') return 0;
-  const now = new Date();
-  if (filterKey === 'today') {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return Math.floor(start.getTime() / 1000);
-  }
-  if (filterKey === 'week') {
-    const day = now.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
-    return Math.floor(start.getTime() / 1000);
-  }
-  if (filterKey === 'month') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return Math.floor(start.getTime() / 1000);
-  }
-  return 0;
-}
-
-function formatAddedDate(timestamp) {
-  if (!timestamp) return '';
-  const date = new Date(typeof timestamp === 'number' && timestamp < 1e12 ? timestamp * 1000 : timestamp);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHr < 24) return `${diffHr}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 /**
  * Fetch video data from Hive for a list of playlist items
@@ -140,6 +99,12 @@ function PlaylistView() {
   const [reorderMode, setReorderMode] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editAccess, setEditAccess] = useState('public');
+  const [editTags, setEditTags] = useState([]);
+  const [editTagInput, setEditTagInput] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Fetch playlist data
   const { data: playlist, isLoading: playlistLoading, error: playlistError } = useQuery({
@@ -190,6 +155,51 @@ function PlaylistView() {
 
   // Check if there are unsaved changes
   const hasChanges = pendingChanges.length > 0;
+
+  // Parse tags from playlist json_metadata
+  const playlistTags = useMemo(() => {
+    if (!playlist?.json_metadata) return [];
+    try {
+      const meta = typeof playlist.json_metadata === 'string'
+        ? JSON.parse(playlist.json_metadata)
+        : playlist.json_metadata;
+      return meta?.tags || [];
+    } catch { return []; }
+  }, [playlist]);
+
+  // Open edit modal
+  const handleOpenEdit = () => {
+    setEditName(playlist.name);
+    setEditAccess(playlist.access || 'public');
+    setEditTags([...playlistTags]);
+    setEditTagInput('');
+    setShowEditModal(true);
+  };
+
+  // Save edit
+  const handleSaveEdit = async () => {
+    if (!editName.trim()) {
+      toast.error('Playlist name cannot be empty');
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      await updatePlaylist(playlistId, {
+        name: editName.trim(),
+        access: editAccess,
+        json_metadata: JSON.stringify({ tags: editTags }),
+      });
+      toast.success('Playlist updated! Changes may take a moment to appear.');
+      setShowEditModal(false);
+      setTimeout(() => {
+        queryClient.invalidateQueries(['playlist', playlistId]);
+      }, 3000);
+    } catch (error) {
+      toast.error('Failed to update: ' + error.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   // Drag handlers for reorder mode
   const handleDragStart = (e, index) => {
@@ -381,9 +391,26 @@ function PlaylistView() {
           </div>
         </div>
 
+        {/* Tags */}
+        {playlistTags.length > 0 && (
+          <div className="playlist-tags">
+            {playlistTags.map(tag => (
+              <span key={tag} className="playlist-tag">{tag}</span>
+            ))}
+          </div>
+        )}
+
         {/* Owner Actions */}
         {isOwner && (
           <div className="owner-actions">
+            <button
+              type="button"
+              className="btn-edit"
+              onClick={handleOpenEdit}
+              disabled={isSaving}
+            >
+              <MdEdit /> Edit
+            </button>
             <button
               type="button"
               className={`btn-reorder ${reorderMode ? 'active' : ''}`}
@@ -543,7 +570,7 @@ function PlaylistView() {
                 <div className="video-meta">
                   <h3>{video.title}</h3>
                   <p className="video-author">@{video.author}</p>
-                  <p className="added-date">Added {formatAddedDate(video.added_at)}</p>
+                  <p className="added-date">Added {formatRelativeDate(video.added_at)}</p>
                 </div>
               </Link>
             ))}
@@ -563,6 +590,85 @@ function PlaylistView() {
               </button>
               <button type="button" className="btn-confirm-delete" onClick={handleDeletePlaylist} disabled={isDeleting}>
                 {isDeleting ? 'Deleting...' : 'Delete Playlist'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Playlist Modal */}
+      {showEditModal && (
+        <div className="delete-confirm-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="edit-playlist-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Edit Playlist</h3>
+            <div className="form-group">
+              <label>Name</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Playlist name"
+                autoFocus
+              />
+            </div>
+            <div className="form-group">
+              <label>Visibility</label>
+              <div className="privacy-buttons">
+                <button
+                  type="button"
+                  className={`privacy-btn ${editAccess === 'public' ? 'active' : ''}`}
+                  onClick={() => setEditAccess('public')}
+                >
+                  <MdPublic /> Public
+                </button>
+                <button
+                  type="button"
+                  className={`privacy-btn ${editAccess === 'private' ? 'active' : ''}`}
+                  onClick={() => setEditAccess('private')}
+                >
+                  <MdLock /> Private
+                </button>
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Tags</label>
+              <div className="tags-input-wrap">
+                <div className="tags-list">
+                  {editTags.map((tag) => (
+                    <span key={tag} className="tag-chip">
+                      {tag}
+                      <button type="button" onClick={() => setEditTags(prev => prev.filter(t => t !== tag))}>
+                        <MdClose />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={editTagInput}
+                  onChange={(e) => setEditTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ',' || e.key === ' ') && editTagInput.trim()) {
+                      e.preventDefault();
+                      const tag = editTagInput.trim().toLowerCase().replace(/,/g, '');
+                      if (tag && !editTags.includes(tag)) {
+                        setEditTags(prev => [...prev, tag]);
+                      }
+                      setEditTagInput('');
+                    } else if (e.key === 'Backspace' && !editTagInput && editTags.length > 0) {
+                      setEditTags(prev => prev.slice(0, -1));
+                    }
+                  }}
+                  placeholder={editTags.length === 0 ? 'Type a tag and press Enter' : 'Add more...'}
+                />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn-cancel" onClick={() => setShowEditModal(false)} disabled={isUpdating}>
+                Cancel
+              </button>
+              <button type="button" className="btn-confirm-delete" style={{ background: 'var(--accent-primary, #e53935)' }} onClick={handleSaveEdit} disabled={isUpdating || !editName.trim()}>
+                {isUpdating ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
