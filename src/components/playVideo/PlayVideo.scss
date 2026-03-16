@@ -62,6 +62,12 @@
                 margin-top: 0;
                 padding: 8px 10px;
                 background-color: var(--card-bg);
+                width: 100%;
+                box-sizing: border-box;
+
+                &.title-collapsed {
+                    border-radius: 0 0 10px 10px;
+                }
             }
 
             .video-title-col {
@@ -122,6 +128,9 @@
             @include mix.respond(phone) {
                 padding: 8px 10px 10px;
                 background-color: var(--card-bg);
+                width: 100%;
+                box-sizing: border-box;
+                border-radius: 0 0 10px 10px;
 
                 &.collapsed {
                     display: none;
@@ -1526,11 +1535,18 @@
       margin-top: 0;
       padding: 8px 10px;
       background-color: var(--card-bg);
+
+      &.title-collapsed {
+        border-radius: 0 0 10px 10px;
+      }
     }
 
     .video-details-collapsible {
       padding: 8px 10px 10px;
       background-color: var(--card-bg);
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 0 0 10px 10px;
 
       &.collapsed {
         display: none;

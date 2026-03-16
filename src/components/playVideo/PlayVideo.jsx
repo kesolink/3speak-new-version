@@ -731,7 +731,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
           )}
 
-          <div className="video-title-row">
+          <div className={`video-title-row${!mobileDetailsExpanded ? ' title-collapsed' : ''}`}>
             <div className="video-title-col">
               <h3>{videoDetails?.title}</h3>
               <div className="mobile-title-meta">
