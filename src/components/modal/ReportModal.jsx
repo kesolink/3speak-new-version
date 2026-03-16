@@ -73,7 +73,7 @@ export default function ReportModal({ isOpen, onClose, type = 'video', target })
     setSubmitting(true);
     try {
       // Build object_id: for users just the username, for posts/comments "author/permlink"
-      const objectType = type === 'video' ? 'post' : type; // API uses 'post' not 'video'
+      const objectType = type === 'video' ? 'post' : type === 'short' ? 'short' : type;
       const objectId = type === 'user'
         ? target?.author
         : `${target?.author}/${target?.permlink}`;
@@ -119,7 +119,7 @@ export default function ReportModal({ isOpen, onClose, type = 'video', target })
 
   if (!isOpen) return null;
 
-  const typeLabel = type === 'user' ? 'User' : type === 'comment' ? 'Comment' : 'Video';
+  const typeLabel = type === 'user' ? 'User' : type === 'comment' ? 'Comment' : type === 'short' ? 'Short' : 'Video';
 
   return createPortal(
     <div className="report-modal-overlay" onClick={handleClose}>
