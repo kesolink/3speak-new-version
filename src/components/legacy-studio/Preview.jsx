@@ -252,6 +252,9 @@ function Preview() {
         return;
       }
 
+      // Legacy upload service enforces exactly 8-char permlinks — don't send a custom one
+      // The backend generates its own 8-char hex permlink via crypto.randomBytes(4)
+
       const res = await axios.post(
         `${UPLOAD_URL}/api/upload/finalize`,
         {
