@@ -179,7 +179,7 @@ function WatchedView() {
   const totalPages = Math.max(1, Math.ceil(currentCount / LIMIT));
   const offset = (currentPage - 1) * LIMIT;
 
-  const { data: items = [], isLoading, isError } = useQuery({
+  const { data: items = [], isLoading, isFetching, isError } = useQuery({
     queryKey: ['watchedVideos', username, apiType, currentPage, since],
     queryFn: async () => {
       const historyItems = await getWatchHistory(username, LIMIT, offset, apiType, since);
@@ -187,7 +187,6 @@ function WatchedView() {
     },
     enabled: !!username,
     staleTime: 60 * 1000,
-    placeholderData: (prev) => prev,
   });
 
   const filtered = items.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
@@ -277,7 +276,7 @@ function WatchedView() {
 
       {/* Content */}
       <div className="watched-content">
-        {isLoading ? (
+        {(isLoading || isFetching) ? (
           <div className="loading-more"><BarLoader /></div>
         ) : isError ? (
           <div className="empty-wrap">
