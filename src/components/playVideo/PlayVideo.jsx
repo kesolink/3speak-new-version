@@ -28,6 +28,7 @@ import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
+import mantequillaLogo from "../../assets/mantequilla-logo.png";
 import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
@@ -199,6 +200,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const spkvideo = videoData?.socialPost?.spkvideo || videoDetails?.spkvideo;
   const profile = getUserProfile.data?.profile;
   
+  // Fetch extended video details (mantecurated etc.) from checker API
+  const [extendedDetails, setExtendedDetails] = useState({});
+  useEffect(() => {
+    if (!author || !permlink) return;
+    const url = `${import.meta.env.VITE_CHECKER_URL}/videodetails/${author}/${permlink}`;
+    fetch(url).then(r => r.json()).then(setExtendedDetails).catch(() => {});
+  }, [author, permlink]);
+
   // Memoized values
   const tags = useMemo(() => videoDetails?.tags?.slice(0, 7) || [], [videoDetails?.tags]);
   const comunity_name = useMemo(() => videoDetails?.community?.title, [videoDetails?.community?.title]);
@@ -782,6 +791,12 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
           <div className="community-tags-row">
             <div className="tag-wrapper">
+              {extendedDetails?.mantecurated && (
+                <span className="curated-tag" onClick={() => handleSelectTag('mantecurated')}>
+                  <img src={mantequillaLogo} alt="" className="curated-tag-icon" />
+                  Curated
+                </span>
+              )}
               {tags.map((tag, index) => (
                 <span key={index} onClick={() => handleSelectTag(tag)}>{tag}</span>
               ))}

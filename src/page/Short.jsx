@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 import { MdTranslate, MdClosedCaption, MdClosedCaptionOff, MdFlag } from 'react-icons/md';
+import mantequillaLogo from '../assets/mantequilla-logo.png';
 import ReportModal, { isReported } from '../components/modal/ReportModal';
 import { Flag } from 'lucide-react';
 import useTranslation from '../hooks/useTranslation';
@@ -743,6 +744,25 @@ const VideoShort = () => {
       }
     })();
   }, [currentIndex, videos, user]);
+
+  // Fetch extended video details (mantecurated etc.) from checker API
+  const detailsVideoIdRef = useRef(null);
+  useEffect(() => {
+    const currentVid = videos[currentIndex];
+    if (!currentVid) return;
+    if (detailsVideoIdRef.current === currentVid.id) return;
+    detailsVideoIdRef.current = currentVid.id;
+    const videoId = currentVid.id;
+
+    fetch(`${import.meta.env.VITE_CHECKER_URL}/videodetails/${currentVid.author}/${currentVid.permlink}`)
+      .then(r => r.ok ? r.json() : {})
+      .then(details => {
+        setVideos(prev => prev.map(v =>
+          v.id === videoId ? { ...v, mantecurated: details.mantecurated === true } : v
+        ));
+      })
+      .catch(() => {});
+  }, [currentIndex, videos]);
 
   // Fetch reshare data when current video changes
   // Use video id to avoid re-fetching on videos array enrichment (which causes avatar flashing)
@@ -2569,7 +2589,15 @@ const VideoShort = () => {
                   <MdFlag size={14} />
                 </button>
               )}
-              <p className="captionText">{renderCaption(translatedCaption || currentVideo.caption)}</p>
+              <p className="captionText">
+                {renderCaption(translatedCaption || currentVideo.caption)}
+                {!captionExpanded && currentVideo.mantecurated && (
+                  <span className="shortsCuratedBadge shortsCuratedBadge--inline" title="Curated by Mantequilla" onClick={(e) => { e.stopPropagation(); navigate('/t/mantecurated'); }}>
+                    <img src={mantequillaLogo} alt="" />
+                    Curated
+                  </span>
+                )}
+              </p>
               {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && (
                 <span className="captionDate">{currentVideo.timeAgo}</span>
               )}
@@ -2597,6 +2625,12 @@ const VideoShort = () => {
                       onTranslate={handleCaptionTranslate}
                       isTranslating={!!translating?.[currentVideo.permlink]}
                     />
+                  )}
+                  {currentVideo.mantecurated && (
+                    <span className="shortsCuratedBadge" title="Curated by Mantequilla" onClick={(e) => { e.stopPropagation(); navigate('/t/mantecurated'); }}>
+                      <img src={mantequillaLogo} alt="" />
+                      Curated
+                    </span>
                   )}
                 </div>
               )}
