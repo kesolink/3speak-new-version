@@ -1,0 +1,124 @@
+@use "../../mixins.scss" as mix;
+
+.feed-toolbar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 0 10px;
+}
+
+.feed-toolbar-tabs {
+  display: flex;
+  gap: 8px;
+
+  .tab-btn {
+    padding: 8px 20px;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: var(--card-bg-hover, rgba(255, 255, 255, 0.05));
+      color: var(--text-primary);
+    }
+
+    &.active {
+      background: var(--accent-primary, #667eea);
+      border-color: var(--accent-primary, #667eea);
+      color: #fff;
+    }
+  }
+}
+
+.feed-toolbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  @include mix.respond(phone) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.feed-toolbar-date-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+
+  .date-filter-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+    &:hover {
+      background: var(--card-bg-hover, rgba(255, 255, 255, 0.05));
+      color: var(--text-primary);
+    }
+
+    &.active {
+      background: var(--accent-primary, #667eea);
+      border-color: var(--accent-primary, #667eea);
+      color: #fff;
+    }
+  }
+}
+
+.feed-pagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  .page-btn {
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border: 1px solid var(--border-light);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover:not(:disabled):not(.active) {
+      background: var(--card-bg-hover, rgba(255, 255, 255, 0.05));
+      color: var(--text-primary);
+    }
+
+    &.active {
+      background: var(--accent-primary, #667eea);
+      border-color: var(--accent-primary, #667eea);
+      color: #fff;
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+  }
+
+  .page-ellipsis {
+    padding: 0 4px;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+}
