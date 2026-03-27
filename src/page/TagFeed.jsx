@@ -19,7 +19,7 @@ function TagFeed() {
   const { tag } = useParams();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('videos');
   const [dateFilter, setDateFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -35,11 +35,23 @@ function TagFeed() {
     setCurrentPage(1);
   }, []);
 
+  // Lightweight counts query — runs independently of the data query
+  const { data: counts } = useQuery({
+    queryKey: ['tagCounts', tag, since],
+    queryFn: async () => {
+      let url = `${TAG_FEED_URL}/videos/tag/${tag}/counts`;
+      if (since) url += `?since=${since}`;
+      const res = await axios.get(url);
+      return res.data;
+    },
+    staleTime: 60 * 1000,
+  });
+
+  // Always pass type — avoids the expensive merged "all" path on the backend
   const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ['tagFeed', tag, activeTab, since, currentPage],
     queryFn: async () => {
-      let url = `${TAG_FEED_URL}/videos/tag/${tag}?page=${currentPage}&limit=${LIMIT}`;
-      if (activeTab !== 'all') url += `&type=${activeTab}`;
+      let url = `${TAG_FEED_URL}/videos/tag/${tag}?page=${currentPage}&limit=${LIMIT}&type=${activeTab}`;
       if (since) url += `&since=${since}`;
       const res = await axios.get(url);
       return res.data;
@@ -51,9 +63,10 @@ function TagFeed() {
   const total = data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
-  const videoItems = useMemo(() => allItems.filter(v => !v.short), [allItems]);
-  const shortItems = useMemo(() => allItems.filter(v => v.short), [allItems]);
-  const hasBoth = videoItems.length > 0 && shortItems.length > 0;
+  const tabs = useMemo(() => [
+    { key: 'videos', label: counts ? `Videos (${counts.videos})` : 'Videos' },
+    { key: 'shorts', label: counts ? `Shorts (${counts.shorts})` : 'Shorts' },
+  ], [counts]);
 
   const { getContentForVideo } = useContentBatch(allItems);
   const { isWatched } = useWatchHistory(allItems);
@@ -61,6 +74,7 @@ function TagFeed() {
 
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['tagFeed', tag] });
+    await queryClient.invalidateQueries({ queryKey: ['tagCounts', tag] });
   }, [queryClient, tag]);
 
   const renderVideos = (items) => (
@@ -95,6 +109,7 @@ function TagFeed() {
         onTabChange={handleTabChange}
         dateFilter={dateFilter}
         onDateFilterChange={handleDateFilterChange}
+        tabs={tabs}
         page={currentPage}
         totalPages={totalPages}
         onPageChange={setCurrentPage}
@@ -104,23 +119,8 @@ function TagFeed() {
         <CardSkeleton />
       ) : activeTab === 'shorts' ? (
         renderShorts(allItems)
-      ) : activeTab === 'videos' ? (
-        renderVideos(allItems)
       ) : (
-        <>
-          {videoItems.length > 0 && (
-            <>
-              {hasBoth && <h3 className="tag-feed-section-title">Videos</h3>}
-              {renderVideos(videoItems)}
-            </>
-          )}
-          {shortItems.length > 0 && (
-            <>
-              {hasBoth && <h3 className="tag-feed-section-title">Shorts</h3>}
-              {renderShorts(shortItems)}
-            </>
-          )}
-        </>
+        renderVideos(allItems)
       )}
 
       {totalPages > 1 && (
