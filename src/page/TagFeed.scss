@@ -1,0 +1,23 @@
+@use "../mixins.scss" as mix;
+
+.tag-feed-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 20px 10px 10px;
+  padding: 0;
+
+  &:first-of-type {
+    margin-top: 0;
+  }
+
+  @include mix.respond(phone) {
+    font-size: 13px;
+  }
+}
+
+.tag-feed-pagination-bottom {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}

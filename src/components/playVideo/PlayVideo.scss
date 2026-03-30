@@ -196,6 +196,21 @@
                     font-size: 12px;
                 }
             }
+
+            .curated-tag {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                cursor: default;
+                background: var(--bg-tertiary);
+                border-color: var(--accent-color);
+
+                .curated-tag-icon {
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 2px;
+                }
+            }
         }
         .community-title-wrap{
             display: inline-flex;

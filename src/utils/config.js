@@ -8,7 +8,7 @@ const PLAYER_URL = import.meta.env.VITE_PLAYER_URL;
 const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://techcoderx.com';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
 const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://3speak-checker.okinoko.io';
-const TAG_FEED_URL = import.meta.env.VITE_THREESPEAK_TAG_FEED_URL || 'https://legacy.3speak.tv';
+const TAG_FEED_URL = CHECKER_URL;
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 
 // All derived from CHECKER_URL
