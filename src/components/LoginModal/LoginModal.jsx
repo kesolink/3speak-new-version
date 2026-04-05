@@ -24,7 +24,37 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
       return;
     }
 
+    const replaceHiveAuthQRText = () => {
+      const modal = document.querySelector('#aioha-modal');
+      if (!modal) return;
+      const originalText = 'Scan the QR code using a HiveAuth-compatible mobile app.';
+      const newText = 'Scan the QR code using a hiveauth compatible mobile app. If you have the app on this phone then just tap the qr code.';
+      modal.querySelectorAll('p').forEach((p) => {
+        if (p.textContent.trim() === originalText) {
+          p.textContent = newText;
+        }
+      });
+    };
+
+    const styleHiveAuthQR = () => {
+      const modal = document.querySelector('#aioha-modal');
+      if (!modal) return;
+      // The QR is inside a class-less <a> wrapping a div with w-64/aspect-square
+      modal.querySelectorAll('a:not([class])').forEach((a) => {
+        const inner = a.querySelector('div.aspect-square');
+        if (!inner) return;
+        a.style.display = 'block';
+        a.style.textAlign = 'center';
+        inner.style.width = '256px';
+        inner.style.maxWidth = '100%';
+        inner.style.marginLeft = 'auto';
+        inner.style.marginRight = 'auto';
+      });
+    };
+
     const injectButton = () => {
+      replaceHiveAuthQRText();
+      styleHiveAuthQR();
       const modalContent = document.querySelector('#aioha-modal > div > div');
       if (modalContent) {
         // Only show on provider selection page (check for provider list)
