@@ -1,19 +1,27 @@
-import { Aioha, initAioha, KeyTypes, Providers } from "@aioha/aioha";
+import { Aioha, KeyTypes, Providers } from "@aioha/aioha";
 
-const aioha =
-  typeof window === "undefined"
-    ? new Aioha()
-    : initAioha({
-        hiveauth: {
-          name: "3Speak",
-          // description: "Aioha test app",
-        },
-        hivesigner: {
-          app: "3speak.tv",
-          callbackURL: window.location.origin + "/hivesigner.html", // TODO set properly
-          scope: ["login", "vote"],
-        },
-      });
+// Manual Aioha setup instead of initAioha() — we skip registerMetaMaskSnap()
+// because it probes window.ethereum, which triggers the Phantom wallet
+// "Which extension do you want to connect with?" popup for users who have
+// both Phantom and MetaMask installed. We don't offer a MetaMask login,
+// so there's nothing to lose by not registering that provider.
+const buildAioha = () => {
+  const a = new Aioha();
+  if (typeof window === "undefined") return a;
+  a.registerKeychain();
+  a.registerLedger();
+  a.registerPeakVault();
+  a.registerHiveAuth({ name: "3Speak" });
+  a.registerHiveSigner({
+    app: "3speak.tv",
+    callbackURL: window.location.origin + "/hivesigner.html",
+    scope: ["login", "vote"],
+  });
+  a.loadAuth();
+  return a;
+};
+
+const aioha = buildAioha();
 
 function generatePayload(account) {
   const payload = {

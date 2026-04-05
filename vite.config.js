@@ -40,7 +40,7 @@ export default defineConfig({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.js",
-      devOptions: { enabled: true },
+      devOptions: { enabled: false },
       manifest: {
         name: "3Speak",
         short_name: "3Speak",
