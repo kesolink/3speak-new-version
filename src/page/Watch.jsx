@@ -740,7 +740,40 @@ function Watch() {
     return () => { cancelled = true; };
   }, [videoLoading, videoData, author, permlink]);
 
-  const videoDetails = videoData?.socialPost || hiveFallback;
+  // Optimistic override populated right after the author saves an edit.
+  // The GraphQL indexer may lag a few minutes behind the Hive blockchain,
+  // so we merge these values onto videoDetails immediately, then let a
+  // scheduled refetch replace them with real server data.
+  const [editOverride, setEditOverride] = useState(null);
+  const baseVideoDetails = videoData?.socialPost || hiveFallback;
+  const videoDetails = useMemo(() => {
+    if (!baseVideoDetails || !editOverride) return baseVideoDetails;
+    const merged = { ...baseVideoDetails, ...editOverride };
+    // Update thumbnail inside nested spkvideo shape as well
+    if (editOverride.thumbnail_url && baseVideoDetails.spkvideo) {
+      merged.spkvideo = { ...baseVideoDetails.spkvideo, thumbnail_url: editOverride.thumbnail_url };
+    }
+    return merged;
+  }, [baseVideoDetails, editOverride]);
+
+  const handleVideoEdited = useCallback((changes) => {
+    if (!changes) return;
+    setEditOverride({
+      title: changes.title,
+      body: changes.body,
+      tags: changes.tags,
+      thumbnail_url: changes.thumbnail || undefined,
+    });
+    // Wipe hive fallback so a fresh fetch can happen, and re-run the GraphQL query.
+    setHiveFallback(null);
+    setHiveFallbackDone(false);
+    // Apollo indexers typically trail chain by ~30-90s; requery a few times.
+    const timers = [8000, 20000, 45000].map((delay) =>
+      setTimeout(() => { refetchVideo().catch(() => {}); }, delay)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [refetchVideo]);
+
   // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
     if (!user || !author || !permlink || author === 'unknown' || watchHistoryEnabled === false) {
@@ -983,6 +1016,8 @@ function Watch() {
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
         onClosePlaylist={() => setShowPlaylist(false)}
+        onVideoEdited={handleVideoEdited}
+        overrideBody={editOverride?.body}
         videoControls={{
           currentTime: playerState.currentTime,
           duration: playerState.duration,
