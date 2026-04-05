@@ -440,6 +440,24 @@
                 }
             }
 
+            .edit-video-btn {
+                display: inline-flex;
+                align-items: center;
+                padding: 4px 8px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: var(--text-secondary);
+                border: none;
+                border-radius: 5px;
+                font-size: 13px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+
+                &:hover {
+                  background-color: var(--accent-primary);
+                  color: var(--text-inverse);
+                }
+            }
+
             .report-btn {
                 display: inline-flex;
                 align-items: center;
