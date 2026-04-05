@@ -29,11 +29,11 @@ const getRenderer = async () => {
 
 const THRESHOLD_HEIGHT = 100;
 
-const BlogContent = ({ author, permlink, description }) => {
+const BlogContent = ({ author, permlink, description, defaultExpanded = false }) => {
   const [content, setContent] = useState("");
   const [renderedContent, setRenderedContent] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [needsExpansion, setNeedsExpansion] = useState(false);
   const contentRef = useRef(null);
 

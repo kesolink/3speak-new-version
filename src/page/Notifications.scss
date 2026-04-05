@@ -1,0 +1,229 @@
+@use "../mixins.scss" as mix;
+
+.notifications-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+
+  @include mix.respond(phone) {
+    padding: 16px 12px 80px;
+  }
+}
+
+.notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.notifications-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.notifications-unread-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+}
+
+.notifications-refresh {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--bg-hover, var(--sidebar-hover-bg));
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.notifications-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.notifications-filter-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--bg-hover, var(--sidebar-hover-bg));
+    color: var(--text-primary);
+  }
+
+  &.active {
+    background: var(--accent-primary, #e53935);
+    border-color: var(--accent-primary, #e53935);
+    color: #fff;
+  }
+}
+
+.notifications-empty,
+.notifications-error {
+  padding: 48px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.notifications-error button {
+  margin-left: 8px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.notifications-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notifications-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-light);
+  transition: background-color 0.15s ease;
+  position: relative;
+
+  &:hover {
+    background: var(--bg-hover, var(--sidebar-hover-bg));
+  }
+
+  &.unread {
+    background: color-mix(in srgb, var(--accent-primary, #e53935) 6%, transparent);
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-primary, #e53935) 10%, transparent);
+    }
+  }
+}
+
+.notifications-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-tertiary);
+}
+
+.notifications-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notifications-msg {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.notifications-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.notifications-type {
+  text-transform: capitalize;
+}
+
+.notifications-dot { opacity: 0.6; }
+
+.notifications-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-primary, #e53935);
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.notifications-load-more-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 20px 12px;
+}
+
+.notifications-load-more {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #fff;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.notifications-end {
+  text-align: center;
+  padding: 24px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.notifications-3speak-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  margin-top: 4px;
+  object-fit: contain;
+  opacity: 0.9;
+}
