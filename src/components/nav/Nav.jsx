@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import NavSearch from "./NavSearch";
 import { TiThMenu } from "react-icons/ti";
 import UploadLinks from "../UploadLinks";
+import NotificationBell from "./NotificationBell";
 
 function NavUploadDropdown() {
   const [open, setOpen] = useState(false);
@@ -177,9 +178,9 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
         <div className="nav-right flex-div">
           <NavUploadDropdown />
           <ThemeToggle />
+          <NotificationBell />
           <span>{user}</span>
-          {/* <IoIosNotifications size={20} /> */}
-          
+
           <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" onClick={toggleProfileNav} />
           {/* <div className="dropdown-menu">
             <Link className="list">My Channel</Link>

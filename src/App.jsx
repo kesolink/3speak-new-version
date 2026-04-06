@@ -57,6 +57,8 @@ import ProfileModal from "./components/modal/ProfileModal";
 import HiveImageUploader from "./page/HiveImageUploader";
 import PlaylistView from "./page/PlaylistView";
 import WatchedView from "./page/WatchedView";
+import Notifications from "./page/Notifications";
+import PostView from "./page/PostView";
 import { LegacyUploadProvider } from "./context/LegacyUploadContext";
 import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
@@ -275,6 +277,8 @@ function App() {
             <Route path="/home-feed" element={<Feed />} />
             <Route path="/follow-feed" element={<FollowFeed />} />
             <Route path="/watch" element={<Watch />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/post/:author/:permlink" element={<PostView />} />
             <Route path="/upload" element={<UploadVideo />} />
             <Route path="/firstupload" element={<FirstUploads />} />
             <Route path="/trend" element={<Trend />} />
