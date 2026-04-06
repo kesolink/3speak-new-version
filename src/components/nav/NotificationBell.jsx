@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { IoIosNotifications } from 'react-icons/io';
 import { useAppStore } from '../../lib/store';
@@ -15,14 +15,18 @@ import {
   resolveRootPost,
   ensure3SpeakStatus,
 } from '../../utils/threeSpeakDetection';
+import { groupNotifications } from '../../utils/notificationGrouping';
+import { useWhaleDetection } from '../../utils/whaleDetection';
 import threeSpeakLogo from '../../assets/image/3S_mark.svg';
 import './NotificationBell.scss';
 
-const PREVIEW_LIMIT = 24;
+const PREVIEW_LIMIT = 20;
+const MAX_STACKED_AVATARS = 4;
 
 function NotificationBell() {
   const { user, authenticated } = useAppStore();
   const [open, setOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState(null);
   const ref = useRef(null);
   const navigate = useNavigate();
 
@@ -30,19 +34,18 @@ function NotificationBell() {
     notifications,
     loading,
     unreadCount,
-    lastSeen,
+    isUnread,
     markAllAsRead,
   } = useHiveNotifications(authenticated ? user : null, { limit: 60 });
 
-  // 3Speak detection for all post/comment notifications. For each notification
-  // URL we check the post itself AND (if it's a comment) walk up to the root
-  // so we can show the badge on "replied to your video" notifications too.
-  const postKeys = notifications
-    .map(getNotificationPostKey)
-    .filter(Boolean);
+  // Grouping
+  const grouped = useMemo(() => groupNotifications(notifications), [notifications]);
+  const preview = grouped.slice(0, PREVIEW_LIMIT);
+
+  // 3Speak detection
+  const postKeys = notifications.map(getNotificationPostKey).filter(Boolean);
   const is3SpeakMap = use3SpeakDetection(postKeys);
 
-  // Track root post status per notification key
   const [rootIs3Speak, setRootIs3Speak] = useState({});
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +66,17 @@ function NotificationBell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postKeys.join('|')]);
 
+  // Whale detection for all actors
+  const allActors = useMemo(() => {
+    const set = new Set();
+    for (const n of notifications) {
+      const a = getNotificationActor(n);
+      if (a) set.add(a);
+    }
+    return [...set];
+  }, [notifications]);
+  const whaleMap = useWhaleDetection(allActors);
+
   // Close on outside click
   useEffect(() => {
     if (!open) return;
@@ -81,48 +95,43 @@ function NotificationBell() {
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // When dropdown opens, advance last-seen so the red dot goes away.
-  // Keep notifications themselves highlighted for this session via `lastSeen`
-  // snapshot below.
-  const [seenAtOpen, setSeenAtOpen] = useState(0);
   const handleToggle = () => {
-    const next = !open;
-    if (next) {
-      setSeenAtOpen(lastSeen);
-      // Defer so we can show the unread highlight first, then clear the badge
-      setTimeout(markAllAsRead, 200);
-    }
-    setOpen(next);
+    setOpen((prev) => !prev);
   };
 
   const handleRowClick = async (notif) => {
     const route = getNotificationRoute(notif);
     setOpen(false);
     if (!route) return;
-
-    // For post/comment notifications: if the root post is a 3Speak video,
-    // route straight to /watch; otherwise use the generic /post page.
     const postKey = getNotificationPostKey(notif);
     if (postKey) {
       try {
         const rootKey = await resolveRootPost(postKey);
         const isRoot3Speak = await ensure3SpeakStatus(rootKey);
-        if (isRoot3Speak) {
-          navigate(`/watch?v=${rootKey}`);
-          return;
-        }
+        if (isRoot3Speak) { navigate(`/watch?v=${rootKey}`); return; }
         navigate(`/post/${rootKey}`);
         return;
-      } catch {
-        /* fall through to default route */
-      }
+      } catch { /* fall through */ }
     }
     navigate(route);
   };
 
+  const handleGroupClick = (group) => {
+    // Navigate to the first item's post
+    handleRowClick(group.items[0]);
+  };
+
   if (!authenticated || !user) return null;
 
-  const preview = notifications.slice(0, PREVIEW_LIMIT);
+  const getIs3Speak = (notif) => {
+    const pk = getNotificationPostKey(notif);
+    return pk ? (is3SpeakMap.get(pk) === true || rootIs3Speak[pk] === true) : false;
+  };
+
+  const getWhaleTier = (actor) => {
+    if (!actor) return null;
+    return whaleMap.get(actor)?.tier || null;
+  };
 
   return (
     <div className="notif-bell-wrapper" ref={ref}>
@@ -162,27 +171,46 @@ function NotificationBell() {
 
           {preview.length > 0 && (
             <ul className="notif-list">
-              {preview.map((n) => {
+              {preview.map((group) => {
+                if (group.type === 'group') {
+                  return (
+                    <GroupRow
+                      key={group.id}
+                      group={group}
+                      isUnread={isUnread}
+                      is3Speak={getIs3Speak(group.items[0])}
+                      getWhaleTier={getWhaleTier}
+                      onClick={() => handleGroupClick(group)}
+                      hovered={hoveredId === group.id}
+                      onHover={() => setHoveredId(group.id)}
+                      onLeave={() => setHoveredId(null)}
+                    />
+                  );
+                }
+                const n = group.notification;
                 const actor = getNotificationActor(n);
-                const unread = n.id > seenAtOpen;
-                const postKey = getNotificationPostKey(n);
-                const is3Speak = postKey
-                  ? (is3SpeakMap.get(postKey) === true || rootIs3Speak[postKey] === true)
-                  : false;
+                const tier = getWhaleTier(actor);
+                const unread = isUnread(n);
+                const is3Speak = getIs3Speak(n);
                 return (
                   <li
-                    key={n.id}
-                    className={`notif-row${unread ? ' notif-row-unread' : ''}`}
+                    key={group.id}
+                    className={`notif-row${unread ? ' notif-row-unread' : ''}${tier ? ` notif-${tier}` : ''}`}
                     onClick={() => handleRowClick(n)}
+                    onMouseEnter={() => setHoveredId(group.id)}
+                    onMouseLeave={() => setHoveredId(null)}
                   >
-                    {actor && (
-                      <img
-                        className="notif-avatar"
-                        src={`https://images.hive.blog/u/${actor}/avatar/small`}
-                        alt={actor}
-                        onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-                      />
-                    )}
+                    <div className="notif-avatar-wrap">
+                      {actor && (
+                        <img
+                          className="notif-avatar"
+                          src={`https://images.hive.blog/u/${actor}/avatar/small`}
+                          alt={actor}
+                          onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                        />
+                      )}
+                      {tier && <span className={`notif-tier-badge notif-tier-${tier}`}>{tier === 'whale' ? '🐋' : '🐬'}</span>}
+                    </div>
                     <div className="notif-body">
                       <div className="notif-msg">
                         {n.msg || getNotificationTypeLabel(n.type)}
@@ -194,14 +222,21 @@ function NotificationBell() {
                       </div>
                     </div>
                     {is3Speak && (
-                      <img
-                        className="notif-3speak-icon"
-                        src={threeSpeakLogo}
-                        alt="3Speak"
-                        title="3Speak video"
-                      />
+                      <img className="notif-3speak-icon" src={threeSpeakLogo} alt="3Speak" title="3Speak video" />
                     )}
                     {unread && <span className="notif-unread-dot" aria-hidden="true" />}
+
+                    {/* Rich preview tooltip */}
+                    {hoveredId === group.id && n.msg && (
+                      <div className="notif-tooltip">
+                        <div className="notif-tooltip-msg">{n.msg}</div>
+                        {tier && (
+                          <span className="notif-tooltip-tier">
+                            {tier === 'whale' ? '🐋 Whale' : '🐬 Orca'} account
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -210,6 +245,88 @@ function NotificationBell() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Renders a collapsed group row (votes or follows). */
+function GroupRow({ group, isUnread, is3Speak, getWhaleTier, onClick, hovered, onHover, onLeave }) {
+  const { actors = [], items, notifType, date } = group;
+  const hasUnread = items.some((n) => isUnread(n));
+  const topActors = actors.slice(0, MAX_STACKED_AVATARS);
+  const remaining = actors.length - MAX_STACKED_AVATARS;
+
+  // Check if any actor in the group is a whale/orca
+  const topTier = actors.reduce((best, a) => {
+    const t = getWhaleTier(a);
+    if (t === 'whale') return 'whale';
+    if (t === 'orca' && best !== 'whale') return 'orca';
+    return best;
+  }, null);
+
+  let label;
+  if (notifType === 'vote') {
+    const names = actors.length <= 2 ? actors.map((a) => `@${a}`).join(' and ') : `@${actors[0]} and ${actors.length - 1} others`;
+    label = `${names} voted on your post`;
+    if (group.totalValue > 0) label += ` ($${group.totalValue.toFixed(2)})`;
+  } else if (notifType === 'follow') {
+    const names = actors.length <= 2 ? actors.map((a) => `@${a}`).join(' and ') : `@${actors[0]} and ${actors.length - 1} others`;
+    label = `${names} followed you`;
+  } else {
+    label = `${items.length} ${notifType} notifications`;
+  }
+
+  return (
+    <li
+      className={`notif-row notif-row-group${hasUnread ? ' notif-row-unread' : ''}${topTier ? ` notif-${topTier}` : ''}`}
+      onClick={onClick}
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
+    >
+      <div className="notif-avatar-stack">
+        {topActors.map((actor, i) => (
+          <img
+            key={actor}
+            className="notif-stacked-avatar"
+            style={{ zIndex: MAX_STACKED_AVATARS - i, marginLeft: i === 0 ? 0 : -10 }}
+            src={`https://images.hive.blog/u/${actor}/avatar/small`}
+            alt={actor}
+            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+          />
+        ))}
+        {remaining > 0 && <span className="notif-avatar-more">+{remaining}</span>}
+      </div>
+      <div className="notif-body">
+        <div className="notif-msg">{label}</div>
+        <div className="notif-meta">
+          <span className="notif-type">{items.length} {notifType}s</span>
+          <span className="notif-dot">·</span>
+          <span className="notif-time">{formatNotifTime(date)}</span>
+          {topTier && <span className="notif-meta-tier">{topTier === 'whale' ? '🐋' : '🐬'}</span>}
+        </div>
+      </div>
+      {is3Speak && (
+        <img className="notif-3speak-icon" src={threeSpeakLogo} alt="3Speak" title="3Speak video" />
+      )}
+      {hasUnread && <span className="notif-unread-dot" aria-hidden="true" />}
+
+      {hovered && (
+        <div className="notif-tooltip notif-tooltip-group">
+          <div className="notif-tooltip-msg">{label}</div>
+          {topTier && (
+            <span className="notif-tooltip-tier">
+              Includes {topTier === 'whale' ? '🐋 whale' : '🐬 orca'} account(s)
+            </span>
+          )}
+          <div className="notif-tooltip-actors">
+            {actors.slice(0, 8).map((a) => {
+              const t = getWhaleTier(a);
+              return <span key={a} className={t ? `notif-tooltip-actor-${t}` : ''}>@{a}{t ? (t === 'whale' ? ' 🐋' : ' 🐬') : ''}</span>;
+            })}
+            {actors.length > 8 && <span>and {actors.length - 8} more…</span>}
+          </div>
+        </div>
+      )}
+    </li>
   );
 }
 

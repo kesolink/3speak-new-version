@@ -48,7 +48,7 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  width: 360px;
+  width: 380px;
   max-width: calc(100vw - 24px);
   max-height: 70vh;
   overflow-y: scroll;
@@ -59,24 +59,13 @@
   box-shadow: var(--shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.2));
   z-index: 100;
 
-  // Firefox
   scrollbar-width: thin;
   scrollbar-color: var(--border-light) transparent;
 
-  // WebKit
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: var(--border-light);
-    border-radius: 4px;
-  }
-  &::-webkit-scrollbar-thumb:hover {
-    background: var(--text-secondary);
-  }
+  &::-webkit-scrollbar { width: 8px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+  &::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
 
   @include mix.respond(phone) {
     position: fixed;
@@ -127,6 +116,7 @@
   padding: 0;
 }
 
+// ─── Single row ──────────────────────
 .notif-row {
   display: flex;
   align-items: flex-start;
@@ -146,6 +136,23 @@
   &.notif-row-unread {
     background: color-mix(in srgb, var(--accent-primary, #e53935) 6%, transparent);
   }
+
+  // ─── Whale / Orca highlight ──────
+  &.notif-whale {
+    border-left: 3px solid #1e90ff;
+    padding-left: 11px;
+  }
+
+  &.notif-orca {
+    border-left: 3px solid #20b2aa;
+    padding-left: 11px;
+  }
+}
+
+// ─── Avatar ──────────────────────────
+.notif-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .notif-avatar {
@@ -155,6 +162,39 @@
   object-fit: cover;
   flex-shrink: 0;
   background: var(--bg-tertiary);
+}
+
+.notif-tier-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -4px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+// ─── Stacked avatars (groups) ────────
+.notif-avatar-stack {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 32px;
+}
+
+.notif-stacked-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--bg-secondary);
+  background: var(--bg-tertiary);
+}
+
+.notif-avatar-more {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-left: 2px;
+  white-space: nowrap;
 }
 
 .notif-body {
@@ -183,11 +223,13 @@
   color: var(--text-secondary);
 }
 
-.notif-type {
-  text-transform: capitalize;
-}
-
+.notif-type { text-transform: capitalize; }
 .notif-dot { opacity: 0.6; }
+
+.notif-meta-tier {
+  font-size: 12px;
+  margin-left: 2px;
+}
 
 .notif-unread-dot {
   width: 8px;
@@ -205,4 +247,78 @@
   margin-top: 2px;
   object-fit: contain;
   opacity: 0.9;
+}
+
+// ─── Group row modifier ─────────────
+.notif-row-group {
+  .notif-msg {
+    font-weight: 500;
+  }
+}
+
+// ─── Rich preview tooltip ────────────
+.notif-tooltip {
+  position: absolute;
+  left: 14px;
+  top: calc(100% + 4px);
+  width: 280px;
+  max-width: calc(100vw - 48px);
+  background: var(--bg-primary, #1a1a2e);
+  color: var(--text-primary, #fff);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  z-index: 10;
+  pointer-events: none;
+  animation: notif-tooltip-in 0.15s ease;
+
+  .notif-tooltip-msg {
+    font-size: 12px;
+    line-height: 1.4;
+    margin-bottom: 4px;
+    word-break: break-word;
+  }
+
+  .notif-tooltip-tier {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    margin-bottom: 6px;
+  }
+
+  .notif-tooltip-actors {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    max-height: 120px;
+    overflow-y: auto;
+
+    span {
+      line-height: 1.35;
+    }
+  }
+
+  .notif-tooltip-actor-whale {
+    color: #1e90ff;
+    font-weight: 600;
+  }
+
+  .notif-tooltip-actor-orca {
+    color: #20b2aa;
+    font-weight: 600;
+  }
+}
+
+.notif-tooltip-group {
+  width: 300px;
+}
+
+@keyframes notif-tooltip-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
