@@ -1,0 +1,466 @@
+@use "../../mixins.scss" as mix;
+
+.tsp-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 20px;
+
+  @include mix.respond(phone) {
+    padding: 16px;
+    border-radius: 10px;
+  }
+}
+
+.tsp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tsp-header-text {
+  flex: 1;
+}
+
+.tsp-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  i { color: #f59e0b; }
+}
+
+.tsp-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.tsp-active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #22c55e20;
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+
+  [data-theme="dark"] & {
+    background: #22c55e15;
+    color: #4ade80;
+  }
+}
+
+// ─── Magi L2 Balance bar ─
+.tsp-l2-balances {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  margin-bottom: 16px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.tsp-l2-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.tsp-l2-amount {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.tsp-l2-sep {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+// ─── One-time purchase status ─
+.tsp-onetime-active {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-primary, #e53935) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-primary, #e53935) 20%, transparent);
+  margin-bottom: 16px;
+}
+
+.tsp-onetime-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-primary, #e53935);
+  margin-bottom: 8px;
+}
+
+.tsp-onetime-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tsp-onetime-timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tsp-onetime-expires {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.tsp-onetime-expired {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+// ─── Loading ────────────
+.tsp-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tsp-skeleton {
+  height: 48px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  animation: tsp-pulse 1.2s ease-in-out infinite;
+
+  &.tsp-skeleton-sm { height: 32px; width: 60%; }
+}
+
+@keyframes tsp-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.2; }
+}
+
+.tsp-empty {
+  text-align: center;
+  padding: 24px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+// ─── Active subscription status ─────
+.tsp-status {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tsp-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+
+  @include mix.respond(phone) {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}
+
+.tsp-status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+}
+
+.tsp-status-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.tsp-status-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tsp-balance {
+  color: var(--accent-primary, #e53935);
+}
+
+// ─── Top up ─────────────
+.tsp-topup {
+  padding-top: 8px;
+  border-top: 1px solid var(--border-light);
+}
+
+.tsp-topup-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.tsp-topup-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tsp-topup-input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--input-bg, #f9f9f9);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent-primary, #e53935);
+  }
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  -moz-appearance: textfield;
+}
+
+.tsp-topup-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+
+  &:hover:not(:disabled) { opacity: 0.9; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+// ─── Cancel button ──────
+.tsp-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  align-self: flex-start;
+
+  &:hover:not(:disabled) {
+    border-color: #ef4444;
+    color: #ef4444;
+  }
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+// ─── Plan selection (not subscribed) ─
+.tsp-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tsp-plans-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tsp-plans-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.tsp-plan-cards {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tsp-plan-card {
+  flex: 1;
+  min-width: 120px;
+  padding: 16px 14px;
+  border-radius: 10px;
+  border: 2px solid var(--border-light);
+  background: var(--bg-primary);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+
+  &:hover {
+    border-color: var(--accent-primary, #e53935);
+    transform: scale(1.02);
+  }
+
+  &.selected {
+    border-color: var(--accent-primary, #e53935);
+    background: color-mix(in srgb, var(--accent-primary, #e53935) 8%, transparent);
+  }
+}
+
+.tsp-plan-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+}
+
+.tsp-plan-onetime.selected {
+  border-color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 8%, transparent);
+}
+
+.tsp-plan-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tsp-plan-price {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-primary, #e53935);
+}
+
+.tsp-plan-duration {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.tsp-plan-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+.tsp-subscribe-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  align-self: flex-start;
+
+  i { font-size: 14px; }
+
+  &:hover:not(:disabled) { opacity: 0.9; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+// ─── Transaction status banner ──────
+.tsp-tx-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-top: 12px;
+
+  span { flex: 1; }
+
+  &.tsp-tx-broadcasting {
+    background: #3b82f610;
+    color: #3b82f6;
+    border: 1px solid #3b82f630;
+  }
+
+  &.tsp-tx-polling {
+    background: #f59e0b10;
+    color: #f59e0b;
+    border: 1px solid #f59e0b30;
+  }
+
+  &.tsp-tx-done {
+    background: #22c55e10;
+    color: #16a34a;
+    border: 1px solid #22c55e30;
+  }
+
+  &.tsp-tx-error {
+    background: #ef444410;
+    color: #ef4444;
+    border: 1px solid #ef444430;
+  }
+}
+
+.tsp-tx-dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.7;
+
+  &:hover { opacity: 1; }
+}

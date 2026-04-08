@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { AiohaModal, useAioha } from "@aioha/react-ui";
+import { Providers, KeyTypes } from "@aioha/aioha";
 import { MdEmail } from "react-icons/md";
 import { createPortal } from "react-dom";
+import { ENABLE_METAMASK_SNAP } from "../../utils/config";
 import "./LoginModal.scss";
 
 /**
- * Custom login modal wrapper that adds an email login option to AiohaModal
+ * Custom login modal wrapper that adds email + MetaMask Snap login options to AiohaModal
  */
 function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
   const [buttonContainer, setButtonContainer] = useState(null);
@@ -52,9 +54,58 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
       });
     };
 
+    const injectMetaMaskButton = () => {
+      const modal = document.querySelector('#aioha-modal');
+      if (!modal) return;
+      const providerList = modal.querySelector('ul');
+      if (!providerList) return;
+      // Don't add if already injected
+      if (providerList.querySelector('.metamask-snap-item')) return;
+
+      // Clone style from existing provider items
+      const existingItem = providerList.querySelector('li > a');
+      if (!existingItem) return;
+
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.className = existingItem.className;
+      a.style.cursor = 'pointer';
+      a.innerHTML = `
+        <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg"
+             alt="MetaMask" style="width:32px;height:32px;" />
+        <span class="flex-1 ms-3 whitespace-nowrap" style="font-size:14px;font-weight:500;">MetaMask Snap</span>
+      `;
+      a.classList.add('metamask-snap-item');
+      a.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Prompt for username then trigger MetaMask Snap login
+        const username = prompt('Enter your Hive username:');
+        if (!username) return;
+        try {
+          // MetaMask Snap must login with Active key — contract calls require
+          // Active authority and the snap derives different keys per role.
+          const result = await aioha.login(Providers.MetaMaskSnap, username.trim(), {
+            msg: loginOptions?.msg || 'Login',
+            keyType: KeyTypes.Active,
+          });
+          if (result.success) {
+            onLogin?.(result);
+          } else {
+            alert(result.error || 'MetaMask Snap login failed');
+          }
+        } catch (err) {
+          alert(err.message || 'MetaMask Snap login failed');
+        }
+      });
+      li.appendChild(a);
+      providerList.appendChild(li);
+    };
+
     const injectButton = () => {
       replaceHiveAuthQRText();
       styleHiveAuthQR();
+      if (ENABLE_METAMASK_SNAP) injectMetaMaskButton();
       const modalContent = document.querySelector('#aioha-modal > div > div');
       if (modalContent) {
         // Only show on provider selection page (check for provider list)

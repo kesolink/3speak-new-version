@@ -88,6 +88,10 @@ function appendNsfw(url, showNsfw) {
 const REPORT_API_URL = import.meta.env.VITE_REPORT_API_URL;
 const REPORT_API_SECRET = import.meta.env.VITE_REPORT_API_SECRET;
 
+// Feature flags for MetaMask Snap login and 3Speak Pro subscriptions
+const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true';
+const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
+
 export {
   appendNsfw,
   API_URL_FROM_WEST,
@@ -125,4 +129,6 @@ export {
   IMAGE_UPLOAD_KEY,
   REPORT_API_URL,
   REPORT_API_SECRET,
+  ENABLE_METAMASK_SNAP,
+  ENABLE_SUBS,
 };

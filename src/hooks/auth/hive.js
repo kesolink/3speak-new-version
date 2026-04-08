@@ -1,16 +1,18 @@
 import { Aioha, KeyTypes, Providers } from "@aioha/aioha";
+import { ENABLE_METAMASK_SNAP } from "../../utils/config";
 
-// Manual Aioha setup instead of initAioha() — we skip registerMetaMaskSnap()
-// because it probes window.ethereum, which triggers the Phantom wallet
-// "Which extension do you want to connect with?" popup for users who have
-// both Phantom and MetaMask installed. We don't offer a MetaMask login,
-// so there's nothing to lose by not registering that provider.
+// Manual Aioha setup — MetaMask Snap only registered when env var is set,
+// because it probes window.ethereum which triggers the Phantom wallet
+// "Which extension do you want to connect with?" popup.
 const buildAioha = () => {
   const a = new Aioha();
   if (typeof window === "undefined") return a;
   a.registerKeychain();
   a.registerLedger();
   a.registerPeakVault();
+  if (ENABLE_METAMASK_SNAP) {
+    a.registerMetaMaskSnap();
+  }
   a.registerHiveAuth({ name: "3Speak" });
   a.registerHiveSigner({
     app: "3speak.tv",

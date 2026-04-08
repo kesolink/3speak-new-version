@@ -103,16 +103,8 @@ function NotificationBell() {
     const route = getNotificationRoute(notif);
     setOpen(false);
     if (!route) return;
-    const postKey = getNotificationPostKey(notif);
-    if (postKey) {
-      try {
-        const rootKey = await resolveRootPost(postKey);
-        const isRoot3Speak = await ensure3SpeakStatus(rootKey);
-        if (isRoot3Speak) { navigate(`/watch?v=${rootKey}`); return; }
-        navigate(`/post/${rootKey}`);
-        return;
-      } catch { /* fall through */ }
-    }
+    // Navigate to the actual post/comment — PostView handles
+    // 3Speak redirect and parent navigation buttons
     navigate(route);
   };
 

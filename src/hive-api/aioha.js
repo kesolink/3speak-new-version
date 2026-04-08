@@ -1,19 +1,32 @@
-import { initAioha, Asset, KeyTypes, Providers } from '@aioha/aioha'
+import { Aioha, Asset, KeyTypes, Providers } from '@aioha/aioha'
+import { IS_VSC_TESTNET, VSC_NET_ID } from '../utils/vscContract.js'
+import { ENABLE_METAMASK_SNAP } from '../utils/config.js'
 
-const aioha = initAioha({
-  hiveauth: {
-    name: '3Speak',
-    description: '3Speak - Decentralized Video Platform'
-  },
-  hivesigner: {
-    app: import.meta.env.VITE_HIVESIGNER_APP,
-    callbackURL: window.location.origin + '/hivesigner.html',
-    scope: ['login', 'vote', 'comment', 'follow', 'transfer'],
-  }
+const HIVE_API = IS_VSC_TESTNET ? 'https://testnet.techcoderx.com' : 'https://api.hive.blog'
+const CHAIN_ID = IS_VSC_TESTNET
+  ? '18dcf0a285365fc58b71f18b3d3fec954aa0c141c44e4e5cb4cf777b9eab274e'
+  : 'beeab0de00000000000000000000000000000000000000000000000000000000'
+
+// Manual Aioha setup so we can conditionally register MetaMask Snap
+const aioha = new Aioha(HIVE_API)
+aioha.registerKeychain()
+aioha.registerLedger()
+aioha.registerPeakVault()
+if (ENABLE_METAMASK_SNAP) {
+  aioha.registerMetaMaskSnap()
+}
+aioha.registerHiveAuth({ name: '3Speak', description: '3Speak - Decentralized Video Platform' })
+aioha.registerHiveSigner({
+  app: import.meta.env.VITE_HIVESIGNER_APP,
+  callbackURL: window.location.origin + '/hivesigner.html',
+  scope: ['login', 'vote', 'comment', 'follow', 'transfer'],
 })
-
-// Override default RPC node (aioha defaults to techcoderx.com which rate-limits)
-aioha.setApi('https://api.hive.blog')
+aioha.setApi(HIVE_API)
+aioha.loadAuth()
+aioha.vscSetNetId(VSC_NET_ID)
+if (typeof aioha.setChainId === 'function') {
+  aioha.setChainId(CHAIN_ID)
+}
 
 // Store for HiveAuth waiting callbacks
 let hiveAuthCallbacks = {
