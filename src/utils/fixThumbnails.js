@@ -9,7 +9,7 @@ const FALLBACK_THUMBNAIL = "/images/speak.jpg"; // Local fallback image
 export { fallbackImg };
 
 export function fixVideoThumbnail(video) {
-  const thumbnail = video?.images?.thumbnail || video?.thumbUrl || video?.spkvideo?.thumbnail_url || video?.thumbnailUrl || video?.thumbnail;
+  const thumbnail = video?.images?.thumbnail || video?.thumbUrl || video?.spkvideo?.thumbnail_url || video?.thumbnailUrl || video?.thumbnail_url || video?.thumbnail;
 
   // Validate thumbnail exists and is not just whitespace
   if (!thumbnail || typeof thumbnail !== 'string' || thumbnail.trim() === '') {
@@ -43,7 +43,7 @@ export function fixVideoThumbnail(video) {
   }
 
   // ✅ Already using Hive proxy or our own image service - return as-is
-  if (cleanThumbnail.includes("images.hive.blog") || cleanThumbnail.includes("files.peakd.com") || cleanThumbnail.includes("images.3speak.tv")) {
+  if (cleanThumbnail.includes("images.hive.blog") || cleanThumbnail.includes("files.peakd.com") || cleanThumbnail.includes("images.3speak.tv") || cleanThumbnail.includes("images.ecency.com")) {
     return cleanThumbnail;
   }
 
