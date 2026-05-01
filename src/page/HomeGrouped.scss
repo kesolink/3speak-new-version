@@ -93,6 +93,30 @@
 
   .scroll-wrapper {
     position: relative;
+    overflow: hidden;
+
+    // Gradient fade hints on left/right edges
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 80px;
+      pointer-events: none;
+      z-index: 4;
+      transition: opacity 0.2s ease;
+    }
+
+    &::before {
+      left: 0;
+      background: linear-gradient(to right, var(--bg-primary, #0d0d0d), transparent);
+    }
+
+    &::after {
+      right: 0;
+      background: linear-gradient(to left, var(--bg-primary, #0d0d0d), transparent);
+    }
 
     .scroll-btn {
       position: absolute;
@@ -109,7 +133,7 @@
       justify-content: center;
       cursor: pointer;
       transition: all 0.2s ease;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
       color: var(--text-primary);
 
       &:hover {
@@ -119,11 +143,11 @@
       }
 
       &.left {
-        left: -20px;
+        left: 8px;
       }
 
       &.right {
-        right: -20px;
+        right: 8px;
       }
 
       @include respond(phone) {
@@ -131,11 +155,11 @@
         height: 32px;
 
         &.left {
-          left: 5px;
+          left: 6px;
         }
 
         &.right {
-          right: 5px;
+          right: 6px;
         }
       }
 
