@@ -62,6 +62,7 @@ import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
 import { HangoutContextProvider, useHangout } from "./context/HangoutContext";
 import OpenPods from "./page/OpenPods";
+import OpenPodPublish from "./page/OpenPodPublish";
 
 const OpenPodModal = lazy(() => import("./components/OpenPod/OpenPodModal"));
 
@@ -331,6 +332,7 @@ function App() {
             <Route path="/test" element={<ProfileModal />} />
             <Route path="/image" element={<HiveImageUploader />} />
             <Route path="/openpods" element={<OpenPods />} />
+            <Route path="/openpods/publish" element={<OpenPodPublish />} />
             <Route path="*" element={<HiveLinkRedirect />} />
           </Routes>
           <OpenPodModalMounter />
