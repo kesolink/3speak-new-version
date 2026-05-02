@@ -19,7 +19,7 @@ const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
 const HANGOUT_BASE_URL = 'https://hangout.3speak.tv/room';
 
 export default function OpenPods() {
-  const { openRoom } = useHangout();
+  const { openRoom, sessionToken, hangoutsUser } = useHangout();
   const { authenticated, user } = useAppStore();
   const navigate = useNavigate();
 
@@ -76,6 +76,8 @@ export default function OpenPods() {
         apiBaseUrl={API_URL}
         livekitServerUrl={LK_URL}
         imageServerApiKey={IMAGE_KEY || undefined}
+        sessionToken={sessionToken || undefined}
+        username={hangoutsUser || undefined}
       >
         <RoomLobby
           onJoinRoom={handleJoinRoom}

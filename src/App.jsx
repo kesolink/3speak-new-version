@@ -67,11 +67,17 @@ import OpenPodPublish from "./page/OpenPodPublish";
 const OpenPodModal = lazy(() => import("./components/OpenPod/OpenPodModal"));
 
 function OpenPodModalMounter() {
-  const { activeRoom, closeRoom } = useHangout();
+  const { activeRoom, closeRoom, sessionToken, hangoutsUser } = useHangout();
   if (!activeRoom) return null;
   return (
     <Suspense fallback={null}>
-      <OpenPodModal isOpen onClose={closeRoom} roomName={activeRoom} />
+      <OpenPodModal
+        isOpen
+        onClose={closeRoom}
+        roomName={activeRoom}
+        sessionToken={sessionToken}
+        username={hangoutsUser}
+      />
     </Suspense>
   );
 }
