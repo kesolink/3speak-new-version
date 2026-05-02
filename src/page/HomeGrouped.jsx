@@ -12,6 +12,7 @@ import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
+import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import { TrendingIcon, NewContentIcon, FirstUploadIcon } from "../components/FeedIcons";
 
@@ -223,6 +224,7 @@ const HomeGrouped = () => {
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container">
       <ShortsStories />
+      <OpenPodsLiveStrip />
 
       <VideoRow
         title={authenticated ? "Follow Feed" : "Home Feed"}

@@ -223,4 +223,15 @@ hr{
             display: inline !important;
         }
     }
+
+    .sidebar-live-badge {
+        margin-left: 6px;
+        background: var(--accent-primary, #e53935);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        border-radius: 10px;
+        padding: 1px 6px;
+        line-height: 16px;
+    }
 }
