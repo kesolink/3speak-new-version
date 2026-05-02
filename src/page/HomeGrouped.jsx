@@ -120,7 +120,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
         )}
       </div>
 
-      <div className="scroll-wrapper">
+      <div className={`scroll-wrapper${showLeftBtn ? ' has-left-fade' : ''}${showRightBtn ? ' has-right-fade' : ''}`}>
         {showLeftBtn && (
           <button className="scroll-btn left" onClick={() => scroll("left")}>
             <FaChevronLeft />
