@@ -54,6 +54,15 @@
   to   { transform: translateY(0);    opacity: 1; }
 }
 
+.openpod-connecting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  color: var(--text-secondary, rgba(255,255,255,0.5));
+  font-size: 14px;
+}
+
 .openpod-modal-close {
   position: absolute;
   top: 12px;

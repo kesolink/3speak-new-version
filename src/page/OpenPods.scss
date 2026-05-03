@@ -22,6 +22,15 @@
   --hh-shadow:           0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
+.openpods-connecting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  color: var(--text-secondary, rgba(255,255,255,0.5));
+  font-size: 15px;
+}
+
 .openpods-login-gate {
   display: flex;
   flex-direction: column;

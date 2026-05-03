@@ -14,6 +14,19 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
 
   if (!isOpen || !roomName) return null;
 
+  // Don't mount HangoutsRoom until we have a session token — joining without
+  // auth causes an immediate 401 because the server requires Authorization.
+  if (!sessionToken) {
+    return (
+      <div className="openpod-modal-overlay">
+        <div className="openpod-modal" data-hh-theme="dark">
+          <button className="openpod-modal-close" onClick={onClose} aria-label="Close OpenPod">✕</button>
+          <div className="openpod-connecting">Authenticating with OpenPods…</div>
+        </div>
+      </div>
+    );
+  }
+
   const handleRecordingUploaded = (result) => {
     onClose();
     navigate(
