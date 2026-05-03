@@ -60,8 +60,10 @@
 .publish-audio-player {
   flex: 1;
   min-width: 200px;
-  height: 36px;
-  color-scheme: dark;
+  height: 65px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
 }
 
 .preview-link {
