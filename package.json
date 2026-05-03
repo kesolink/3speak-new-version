@@ -31,7 +31,7 @@
     "@rajesh896/video-thumbnails-generator": "^2.3.9",
     "@reduxjs/toolkit": "^2.6.1",
     "@snapie/hangouts-core": "^0.3.2",
-    "@snapie/hangouts-react": "^0.3.10",
+    "@snapie/hangouts-react": "^0.3.11",
     "@snapie/renderer": "^0.1.1",
     "@tanstack/react-query": "^5.90.2",
     "@tiptap/core": "^3.11.1",
