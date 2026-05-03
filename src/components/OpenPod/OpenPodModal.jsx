@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { HangoutsProvider, HangoutsRoom } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import { useNavigate } from 'react-router-dom';
@@ -12,20 +13,17 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
   const navigate = useNavigate();
   useWakeLock(isOpen);
 
-  if (!isOpen || !roomName) return null;
+  // React fires child effects before parent effects. Without this flag,
+  // HangoutsRoom.useEffect (join) fires before HangoutsProvider.useEffect
+  // (setSessionToken on apiClient) — causing a 401 on every first join attempt.
+  // By deferring HangoutsRoom's mount to the render AFTER HangoutsProvider's
+  // effects have run, the token is guaranteed to be set before join() is called.
+  const [roomReady, setRoomReady] = useState(false);
+  useEffect(() => {
+    setRoomReady(!!sessionToken && isOpen && !!roomName);
+  }, [sessionToken, isOpen, roomName]);
 
-  // Don't mount HangoutsRoom until we have a session token — joining without
-  // auth causes an immediate 401 because the server requires Authorization.
-  if (!sessionToken) {
-    return (
-      <div className="openpod-modal-overlay">
-        <div className="openpod-modal" data-hh-theme="dark">
-          <button className="openpod-modal-close" onClick={onClose} aria-label="Close OpenPod">✕</button>
-          <div className="openpod-connecting">Authenticating with OpenPods…</div>
-        </div>
-      </div>
-    );
-  }
+  if (!isOpen || !roomName) return null;
 
   const handleRecordingUploaded = (result) => {
     onClose();
@@ -45,17 +43,23 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
           apiBaseUrl={API_URL}
           livekitServerUrl={LK_URL}
           imageServerApiKey={IMAGE_KEY || undefined}
-          sessionToken={sessionToken || undefined}
+          sessionToken={sessionToken}
           username={username || undefined}
         >
-          <HangoutsRoom
-            roomName={roomName}
-            onLeave={onClose}
-            onRecordingUploaded={handleRecordingUploaded}
-            video
-            embedded
-            maxHeight="78vh"
-          />
+          {roomReady ? (
+            <HangoutsRoom
+              roomName={roomName}
+              onLeave={onClose}
+              onRecordingUploaded={handleRecordingUploaded}
+              video
+              embedded
+              maxHeight="78vh"
+            />
+          ) : (
+            <div className="openpod-connecting">
+              {sessionToken ? 'Connecting to OpenPods…' : 'Authenticating with OpenPods…'}
+            </div>
+          )}
         </HangoutsProvider>
       </div>
     </div>
