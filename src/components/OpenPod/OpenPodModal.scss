@@ -1,0 +1,78 @@
+.openpod-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: openpod-fade-in 0.15s ease;
+}
+
+@keyframes openpod-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.openpod-modal {
+  position: relative;
+  background: var(--bg-primary, #0d0d0d);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  animation: openpod-slide-up 0.2s ease;
+
+  // Map SDK CSS variables onto 3speak TV theme tokens
+  --hh-bg:               var(--bg-primary, #0d0d0d);
+  --hh-bg-secondary:     var(--bg-secondary, #1a1a1a);
+  --hh-bg-hover:         rgba(255, 255, 255, 0.07);
+  --hh-text:             var(--text-primary, #ffffff);
+  --hh-text-secondary:   rgba(255, 255, 255, 0.6);
+  --hh-text-muted:       rgba(255, 255, 255, 0.35);
+  --hh-border:           rgba(255, 255, 255, 0.1);
+  --hh-border-light:     rgba(255, 255, 255, 0.06);
+  --hh-input-border:     rgba(255, 255, 255, 0.15);
+  --hh-primary:          var(--accent-primary, #e53935);
+  --hh-primary-hover:    #c62828;
+  --hh-danger:           #e53935;
+  --hh-success:          #43a047;
+  --hh-btn-secondary-bg: rgba(255, 255, 255, 0.08);
+  --hh-btn-secondary-text: var(--text-primary, #ffffff);
+  --hh-btn-secondary-hover: rgba(255, 255, 255, 0.13);
+  --hh-shadow:           0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes openpod-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.openpod-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.45);
+  border: none;
+  color: var(--text-primary, #fff);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.65);
+  }
+}

@@ -1,19 +1,30 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, Navigate, Link, useNavigate } from 'react-router-dom';
+import { useParams, Navigate, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { useAppStore } from '../lib/store';
 import BlogContent from '../components/playVideo/BlogContent';
 import CommentSection from '../components/playVideo/CommentSection';
+import UpvoteCount from '../components/UpvoteCount/UpvoteCount';
+import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import BarLoader from '../components/Loader/BarLoader';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import PayoutAmount from '../components/PayoutAmount/PayoutAmount';
 import { HIVE_API_URL } from '../utils/config';
-import { prefetch3SpeakDetection, get3SpeakStatus, resolveRootPost, ensure3SpeakStatus } from '../utils/threeSpeakDetection';
+import { resolveRootPost, ensure3SpeakStatus } from '../utils/threeSpeakDetection';
 import { LuTimer } from 'react-icons/lu';
 import './PostView.scss';
 
+function parseAudioPermlink(audioUrl) {
+  try {
+    const u = new URL(audioUrl);
+    const a = u.searchParams.get('a'); // "user/permlink"
+    return a ? { base: u.origin, perm: a } : null;
+  } catch { return null; }
+}
+
 function formatRelativeTime(dateString) {
   if (!dateString) return '';
-  const date = new Date(dateString + (dateString.endsWith('Z') ? '' : 'Z'));
+  const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
   const diff = Math.floor((Date.now() - date.getTime()) / 1000);
   if (diff < 60) return `${diff}s ago`;
   const m = Math.floor(diff / 60);
@@ -29,25 +40,48 @@ function formatRelativeTime(dateString) {
 
 function PostView() {
   const params = useParams();
-  // Strip any leading "@" defensively — some old links may include it
-  const author = (params.author || '').replace(/^@/, '');
-  const permlink = params.permlink || '';
-  const [post, setPost] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { state } = useLocation();
+  const { authenticated, user: currentUser } = useAppStore();
 
-  // Fetch the post via bridge.get_post
+  // Support both `:author` and `:user` param names defensively
+  const author = (params.author || params.user || '').replace(/^@/, '');
+  const permlink = params.permlink || '';
+
+  // Fresh-publish state from OpenPodPublish navigation
+  const prefilled = (state?.author === author && state?.permlink === permlink) ? state : null;
+
+  const [post, setPost] = useState(prefilled ? {
+    title:          prefilled.title,
+    author:         prefilled.author,
+    permlink:       prefilled.permlink,
+    created:        prefilled.created,
+    active_votes:   [],
+    _prefilledBody: prefilled.body,
+    _tags:          prefilled.tags,
+    _thumbnailUrl:  prefilled.thumbnailUrl,
+    _audioUrl:      prefilled.audioUrl,
+  } : null);
+  const [loading, setLoading]   = useState(!prefilled);
+  const [error, setError]       = useState(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState(prefilled?.thumbnailUrl || null);
+
+  // Vote state
+  const [isVoted, setIsVoted]         = useState(false);
+  const [voteCount, setVoteCount]     = useState(0);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [weight, setWeight]           = useState(100);
+  const [voteValue, setVoteValue]     = useState(0);
+  const [accountData, setAccountData] = useState(null);
+
+  // Fetch the post via bridge.get_post (unless prefilled from navigation state)
   useEffect(() => {
-    if (!author || !permlink) return;
+    if (prefilled || !author || !permlink) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
 
     (async () => {
       try {
-        // Try bridge.get_post first (richer response), fall back to
-        // condenser_api.get_content which is more permissive and always
-        // works for both posts and comments.
         let p = null;
         try {
           const res = await axios.post(HIVE_API_URL, {
@@ -73,6 +107,10 @@ function PostView() {
         if (cancelled) return;
         if (!p || !p.author) throw new Error('Post not found');
         setPost(p);
+        setVoteCount(p.active_votes?.length || 0);
+        if (currentUser) {
+          setIsVoted(p.active_votes?.some(v => v.voter === currentUser) || false);
+        }
       } catch (err) {
         if (!cancelled) setError(err);
       } finally {
@@ -83,10 +121,29 @@ function PostView() {
     return () => { cancelled = true; };
   }, [author, permlink]);
 
-  // Detect content type synchronously from post metadata — useMemo so the
-  // redirect happens on the same render as the post load, no flickering.
+  // Fetch thumbnail from audio backend for OpenPod posts
+  useEffect(() => {
+    if (!post || thumbnailUrl) return;
+    const parsedMeta = (() => {
+      try {
+        return typeof post.json_metadata === 'string'
+          ? JSON.parse(post.json_metadata)
+          : (post.json_metadata || {});
+      } catch { return {}; }
+    })();
+    const audioSrc = parsedMeta.audio || post._audioUrl;
+    if (!audioSrc) return;
+    const parsed = parseAudioPermlink(audioSrc);
+    if (!parsed) return;
+    fetch(`${parsed.base}/api/audio?a=${parsed.perm}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.thumbnail_url) setThumbnailUrl(data.thumbnail_url); })
+      .catch(() => {});
+  }, [post]);
+
+  // Detect content type synchronously — skip for prefilled OpenPod posts
   const { is3Speak, isShort } = useMemo(() => {
-    if (!post) return { is3Speak: false, isShort: false };
+    if (!post || post._prefilledBody) return { is3Speak: false, isShort: false };
 
     let meta = {};
     try {
@@ -99,7 +156,6 @@ function PostView() {
     const tags = Array.isArray(meta.tags) ? meta.tags.map((t) => String(t).toLowerCase()) : [];
     const sourceMap = meta.video?.info?.sourceMap;
 
-    // 3Speak video detection (root posts only)
     const is3SpeakVideo = !post.parent_author && (
       (Array.isArray(sourceMap) && sourceMap.some((s) => s && (s.type === 'video' || (typeof s.url === 'string' && s.url.includes('3speak'))))) ||
       (typeof meta.video?.info?.video_v2 === 'string' && meta.video.info.video_v2.length > 0) ||
@@ -107,7 +163,6 @@ function PostView() {
       (meta.video?.platform === '3speak' && (meta.video?.info?.duration || meta.video?.url))
     );
 
-    // Short detection (comments with 3speak video embed)
     const has3SpeakEmbed = typeof meta.video?.url === 'string' && meta.video.url.includes('3speak.tv/embed');
     const isShortPost = !!post.parent_author && (
       meta.video?.short === 'true' ||
@@ -118,17 +173,16 @@ function PostView() {
     return { is3Speak: is3SpeakVideo, isShort: isShortPost };
   }, [post]);
 
-  // Build a videoDetails-shaped object so CommentSection can consume it.
   const videoDetails = useMemo(() => {
     if (!post) return null;
     const payout = parseFloat(post.payout || 0) || (
-      parseFloat(post.total_payout_value) +
-      parseFloat(post.curator_payout_value) +
+      parseFloat(post.total_payout_value || '0') +
+      parseFloat(post.curator_payout_value || '0') +
       parseFloat(post.pending_payout_value || '0')
     );
     return {
       title: post.title,
-      body: post.body,
+      body: post._prefilledBody || post.body,
       author: {
         id: post.author,
         username: post.author,
@@ -141,7 +195,7 @@ function PostView() {
       },
       created_at: post.created,
       community: post.category ? { _id: post.category, title: post.community_title || post.category } : null,
-      tags: (() => {
+      tags: post._tags || (() => {
         try {
           const m = typeof post.json_metadata === 'string' ? JSON.parse(post.json_metadata) : post.json_metadata;
           return Array.isArray(m?.tags) ? m.tags : [];
@@ -150,9 +204,7 @@ function PostView() {
     };
   }, [post]);
 
-  // Resolve root post for comments — needed for "Show post" button
-  // and for redirecting to /watch if the root is a 3Speak video
-  const [rootPost, setRootPost] = useState(null); // { author, permlink, is3Speak }
+  const [rootPost, setRootPost]         = useState(null);
   const [resolvingRoot, setResolvingRoot] = useState(false);
   const isComment = !!post?.parent_author;
 
@@ -178,8 +230,6 @@ function PostView() {
   }, [author, permlink, isComment, post?.parent_author]);
 
   // Redirect shorts to /shorts player
-  // Extract the 3speak permlink from the embed URL (e.g. "author/42k5g2pw" from
-  // "https://play.3speak.tv/embed?v=author/42k5g2pw")
   if (isShort && post) {
     let shortAuthor = author;
     let shortPermlink = permlink;
@@ -195,7 +245,6 @@ function PostView() {
     return <Navigate to={`/shorts?v=${shortAuthor}/${shortPermlink}`} replace />;
   }
 
-  // If this post itself (not a comment) is a 3Speak video, redirect to /watch
   if (is3Speak === true && !isComment) {
     return <Navigate to={`/watch?v=${author}/${permlink}`} replace />;
   }
@@ -213,21 +262,30 @@ function PostView() {
     );
   }
 
+  const parsedMeta = (() => {
+    try {
+      return typeof post.json_metadata === 'string'
+        ? JSON.parse(post.json_metadata)
+        : (post.json_metadata || {});
+    } catch { return {}; }
+  })();
+
   const tags = videoDetails?.tags?.slice(0, 7) || [];
+  const resolvedThumbnail = thumbnailUrl || parsedMeta.image?.[0] || null;
 
   return (
     <div className="post-view-page">
-      {/* Navigation buttons for comments */}
+      {resolvedThumbnail && (
+        <img src={resolvedThumbnail} alt={post.title} className="post-view-thumbnail" />
+      )}
+
       {isComment && (
         <div className="post-view-nav-buttons">
-          {/* Loading state while resolving root */}
           {resolvingRoot && (
             <span className="post-view-nav-btn post-view-nav-btn-secondary">
               <i className="fa-solid fa-spinner fa-spin" /> Resolving…
             </span>
           )}
-
-          {/* Show root post button */}
           {!resolvingRoot && rootPost && (
             rootPost.is3Speak ? (
               <Link to={`/watch?v=${rootPost.author}/${rootPost.permlink}`} className="post-view-nav-btn">
@@ -239,8 +297,6 @@ function PostView() {
               </Link>
             )
           )}
-
-          {/* Show parent comment button (only when parent is NOT the root post) */}
           {!resolvingRoot && rootPost && post.parent_author && !(post.parent_author === rootPost.author && post.parent_permlink === rootPost.permlink) && (
             <Link
               to={`/post/${post.parent_author}/${post.parent_permlink}`}
@@ -252,51 +308,85 @@ function PostView() {
         </div>
       )}
 
-      <h1 className="post-view-title">{post.title || '(untitled reply)'}</h1>
+      <div className="post-view-inner">
+        <h1 className="post-view-title">{post.title || '(untitled reply)'}</h1>
 
-      <div className="post-view-author-row">
-        <AuthorBadge author={post.author} showFollow />
-        {videoDetails.community && (
-          <Link to={`/c/${videoDetails.community._id}`} className="post-view-community">
-            in {videoDetails.community.title}
-          </Link>
-        )}
-      </div>
-
-      <div className="post-view-meta-row">
-        <span className="post-view-meta-item">
-          <LuTimer /> {formatRelativeTime(post.created)}
-        </span>
-        <span className="post-view-meta-item">
-          <PayoutAmount amount={videoDetails.stats.total_hive_reward} size={13} />
-        </span>
-        <span className="post-view-meta-item">
-          {videoDetails.stats.num_votes} votes
-        </span>
-        <span className="post-view-meta-item">
-          {videoDetails.stats.num_comments} comments
-        </span>
-      </div>
-
-      {tags.length > 0 && (
-        <div className="post-view-tags">
-          {tags.map((t) => (
-            <Link key={t} to={`/t/${t}`} className="post-view-tag">#{t}</Link>
-          ))}
+        <div className="post-view-author-row">
+          <AuthorBadge author={post.author} showFollow />
+          {videoDetails.community && (
+            <Link to={`/c/${videoDetails.community._id}`} className="post-view-community">
+              in {videoDetails.community.title}
+            </Link>
+          )}
         </div>
-      )}
 
-      <div className="post-view-body">
-        <BlogContent author={author} permlink={permlink} description={post.body} defaultExpanded />
-      </div>
+        <div className="post-view-meta-row">
+          <span className="post-view-meta-item">
+            <LuTimer /> {formatRelativeTime(post.created)}
+          </span>
+          <span className="post-view-meta-item">
+            <PayoutAmount amount={videoDetails.stats.total_hive_reward} size={13} />
+          </span>
+          <span className="post-view-meta-item">
+            {videoDetails.stats.num_votes} votes
+          </span>
+          <span className="post-view-meta-item">
+            {videoDetails.stats.num_comments} comments
+          </span>
+        </div>
 
-      <div className="post-view-comments">
-        <CommentSection
-          videoDetails={videoDetails}
-          author={author}
-          permlink={permlink}
-          setIsVoted={() => {}}
-        />
+        {tags.length > 0 && (
+          <div className="post-view-tags">
+            {tags.map((t) => (
+              <Link key={t} to={`/t/${t}`} className="post-view-tag">#{t}</Link>
+            ))}
+          </div>
+        )}
+
+        <div className="post-view-body">
+          {post._prefilledBody
+            ? <BlogContent description={post._prefilledBody} alwaysExpanded />
+            : <BlogContent author={author} permlink={permlink} alwaysExpanded />
+          }
+        </div>
+
+        <div className="post-view-actions">
+          <UpvoteCount
+            count={voteCount}
+            voted={isVoted}
+            onClick={() => setShowTooltip(v => !v)}
+            size={16}
+          />
+          {authenticated && showTooltip && (
+            <CommentVoteTooltip
+              showTooltip={showTooltip}
+              setShowTooltip={setShowTooltip}
+              author={post.author}
+              permlink={post.permlink}
+              weight={weight}
+              setWeight={setWeight}
+              voteValue={voteValue}
+              setVoteValue={setVoteValue}
+              accountData={accountData}
+              setAccountData={setAccountData}
+              compact
+              onVoteSuccess={(a, p, isNewVote) => {
+                setIsVoted(true);
+                if (isNewVote) setVoteCount(c => c + 1);
+                setShowTooltip(false);
+              }}
+            />
+          )}
+        </div>
+
+        <div className="post-view-comments">
+          <CommentSection
+            videoDetails={videoDetails}
+            author={author}
+            permlink={permlink}
+            setIsVoted={() => {}}
+          />
+        </div>
       </div>
     </div>
   );

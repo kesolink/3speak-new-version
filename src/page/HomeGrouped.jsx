@@ -12,6 +12,7 @@ import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
+import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import { TrendingIcon, NewContentIcon, FirstUploadIcon } from "../components/FeedIcons";
 
@@ -120,7 +121,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
         )}
       </div>
 
-      <div className="scroll-wrapper">
+      <div className={`scroll-wrapper${showLeftBtn ? ' has-left-fade' : ''}${showRightBtn ? ' has-right-fade' : ''}`}>
         {showLeftBtn && (
           <button className="scroll-btn left" onClick={() => scroll("left")}>
             <FaChevronLeft />
@@ -223,6 +224,7 @@ const HomeGrouped = () => {
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container">
       <ShortsStories />
+      <OpenPodsLiveStrip />
 
       <VideoRow
         title={authenticated ? "Follow Feed" : "Home Feed"}

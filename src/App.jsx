@@ -1,5 +1,5 @@
 import { Route, Routes, useLocation, useNavigate, Navigate, useParams } from "react-router-dom";
-import { useRef } from "react";
+import { useRef, lazy, Suspense } from "react";
 import "./App.css";
 // import Home from './page/Home'
 // import Treanding from './page/Treanding'
@@ -62,6 +62,27 @@ import PostView from "./page/PostView";
 import { LegacyUploadProvider } from "./context/LegacyUploadContext";
 import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
+import { HangoutContextProvider, useHangout } from "./context/HangoutContext";
+import OpenPods from "./page/OpenPods";
+import OpenPodPublish from "./page/OpenPodPublish";
+
+const OpenPodModal = lazy(() => import("./components/OpenPod/OpenPodModal"));
+
+function OpenPodModalMounter() {
+  const { activeRoom, closeRoom, sessionToken, hangoutsUser } = useHangout();
+  if (!activeRoom) return null;
+  return (
+    <Suspense fallback={null}>
+      <OpenPodModal
+        isOpen
+        onClose={closeRoom}
+        roomName={activeRoom}
+        sessionToken={sessionToken}
+        username={hangoutsUser}
+      />
+    </Suspense>
+  );
+}
 
 // Embed studio pages
 import EmbedStudioPage from "./components/embed-studio/EmbedStudioPage";
@@ -259,6 +280,7 @@ function App() {
   }
 
   return (
+    <HangoutContextProvider>
     <HiveAuthProvider>
     <LegacyUploadProvider>
     <EmbedUploadProvider>
@@ -320,8 +342,11 @@ function App() {
             <Route path="/wallet/:user" element={<Wallet />} />
             <Route path="/test" element={<ProfileModal />} />
             <Route path="/image" element={<HiveImageUploader />} />
+            <Route path="/openpods" element={<OpenPods />} />
+            <Route path="/openpods/publish" element={<OpenPodPublish />} />
             <Route path="*" element={<HiveLinkRedirect />} />
           </Routes>
+          <OpenPodModalMounter />
         </div>
         {!hideNavOnMobile && (
           <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} toggleAddAccount={toggleAddAccount} openLoginModal={openLoginModal} />
@@ -351,6 +376,7 @@ function App() {
     </EmbedUploadProvider>
     </LegacyUploadProvider>
     </HiveAuthProvider>
+    </HangoutContextProvider>
   );
 }
 

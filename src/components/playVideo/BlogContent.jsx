@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
+import { createRoot } from "react-dom/client";
 import { getUersContent } from "../../utils/hiveUtils";
 import "./BlogContent.scss";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
-import { ImSpinner9 } from 'react-icons/im';
 import { TailChase } from 'ldrs/react';
+import AudioPlayerInline from "../AudioPlayerInline/AudioPlayerInline";
 
 // Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
 let rendererPromise = null;
@@ -29,29 +30,28 @@ const getRenderer = async () => {
 
 const THRESHOLD_HEIGHT = 100;
 
-const BlogContent = ({ author, permlink, description, defaultExpanded = false }) => {
+const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) => {
   const [content, setContent] = useState("");
   const [renderedContent, setRenderedContent] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, setIsExpanded] = useState(alwaysExpanded);
   const [needsExpansion, setNeedsExpansion] = useState(false);
-  const contentRef = useRef(null);
+  const contentRef   = useRef(null);
+  const audioUrlsRef = useRef([]);
+  const audioRootsRef = useRef([]);
 
-  // Function to remove 3Speak video header from post body
-  // Posts typically start with: <center>thumbnail + Watch on 3Speak link</center>---
   const cleanContent = (htmlString) => {
     let cleaned = htmlString;
 
-    // Remove the 3Speak header block (multiple patterns to catch variations)
     // Pattern 1: The rendered video embed (iframe from @snapie/renderer)
     cleaned = cleaned.replace(
       /<div[^>]*class="[^"]*video-container[^"]*"[^>]*>[\s\S]*?<iframe[^>]*src="[^"]*3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>[\s\S]*?<\/div>/gi,
       ''
     );
 
-    // Pattern 2: Direct iframe embeds for 3speak
+    // Pattern 2: Direct iframe embeds for 3speak video (not audio.3speak.tv)
     cleaned = cleaned.replace(
-      /<iframe[^>]*src="[^"]*3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi,
+      /<iframe[^>]*src="https?:\/\/(?:embed\.)?3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi,
       ''
     );
 
@@ -79,25 +79,13 @@ const BlogContent = ({ author, permlink, description, defaultExpanded = false })
       ''
     );
 
-    // Pattern 7: Remove leading <hr> (---) that separates header from content
+    // Pattern 7: Remove leading <hr> separating header from content
+    cleaned = cleaned.replace(/^[\s]*<hr[^>]*\/?>/i, '');
     cleaned = cleaned.replace(/^[\s]*<hr[^>]*\/?>/i, '');
 
-    // Also remove <hr> right after we stripped the header
-    cleaned = cleaned.replace(/^[\s]*<hr[^>]*\/?>/i, '');
-
-    // Remove "Uploaded using 3Speak Mobile App" footer
-    cleaned = cleaned.replace(
-      /<sub>[\s]*Uploaded using 3Speak[^<]*<\/sub>/gi,
-      ''
-    );
-
-    // Remove any orphaned empty paragraphs
+    cleaned = cleaned.replace(/<sub>[\s]*Uploaded using 3Speak[^<]*<\/sub>/gi, '');
     cleaned = cleaned.replace(/<p[^>]*>[\s]*<\/p>/g, '');
-
-    // Remove empty center tags
     cleaned = cleaned.replace(/<center>[\s]*<\/center>/gi, '');
-
-    // Trim leading/trailing whitespace
     cleaned = cleaned.trim();
 
     return cleaned;
@@ -113,10 +101,8 @@ const BlogContent = ({ author, permlink, description, defaultExpanded = false })
       setLoading(true);
       try {
         if (description) {
-          // Use provided description (upload preview)
           setContent(description);
         } else if (author && permlink) {
-          // Fallback: fetch from Hive
           const postContent = await getPostDescription(author, permlink);
           setContent(postContent || "No content available");
         }
@@ -125,55 +111,88 @@ const BlogContent = ({ author, permlink, description, defaultExpanded = false })
         setContent('Error loading content.');
       }
     }
-
     fetchContent();
   }, [author, permlink, description]);
 
   useEffect(() => {
-    if (content) {
-      setLoading(true);
-      const contentString =
-        typeof content === "string"
-          ? content
-          : Array.isArray(content)
-          ? content.join("\n")
-          : "";
+    if (!content) return;
+    setLoading(true);
 
-      // Use async renderer (createHiveRenderer returns a function directly)
-      getRenderer()
-        .then((render) => {
-          try {
-            let renderedHTML = render(contentString);
-            // Clean the rendered HTML before setting it
-            renderedHTML = cleanContent(renderedHTML);
-            setRenderedContent(renderedHTML);
-          } catch (error) {
-            console.error("Error rendering post body:", error);
-            setRenderedContent("Error processing content.");
-          }
-        })
-        .catch((error) => {
-          console.error("Error loading renderer:", error);
-          setRenderedContent("Error loading renderer.");
-        })
-        .finally(() => setLoading(false));
-    }
+    const contentString =
+      typeof content === "string"
+        ? content
+        : Array.isArray(content)
+        ? content.join("\n")
+        : "";
+
+    getRenderer()
+      .then((render) => {
+        try {
+          let renderedHTML = render(contentString);
+          renderedHTML = cleanContent(renderedHTML);
+
+          // Extract audio.3speak.tv containers and replace with React mount slots
+          const urls = [];
+          renderedHTML = renderedHTML.replace(
+            /<div class="audio-container">[\s\S]*?<\/div>/gi,
+            (match) => {
+              const srcMatch = match.match(/src="([^"]+)"/i);
+              if (!srcMatch || !srcMatch[1].includes('audio.3speak.tv')) return match;
+              const idx = urls.length;
+              urls.push(srcMatch[1]);
+              return `<div class="audio-player-slot" data-idx="${idx}"></div>`;
+            }
+          );
+          audioUrlsRef.current = urls;
+          setRenderedContent(renderedHTML);
+        } catch (error) {
+          console.error("Error rendering post body:", error);
+          setRenderedContent("Error processing content.");
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading renderer:", error);
+        setRenderedContent("Error loading renderer.");
+      })
+      .finally(() => setLoading(false));
   }, [content]);
+
+  // Mount native React audio players into the slots left by the renderer
+  useEffect(() => {
+    audioRootsRef.current.forEach(r => r.unmount());
+    audioRootsRef.current = [];
+
+    if (!contentRef.current || !audioUrlsRef.current.length) return;
+
+    const slots = contentRef.current.querySelectorAll('.audio-player-slot');
+    slots.forEach((slot) => {
+      const idx = parseInt(slot.dataset.idx, 10);
+      const url = audioUrlsRef.current[idx];
+      if (url) {
+        const root = createRoot(slot);
+        root.render(<AudioPlayerInline src={url} />);
+        audioRootsRef.current.push(root);
+      }
+    });
+
+    return () => {
+      audioRootsRef.current.forEach(r => r.unmount());
+      audioRootsRef.current = [];
+    };
+  }, [renderedContent]);
 
   // Check if content needs expansion after rendering
   useEffect(() => {
+    if (alwaysExpanded) return;
     if (contentRef.current && renderedContent) {
-      // Use requestAnimationFrame to ensure DOM has updated
       requestAnimationFrame(() => {
         const contentHeight = contentRef.current?.scrollHeight || 0;
         setNeedsExpansion(contentHeight > THRESHOLD_HEIGHT);
       });
     }
-  }, [renderedContent]);
+  }, [renderedContent, alwaysExpanded]);
 
-  const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
-  };
+  const toggleExpand = () => setIsExpanded(!isExpanded);
 
   return (
     <div className="blog-content-container">

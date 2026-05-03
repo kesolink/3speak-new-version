@@ -10,9 +10,36 @@
     margin-bottom: 5px;
     color: var(--text-secondary);
   }
-  .textarea-box{
-     @include respond(phone) {
+  .textarea-box {
+    width: 100%;
+    border: none;
+    border-radius: 4px;
+    margin-top: 5px;
+    min-height: 120px;
+    outline: none;
+    padding: 10px;
+    box-sizing: border-box;
+    resize: none;
+    overflow: hidden;
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+
+    @include respond(phone) {
       font-size: 16px;
+      min-height: 80px;
+    }
+
+    &.sub {
+      min-height: 100px;
+      border-radius: 12px;
+    }
+
+    &::placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 14px;
     }
   }
   h4 {
