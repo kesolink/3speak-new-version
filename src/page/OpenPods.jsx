@@ -19,7 +19,7 @@ const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
 const HANGOUT_BASE_URL = 'https://hangout.3speak.tv/room';
 
 export default function OpenPods() {
-  const { openRoom, sessionToken, hangoutsUser } = useHangout();
+  const { openRoom, sessionToken, sessionLoading, hangoutsUser } = useHangout();
   const { authenticated, user } = useAppStore();
   const navigate = useNavigate();
 
@@ -70,13 +70,25 @@ export default function OpenPods() {
     );
   }
 
+  // Wait for the Hangouts session token — without it HangoutsProvider would
+  // show its own internal login form (wrong UX) and any join call would 401.
+  if (sessionLoading || !sessionToken) {
+    return (
+      <div className="openpods-page">
+        <div className="openpods-connecting">
+          <span>Connecting to OpenPods…</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="openpods-page" data-hh-theme="dark">
       <HangoutsProvider
         apiBaseUrl={API_URL}
         livekitServerUrl={LK_URL}
         imageServerApiKey={IMAGE_KEY || undefined}
-        sessionToken={sessionToken || undefined}
+        sessionToken={sessionToken}
         username={hangoutsUser || undefined}
       >
         <RoomLobby
