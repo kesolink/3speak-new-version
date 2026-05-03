@@ -43,7 +43,7 @@ export function fixVideoThumbnail(video) {
   }
 
   // ✅ Already using Hive proxy or our own image service - return as-is
-  if (cleanThumbnail.includes("images.hive.blog") || cleanThumbnail.includes("files.peakd.com") || cleanThumbnail.includes("images.3speak.tv")) {
+  if (cleanThumbnail.includes("images.hive.blog") || cleanThumbnail.includes("files.peakd.com") || cleanThumbnail.includes("images.3speak.tv") || cleanThumbnail.includes("images.ecency.com")) {
     return cleanThumbnail;
   }
 
