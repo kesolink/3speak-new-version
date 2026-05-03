@@ -10,6 +10,7 @@ import { commentWithAioha } from '../hive-api/aioha';
 import MarkdownComposer from '../components/studio/MarkdownComposer';
 import Community_modal from '../components/modal/Community_modal';
 import Beneficiary_modal from '../components/modal/Beneficiary_modal';
+import AudioPlayerInline from '../components/AudioPlayerInline/AudioPlayerInline';
 import './OpenPodPublish.scss';
 
 const HIVE_API = 'https://api.hive.blog';
@@ -37,7 +38,7 @@ export default function OpenPodPublish() {
   const [communityModalOpen, setCommunityModalOpen] = useState(false);
   const [beneModalOpen,      setBeneModalOpen]      = useState(false);
   const [beneList,   setBeneList]     = useState([]);
-  const [beneCount,  setBeneCount]    = useState(2);
+  const [_beneCount, setBeneCount]    = useState(2);
   const [remaining,  setRemaining]    = useState(89);
   const [publishing, setPublishing]   = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState('');
@@ -202,18 +203,17 @@ export default function OpenPodPublish() {
       {/* Audio preview */}
       {audioUrl && (
         <div className="publish-audio-preview">
-          <span className="preview-label">Recording preview</span>
-          <iframe
-            src={`${audioUrl}&mode=compact&iframe=1`}
-            className="publish-audio-player"
-            height="65"
-            frameBorder="0"
-            allow="autoplay"
-            title="OpenPod Recording"
+          <div className="preview-copy">
+            <span className="preview-label">Recording preview</span>
+            <p>Review the audio before publishing. This is the same player readers will see on the post.</p>
+          </div>
+          <AudioPlayerInline
+            src={audioUrl}
+            variant="preview"
+            title={title || roomTitle || 'OpenPod Recording'}
+            artworkUrl={thumbnailUrl}
+            externalUrl={audioUrl}
           />
-          <a href={audioUrl} target="_blank" rel="noopener noreferrer" className="preview-link">
-            Open in new tab
-          </a>
         </div>
       )}
 

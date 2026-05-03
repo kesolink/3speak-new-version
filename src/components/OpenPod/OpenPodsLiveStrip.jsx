@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { HangoutsApiClient } from '@snapie/hangouts-core';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useHangout } from '../../context/HangoutContext';
+import { useAppStore } from '../../lib/store';
 import { MdMic } from 'react-icons/md';
 import './OpenPodsLiveStrip.scss';
 
@@ -11,6 +12,8 @@ const client = new HangoutsApiClient({
 
 export default function OpenPodsLiveStrip() {
   const { openRoom } = useHangout();
+  const { authenticated } = useAppStore();
+  const navigate = useNavigate();
 
   const { data: rooms = [] } = useQuery({
     queryKey: ['openpods-live-rooms'],
@@ -20,6 +23,14 @@ export default function OpenPodsLiveStrip() {
   });
 
   if (rooms.length === 0) return null;
+
+  const handleJoinRoom = (roomName) => {
+    if (!authenticated) {
+      navigate('/login');
+      return;
+    }
+    openRoom(roomName);
+  };
 
   return (
     <div className="openpods-live-strip">
@@ -37,7 +48,7 @@ export default function OpenPodsLiveStrip() {
           <button
             key={room.name}
             className="strip-card"
-            onClick={() => openRoom(room.name)}
+            onClick={() => handleJoinRoom(room.name)}
             aria-label={`Join OpenPod: ${room.title}`}
           >
             <img

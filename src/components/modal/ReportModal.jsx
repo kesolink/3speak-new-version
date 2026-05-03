@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
 import { toast } from 'sonner';
@@ -16,6 +16,16 @@ export function isReported(objectType, objectId) {
 }
 
 const REPORT_REASONS = {
+  post: [
+    { value: 'spam', label: 'Spam or misleading' },
+    { value: 'harassment', label: 'Harassment or bullying' },
+    { value: 'hate_speech', label: 'Hate speech' },
+    { value: 'violence', label: 'Violent or graphic content' },
+    { value: 'sexual', label: 'Sexual content' },
+    { value: 'copyright', label: 'Copyright infringement' },
+    { value: 'scam', label: 'Scam or fraud' },
+    { value: 'other', label: 'Other' },
+  ],
   video: [
     { value: 'spam', label: 'Spam or misleading' },
     { value: 'harassment', label: 'Harassment or bullying' },
@@ -48,7 +58,7 @@ const REPORT_REASONS = {
  *
  * @param {boolean} isOpen
  * @param {() => void} onClose
- * @param {'video' | 'comment' | 'user'} type
+ * @param {'post' | 'video' | 'comment' | 'user'} type
  * @param {{ author: string, permlink?: string }} target - what is being reported
  */
 export default function ReportModal({ isOpen, onClose, type = 'video', target }) {
@@ -99,7 +109,11 @@ export default function ReportModal({ isOpen, onClose, type = 'video', target })
 
       // Remember this report in localStorage
       const reportKey = `reported_${objectType}_${objectId}`;
-      try { localStorage.setItem(reportKey, '1'); } catch {}
+      try {
+        localStorage.setItem(reportKey, '1');
+      } catch {
+        // Ignore storage failures; the report itself was accepted.
+      }
 
       toast.success('Report submitted. Thank you.');
       handleClose();
@@ -119,7 +133,7 @@ export default function ReportModal({ isOpen, onClose, type = 'video', target })
 
   if (!isOpen) return null;
 
-  const typeLabel = type === 'user' ? 'User' : type === 'comment' ? 'Comment' : type === 'short' ? 'Short' : 'Video';
+  const typeLabel = type === 'user' ? 'User' : type === 'comment' ? 'Comment' : type === 'short' ? 'Short' : type === 'post' ? 'Post' : 'Video';
 
   return createPortal(
     <div className="report-modal-overlay" onClick={handleClose}>

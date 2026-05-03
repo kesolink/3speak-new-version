@@ -1,11 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import './AudioPlayerInline.scss';
 
 const SPEEDS = [1, 1.5, 2];
 
-export default function AudioPlayerInline({ src }) {
+export default function AudioPlayerInline({
+  src,
+  variant = 'inline',
+  title = 'OpenPod Recording',
+  subtitle = 'Recorded live on 3Speak OpenPods',
+  artworkUrl = '',
+  externalUrl = '',
+}) {
   const [audioUrl, setAudioUrl]       = useState(null);
   const [fallbackUrl, setFallbackUrl] = useState(null);
+  const [resolvedArtwork, setResolvedArtwork] = useState('');
   const [loading, setLoading]         = useState(true);
   const [failed, setFailed]           = useState(false);
   const [playing, setPlaying]         = useState(false);
@@ -28,6 +36,7 @@ export default function AudioPlayerInline({ src }) {
           if (!data?.audioUrl) throw new Error('no url');
           setAudioUrl(data.audioUrl);
           if (data.audioUrlFallback) setFallbackUrl(data.audioUrlFallback);
+          if (data.thumbnail_url) setResolvedArtwork(data.thumbnail_url);
           if (data.duration && !isNaN(data.duration)) setDuration(data.duration);
         })
         .catch(() => setFailed(true))
@@ -56,19 +65,19 @@ export default function AudioPlayerInline({ src }) {
     }
   };
 
-  const getRatio = (clientX) => {
+  const getRatio = useCallback((clientX) => {
     const bar = progressRef.current;
     if (!bar || !duration) return null;
     const rect = bar.getBoundingClientRect();
     return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  };
+  }, [duration]);
 
-  const seekTo = (ratio) => {
+  const seekTo = useCallback((ratio) => {
     const a = audioRef.current;
     if (!a || ratio === null) return;
     a.currentTime = ratio * duration;
     setCurrentTime(ratio * duration);
-  };
+  }, [duration]);
 
   const handleProgressClick = (e) => seekTo(getRatio(e.clientX));
 
@@ -87,7 +96,7 @@ export default function AudioPlayerInline({ src }) {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dragging, duration]);
+  }, [dragging, duration, getRatio, seekTo]);
 
   const cycleSpeed = () => {
     const next = (speedIdx + 1) % SPEEDS.length;
@@ -102,11 +111,14 @@ export default function AudioPlayerInline({ src }) {
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const displayArtwork = artworkUrl || resolvedArtwork;
+  const hasMediaHeader = variant === 'preview' || displayArtwork || title || subtitle;
+  const kicker = variant === 'preview' ? 'Audio preview' : 'OpenPod';
 
   if (failed) return null;
 
   return (
-    <div className="apin">
+    <div className={`apin apin--${variant}`}>
       {audioUrl && (
         <audio
           ref={audioRef}
@@ -124,7 +136,25 @@ export default function AudioPlayerInline({ src }) {
         />
       )}
 
+      {hasMediaHeader && (
+        <div className="apin__media">
+          <div className="apin__art" aria-hidden="true">
+            {displayArtwork ? (
+              <img src={displayArtwork} alt="" />
+            ) : (
+              <span>OP</span>
+            )}
+          </div>
+          <div className="apin__meta">
+            <span className="apin__kicker">{kicker}</span>
+            <span className="apin__title">{title}</span>
+            {subtitle && <span className="apin__subtitle">{subtitle}</span>}
+          </div>
+        </div>
+      )}
+
       <button
+        type="button"
         className="apin__play"
         onClick={togglePlay}
         disabled={loading || !audioUrl}
@@ -160,9 +190,15 @@ export default function AudioPlayerInline({ src }) {
         {fmt(currentTime)}<span className="apin__sep"> / </span>{fmt(duration)}
       </span>
 
-      <button className="apin__speed" onClick={cycleSpeed}>
+      <button type="button" className="apin__speed" onClick={cycleSpeed}>
         {SPEEDS[speedIdx]}x
       </button>
+
+      {externalUrl && (
+        <a className="apin__external" href={externalUrl} target="_blank" rel="noopener noreferrer">
+          Open
+        </a>
+      )}
     </div>
   );
 }

@@ -32,19 +32,44 @@
 
 // ── Audio preview ─────────────────────────────────────────────
 .publish-audio-preview {
-  display: flex;
-  align-items: center;
+  display: grid;
   gap: 14px;
-  background: var(--bg-secondary, rgba(255,255,255,0.04));
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px;
-  padding: 14px 18px;
+  background:
+    linear-gradient(135deg, rgba(229, 57, 53, 0.08), transparent 42%),
+    var(--bg-secondary, rgba(255,255,255,0.04));
+  border: 1px solid var(--border-light, rgba(255,255,255,0.08));
+  border-radius: 16px;
+  padding: 16px;
   margin-bottom: 28px;
-  flex-wrap: wrap;
+  box-shadow: var(--shadow-sm);
 
   @include mix.respond(phone) {
-    flex-direction: column;
+    padding: 14px;
+  }
+}
+
+.preview-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+
+  p {
+    margin: 0;
+    color: var(--text-secondary, rgba(255,255,255,0.5));
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: right;
+  }
+
+  @include mix.respond(phone) {
     align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+
+    p {
+      text-align: left;
+    }
   }
 }
 
@@ -55,24 +80,6 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
-}
-
-.publish-audio-player {
-  flex: 1;
-  min-width: 200px;
-  height: 65px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-}
-
-.preview-link {
-  font-size: 12px;
-  color: var(--text-secondary, rgba(255,255,255,0.5));
-  text-decoration: none;
-  white-space: nowrap;
-
-  &:hover { color: var(--text-primary); text-decoration: underline; }
 }
 
 // ── Form ──────────────────────────────────────────────────────

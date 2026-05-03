@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Navigate, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { toast } from 'sonner';
 import { useAppStore } from '../lib/store';
 import BlogContent from '../components/playVideo/BlogContent';
 import CommentSection from '../components/playVideo/CommentSection';
@@ -9,9 +10,15 @@ import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import BarLoader from '../components/Loader/BarLoader';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import PayoutAmount from '../components/PayoutAmount/PayoutAmount';
+import TipModal from '../components/tip-reward/TipModal';
+import ReportModal, { isReported } from '../components/modal/ReportModal';
 import { HIVE_API_URL } from '../utils/config';
 import { resolveRootPost, ensure3SpeakStatus } from '../utils/threeSpeakDetection';
+import { recordReshare, getResharesForVideo } from '../utils/reshares';
+import { isLoggedIn } from '../hive-api/aioha';
 import { LuTimer } from 'react-icons/lu';
+import { Repeat2 } from 'lucide-react';
+import { MdAttachMoney, MdComment, MdFlag, MdShare } from 'react-icons/md';
 import './PostView.scss';
 
 function parseAudioPermlink(audioUrl) {
@@ -72,6 +79,10 @@ function PostView() {
   const [weight, setWeight]           = useState(100);
   const [voteValue, setVoteValue]     = useState(0);
   const [accountData, setAccountData] = useState(null);
+  const [reshareCount, setReshareCount] = useState(0);
+  const [hasReshared, setHasReshared] = useState(false);
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   // Fetch the post via bridge.get_post (unless prefilled from navigation state)
   useEffect(() => {
@@ -120,6 +131,91 @@ function PostView() {
 
     return () => { cancelled = true; };
   }, [author, permlink]);
+
+  useEffect(() => {
+    if (!author || !permlink) return;
+    let cancelled = false;
+    setReshareCount(0);
+    setHasReshared(false);
+
+    (async () => {
+      try {
+        const { reshares, count } = await getResharesForVideo(author, permlink);
+        if (cancelled) return;
+        setReshareCount(count);
+        if (currentUser) {
+          setHasReshared(reshares.some(r => r.username === currentUser));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch post reshares:', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [author, permlink, currentUser]);
+
+  const requireLogin = useCallback((action) => {
+    if (authenticated && currentUser && isLoggedIn()) return true;
+    toast.error(`Log in to ${action}`);
+    return false;
+  }, [authenticated, currentUser]);
+
+  const toggleVoteTooltip = useCallback(() => {
+    if (!requireLogin('vote')) return;
+    setShowTooltip(prev => !prev);
+  }, [requireLogin]);
+
+  const handleShare = useCallback(async () => {
+    const shareUrl = `${window.location.origin}/post/${author}/${permlink}`;
+    const shareData = { title: post?.title || '3Speak Post', url: shareUrl };
+    try {
+      if (navigator.share && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard!');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          toast.success('Link copied to clipboard!');
+        } catch {
+          toast.error('Failed to share');
+        }
+      }
+    }
+  }, [author, permlink, post?.title]);
+
+  const handleReshare = useCallback(async () => {
+    if (!requireLogin('reblog')) return;
+    if (hasReshared) {
+      toast.info('Already reblogged');
+      return;
+    }
+
+    const result = await recordReshare(currentUser, author, permlink);
+    if (result) {
+      setHasReshared(true);
+      setReshareCount(prev => prev + 1);
+      toast.success('Reblogged!');
+    } else {
+      toast.error('Failed to reblog');
+    }
+  }, [requireLogin, hasReshared, currentUser, author, permlink]);
+
+  const handleReply = useCallback(() => {
+    const commentBox = document.querySelector('.post-view-comments .add-comment-wrap .textarea-box');
+    if (commentBox) {
+      commentBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => commentBox.focus(), 350);
+    }
+  }, []);
+
+  const handleTip = useCallback(() => {
+    if (!requireLogin('tip')) return;
+    setIsTipModalOpen(true);
+  }, [requireLogin]);
 
   // Fetch thumbnail from audio backend for OpenPod posts
   useEffect(() => {
@@ -351,12 +447,54 @@ function PostView() {
         </div>
 
         <div className="post-view-actions">
-          <UpvoteCount
-            count={voteCount}
-            voted={isVoted}
-            onClick={() => setShowTooltip(v => !v)}
-            size={16}
-          />
+          <div className="post-view-actions-primary">
+            <button
+              type="button"
+              className={`post-action-btn post-action-btn-vote${isVoted ? ' active' : ''}`}
+              onClick={toggleVoteTooltip}
+              title={isVoted ? 'Adjust vote' : 'Upvote'}
+            >
+              <UpvoteCount
+                count={voteCount}
+                voted={isVoted}
+                size={15}
+              />
+            </button>
+            <button type="button" className="post-action-btn" onClick={handleReply} title="Reply">
+              <MdComment size={17} />
+              <span>Reply</span>
+            </button>
+          </div>
+
+          <div className="post-view-actions-secondary">
+            <button type="button" className="post-icon-action" onClick={handleShare} title="Share">
+              <MdShare size={17} />
+            </button>
+            <button
+              type="button"
+              className={`post-icon-action post-reshare-action${hasReshared ? ' active' : ''}`}
+              onClick={handleReshare}
+              disabled={!authenticated || !isLoggedIn()}
+              title={!authenticated ? 'Log in to reblog' : hasReshared ? 'Reblogged' : 'Reblog'}
+            >
+              <Repeat2 size={16} />
+              {reshareCount > 0 && <span>{reshareCount}</span>}
+            </button>
+            {authenticated && currentUser !== post.author && (
+              <button type="button" className="post-icon-action post-tip-action" onClick={handleTip} title="Tip creator">
+                <MdAttachMoney size={17} />
+              </button>
+            )}
+            <button
+              type="button"
+              className={`post-icon-action post-report-action${isReported('post', `${author}/${permlink}`) ? ' reported' : ''}`}
+              onClick={() => setIsReportOpen(true)}
+              title="Report post"
+            >
+              <MdFlag size={17} />
+            </button>
+          </div>
+
           {authenticated && showTooltip && (
             <CommentVoteTooltip
               showTooltip={showTooltip}
@@ -388,6 +526,21 @@ function PostView() {
           />
         </div>
       </div>
+
+      {isTipModalOpen && (
+        <TipModal
+          recipient={post.author}
+          isOpen={isTipModalOpen}
+          onClose={() => setIsTipModalOpen(false)}
+        />
+      )}
+
+      <ReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        type="post"
+        target={{ author, permlink }}
+      />
     </div>
   );
 }
