@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { HangoutsApiClient, loginWithSignFn } from '@snapie/hangouts-core';
 import { useAppStore } from '../lib/store';
 import aioha, { KeyTypes } from '../hive-api/aioha';
@@ -20,24 +20,42 @@ export function HangoutContextProvider({ children }) {
 
   const { authenticated, user } = useAppStore();
 
-  const loginToHangouts = async () => {
-    if (!authenticated || !user) return;
+  const loginToHangouts = useCallback(async (requestedUser = user) => {
+    if (!authenticated || !requestedUser) return null;
+
+    const isStillCurrentUser = () => {
+      const state = useAppStore.getState();
+      return state.authenticated && state.user === requestedUser;
+    };
 
     // Return cached token immediately
-    const cached = sessionCache.get(user);
+    const cached = sessionCache.get(requestedUser);
     if (cached) {
-      hangoutsClient.setSessionToken(cached);
-      setSessionToken(cached);
-      return;
+      if (isStillCurrentUser()) {
+        hangoutsClient.setSessionToken(cached);
+        setSessionToken(cached);
+      }
+      return cached;
     }
 
     // Deduplicate: if a login is already in-flight, await it
-    if (pendingLogin) {
+    if (pendingLogin?.user === requestedUser) {
       try {
-        const token = await pendingLogin;
-        setSessionToken(token);
+        const token = await pendingLogin.promise;
+        if (isStillCurrentUser()) setSessionToken(token);
+        return token;
       } catch { /* error already logged by the initiating call */ }
-      return;
+      return null;
+    }
+
+    // If another account is mid-signature, don't apply that token to this user.
+    // Wait for it to settle, then retry only if this account is still current.
+    if (pendingLogin) {
+      setSessionLoading(true);
+      try {
+        await pendingLogin.promise;
+      } catch { /* error already logged by the initiating call */ }
+      return isStillCurrentUser() ? loginToHangouts(requestedUser) : null;
     }
 
     setSessionLoading(true);
@@ -48,42 +66,68 @@ export function HangoutContextProvider({ children }) {
       return res.result;
     };
 
-    pendingLogin = loginWithSignFn(hangoutsClient, user, signFn)
+    const loginPromise = loginWithSignFn(hangoutsClient, requestedUser, signFn)
       .then(session => {
-        sessionCache.set(user, session.token);
-        hangoutsClient.setSessionToken(session.token);
+        sessionCache.set(session.username || requestedUser, session.token);
+        if (isStillCurrentUser()) {
+          hangoutsClient.setSessionToken(session.token);
+        } else {
+          hangoutsClient.clearSessionToken();
+        }
         return session.token;
       })
       .catch(err => {
         console.error('[OpenPods] Session auth failed:', err);
         throw err;
       })
-      .finally(() => { pendingLogin = null; });
+      .finally(() => {
+        if (pendingLogin?.user === requestedUser) pendingLogin = null;
+      });
+
+    pendingLogin = { user: requestedUser, promise: loginPromise };
 
     try {
-      const token = await pendingLogin;
-      setSessionToken(token);
+      const token = await loginPromise;
+      if (isStillCurrentUser()) setSessionToken(token);
+      return token;
     } catch {
-      setSessionToken(null);
+      if (isStillCurrentUser()) setSessionToken(null);
+      return null;
     } finally {
-      setSessionLoading(false);
+      if (isStillCurrentUser()) setSessionLoading(false);
     }
-  };
+  }, [authenticated, user]);
+
+  const openRoom = useCallback((roomName) => {
+    if (!roomName || !authenticated || !user) return false;
+
+    if (!sessionToken && !sessionLoading) {
+      loginToHangouts(user);
+    }
+
+    setActiveRoom(roomName);
+    return true;
+  }, [authenticated, user, sessionToken, sessionLoading, loginToHangouts]);
 
   useEffect(() => {
     if (authenticated && user) {
-      loginToHangouts();
-    } else {
+      setActiveRoom(null);
       setSessionToken(null);
+      hangoutsClient.clearSessionToken();
+      loginToHangouts(user);
+    } else {
+      setActiveRoom(null);
+      setSessionToken(null);
+      setSessionLoading(false);
       sessionCache.clear();
       hangoutsClient.clearSessionToken();
     }
-  }, [authenticated, user]);
+  }, [authenticated, user, loginToHangouts]);
 
   return (
     <HangoutContext.Provider value={{
       activeRoom,
-      openRoom:       setActiveRoom,
+      openRoom,
       closeRoom:      () => setActiveRoom(null),
       sessionToken,
       sessionLoading,
