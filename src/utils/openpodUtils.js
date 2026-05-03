@@ -14,8 +14,9 @@ export async function fetchLatestSnapsPost() {
   return post;
 }
 
-export function buildOpenPodSnapBody(roomTitle, roomUrl) {
-  return `🎙️ **${roomTitle || 'OpenPod Live'}**\n\nI just started an OpenPod — come join the conversation!\n\n${roomUrl}`;
+export function buildOpenPodSnapBody(roomTitle, roomUrl, thumbnailUrl) {
+  const thumbnail = thumbnailUrl ? `![${roomTitle || 'OpenPod'}](${thumbnailUrl})\n\n` : '';
+  return `${thumbnail}🎙️ **${roomTitle || 'OpenPod Live'}**\n\nI just started an OpenPod — come join the conversation!\n\n${roomUrl}`;
 }
 
 export function buildOpenPodPermlink() {

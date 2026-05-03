@@ -16,7 +16,12 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
 
   const handleRecordingUploaded = (result) => {
     onClose();
-    navigate(`/openpods/publish?audioUrl=${encodeURIComponent(result.playUrl)}&title=${encodeURIComponent(roomName)}`);
+    navigate(
+      `/openpods/publish?audioUrl=${encodeURIComponent(result.playUrl)}` +
+      `&title=${encodeURIComponent(roomName)}` +
+      `&audioPerm=${encodeURIComponent(result.permlink)}` +
+      `&roomName=${encodeURIComponent(roomName)}`
+    );
   };
 
   return (

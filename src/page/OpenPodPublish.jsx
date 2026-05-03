@@ -5,6 +5,7 @@ import axios from 'axios';
 import { MdMic, MdPeopleAlt } from 'react-icons/md';
 import { IoIosArrowDropdownCircle } from 'react-icons/io';
 import { useAppStore } from '../lib/store';
+import { useHangout } from '../context/HangoutContext';
 import { commentWithAioha } from '../hive-api/aioha';
 import MarkdownComposer from '../components/studio/MarkdownComposer';
 import Community_modal from '../components/modal/Community_modal';
@@ -12,14 +13,18 @@ import Beneficiary_modal from '../components/modal/Beneficiary_modal';
 import './OpenPodPublish.scss';
 
 const HIVE_API = 'https://api.hive.blog';
+const HANGOUTS_API = import.meta.env.VITE_HANGOUTS_API_URL;
 
 export default function OpenPodPublish() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { authenticated, user } = useAppStore();
+  const { sessionToken } = useHangout();
 
-  const audioUrl  = searchParams.get('audioUrl') || '';
-  const roomTitle = searchParams.get('title')    || '';
+  const audioUrl  = searchParams.get('audioUrl')  || '';
+  const roomTitle = searchParams.get('title')      || '';
+  const audioPerm = searchParams.get('audioPerm')  || '';
+  const roomName  = searchParams.get('roomName')   || '';
 
   const [title, setTitle]             = useState(roomTitle);
   const [description, setDescription] = useState('');
@@ -35,6 +40,19 @@ export default function OpenPodPublish() {
   const [beneCount,  setBeneCount]    = useState(2);
   const [remaining,  setRemaining]    = useState(89);
   const [publishing, setPublishing]   = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
+
+  // Fetch audio metadata (thumbnail) from the audio backend
+  useEffect(() => {
+    if (!audioPerm || !audioUrl) return;
+    try {
+      const base = new URL(audioUrl).origin;
+      fetch(`${base}/api/audio?a=${audioPerm}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.thumbnail_url) setThumbnailUrl(data.thumbnail_url); })
+        .catch(() => {});
+    } catch { /* invalid URL */ }
+  }, [audioPerm, audioUrl]);
 
   // Fetch communities for the modal
   useEffect(() => {
@@ -67,12 +85,9 @@ export default function OpenPodPublish() {
       ...tagsPreview.filter(t => !['3speak', 'openpod', communityTag].includes(t)),
     ];
 
-    const body = [
-      description.trim(),
-      description.trim() ? '\n\n---\n\n' : '',
-      `🎙️ **[Listen to Recording](${audioUrl})**`,
-      `\n\n*Recorded live on [3speak OpenPods](https://3speak.tv/openpods)*`,
-    ].join('');
+    const thumbnailLine = thumbnailUrl ? `![${title.trim()}](${thumbnailUrl})\n\n` : '';
+    const descPart = description.trim() ? `${description.trim()}\n\n---\n\n` : '';
+    const body = `${thumbnailLine}${descPart}<center>\n\n🎙️ **OpenPod Recording**\n\n${audioUrl}\n\n*Recorded live on [3speak OpenPods](https://3speak.tv/openpods)*\n\n</center>`;
 
     const permlink = `openpod-rec-${Date.now()}`;
 
@@ -82,6 +97,7 @@ export default function OpenPodPublish() {
       tags,
       type: 'openpod-recording',
       audio: audioUrl,
+      ...(thumbnailUrl && { image: [thumbnailUrl] }),
     };
 
     // Build beneficiaries — threespeakfund 10% is always locked
@@ -119,7 +135,39 @@ export default function OpenPodPublish() {
       if (!result.success) throw new Error('Post failed');
 
       toast.success('Recording published to Hive!');
-      navigate(`/@${user}/${permlink}`);
+
+      // Best-effort: enrich the MongoDB audio entry with the Hive post data
+      if (audioPerm && roomName && sessionToken) {
+        fetch(
+          `${HANGOUTS_API}/rooms/${encodeURIComponent(roomName)}/record/${encodeURIComponent(audioPerm)}/metadata`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`,
+            },
+            body: JSON.stringify({
+              title: title.trim(),
+              description: description.trim() || undefined,
+              tags,
+              post_permlink: `${user}/${permlink}`,
+            }),
+          },
+        ).catch(err => console.warn('Audio metadata sync failed (non-blocking):', err));
+      }
+
+      navigate(`/post/${user}/${permlink}`, {
+        state: {
+          title: title.trim(),
+          body,
+          author: user,
+          permlink,
+          tags,
+          created: new Date().toISOString(),
+          thumbnailUrl: thumbnailUrl || undefined,
+          audioUrl: audioUrl || undefined,
+        },
+      });
     } catch (err) {
       console.error('Publish failed:', err);
       toast.error('Failed to publish. Please try again.');
@@ -155,7 +203,14 @@ export default function OpenPodPublish() {
       {audioUrl && (
         <div className="publish-audio-preview">
           <span className="preview-label">Recording preview</span>
-          <audio controls src={audioUrl} className="publish-audio-player" />
+          <iframe
+            src={`${audioUrl}&mode=compact&iframe=1`}
+            className="publish-audio-player"
+            height="65"
+            frameBorder="0"
+            allow="autoplay"
+            title="OpenPod Recording"
+          />
           <a href={audioUrl} target="_blank" rel="noopener noreferrer" className="preview-link">
             Open in new tab
           </a>

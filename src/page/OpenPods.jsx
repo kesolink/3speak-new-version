@@ -33,7 +33,7 @@ export default function OpenPods() {
     try {
       const snapPost = await fetchLatestSnapsPost();
       const roomUrl = `${HANGOUT_BASE_URL}/${room.name}`;
-      const body = buildOpenPodSnapBody(room.title, roomUrl);
+      const body = buildOpenPodSnapBody(room.title, roomUrl, room.backgroundImage);
       const permlink = buildOpenPodPermlink();
       const metadata = buildOpenPodSnapMetadata(room.name);
 

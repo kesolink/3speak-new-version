@@ -63,6 +63,7 @@ import { HiveAuthProvider } from "./context/HiveAuthContext";
 import { HangoutContextProvider, useHangout } from "./context/HangoutContext";
 import OpenPods from "./page/OpenPods";
 import OpenPodPublish from "./page/OpenPodPublish";
+import PostView from "./page/PostView";
 
 const OpenPodModal = lazy(() => import("./components/OpenPod/OpenPodModal"));
 
@@ -339,6 +340,7 @@ function App() {
             <Route path="/image" element={<HiveImageUploader />} />
             <Route path="/openpods" element={<OpenPods />} />
             <Route path="/openpods/publish" element={<OpenPodPublish />} />
+            <Route path="/post/:user/:permlink" element={<PostView />} />
             <Route path="*" element={<HiveLinkRedirect />} />
           </Routes>
           <OpenPodModalMounter />
