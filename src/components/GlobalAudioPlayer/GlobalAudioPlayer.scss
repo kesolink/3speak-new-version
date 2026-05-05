@@ -1,0 +1,109 @@
+@use "../../mixins.scss" as mix;
+
+// Global player additions / overrides over Audio.scss
+
+// Desktop: narrow card pinned to bottom-right.
+// Mobile: phone media query in Audio.scss already pins the bar to bottom-of-screen
+// above the bottom nav; we explicitly reset our desktop overrides there.
+.audio-now-playing {
+  left: auto;
+  right: 16px;
+  bottom: 16px;
+  width: 33vw;
+  min-width: 360px;
+  max-width: 560px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+
+  @include mix.respond(phone) {
+    left: 0;
+    right: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.12);
+  }
+}
+
+// In the narrow desktop player, hide the inline desktop meta/extras (payout,
+// vote count, playlist/share/subs/time). Users can still reach all of these by
+// expanding the player — the existing mobile-extras row is reused.
+@media (min-width: 769px) {
+  .audio-now-playing {
+    .audio-np-desktop-meta,
+    .audio-np-extras { display: none; }
+
+    // Show the expand toggle on desktop too (it's phone-only by default)
+    .audio-np-expand-btn { display: inline-flex; }
+
+    // Show the same extras row inside the expanded area on desktop
+    .audio-np-expanded-area .audio-np-mobile-extras {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      .upvote-count-wrap { display: inline-flex; align-items: center; cursor: pointer; }
+    }
+  }
+}
+
+.audio-np-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  border-radius: 4px;
+  &:hover { color: var(--accent-primary); }
+}
+
+// Title link affordance — small icon when the track has a Hive post.
+// The title becomes a flex row so the text truncates with ellipsis while the
+// icon stays anchored at the end on the same line.
+.audio-now-playing .audio-np-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.audio-np-title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-np-title.has-post {
+  cursor: pointer;
+  &:hover { color: var(--accent-primary); }
+}
+
+.audio-np-title-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.audio-np-title.has-post:hover .audio-np-title-icon {
+  color: var(--accent-primary);
+}
+
+// When the expanded post body is long, allow the expansion to grow taller —
+// up to 66vh — and let the inner body element size naturally so the parent
+// owns the scroll instead of nesting two scrollable regions.
+.audio-now-playing .audio-np-expanded-area {
+  max-height: 66vh;
+}
+
+.audio-now-playing .audio-np-body {
+  max-height: none;
+  overflow: visible;
+}

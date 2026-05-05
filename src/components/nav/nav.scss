@@ -240,6 +240,17 @@
     }
   }
 
+  > .nav-right button.manteauth-btn {
+    background: #e8d89b;
+    color: #161107;
+    font-weight: 600;
+    border: none;
+    &:hover {
+      background: #d4c488;
+      border: none;
+    }
+  }
+
   .side-nav {
     z-index: 1000;
     position: fixed;

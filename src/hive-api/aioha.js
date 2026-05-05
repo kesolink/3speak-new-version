@@ -65,6 +65,10 @@ const withHiveAuthWaiting = async (operation, message = 'Waiting for approval...
 
 // Helper function to vote on content
 export const voteWithAioha = async (author, permlink, weight = 10000) => {
+  if (isManteAuthLogin()) {
+    const voter = localStorage.getItem('user_id')
+    return broadcastViaManteAuth([['vote', { voter, author, permlink, weight }]])
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.vote(author, permlink, weight);
@@ -99,6 +103,20 @@ export const transferWithAioha = async (to, amount, currency, memo = '') => {
 
 // Helper function to follow/unfollow a user
 export const followWithAioha = async (target, follow = true) => {
+  if (isManteAuthLogin()) {
+    const follower = localStorage.getItem('user_id')
+    const json = JSON.stringify(['follow', {
+      follower,
+      following: target,
+      what: follow ? ['blog'] : []
+    }])
+    return broadcastViaManteAuth([['custom_json', {
+      required_auths: [],
+      required_posting_auths: [follower],
+      id: 'follow',
+      json
+    }]])
+  }
   return withHiveAuthWaiting(async () => {
     try {
       let result;
@@ -127,6 +145,15 @@ export const followWithAioha = async (target, follow = true) => {
 
 // Helper function for custom_json operations
 export const customJsonWithAioha = async (keyType, id, json, displayTitle = '') => {
+  if (isManteAuthLogin() && keyType === KeyTypes.Posting) {
+    const user = localStorage.getItem('user_id')
+    return broadcastViaManteAuth([['custom_json', {
+      required_auths: [],
+      required_posting_auths: [user],
+      id,
+      json
+    }]])
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.customJSON(keyType, id, json, displayTitle);
@@ -144,6 +171,22 @@ export const customJsonWithAioha = async (keyType, id, json, displayTitle = '') 
 
 // Helper function to post a comment
 export const commentWithAioha = async (parentAuthor, parentPermlink, permlink, title, body, jsonMetadata = {}, options = null) => {
+  if (isManteAuthLogin()) {
+    const author = localStorage.getItem('user_id')
+    const ops = [['comment', {
+      parent_author: parentAuthor,
+      parent_permlink: parentPermlink,
+      author,
+      permlink,
+      title,
+      body,
+      json_metadata: JSON.stringify(jsonMetadata)
+    }]]
+    if (options) {
+      ops.push(['comment_options', { author, permlink, ...options }])
+    }
+    return broadcastViaManteAuth(ops)
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.comment(parentAuthor, parentPermlink, permlink, title, body, JSON.stringify(jsonMetadata), options);
@@ -159,8 +202,15 @@ export const commentWithAioha = async (parentAuthor, parentPermlink, permlink, t
   }, 'Approve comment on HiveAuth...');
 };
 
-// Generic broadcast for raw operations (e.g., account_create, custom operations)
+// Generic broadcast for raw operations
+// ManteAuth only supports posting-level ops — active key ops (transfers, etc.) will fail
 export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) => {
+  if (isManteAuthLogin() && keyType === KeyTypes.Posting) {
+    return broadcastViaManteAuth(operations)
+  }
+  if (isManteAuthLogin() && keyType === KeyTypes.Active) {
+    throw new Error('Active key operations are not supported with ManteAuth. Please use a Hive wallet.')
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.signAndBroadcastTx(operations, keyType);
@@ -176,9 +226,31 @@ export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) 
   }, 'Approve transaction on HiveAuth...');
 };
 
-// Check if user is logged in
+// ManteAuth proxy broadcast via 3speak backend service
+// Auth happens via httpOnly cookie set during /api/manteauth/exchange — no token in JS.
+const THREESPEAK_API = import.meta.env.VITE_THREESPEAK_API || '/api'
+
+export const isManteAuthLogin = () => {
+  return localStorage.getItem('manteauth_login') === 'true'
+}
+
+export const broadcastViaManteAuth = async (operations) => {
+  const res = await fetch(`${THREESPEAK_API}/broadcast`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ operations })
+  })
+  const data = await res.json()
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || data.message || 'Broadcast failed')
+  }
+  return { success: true, result: data.result }
+}
+
+// Check if user is logged in (aioha or ManteAuth)
 export const isLoggedIn = () => {
-  return aioha.isLoggedIn();
+  return aioha.isLoggedIn() || isManteAuthLogin();
 };
 
 // Get current user

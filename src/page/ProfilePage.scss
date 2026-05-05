@@ -6,6 +6,33 @@ $text-muted: #64748b;
 $border: #e5e7eb;
 $bg: #ffffff;
 
+// Match the .status-dot "Verified creator" pill styling so the "Add profile"
+// button blends in with the badge row.
+.add-social-link-btn {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #1e293b;
+  background: rgba(15, 23, 42, 0.8);
+  color: #94a3b8;
+  border-radius: 9999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+
+  svg {
+    width: 9px;
+    height: 9px;
+    margin-right: 6px;
+  }
+
+  &:hover {
+    color: #fff;
+    border-color: #334155;
+  }
+}
+
 // Create Playlist Button
 .create-playlist-btn {
   display: flex;
@@ -580,6 +607,7 @@ $bg: #ffffff;
             margin-top: 0.3rem;
             display: flex;
             flex-wrap: wrap;
+            align-items: center;
             gap: 0.5rem;
             color: #94a3b8;
             font-size: 0.75rem;
@@ -604,6 +632,7 @@ $bg: #ffffff;
             .divider {
               margin: 0 4px;
             }
+
           }
         }
       }

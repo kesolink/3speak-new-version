@@ -25,7 +25,8 @@ import UploadLinks from '../UploadLinks';
 function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const location = useLocation();
   const navigate = useNavigate()
-  const { user, theme, showNsfw, setShowNsfw } = useAppStore();
+  const { user, theme, showNsfw, setShowNsfw, LogOut } = useAppStore();
+  const isManteAuth = localStorage.getItem("manteauth_login") === "true";
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -115,9 +116,15 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
               <div className="nsfw-toggle-thumb" />
             </div>
           </button>
-          <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
-            <IoPower className="icon" /> <span>Change account</span>
-          </a>
+          {isManteAuth ? (
+            <a className="wrap" onClick={() => { LogOut(user); onclose(); navigate('/'); }}>
+              <IoPower className="icon" /> <span>Logout</span>
+            </a>
+          ) : (
+            <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
+              <IoPower className="icon" /> <span>Change account</span>
+            </a>
+          )}
 
            </div>
            <hr className="profile-divider" />

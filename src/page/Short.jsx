@@ -80,6 +80,7 @@ import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import EditorModal from '../components/modal/EditorModal';
+import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 
 // Thin wrapper: reads currentTime from a ref via polling to avoid re-rendering the whole Shorts page
 function ShortsSubtitleOverlay({ timeRef, cues, style }) {
@@ -194,6 +195,14 @@ const VideoShort = () => {
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // Cross-player coordination — announce play, pause when another player starts.
+  useEffect(() => {
+    if (isPlaying) notifyMediaPlay('short');
+  }, [isPlaying]);
+  useEffect(() => onMediaPlay('short', () => {
+    try { playerRef.current?.pause?.(); } catch {}
+  }), []);
   const [isMuted, setIsMuted] = useState(() => {
     const stored = localStorage.getItem('3speak-muted');
     if (stored !== null) return stored === '1';

@@ -29,6 +29,7 @@ function useOpenPodsCount() {
 }
 import { LuNewspaper } from "react-icons/lu";
 import { FaFire, FaRegSmile } from "react-icons/fa";
+import { MdGraphicEq } from "react-icons/md";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { RiRssFill } from "react-icons/ri";
 import { BiChevronRight } from "react-icons/bi";
@@ -91,6 +92,9 @@ const Sidebar = ({ sidebar, onNavigate }) => {
         </Link>
         <Link to="/shorts" className="side-link" title="Shorts" onClick={nav}>
           <ShortsIcon className="icon" outlineWidth={30} /> <span>Shorts</span>
+        </Link>
+        <Link to="/audio" className="side-link" title="Audio" onClick={nav}>
+          <MdGraphicEq className="icon" /> <span>Audio</span>
         </Link>
        {authenticated && (
           <SidebarDropdown icon={IoCloudUploadSharp} label="Upload" sidebar={sidebar}>

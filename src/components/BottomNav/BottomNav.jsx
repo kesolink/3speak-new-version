@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload } from "react-icons/md";
+import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq } from "react-icons/md";
 import { IoAddCircleOutline, IoPower, IoCloudUploadSharp, IoShareOutline } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
 import { GiAstronautHelmet } from "react-icons/gi";
@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import "./BottomNav.scss";
 
 // Swipeable tab routes in order
-const SWIPE_TABS = ["/", "/shorts", "/discover"];
+const SWIPE_TABS = ["/", "/shorts", "/discover", "/audio"];
 
 const BottomNav = ({ openLoginModal }) => {
   const location = useLocation();
@@ -211,31 +211,14 @@ const BottomNav = ({ openLoginModal }) => {
         <span>Shorts</span>
       </Link>
 
-      <div className="bottom-nav-upload-wrap" ref={uploadRef}>
-        <a href="#" className={`bottom-nav-item upload-item ${uploadOpen ? "active" : ""}`} onClick={handleUploadClick}>
-          <IoAddCircleOutline className="bottom-nav-icon upload-icon" />
-          <span>Upload</span>
-        </a>
-        {uploadOpen && authenticated && (
-          <div className="bottom-nav-menu bottom-nav-upload-menu">
-            <Link to="/studio" className="bottom-nav-menu-item" onClick={() => setUploadOpen(false)}>
-              <IoCloudUploadSharp className="bottom-nav-menu-icon" /> Long-form Video
-            </Link>
-            <Link to="/embed-studio?from=shorts" className="bottom-nav-menu-item" onClick={() => setUploadOpen(false)}>
-              <ShortsIcon className="bottom-nav-menu-icon" outlineWidth={30} /> Shorts Video
-            </Link>
-            {FEATURE_EDITOR && (
-              <a href="#" className="bottom-nav-menu-item" onClick={handleEditorClick}>
-                <Clapperboard className="bottom-nav-menu-icon" size={18} /> Shorts Editor
-              </a>
-            )}
-          </div>
-        )}
-      </div>
-
       <Link to="/discover" className={`bottom-nav-item ${isActive("/discover") ? "active" : ""}`}>
         <MdOutlineSearch className="bottom-nav-icon" />
         <span>Explore</span>
+      </Link>
+
+      <Link to="/audio" className={`bottom-nav-item ${isActive("/audio") ? "active" : ""}`}>
+        <MdGraphicEq className="bottom-nav-icon" />
+        <span>Audio</span>
       </Link>
 
       <a href="#" className={`bottom-nav-item ${menuOpen ? "active" : ""}`} onClick={handleProfileClick}>

@@ -4,6 +4,9 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  server: {
+    allowedHosts: ['3speak.okinoko.io'],
+  },
   plugins: [
     react(),
     nodePolyfills({

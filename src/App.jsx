@@ -52,6 +52,7 @@ import ShortsPreloader from "./components/ShortsPreloader";
 
 import { jwtDecode } from "jwt-decode";
 import AuthCallback from "./page/Login/AuthCallback";
+import ManteAuthCallback from "./page/Login/ManteAuthCallback";
 import NotFound from "./page/NotFound";
 import ProfileModal from "./components/modal/ProfileModal";
 import HiveImageUploader from "./page/HiveImageUploader";
@@ -59,6 +60,8 @@ import PlaylistView from "./page/PlaylistView";
 import WatchedView from "./page/WatchedView";
 import Notifications from "./page/Notifications";
 import PostView from "./page/PostView";
+import Audio from "./page/Audio";
+import AudioPost from "./page/AudioPost";
 import { LegacyUploadProvider } from "./context/LegacyUploadContext";
 import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
@@ -96,6 +99,7 @@ import EditorModal from "./components/modal/EditorModal";
 import { FEATURE_EDITOR } from "./utils/config";
 import BottomNav from "./components/BottomNav/BottomNav";
 import MiniPlayer from "./components/MiniPlayer/MiniPlayer";
+import GlobalAudioPlayer from "./components/GlobalAudioPlayer/GlobalAudioPlayer";
 import { KeyTypes } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
@@ -112,9 +116,10 @@ const HiveLinkRedirect = () => {
       return <Navigate to={`/p/${user}?tab=shorts`} replace />;
     }
     if (permlink) {
-      return <Navigate to={`/post/${user}/${permlink}`} replace />;
+      return <Navigate to={`/post/${user}/${permlink}${location.search || ''}`} replace />;
     }
-    return <Navigate to={`/p/${user}`} replace />;
+    // Preserve query string (e.g. ?tab=audio) when redirecting /@user → /p/user
+    return <Navigate to={`/p/${user}${location.search || ''}`} replace />;
   }
   return <NotFound />;
 };
@@ -306,10 +311,13 @@ function App() {
             <Route path="/firstupload" element={<FirstUploads />} />
             <Route path="/trend" element={<Trend />} />
             <Route path="/discover" element={<Discover />} />
+            <Route path="/audio" element={<Audio />} />
+            <Route path="/audio/:author/:permlink" element={<AudioPost />} />
             <Route path="/new" element={<NewVideos />} />
             <Route path="/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
             <Route path="/auth/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
              <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/callback" element={<ManteAuthCallback />} />
             {/* <Route path="/email" element={<Email/>} />  */}
             <Route path="/newlogin" element={<LoginNew />} />
             <Route path="/studio" element={<StudioPage />} />
@@ -352,6 +360,7 @@ function App() {
           <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} toggleAddAccount={toggleAddAccount} openLoginModal={openLoginModal} />
         )}
         <MiniPlayer />
+        <GlobalAudioPlayer />
         <BottomNav openLoginModal={openLoginModal} />
         {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} /> }
         <LoginModal
