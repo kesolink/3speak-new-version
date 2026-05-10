@@ -95,6 +95,8 @@ const REPORT_API_SECRET = import.meta.env.VITE_REPORT_API_SECRET;
 
 // Feature flags for MetaMask Snap login and 3Speak Pro subscriptions
 const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true';
+// Default-on: only disabled when explicitly set to "false".
+const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false';
 const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
 
 export {
@@ -135,6 +137,7 @@ export {
   REPORT_API_URL,
   REPORT_API_SECRET,
   ENABLE_METAMASK_SNAP,
+  ENABLE_BUTRAUTH,
   ENABLE_SUBS,
   THREESPEAK_AUDIO_API_URL,
   THREESPEAK_API_KEY,

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react'
 import { Upload } from "lucide-react";
 import "../legacy-studio/VideoUploadStep1.scss"
-import { generateVideoThumbnails } from "@rajesh896/video-thumbnails-generator";
+import { generateVideoThumbnails } from "../../utils/videoThumbnails";
 import { toast } from 'sonner'
 import Arrow from "./../../../public/images/arrow.png"
 import { useEmbedUpload } from '../../context/EmbedUploadContext';

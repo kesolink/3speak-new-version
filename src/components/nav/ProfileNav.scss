@@ -297,6 +297,15 @@
   }
 }
 
+// Segmented LabeledToggle rows in profile nav (NSFW + theme).
+// Override the parent .list-wrap .wrap defaults so the pill spans full width.
+.profilenav-container .profilenav-toggle-row {
+  width: 100%;
+  padding: 8px 0;
+  cursor: default;
+  flex-wrap: nowrap;
+}
+
 .profilenav-container .nsfw-toggle {
   width: 36px;
   height: 20px;

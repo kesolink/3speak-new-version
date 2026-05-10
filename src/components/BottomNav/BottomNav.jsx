@@ -1,12 +1,15 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq } from "react-icons/md";
+import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq, MdMic } from "react-icons/md";
 import { IoAddCircleOutline, IoPower, IoCloudUploadSharp, IoShareOutline } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
+import { HiInformationCircle } from "react-icons/hi";
 import { GiAstronautHelmet } from "react-icons/gi";
 import { RiWallet3Fill } from "react-icons/ri";
 import { Clapperboard } from "lucide-react";
 import { useAppStore } from "../../lib/store";
+import LabeledToggle from "../LabeledToggle/LabeledToggle";
 import ShortsIcon from "../icons/ShortsIcon";
+import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { FEATURE_EDITOR } from "../../utils/config";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -19,12 +22,11 @@ const SWIPE_TABS = ["/", "/shorts", "/discover", "/audio"];
 const BottomNav = ({ openLoginModal }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { authenticated, user, showNsfw, setShowNsfw } = useAppStore();
+  const { authenticated, user, showNsfw, setShowNsfw, theme, toggleTheme, sidebarHidden, setSidebarHidden } = useAppStore();
+  const livePodsCount = useOpenPodsCount();
   const path = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [landscapeHidden, setLandscapeHidden] = useState(true);
-  const lastScrollY = useRef(0);
   const menuRef = useRef(null);
   const uploadRef = useRef(null);
 
@@ -71,44 +73,7 @@ const BottomNav = ({ openLoginModal }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen, uploadOpen]);
 
-  // Landscape watch page: show bottom nav on scroll up, hide on scroll down
-  // Auto-hide after 2s when user reaches the top
-  const hideTimerRef = useRef(null);
-
-  useEffect(() => {
-    const isLandscapeWatch = () =>
-      path === '/watch' &&
-      window.matchMedia('(orientation: landscape) and (max-height: 500px)').matches;
-
-    const onScroll = () => {
-      if (!isLandscapeWatch()) {
-        setLandscapeHidden(true);
-        if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
-        return;
-      }
-      const currentY = window.scrollY;
-
-      // Clear any pending auto-hide timer on new scroll
-      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
-
-      if (currentY < lastScrollY.current) {
-        setLandscapeHidden(false); // scrolling up → show
-
-        // At the top → auto-hide after 2s
-        if (currentY <= 5) {
-          hideTimerRef.current = setTimeout(() => setLandscapeHidden(true), 2000);
-        }
-      } else if (currentY > lastScrollY.current && currentY > 80) {
-        setLandscapeHidden(true); // scrolling down → hide
-      }
-      lastScrollY.current = currentY;
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    };
-  }, [path]);
+  // (Hide-on-scroll behavior was removed — the bar is now always visible.)
 
   // Close menus on route change
   useEffect(() => {
@@ -200,10 +165,15 @@ const BottomNav = ({ openLoginModal }) => {
   };
 
   return createPortal(
-    <nav className={`bottom-nav${path === '/watch' ? ' bottom-nav--watch' : ''}${landscapeHidden ? ' bottom-nav--landscape-hidden' : ''}`} ref={menuRef}>
+    <nav className={`bottom-nav${path === '/watch' ? ' bottom-nav--watch' : ''}`} ref={menuRef}>
       <Link to="/" className={`bottom-nav-item ${isActive("/") ? "active" : ""}`}>
         <MdOutlineHome className="bottom-nav-icon" />
         <span>Home</span>
+      </Link>
+
+      <Link to="/audio" className={`bottom-nav-item ${isActive("/audio") ? "active" : ""}`}>
+        <MdGraphicEq className="bottom-nav-icon" />
+        <span>Audio</span>
       </Link>
 
       <Link to="/shorts" className={`bottom-nav-item ${isShortsActive ? "active" : ""}`}>
@@ -211,14 +181,14 @@ const BottomNav = ({ openLoginModal }) => {
         <span>Shorts</span>
       </Link>
 
-      <Link to="/discover" className={`bottom-nav-item ${isActive("/discover") ? "active" : ""}`}>
-        <MdOutlineSearch className="bottom-nav-icon" />
-        <span>Explore</span>
-      </Link>
-
-      <Link to="/audio" className={`bottom-nav-item ${isActive("/audio") ? "active" : ""}`}>
-        <MdGraphicEq className="bottom-nav-icon" />
-        <span>Audio</span>
+      <Link to="/openpods" className={`bottom-nav-item ${isActive("/openpods") ? "active" : ""}`}>
+        <span className="bottom-nav-icon-wrap">
+          <MdMic className="bottom-nav-icon" />
+          {livePodsCount > 0 && (
+            <span className="bottom-nav-live-dot" aria-label={`${livePodsCount} live`} />
+          )}
+        </span>
+        <span>OpenPods</span>
       </Link>
 
       <a href="#" className={`bottom-nav-item ${menuOpen ? "active" : ""}`} onClick={handleProfileClick}>
@@ -249,12 +219,39 @@ const BottomNav = ({ openLoginModal }) => {
           <Link to={`/wallet/${user}`} className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <RiWallet3Fill className="bottom-nav-menu-icon" /> Wallet
           </Link>
-          <button type="button" className="bottom-nav-menu-item nsfw-toggle-wrap" role="switch" aria-checked={showNsfw} onClick={() => setShowNsfw(prev => !prev)}>
-            <span className="nsfw-label">Show NSFW</span>
-            <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
-              <div className="nsfw-toggle-thumb" />
-            </div>
-          </button>
+          <div className="bottom-nav-menu-item bottom-nav-menu-toggle">
+            <LabeledToggle
+              leftLabel="Hide NSFW"
+              rightLabel="Show NSFW"
+              value={showNsfw}
+              onChange={(v) => setShowNsfw(v)}
+              ariaLabel="Toggle NSFW content"
+            />
+          </div>
+          <div className="bottom-nav-menu-item bottom-nav-menu-toggle">
+            <LabeledToggle
+              leftLabel="Light mode"
+              rightLabel="Dark mode"
+              value={theme === 'dark'}
+              onChange={(wantDark) => {
+                if ((theme === 'dark') !== wantDark) toggleTheme();
+              }}
+              ariaLabel="Toggle theme"
+            />
+          </div>
+          <div className="bottom-nav-menu-item bottom-nav-menu-toggle">
+            <LabeledToggle
+              leftLabel="Show sidebar"
+              rightLabel="Hide sidebar"
+              value={!!sidebarHidden}
+              onChange={(hide) => setSidebarHidden(hide)}
+              ariaLabel="Toggle sidebar visibility"
+            />
+          </div>
+          <div className="bottom-nav-menu-divider" />
+          <Link to="/about" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
+            <HiInformationCircle className="bottom-nav-menu-icon" /> About 3Speak
+          </Link>
           {!isStandalone && (installPrompt || isIOS) && (
             <>
               <div className="bottom-nav-menu-divider" />

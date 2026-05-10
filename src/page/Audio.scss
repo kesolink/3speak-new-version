@@ -34,9 +34,59 @@
 .audio-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 4px;
+}
+
+// ─── Type filter ────────────────────
+.audio-type-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 3px;
+  margin-right: auto;
+  flex-wrap: wrap;
+}
+
+.audio-type-chip {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+
+  &.active {
+    background: var(--accent-primary);
+    color: #fff;
+  }
+
+  &:hover:not(.active) {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
+}
+
+.audio-genre-select {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+
+  &:focus { border-color: var(--accent-primary); }
 }
 
 .audio-upload-btn {
@@ -558,6 +608,17 @@
   padding: 4px 2px 0;
 }
 
+// One-line metadata summary shown beneath the username (e.g. "reggae · 103 bpm").
+.audio-tile-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .audio-tile-title {
   display: block;
   font-size: 13px;
@@ -591,13 +652,16 @@
   margin-top: 3px;
 }
 
-.audio-tile-actions {
+// Action buttons live inside the thumbnail (top-right of cover) so they
+// stay anchored to the artwork in both the compact and detailed variants.
+.audio-tile-cover .audio-tile-actions {
   position: absolute;
   top: 6px;
   right: 6px;
   display: none;
   flex-direction: column;
   gap: 4px;
+  z-index: 2;
   .audio-tile:hover & { display: flex; }
 }
 
@@ -784,10 +848,13 @@
 }
 
 .audio-np-progress {
-  height: 3px;
+  height: 6px;
   background: var(--border-light);
   cursor: pointer;
   overflow: hidden;
+  transition: height 0.12s ease;
+
+  &:hover { height: 10px; }
 }
 
 .audio-np-progress-fill {

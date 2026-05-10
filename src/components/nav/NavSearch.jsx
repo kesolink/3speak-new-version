@@ -281,7 +281,7 @@ function NavSearch() {
   const hasResults = Object.keys(grouped).length > 0;
 
   return (
-    <div className="navsearch-wrap" ref={panelRef}>
+    <div className={`navsearch-wrap${searchTerm ? ' has-value' : ''}`} ref={panelRef}>
       <div className="navsearch-input-wrap" ref={suggestWrapRef}>
         <svg xmlns="http://www.w3.org/2000/svg" className="navsearch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="7" />

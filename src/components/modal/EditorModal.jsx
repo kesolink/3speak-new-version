@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Loader2 } from 'lucide-react';
-import { generateVideoThumbnails } from '@rajesh896/video-thumbnails-generator';
+import { generateVideoThumbnails } from '../../utils/videoThumbnails';
 import { getEditorUrl } from '../../utils/config';
 import { useAppStore } from '../../lib/store';
 import { useEmbedUpload } from '../../context/EmbedUploadContext';

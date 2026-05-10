@@ -10,9 +10,11 @@ const PLAYLIST_PREFIX = '3speak_playlist_';
  * @param {string} playlistId - Optional custom playlist ID
  * @param {string[]} tags - Optional tags
  * @param {string|null} type - Optional content type (e.g. 'audio'); stored under json_metadata.type
+ * @param {object|null} extraMeta - Additional fields merged into json_metadata
+ *                                  (e.g. { album: { credits, musicStyle } } for an audio album)
  * @returns {Promise<object>} Result from Aioha
  */
-export async function createPlaylist(name, access = 'public', playlistId = null, tags = [], type = null) {
+export async function createPlaylist(name, access = 'public', playlistId = null, tags = [], type = null, extraMeta = null) {
   const payload = {
     name,
     access,
@@ -25,6 +27,7 @@ export async function createPlaylist(name, access = 'public', playlistId = null,
   const meta = {};
   if (tags.length > 0) meta.tags = tags;
   if (type) meta.type = type;
+  if (extraMeta && typeof extraMeta === 'object') Object.assign(meta, extraMeta);
   if (Object.keys(meta).length > 0) {
     payload.json_metadata = JSON.stringify(meta);
   }

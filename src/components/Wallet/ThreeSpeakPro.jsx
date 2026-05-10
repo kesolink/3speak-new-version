@@ -10,24 +10,46 @@ import {
   getVscBalance,
   depositAndCallContract,
   SUBS_CONTRACT_ID,
+  SUB_OFFER_ID,
+  ONETIME_OFFER_ID,
+  THIRD_OFFER_ID,
 } from '../../utils/vscContract';
 import { KeyTypes } from '@aioha/aioha';
 import './ThreeSpeakPro.scss';
 
-const SUB_OFFER_ID = 5;
-const ONETIME_OFFER_ID = 6;
+// Re-exported for any inline reference inside this file. Source of
+// truth is `../../utils/vscContract` (which reads from env vars).
+void THIRD_OFFER_ID; // available for the third offer once wired up
 
 const INTERVAL_LABELS = {
+  daily: 'Daily',
   monthly: 'Monthly',
-  quarterly: 'Quarterly',
   yearly: 'Yearly',
 };
 
 const INTERVAL_DURATIONS = {
+  daily: '24 hours',
   monthly: '30 days',
-  quarterly: '90 days',
   yearly: '365 days',
 };
+
+// Public-facing pricing shown whenever the on-chain offer data isn't
+// loaded yet (no offer IDs configured / contract still being deployed).
+// As soon as the env-driven offer IDs return real intervals, those win
+// over this static map.
+const STATIC_INTERVALS = {
+  daily: 1,
+  monthly: 10,
+  yearly: 100,
+};
+
+// Benefits listed at the top of the plans card so users see what
+// they're getting before the price comparison.
+const BENEFITS = [
+  'Record and upload OpenPods videos',
+  'Prioritized transcription with 10 additional languages',
+  'Additional benefits will follow automatically very soon',
+];
 
 function ThreeSpeakPro() {
   const { user, authenticated } = useAppStore();
@@ -155,8 +177,14 @@ function ThreeSpeakPro() {
     }
   }, [fetchOffer, fetchSubscription, fetchBalance, loggedIn]);
 
-  const intervals = subOffer ? parseIntervals(subOffer.intervals) : {};
-  const subAsset = subOffer?.asset || 'hive';
+  // When the on-chain offer hasn't been published yet (no offer IDs
+  // configured), fall back to the static daily/monthly/yearly pricing
+  // so the page can still preview what the plans will look like.
+  const contractIntervals = subOffer ? parseIntervals(subOffer.intervals) : {};
+  const intervals = Object.keys(contractIntervals).length > 0
+    ? contractIntervals
+    : STATIC_INTERVALS;
+  const subAsset = subOffer?.asset || 'hbd';
   const subAssetUpper = subAsset.toUpperCase();
   const onetimePrice = onetimeOffer ? (parseFloat(onetimeOffer.one_time) || 0) : 0;
   const onetimeAsset = onetimeOffer?.asset || 'hive';
@@ -364,17 +392,33 @@ function ThreeSpeakPro() {
         </div>
       )}
 
+      {/* Benefits — always visible so visitors can see what 3Speak Pro
+          unlocks even before the on-chain offers are live. */}
+      <ul className="tsp-benefits">
+        {BENEFITS.map((benefit) => (
+          <li key={benefit} className="tsp-benefits-item">
+            <i className="fa-solid fa-check" />
+            <span>{benefit}</span>
+          </li>
+        ))}
+      </ul>
+
       {loadingOffer ? (
         <div className="tsp-loading">
           <div className="tsp-skeleton" />
           <div className="tsp-skeleton tsp-skeleton-sm" />
         </div>
-      ) : !hasAnyOffer ? (
-        <div className="tsp-empty">
-          Subscription service is not available yet. Check back soon.
-        </div>
       ) : (
         <>
+          {/* Coming-soon banner shown until the on-chain offers are
+              configured. The plans below preview the planned pricing
+              but the Subscribe button is disabled. */}
+          {!hasAnyOffer && (
+            <div className="tsp-coming-soon">
+              <i className="fa-solid fa-clock" />
+              <span>Subscription service is launching soon — pricing preview below.</span>
+            </div>
+          )}
           {/* Active one-time purchase */}
           {onetimeIsActive && onetimePurchase && (
             <div className="tsp-onetime-active">
@@ -492,7 +536,8 @@ function ThreeSpeakPro() {
                   {interval === 'yearly' && <span className="tsp-plan-badge">Save 2 months</span>}
                   <span className="tsp-plan-name">{INTERVAL_LABELS[interval] || interval}</span>
                   <span className="tsp-plan-price">{price.toFixed(3)} {subAssetUpper}</span>
-                  {subOffer.description && <span className="tsp-plan-desc">{subOffer.description}</span>}
+                  <span className="tsp-plan-desc">{INTERVAL_DURATIONS[interval] || ''}</span>
+                  {subOffer?.description && <span className="tsp-plan-desc">{subOffer.description}</span>}
                 </div>
               ))}
             </div>
@@ -500,10 +545,13 @@ function ThreeSpeakPro() {
             <button
               className="tsp-subscribe-btn"
               onClick={handlePurchase}
-              disabled={processing || !selectedPlan || isActive || onetimeIsActive}
+              disabled={processing || !selectedPlan || isActive || onetimeIsActive || !hasAnyOffer}
+              title={!hasAnyOffer ? 'On-chain offer not yet configured' : undefined}
             >
               {processing ? (
                 <><i className="fa-solid fa-spinner fa-spin" /> Processing…</>
+              ) : !hasAnyOffer ? (
+                <><i className="fa-solid fa-clock" /> Coming Soon</>
               ) : selectedPlan === 'onetime' ? (
                 <><i className="fa-solid fa-bolt" /> Buy 3Speak Pro</>
               ) : (

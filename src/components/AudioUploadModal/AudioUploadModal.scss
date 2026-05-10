@@ -287,7 +287,17 @@
 .audio-upload-titles {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+.audio-upload-title-card {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-light, #333);
+  border-radius: 10px;
+  background: var(--bg-secondary);
 }
 
 .audio-upload-title-row {
@@ -315,8 +325,144 @@
   font-size: 14px;
   outline: none;
   transition: border-color 0.15s ease;
+  font-family: inherit;
 
   &:focus { border-color: var(--accent-primary); }
+}
+
+.audio-upload-credits-input {
+  resize: vertical;
+  min-height: 60px;
+}
+
+// Album form: credits / year / label on one row
+.audio-upload-album-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.5fr;
+  gap: 8px;
+
+  @include respond(phone) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Cover image upload zone
+.audio-upload-album-thumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 18px 12px;
+  border: 2px dashed var(--border-light, #444);
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  text-align: center;
+  min-height: 120px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover { border-color: var(--accent-primary); }
+
+  svg { color: var(--accent-primary); }
+
+  span {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  small {
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  &.has-image {
+    padding: 0;
+    border-style: solid;
+    border-color: var(--border-light, #444);
+    overflow: hidden;
+    aspect-ratio: 1 / 1;
+    max-height: 220px;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+  }
+}
+
+.audio-upload-album-thumb-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover { background: rgba(0, 0, 0, 0.85); }
+}
+
+.audio-upload-type-select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light, #333);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-width: 110px;
+
+  &:focus { border-color: var(--accent-primary); }
+}
+
+.audio-upload-music-row {
+  display: flex;
+  gap: 8px;
+  padding-left: 34px; // align under title input
+
+  .audio-upload-genre-input {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-light, #333);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 13px;
+    outline: none;
+    &:focus { border-color: var(--accent-primary); }
+  }
+
+  .audio-upload-bpm-input {
+    width: 90px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-light, #333);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    &:focus { border-color: var(--accent-primary); }
+  }
+}
+
+.audio-upload-title-meta-line {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-left: 34px;
 }
 
 // ─── Playlist step ──────────────────
@@ -518,6 +664,47 @@
 
 .audio-upload-review-row.is-success { border-color: rgba(46, 160, 67, 0.5); }
 .audio-upload-review-row.is-error { border-color: rgba(229, 57, 53, 0.5); }
+
+// Inline failure block + retry control
+.audio-upload-review-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  margin: -2px 0 4px;
+  border-radius: 8px;
+  background: rgba(229, 57, 53, 0.08);
+  border: 1px solid rgba(229, 57, 53, 0.35);
+
+  .audio-upload-review-error-msg {
+    margin: 0;
+    font-size: 12px;
+    color: rgb(255, 130, 125);
+    word-break: break-word;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .audio-upload-btn-primary {
+    flex-shrink: 0;
+    padding: 6px 14px;
+  }
+}
+
+.audio-upload-review-failed-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(229, 57, 53, 0.08);
+  border: 1px solid rgba(229, 57, 53, 0.35);
+  font-size: 13px;
+  color: rgb(255, 130, 125);
+  margin-bottom: 8px;
+}
 
 // ─── Footer ─────────────────────────
 .audio-upload-footer {

@@ -77,6 +77,23 @@ export function EmbedUploadProvider({ children }) {
   const [statusMessages, setStatusMessages] = useState([]);
   const [embedUrl, setEmbedUrl] = useState('');
 
+  // Prefilled state — set when arriving from an external upload (e.g. Hangouts
+  // server-side recording) that already pushed a video to the embed service.
+  // When prefilled, the publish flow skips the TUS upload and goes straight to
+  // thumbnail + Hive post + link, using the captured embed URL.
+  const [prefilled, setPrefilled] = useState(false);
+  const [prefilledPermlink, setPrefilledPermlink] = useState('');
+  const [prefilledOwner, setPrefilledOwner] = useState('');
+  const [prefilledEmbedUrl, setPrefilledEmbedUrl] = useState('');
+
+  const setPrefilledFromQuery = ({ permlink, owner, embedUrl: url }) => {
+    setPrefilled(true);
+    setPrefilledPermlink(permlink || '');
+    setPrefilledOwner(owner || '');
+    setPrefilledEmbedUrl(url || '');
+    setEmbedUrl(url || '');
+  };
+
   const tusUploadRef = useRef(null);
 
   const addMessage = (msg, type = 'info') => {
@@ -132,6 +149,10 @@ export function EmbedUploadProvider({ children }) {
     setBeneficiaryList([]);
     setList([]);
     setRemaingPercent(100);
+    setPrefilled(false);
+    setPrefilledPermlink('');
+    setPrefilledOwner('');
+    setPrefilledEmbedUrl('');
   };
 
   /**
@@ -141,8 +162,14 @@ export function EmbedUploadProvider({ children }) {
    * 3. Link embed video to Hive post
    */
   const publishToEmbed = async () => {
-    if (!videoFile || !user) {
-      toast.error('No video file or user not logged in');
+    if (!user) {
+      toast.error('User not logged in');
+      return;
+    }
+    // For non-prefilled flows we need a local file. Prefilled flows already
+    // have the embed URL handed over from an external uploader.
+    if (!prefilled && !videoFile) {
+      toast.error('No video file');
       return;
     }
     if (!fromStories && !title?.trim()) {
@@ -160,21 +187,31 @@ export function EmbedUploadProvider({ children }) {
 
     setUploading(true);
     setUploadProgress(0);
-    setStatusText('Uploading video...');
-    addMessage('Starting video upload...');
+    setStatusText(prefilled ? 'Preparing publish...' : 'Uploading video...');
+    addMessage(prefilled ? 'Using pre-uploaded video' : 'Starting video upload...');
 
     try {
-      // Generate permlink from description (only if description is non-empty)
+      // For prefilled flows, the permlink was decided by whoever uploaded the
+      // file (e.g. the Hangouts server). Reuse it so the Hive post permlink
+      // matches the embed permlink — that's what the existing /video/{p}/hive
+      // link endpoint expects.
       const trimmedDesc = (description || '').trim();
       const slug = trimmedDesc
         ? trimmedDesc.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 27).replace(/-+$/, '')
         : '';
-      const generatedPermlink = slug ? `${slug}-${Date.now() % 1000}` : '';
+      const generatedPermlink = prefilled && prefilledPermlink
+        ? prefilledPermlink
+        : (slug ? `${slug}-${Date.now() % 1000}` : '');
 
-      // ─── Step 1: TUS upload to embed service ───
-      let capturedEmbedUrl = '';
+      // ─── Step 1: TUS upload to embed service (skipped when prefilled) ───
+      let capturedEmbedUrl = prefilled ? prefilledEmbedUrl : '';
 
-      if (EMBED_DEBUG) {
+      if (prefilled) {
+        // Nothing to upload — the file was already pushed to embed.3speak.tv
+        // by an external uploader. Skip straight to thumbnail + Hive linking.
+        setUploadProgress(100);
+        addMessage('Pre-uploaded video ready');
+      } else if (EMBED_DEBUG) {
         // Debug mode: simulate upload progress without actually uploading
         addMessage('[DEBUG] Simulating upload...');
         for (let pct = 0; pct <= 100; pct += 5) {
@@ -525,6 +562,12 @@ export function EmbedUploadProvider({ children }) {
     statusText, setStatusText,
     statusMessages, setStatusMessages,
     embedUrl, setEmbedUrl,
+    // Prefilled flow (e.g. Hangouts server-side recording)
+    prefilled,
+    prefilledPermlink,
+    prefilledOwner,
+    prefilledEmbedUrl,
+    setPrefilledFromQuery,
     // Entry origin
     fromStories, setFromStories,
     // Original video attribution

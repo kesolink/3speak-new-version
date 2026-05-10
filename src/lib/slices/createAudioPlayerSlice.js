@@ -62,6 +62,9 @@ export const createAudioPlayerSlice = (set, get) => {
         audioCurrent: track,
         audioAutoplayList: Array.isArray(contextItems) ? contextItems : [track],
         audioCurrentTime: 0,
+        // Source of truth for the timeline: the duration stored in the
+        // embed-audio doc (Mongo). Don't probe the <audio> element.
+        audioDuration: Number(track.duration) || 0,
         audioPlayNonce: s.audioPlayNonce + 1,
       }));
     },

@@ -15,21 +15,39 @@ const VSC_NETWORK = import.meta.env.VITE_VSC_NETWORK || 'mainnet';
 export const IS_VSC_TESTNET = VSC_NETWORK === 'testnet';
 export const VSC_NET_ID = IS_VSC_TESTNET ? 'vsc-testnet' : 'vsc-mainnet';
 
+// VSC GraphQL endpoints — overridable via env vars so we can point at
+// staging / a different operator without a code change. Falls back to
+// network-appropriate defaults when the env vars are unset.
+const VSC_GRAPHQL = import.meta.env.VITE_VSC_GRAPHQL || (
+  IS_VSC_TESTNET
+    ? 'https://api-testnet.okinoko.io/api/v1/graphql'
+    : 'https://api.okinoko.io/api/v1/graphql'
+);
 
-const VSC_GRAPHQL = IS_VSC_TESTNET
-  ? 'https://api-testnet.okinoko.io/api/v1/graphql'
-  : 'https://api.okinoko.io/api/v1/graphql';
-
-const HASURA_GRAPHQL = IS_VSC_TESTNET
-  ? 'https://api-testnet.okinoko.io/hasura/v1/graphql'
-  : 'https://api.okinoko.io/hasura/v1/graphql';
+const HASURA_GRAPHQL = import.meta.env.VITE_VSC_HASURA_GRAPHQL || (
+  IS_VSC_TESTNET
+    ? 'https://api-testnet.okinoko.io/hasura/v1/graphql'
+    : 'https://api.okinoko.io/hasura/v1/graphql'
+);
 
 // Hive L1 nodes — testnet uses a different RPC endpoint
 export const HIVE_TESTNET_NODES = ['https://testnet.techcoderx.com'];
 export const HIVE_TESTNET_URL = 'https://testnet.techcoderx.com';
 
-// Contract ID for the Okinoko Subs contract
-export const SUBS_CONTRACT_ID = 'vsc1BWRokrGnCw2J83WtDwM61SgCQ8NCNvTGQB';
+// Contract ID for the Okinoko Subs contract — env-driven so the
+// deployer can swap in a fresh contract address without rebuilding.
+export const SUBS_CONTRACT_ID = import.meta.env.VITE_VSC_SUBS_CONTRACT_ID
+  || 'vsc1BpkPNtC1pBLhxtNn4uE3QkLhudoyzAiXUi';
+
+// Offer IDs configured on the subs contract. Numeric env values come
+// in as strings; coerce with Number() and fall back to the legacy
+// hardcoded IDs so the page still loads if the env isn't set yet.
+export const SUB_OFFER_ID = Number(import.meta.env.VITE_VSC_SUB_OFFER_ID ?? 5);
+export const ONETIME_OFFER_ID = Number(import.meta.env.VITE_VSC_ONETIME_OFFER_ID ?? 6);
+// Third offer slot for an additional product (e.g. a tip / one-off
+// boost). Set VITE_VSC_THIRD_OFFER_ID once the contract publishes the
+// real ID — when 0 / unset, the UI can hide the related option.
+export const THIRD_OFFER_ID = Number(import.meta.env.VITE_VSC_THIRD_OFFER_ID ?? 0);
 
 // RC limit for contract calls
 const DEFAULT_RC_LIMIT = 10000;

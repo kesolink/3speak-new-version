@@ -230,7 +230,10 @@ export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) 
 // Auth happens via httpOnly cookie set during /api/manteauth/exchange — no token in JS.
 const THREESPEAK_API = import.meta.env.VITE_THREESPEAK_API || '/api'
 
+// Honors the VITE_ENABLE_BUTRAUTH=false flag — when disabled, treat ManteAuth
+// state as absent so no manteauth-specific code paths run.
 export const isManteAuthLogin = () => {
+  if (import.meta.env.VITE_ENABLE_BUTRAUTH === 'false') return false;
   return localStorage.getItem('manteauth_login') === 'true'
 }
 

@@ -3,7 +3,7 @@ import { AiohaModal, useAioha } from "@aioha/react-ui";
 import { Providers, KeyTypes } from "@aioha/aioha";
 import { MdEmail } from "react-icons/md";
 import { createPortal } from "react-dom";
-import { ENABLE_METAMASK_SNAP } from "../../utils/config";
+import { ENABLE_METAMASK_SNAP, ENABLE_BUTRAUTH } from "../../utils/config";
 import "./LoginModal.scss";
 
 /**
@@ -171,6 +171,7 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
       />
       {showEmailButton && buttonContainer && createPortal(
         <>
+          {ENABLE_BUTRAUTH && (
           <button
             className="butrauth-login-btn"
             onClick={async (e) => {
@@ -199,6 +200,7 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
             <img src="https://butrauth.com/logo.png" alt="" width={32} height={32} />
             <span>Butter Auth</span>
           </button>
+          )}
           <button
             className="email-login-btn"
             onClick={handleEmailLogin}

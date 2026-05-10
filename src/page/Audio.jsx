@@ -3,12 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAppStore } from '../lib/store';
 import { CHECKER_URL, HIVE_API_URL } from '../utils/config';
-import { MdClose, MdArrowBack, MdCloudUpload } from 'react-icons/md';
+import { MdClose, MdArrowBack } from 'react-icons/md';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import AudioAuthorBadge from './AudioAuthorBadge';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import AddToPlaylistModal from '../components/AddToPlaylistModal/AddToPlaylistModal';
-import AudioUploadModal from '../components/AudioUploadModal/AudioUploadModal';
 import { AudioShareDropdown } from '../components/GlobalAudioPlayer/GlobalAudioPlayer';
 import AudioTile, { AudioTileSkeleton } from '../components/AudioTile/AudioTile';
 import { isLoggedIn } from '../hive-api/aioha';
@@ -35,10 +34,28 @@ const DATE_PRESETS = [
 
 const DEFAULT_DATE_PRESET = 30;
 
-// Logarithmic-feel snap stops from 5s to 4h
-const DURATION_STOPS = [5, 10, 15, 30, 45, 60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 10800, 14400];
-const DEFAULT_MIN_DUR_IDX = 1;  // 10s
-const DEFAULT_MAX_DUR_IDX = 12; // 1h
+// Logarithmic-feel snap stops from 0s (no minimum) to 4h
+const DURATION_STOPS = [0, 5, 10, 15, 30, 45, 60, 120, 180, 300, 600, 900, 1800, 3600, 7200, 10800, 14400];
+
+// Available content types for the type filter (matches the existing
+// 3speak audio categories on the embed-audio docs).
+const TYPE_FILTERS = [
+  { value: 'song',          label: 'Music' },
+  { value: 'podcast',       label: 'Podcasts' },
+  { value: 'voice_message', label: 'Voice' },
+  { value: 'audiobook',     label: 'Audiobooks' },
+  { value: 'interview',     label: 'Interviews' },
+];
+
+// Music genres for the dropdown when type filter = music. Same list the
+// upload wizard uses, so labels stay in sync.
+const MUSIC_GENRE_FILTERS = [
+  'Electronic', 'Hip-Hop', 'Rock', 'Pop', 'Jazz', 'Classical', 'Folk',
+  'Country', 'Reggae', 'R&B', 'Metal', 'Ambient', 'Funk', 'Soul', 'Blues',
+  'Indie', 'Latin', 'World', 'House', 'Techno', 'Drum & Bass', 'Lo-Fi',
+];
+const DEFAULT_MIN_DUR_IDX = 2;  // 10s
+const DEFAULT_MAX_DUR_IDX = 13; // 1h
 
 function fmtDur(sec) {
   if (sec < 60) return `${sec}s`;
@@ -50,7 +67,7 @@ function fmtDur(sec) {
   return Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`;
 }
 
-const FILTER_STORAGE_KEY = 'audio-filters-v2';
+const FILTER_STORAGE_KEY = 'audio-filters-v3';
 
 function loadFilters() {
   const fallback = {
@@ -58,6 +75,8 @@ function loadFilters() {
     datePreset: DEFAULT_DATE_PRESET,
     minDurIdx: DEFAULT_MIN_DUR_IDX,
     maxDurIdx: DEFAULT_MAX_DUR_IDX,
+    type: '',
+    genre: '',
   };
   try {
     const s = localStorage.getItem(FILTER_STORAGE_KEY);
@@ -69,11 +88,14 @@ function loadFilters() {
     const tags = Array.isArray(f.activeTags)
       ? f.activeTags.filter(t => typeof t === 'string' && t)
       : (typeof f.activeTag === 'string' && f.activeTag ? [f.activeTag] : []);
+    const validType = TYPE_FILTERS.some((t) => t.value === f.type) ? f.type : '';
     return {
       activeTags: tags,
       datePreset: validDate,
       minDurIdx: validIdx(f.minDurIdx, DEFAULT_MIN_DUR_IDX),
       maxDurIdx: validIdx(f.maxDurIdx, DEFAULT_MAX_DUR_IDX),
+      type: validType,
+      genre: typeof f.genre === 'string' ? f.genre : '',
     };
   } catch {
     return fallback;
@@ -90,6 +112,8 @@ function Audio() {
   const [datePreset, setDatePreset] = useState(() => loadFilters().datePreset);
   const [minDurIdx, setMinDurIdx] = useState(() => loadFilters().minDurIdx);
   const [maxDurIdx, setMaxDurIdx] = useState(() => loadFilters().maxDurIdx);
+  const [typeFilter, setTypeFilter] = useState(() => loadFilters().type);
+  const [genreFilter, setGenreFilter] = useState(() => loadFilters().genre);
   const [selectedCreator, setSelectedCreator] = useState(null);
 
   const toggleTag = useCallback((name) => {
@@ -98,12 +122,13 @@ function Audio() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ activeTags, datePreset, minDurIdx, maxDurIdx }));
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
+        activeTags, datePreset, minDurIdx, maxDurIdx, type: typeFilter, genre: genreFilter,
+      }));
     } catch {}
-  }, [activeTags, datePreset, minDurIdx, maxDurIdx]);
+  }, [activeTags, datePreset, minDurIdx, maxDurIdx, typeFilter, genreFilter]);
 
   // Upload modal
-  const [showUploadModal, setShowUploadModal] = useState(false);
 
   // Vote + playlist + share targets for the tile-level interactions
   // (the now-playing bar manages its own copies inside <GlobalAudioPlayer />)
@@ -122,7 +147,9 @@ function Audio() {
   const maxDur = DURATION_STOPS[maxDurIdx];
   const durationActive = minDurIdx !== DEFAULT_MIN_DUR_IDX || maxDurIdx !== DEFAULT_MAX_DUR_IDX;
   const dateActive = datePreset !== DEFAULT_DATE_PRESET;
-  const isFiltered = activeTags.length > 0 || dateActive || durationActive;
+  const typeActive = !!typeFilter;
+  const genreActive = typeFilter === 'song' && !!genreFilter;
+  const isFiltered = activeTags.length > 0 || dateActive || durationActive || typeActive || genreActive;
 
   // Build query params for filtered mode
   const filterParams = useMemo(() => {
@@ -132,10 +159,12 @@ function Audio() {
     if (datePreset) p.set('from', datePreset);
     p.set('min_duration', String(minDur));
     p.set('max_duration', String(maxDur));
+    if (typeFilter) p.set('category', typeFilter);
+    if (typeFilter === 'song' && genreFilter) p.set('genre', genreFilter);
     if (showNsfw) p.set('nsfw', 'true');
     p.set('sort', 'popular');
     return p.toString();
-  }, [activeTags, datePreset, minDur, maxDur, showNsfw]);
+  }, [activeTags, datePreset, minDur, maxDur, typeFilter, genreFilter, showNsfw]);
 
   // ─── Data queries ──────────────────
   const groupedParams = useMemo(() => {
@@ -149,14 +178,20 @@ function Audio() {
 
   const { data: grouped, isLoading: groupedLoading } = useQuery({
     queryKey: ['audio-grouped', groupedParams],
-    queryFn: async () => { const { data } = await axios.get(`${CHECKER_URL}/audio/grouped?${groupedParams}`); return data.groups || {}; },
+    queryFn: async () => {
+      const { data } = await axios.get(`${CHECKER_URL}/audio/grouped?${groupedParams}`);
+      return data.groups || {};
+    },
     enabled: !isFiltered && !selectedCreator,
   });
 
   // Filtered results (when tag or date is active)
   const { data: filteredAudio, isLoading: filteredLoading } = useQuery({
     queryKey: ['audio-filtered', filterParams],
-    queryFn: async () => { const { data } = await axios.get(`${CHECKER_URL}/audio?${filterParams}`); return data.audio || []; },
+    queryFn: async () => {
+      const { data } = await axios.get(`${CHECKER_URL}/audio?${filterParams}`);
+      return data.audio || [];
+    },
     enabled: isFiltered && !selectedCreator,
   });
 
@@ -167,13 +202,18 @@ function Audio() {
     if (datePreset) p.set('from', datePreset);
     p.set('min_duration', String(minDur));
     p.set('max_duration', String(maxDur));
+    if (typeFilter) p.set('category', typeFilter);
+    if (typeFilter === 'song' && genreFilter) p.set('genre', genreFilter);
     if (showNsfw) p.set('nsfw', 'true');
     return p.toString();
-  }, [activeTags, datePreset, minDur, maxDur, showNsfw]);
+  }, [activeTags, datePreset, minDur, maxDur, typeFilter, genreFilter, showNsfw]);
 
   const { data: creators } = useQuery({
     queryKey: ['audio-creators', creatorsParams],
-    queryFn: async () => { const { data } = await axios.get(`${CHECKER_URL}/audio/creators?${creatorsParams}`); return data.creators || []; },
+    queryFn: async () => {
+      const { data } = await axios.get(`${CHECKER_URL}/audio/creators?${creatorsParams}`);
+      return data.creators || [];
+    },
   });
 
   const { data: followingList } = useQuery({
@@ -251,6 +291,8 @@ function Audio() {
     setDatePreset(DEFAULT_DATE_PRESET);
     setMinDurIdx(DEFAULT_MIN_DUR_IDX);
     setMaxDurIdx(DEFAULT_MAX_DUR_IDX);
+    setTypeFilter('');
+    setGenreFilter('');
   };
 
   return (
@@ -262,14 +304,35 @@ function Audio() {
         </header>
       )}
 
-      {/* Toolbar: upload + date presets */}
+      {/* Date presets + type / genre filters */}
       {!selectedCreator && (
         <div className="audio-toolbar">
-          {loggedIn && (
-            <button className="audio-upload-btn" onClick={() => setShowUploadModal(true)} title="Upload audio">
-              <MdCloudUpload size={18} />
-              <span className="audio-upload-label">Upload</span>
-            </button>
+          <div className="audio-type-filter">
+            <button
+              className={`audio-type-chip${typeFilter === '' ? ' active' : ''}`}
+              onClick={() => { setTypeFilter(''); setGenreFilter(''); }}
+            >All</button>
+            {TYPE_FILTERS.map((opt) => (
+              <button
+                key={opt.value}
+                className={`audio-type-chip${typeFilter === opt.value ? ' active' : ''}`}
+                onClick={() => {
+                  setTypeFilter(opt.value);
+                  if (opt.value !== 'song') setGenreFilter('');
+                }}
+              >{opt.label}</button>
+            ))}
+          </div>
+          {typeFilter === 'song' && (
+            <select
+              className="audio-genre-select"
+              value={genreFilter}
+              onChange={(e) => setGenreFilter(e.target.value)}
+              aria-label="Music genre"
+            >
+              <option value="">Any genre</option>
+              {MUSIC_GENRE_FILTERS.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
           )}
           <div className="audio-date-presets">
             {DATE_PRESETS.map(p => (
@@ -399,8 +462,6 @@ function Audio() {
         />
       )}
 
-      {/* Upload modal */}
-      <AudioUploadModal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} />
     </div>
   );
 }

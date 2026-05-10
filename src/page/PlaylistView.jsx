@@ -398,9 +398,15 @@ function PlaylistView() {
       {/* Playlist Header */}
       <div className="playlist-header">
         <div className="playlist-info">
-          <div className="playlist-icon-wrap">
-            <MdPlaylistPlay className="playlist-icon" />
-          </div>
+          {playlist.thumbnail ? (
+            <div className="playlist-cover-wrap">
+              <img className="playlist-cover" src={playlist.thumbnail} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            </div>
+          ) : (
+            <div className="playlist-icon-wrap">
+              <MdPlaylistPlay className="playlist-icon" />
+            </div>
+          )}
           <div className="playlist-details">
             <h1>{playlist.name}</h1>
             <div className="playlist-meta">
@@ -408,10 +414,19 @@ function PlaylistView() {
                 @{playlist.owner}
               </Link>
               <span className="separator">•</span>
-              <span>{allVideos.length} videos</span>
+              <span>{allVideos.length} {allVideos.length === 1 ? 'item' : 'items'}</span>
               <span className="separator">•</span>
               <span>Created {dayjs.unix(playlist.created_at).fromNow()}</span>
             </div>
+            {playlist.metadata?.album && (
+              <div className="playlist-album-meta">
+                {playlist.metadata.album.musicStyle && <span><strong>Genre:</strong> {playlist.metadata.album.musicStyle}</span>}
+                {playlist.metadata.album.year && <span><strong>Year:</strong> {playlist.metadata.album.year}</span>}
+                {playlist.metadata.album.label && <span><strong>Label:</strong> {playlist.metadata.album.label}</span>}
+                {playlist.metadata.album.credits && <span><strong>Credits:</strong> {playlist.metadata.album.credits}</span>}
+                {playlist.metadata.album.description && <p className="playlist-album-desc">{playlist.metadata.album.description}</p>}
+              </div>
+            )}
           </div>
         </div>
 
@@ -487,7 +502,7 @@ function PlaylistView() {
           ))}
         </div>
         {dateFilter !== 'all' && (
-          <span className="filter-count">{displayVideos.length} of {allVideos.length} videos</span>
+          <span className="filter-count">{displayVideos.length} of {allVideos.length} items</span>
         )}
       </div>
 
@@ -564,8 +579,16 @@ function PlaylistView() {
             {displayVideos.map((video) => video.isAudio && video.audioDoc ? (
               <AudioTile
                 key={`${video.author}-${video.permlink}`}
-                item={video.audioDoc}
-                contextItems={displayVideos.filter(v => v.isAudio && v.audioDoc).map(v => v.audioDoc)}
+                /* Override the per-track thumbnail with the album cover when this
+                   playlist has one — so all tracks share the album art. */
+                item={playlist?.thumbnail
+                  ? { ...video.audioDoc, thumbnail_url: playlist.thumbnail }
+                  : video.audioDoc}
+                contextItems={displayVideos.filter(v => v.isAudio && v.audioDoc).map(v => (
+                  playlist?.thumbnail
+                    ? { ...v.audioDoc, thumbnail_url: playlist.thumbnail }
+                    : v.audioDoc
+                ))}
               />
             ) : (
               <Link

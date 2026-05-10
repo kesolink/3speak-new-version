@@ -8,8 +8,8 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { KeyTypes } from '@aioha/aioha';
 import { useMyPlaylists } from '../../hooks/useMyPlaylists';
-import { createPlaylist } from '../../utils/playlistOperations';
 import { uploadAudioTo3Speak, getSnapsContainer } from '../../utils/audioUpload';
+import { uploadThumbnail } from '../../utils/uploadThumbnail';
 import { broadcastWithAioha } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
 import './AudioUploadModal.scss';
@@ -44,6 +44,27 @@ const STEPS = [
 const MAX_RECORD_SEC = 300;
 const AUDIO_EXT_RE = /\.(mp3|wav|ogg|webm|m4a|flac|aac)$/i;
 
+// Spacing between sequential broadcasts so the Hive RPC + audio service
+// don't see a burst from a single user (avoids rate-limit / dupe-window issues).
+const PUBLISH_DELAY_MS = 3500;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Content type per track (matches the existing 3speak audio categories)
+const TRACK_TYPES = [
+  { value: 'voice_message', label: 'Voice / Snap' },
+  { value: 'song',          label: 'Music' },
+  { value: 'podcast',       label: 'Podcast' },
+  { value: 'audiobook',     label: 'Audiobook' },
+  { value: 'interview',     label: 'Interview' },
+];
+
+// Hardcoded suggestions; users can still type any genre into the field.
+const MUSIC_GENRES = [
+  'Electronic', 'Hip-Hop', 'Rock', 'Pop', 'Jazz', 'Classical', 'Folk',
+  'Country', 'Reggae', 'R&B', 'Metal', 'Ambient', 'Funk', 'Soul', 'Blues',
+  'Indie', 'Latin', 'World', 'House', 'Techno', 'Drum & Bass', 'Lo-Fi',
+];
+
 function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -75,7 +96,7 @@ function probeDuration(blob) {
   });
 }
 
-function AudioUploadModal({ isOpen, onClose }) {
+function AudioUploadModal({ isOpen, onClose, initialTrack }) {
   const [step, setStep] = useState(1);
   const [tracks, setTracks] = useState([]);
   const [playlistChoice, setPlaylistChoice] = useState(null);
@@ -99,7 +120,7 @@ function AudioUploadModal({ isOpen, onClose }) {
   const { user } = useAppStore();
   const [pendingPlaylist, setPendingPlaylist] = useState(null); // { id, name, access } shown while waiting for indexer
 
-  const addBlobAsTrack = useCallback(async (blob, filename, source = 'file') => {
+  const addBlobAsTrack = useCallback(async (blob, filename, source = 'file', overrideType = null) => {
     const url = URL.createObjectURL(blob);
     objectUrlsRef.current.add(url);
     const dur = await probeDuration(blob);
@@ -111,8 +132,35 @@ function AudioUploadModal({ isOpen, onClose }) {
       durationSec: dur,
       objectUrl: url,
       source,
+      // Optional metadata captured in the Titles step. Caller may
+      // override the auto-derived type — e.g. an OpenPods recording
+      // hand-off pre-fills 'podcast'.
+      type: overrideType ?? (source === 'record' ? 'voice_message' : 'song'),
+      genre: '',
+      bpm: '',
     }]);
   }, []);
+
+  // When an initialTrack lands (e.g. an OpenPods recording handed off
+  // from the Hangouts SDK), seed it as the first track on open. The
+  // ref guard ensures one initial blob per open cycle even if the
+  // parent re-renders mid-flight or the user dismisses then reopens.
+  const consumedInitialRef = useRef(false);
+  useEffect(() => {
+    if (!isOpen) {
+      consumedInitialRef.current = false;
+      return;
+    }
+    if (consumedInitialRef.current) return;
+    if (!initialTrack || !initialTrack.blob) return;
+    consumedInitialRef.current = true;
+    addBlobAsTrack(
+      initialTrack.blob,
+      initialTrack.filename || 'openpod-recording.ogg',
+      'record',
+      initialTrack.type ?? null,
+    );
+  }, [isOpen, initialTrack, addBlobAsTrack]);
 
   const handleFiles = useCallback(async (fileList) => {
     const files = Array.from(fileList || []).filter(f => f.type.startsWith('audio/') || AUDIO_EXT_RE.test(f.name));
@@ -141,6 +189,11 @@ function AudioUploadModal({ isOpen, onClose }) {
 
   const setTitle = (id, title) => {
     setTracks(prev => prev.map(t => t.id === id ? { ...t, title } : t));
+  };
+
+  // Generic patcher for the per-track metadata fields (type/genre/bpm)
+  const patchTrack = (id, patch) => {
+    setTracks(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t));
   };
 
   const stopRecordTimer = () => {
@@ -213,7 +266,7 @@ function AudioUploadModal({ isOpen, onClose }) {
     }
   }, [pendingPlaylist, playlists]);
 
-  const handleCreatePlaylist = useCallback(async ({ name, access }) => {
+  const handleCreatePlaylist = useCallback(async ({ name, access, credits, musicStyle, year, label, description, thumbnail }) => {
     if (!user) { toast.error('Sign in first'); return; }
     const trimmed = name.trim();
     if (!trimmed) { toast.error('Enter a playlist name'); return; }
@@ -222,7 +275,54 @@ function AudioUploadModal({ isOpen, onClose }) {
       : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     try {
       toast.info(`Creating playlist "${trimmed}"…`);
-      await createPlaylist(trimmed, access, playlistId, [], 'audio');
+      // Build the album payload — only include fields with values.
+      const album = {};
+      if (credits && credits.trim()) album.credits = credits.trim();
+      if (musicStyle && musicStyle.trim()) album.musicStyle = musicStyle.trim();
+      const yearNum = parseInt(year, 10);
+      if (!isNaN(yearNum) && yearNum > 0) album.year = yearNum;
+      if (label && label.trim()) album.label = label.trim();
+      if (description && description.trim()) album.description = description.trim();
+      if (thumbnail && thumbnail.trim()) album.thumbnail = thumbnail.trim();
+      const hasAlbumMeta = Object.keys(album).length > 0;
+      const extraMeta = hasAlbumMeta ? { album } : null;
+
+      // Build operations for a single broadcast: create, then (if any album
+      // metadata was provided) an update that puts thumbnail + metadata on the
+      // playlist doc. The indexer's _create handler ignores json_metadata, but
+      // its _update handler stores `metadata` and `thumbnail` so they surface
+      // through the playlists API.
+      const createPayload = {
+        name: trimmed,
+        access,
+        playlist_id: playlistId,
+      };
+      if (extraMeta) createPayload.json_metadata = JSON.stringify({ type: 'audio', ...extraMeta });
+
+      const ops = [
+        ['custom_json', {
+          required_auths: [],
+          required_posting_auths: [user],
+          id: '3speak_playlist_create',
+          json: JSON.stringify(createPayload),
+        }],
+      ];
+
+      if (hasAlbumMeta) {
+        const updatePayload = { playlist_id: playlistId };
+        if (album.thumbnail) updatePayload.thumbnail = album.thumbnail;
+        // Persist the whole album object as `metadata` (indexer stores it as
+        // a sub-document and the API surfaces it).
+        updatePayload.metadata = { album };
+        ops.push(['custom_json', {
+          required_auths: [],
+          required_posting_auths: [user],
+          id: '3speak_playlist_update',
+          json: JSON.stringify(updatePayload),
+        }]);
+      }
+
+      await broadcastWithAioha(ops, KeyTypes.Posting);
       toast.success('Playlist created');
       setPlaylistChoice(playlistId);
       setPendingPlaylist({ id: playlistId, name: trimmed, access });
@@ -259,7 +359,108 @@ function AudioUploadModal({ isOpen, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, attemptClose, showCloseConfirm]);
 
+  // ─── Publish helpers (must run on every render — keep above the early return) ───
+  // setTrackStatus is referentially stable via setState; we keep it as a plain
+  // function (no hook) since it's only used inside other callbacks below.
+  const setTrackStatus = (trackId, patch) => {
+    setPublishStatus(prev => ({ ...prev, [trackId]: { ...(prev[trackId] || {}), ...patch } }));
+  };
+
+  // Cached snap container for the whole modal session — re-used on retry.
+  const containerRef = useRef(null);
+  const ensureContainer = useCallback(async () => {
+    if (containerRef.current) return containerRef.current;
+    const c = await getSnapsContainer();
+    containerRef.current = c;
+    return c;
+  }, []);
+
+  // Publish a single track: upload to 3Speak audio, then broadcast Hive comment
+  // (+ optional playlist add). Updates publishStatus along the way.
+  const publishOneTrack = useCallback(async (track, container) => {
+    setTrackStatus(track.id, { state: 'uploading', stage: 'Uploading audio file', message: undefined });
+    const { permlink: audioPermlink, playUrl } = await uploadAudioTo3Speak({
+      blob: track.blob,
+      durationSec: track.durationSec,
+      username: user,
+      title: track.title,
+    });
+
+    setTrackStatus(track.id, { state: 'posting', stage: 'Posting to Hive', playUrl });
+    const hivePermlink = generatePermlink(track.title) || audioPermlink;
+    const tags = Array.from(new Set(HIVE_DEFAULT_TAGS));
+    const body = `${(track.title || '').trim()}\n\n${playUrl}`.trim();
+    const audioMeta = { type: track.type || undefined };
+    if (track.type === 'song') {
+      if (track.genre) audioMeta.genre = String(track.genre).trim();
+      const bpmNum = parseInt(track.bpm, 10);
+      if (!isNaN(bpmNum) && bpmNum > 0) audioMeta.bpm = bpmNum;
+    }
+    const json_metadata = JSON.stringify({ app: HIVE_APP_NAME, tags, audio: audioMeta });
+
+    const ops = [[
+      'comment',
+      {
+        parent_author: container.author,
+        parent_permlink: container.permlink,
+        author: user,
+        permlink: hivePermlink,
+        title: '',
+        body,
+        json_metadata,
+      },
+    ]];
+
+    if (playlistChoice) {
+      ops.push([
+        'custom_json',
+        {
+          required_auths: [],
+          required_posting_auths: [user],
+          id: '3speak_playlist_add',
+          json: JSON.stringify({
+            playlist_id: playlistChoice,
+            author: user,
+            permlink: hivePermlink,
+            position: 0,
+          }),
+        },
+      ]);
+    }
+
+    await broadcastWithAioha(ops, KeyTypes.Posting);
+    setTrackStatus(track.id, { state: 'success', stage: undefined });
+  }, [user, playlistChoice]);
+
+  const retryTrack = useCallback(async (trackId) => {
+    const track = tracks.find((t) => t.id === trackId);
+    if (!track) return;
+    setIsPublishing(true);
+    try {
+      const container = await ensureContainer();
+      await publishOneTrack(track, container);
+      if (playlistChoice) queryClient.invalidateQueries({ queryKey: ['myPlaylists', user] });
+    } catch (err) {
+      const message = err?.message || (typeof err === 'string' ? err : 'Failed');
+      setTrackStatus(trackId, { state: 'error', stage: undefined, message });
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [tracks, ensureContainer, publishOneTrack, playlistChoice, queryClient, user]);
+
+  const retryAllFailed = useCallback(async () => {
+    const failed = tracks.filter((t) => publishStatus[t.id]?.state === 'error');
+    if (failed.length === 0) return;
+    for (let i = 0; i < failed.length; i++) {
+      if (i > 0) await sleep(PUBLISH_DELAY_MS); // throttle between tracks
+      // eslint-disable-next-line no-await-in-loop
+      await retryTrack(failed[i].id);
+    }
+  }, [tracks, publishStatus, retryTrack]);
+
   if (!isOpen) return null;
+
+  const allPublished = tracks.length > 0 && tracks.every(t => publishStatus[t.id]?.state === 'success');
 
   const canNext = (() => {
     if (step === 1) return tracks.length > 0 && !isRecording;
@@ -271,10 +472,6 @@ function AudioUploadModal({ isOpen, onClose }) {
   const goNext = () => setStep(s => Math.min(s + 1, 4));
   const goBack = () => setStep(s => Math.max(s - 1, 1));
 
-  const setTrackStatus = (trackId, patch) => {
-    setPublishStatus(prev => ({ ...prev, [trackId]: { ...(prev[trackId] || {}), ...patch } }));
-  };
-
   const onPublish = async () => {
     if (!user) { toast.error('Sign in first'); return; }
     if (tracks.length === 0) return;
@@ -284,10 +481,9 @@ function AudioUploadModal({ isOpen, onClose }) {
     for (const t of tracks) initial[t.id] = { state: 'pending' };
     setPublishStatus(initial);
 
-    // Resolve snap container once for the whole batch
     let container;
     try {
-      container = await getSnapsContainer();
+      container = await ensureContainer();
     } catch (err) {
       setIsPublishing(false);
       toast.error(`Couldn't resolve peak.snaps container: ${err?.message || 'unknown'}`);
@@ -295,59 +491,15 @@ function AudioUploadModal({ isOpen, onClose }) {
     }
 
     let allOk = true;
-    for (const track of tracks) {
+    for (let i = 0; i < tracks.length; i++) {
+      if (i > 0) await sleep(PUBLISH_DELAY_MS); // throttle between tracks
+      const track = tracks[i];
       try {
-        // 1) Upload to 3Speak audio service
-        setTrackStatus(track.id, { state: 'uploading' });
-        const { permlink: audioPermlink, playUrl } = await uploadAudioTo3Speak({
-          blob: track.blob,
-          durationSec: track.durationSec,
-          username: user,
-          title: track.title,
-        });
-
-        // 2) Broadcast snap-style comment under peak.snaps + optional playlist add
-        setTrackStatus(track.id, { state: 'posting', playUrl });
-        const hivePermlink = generatePermlink(track.title) || audioPermlink;
-        const tags = Array.from(new Set(HIVE_DEFAULT_TAGS));
-        const body = `${(track.title || '').trim()}\n\n${playUrl}`.trim();
-        const json_metadata = JSON.stringify({ app: HIVE_APP_NAME, tags });
-
-        const ops = [[
-          'comment',
-          {
-            parent_author: container.author,
-            parent_permlink: container.permlink,
-            author: user,
-            permlink: hivePermlink,
-            title: '',
-            body,
-            json_metadata,
-          },
-        ]];
-
-        if (playlistChoice) {
-          ops.push([
-            'custom_json',
-            {
-              required_auths: [],
-              required_posting_auths: [user],
-              id: '3speak_playlist_add',
-              json: JSON.stringify({
-                playlist_id: playlistChoice,
-                author: user,
-                permlink: hivePermlink,
-                position: 0,
-              }),
-            },
-          ]);
-        }
-
-        await broadcastWithAioha(ops, KeyTypes.Posting);
-        setTrackStatus(track.id, { state: 'success' });
+        await publishOneTrack(track, container);
       } catch (err) {
         allOk = false;
-        setTrackStatus(track.id, { state: 'error', message: err?.message || 'Failed' });
+        const message = err?.message || (typeof err === 'string' ? err : 'Failed');
+        setTrackStatus(track.id, { state: 'error', stage: undefined, message });
       }
     }
 
@@ -358,12 +510,16 @@ function AudioUploadModal({ isOpen, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['myPlaylists', user] });
       setTimeout(() => onClose(), 1200);
     } else {
-      toast.error('Some tracks failed to publish — see details');
+      toast.error('Some tracks failed — open the failed track to retry');
     }
   };
 
   return (
     <div className="audio-upload-overlay" onClick={attemptClose}>
+      {/* Shared genre suggestions for both per-track inputs and the album form */}
+      <datalist id="audio-upload-genre-options">
+        {MUSIC_GENRES.map((g) => <option key={g} value={g} />)}
+      </datalist>
       <div className="audio-upload-modal audio-upload-modal-wizard" onClick={e => e.stopPropagation()}>
         <div className="audio-upload-header">
           <h3><MdCloudUpload /> Upload audio</h3>
@@ -401,7 +557,7 @@ function AudioUploadModal({ isOpen, onClose }) {
             />
           )}
           {step === 2 && (
-            <TitlesStep tracks={tracks} setTitle={setTitle} onRemove={removeTrack} />
+            <TitlesStep tracks={tracks} setTitle={setTitle} patchTrack={patchTrack} onRemove={removeTrack} />
           )}
           {step === 3 && (
             <PlaylistStep
@@ -420,6 +576,9 @@ function AudioUploadModal({ isOpen, onClose }) {
               playlistChoice={playlistChoice}
               pendingPlaylist={pendingPlaylist}
               publishStatus={publishStatus}
+              onRetry={retryTrack}
+              onRetryAll={retryAllFailed}
+              isPublishing={isPublishing}
             />
           )}
         </div>
@@ -433,6 +592,13 @@ function AudioUploadModal({ isOpen, onClose }) {
           {step < 4 ? (
             <button className="audio-upload-btn-primary" onClick={goNext} disabled={!canNext}>
               Next <MdArrowForward size={16} />
+            </button>
+          ) : allPublished ? (
+            <button
+              className="audio-upload-btn-primary"
+              onClick={onClose}
+            >
+              <MdCheck size={16} /> Close
             </button>
           ) : (
             <button
@@ -548,25 +714,60 @@ function SourceStep({
   );
 }
 
-function TitlesStep({ tracks, setTitle, onRemove }) {
+function TitlesStep({ tracks, setTitle, patchTrack, onRemove }) {
   return (
     <div className="audio-upload-titles">
-      <p className="audio-upload-step-help">Give each track a title. We pre-filled them from filenames.</p>
+      <p className="audio-upload-step-help">Title each track and pick a type. Music tracks get genre + BPM fields.</p>
       {tracks.map((t, i) => (
-        <div key={t.id} className="audio-upload-title-row">
-          <span className="audio-upload-title-num">{i + 1}.</span>
-          <input
-            type="text"
-            className="audio-upload-title-input"
-            value={t.title}
-            onChange={(e) => setTitle(t.id, e.target.value)}
-            placeholder="Track title"
-            maxLength={120}
-          />
-          <span className="audio-upload-track-meta">{fmtTime(t.durationSec)}</span>
-          <button className="audio-upload-track-remove" onClick={() => onRemove(t.id)} aria-label="Remove">
-            <MdDelete size={14} />
-          </button>
+        <div key={t.id} className="audio-upload-title-card">
+          <div className="audio-upload-title-row">
+            <span className="audio-upload-title-num">{i + 1}.</span>
+            <input
+              type="text"
+              className="audio-upload-title-input"
+              value={t.title}
+              onChange={(e) => setTitle(t.id, e.target.value)}
+              placeholder="Track title"
+              maxLength={120}
+            />
+            <select
+              className="audio-upload-type-select"
+              value={t.type || 'voice_message'}
+              onChange={(e) => patchTrack(t.id, { type: e.target.value })}
+            >
+              {TRACK_TYPES.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <button className="audio-upload-track-remove" onClick={() => onRemove(t.id)} aria-label="Remove">
+              <MdDelete size={14} />
+            </button>
+          </div>
+          {t.type === 'song' && (
+            <div className="audio-upload-music-row">
+              <input
+                type="text"
+                className="audio-upload-genre-input"
+                value={t.genre || ''}
+                onChange={(e) => patchTrack(t.id, { genre: e.target.value })}
+                placeholder="Genre"
+                list="audio-upload-genre-options"
+                maxLength={60}
+              />
+              <input
+                type="number"
+                className="audio-upload-bpm-input"
+                value={t.bpm || ''}
+                onChange={(e) => patchTrack(t.id, { bpm: e.target.value })}
+                placeholder="BPM"
+                min="20"
+                max="400"
+              />
+            </div>
+          )}
+          <div className="audio-upload-title-meta-line">
+            <span>{fmtTime(t.durationSec)} · {t.source === 'record' ? 'Recorded' : t.filename}</span>
+          </div>
         </div>
       ))}
     </div>
@@ -577,19 +778,63 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAccess, setNewAccess] = useState('public');
+  const [newCredits, setNewCredits] = useState('');
+  const [newMusicStyle, setNewMusicStyle] = useState('');
+  const [newYear, setNewYear] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [thumbnailUploading, setThumbnailUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const thumbInputRef = useRef(null);
 
   const showPending = pendingPlaylist && !playlists.some(p => p.id === pendingPlaylist.id);
 
+  const resetForm = () => {
+    setShowCreateForm(false);
+    setNewName('');
+    setNewAccess('public');
+    setNewCredits('');
+    setNewMusicStyle('');
+    setNewYear('');
+    setNewLabel('');
+    setNewDescription('');
+    setThumbnailUrl('');
+  };
+
+  const onThumbnailFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Pick an image file');
+      return;
+    }
+    setThumbnailUploading(true);
+    try {
+      const url = await uploadThumbnail(file);
+      setThumbnailUrl(url);
+    } catch (err) {
+      toast.error(`Thumbnail upload failed: ${err?.message || 'unknown'}`);
+    } finally {
+      setThumbnailUploading(false);
+      if (thumbInputRef.current) thumbInputRef.current.value = '';
+    }
+  };
+
   const submit = async () => {
     setSubmitting(true);
-    const ok = await onCreate({ name: newName, access: newAccess });
+    const ok = await onCreate({
+      name: newName,
+      access: newAccess,
+      credits: newCredits,
+      musicStyle: newMusicStyle,
+      year: newYear,
+      label: newLabel,
+      description: newDescription,
+      thumbnail: thumbnailUrl,
+    });
     setSubmitting(false);
-    if (ok) {
-      setShowCreateForm(false);
-      setNewName('');
-      setNewAccess('public');
-    }
+    if (ok) resetForm();
   };
 
   return (
@@ -686,11 +931,89 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
               <MdLock size={14} /> Private
             </button>
           </div>
+          <input
+            type="text"
+            className="audio-upload-title-input"
+            value={newMusicStyle}
+            onChange={(e) => setNewMusicStyle(e.target.value)}
+            placeholder="Music style / genre (optional, e.g. Electronic)"
+            list="audio-upload-genre-options"
+            maxLength={60}
+          />
+
+          <div className="audio-upload-album-grid">
+            <input
+              type="text"
+              className="audio-upload-title-input"
+              value={newCredits}
+              onChange={(e) => setNewCredits(e.target.value)}
+              placeholder="Credits (optional)"
+              maxLength={200}
+            />
+            <input
+              type="number"
+              className="audio-upload-title-input"
+              value={newYear}
+              onChange={(e) => setNewYear(e.target.value)}
+              placeholder="Year"
+              min="1900"
+              max="2100"
+            />
+            <input
+              type="text"
+              className="audio-upload-title-input"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="Label (optional)"
+              maxLength={120}
+            />
+          </div>
+
+          <textarea
+            className="audio-upload-title-input audio-upload-credits-input"
+            value={newDescription}
+            onChange={(e) => setNewDescription(e.target.value)}
+            placeholder="Description (optional)"
+            rows={3}
+            maxLength={1000}
+          />
+
+          <div
+            className={`audio-upload-album-thumb${thumbnailUrl ? ' has-image' : ''}`}
+            onClick={() => !thumbnailUploading && thumbInputRef.current?.click()}
+          >
+            {thumbnailUrl ? (
+              <>
+                <img src={thumbnailUrl} alt="Album thumbnail" />
+                <button
+                  type="button"
+                  className="audio-upload-album-thumb-remove"
+                  onClick={(e) => { e.stopPropagation(); setThumbnailUrl(''); }}
+                  aria-label="Remove thumbnail"
+                ><MdClose size={14} /></button>
+              </>
+            ) : (
+              <>
+                <MdCloudUpload size={28} />
+                <span>{thumbnailUploading ? 'Uploading…' : 'Add cover image'}</span>
+                <small>Click to pick — JPG / PNG / WebP</small>
+              </>
+            )}
+            <input
+              ref={thumbInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={onThumbnailFile}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+
           <div className="audio-upload-playlist-form-actions">
             <button
               type="button"
               className="audio-upload-btn-secondary"
-              onClick={() => { setShowCreateForm(false); setNewName(''); }}
+              onClick={resetForm}
               disabled={submitting}
             >
               Cancel
@@ -710,15 +1033,31 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
   );
 }
 
-function ReviewStep({ tracks, playlists, playlistChoice, pendingPlaylist, publishStatus = {} }) {
+function ReviewStep({ tracks, playlists, playlistChoice, pendingPlaylist, publishStatus = {}, onRetry, onRetryAll, isPublishing }) {
   const chosen = playlists.find(p => p.id === playlistChoice)
     || (pendingPlaylist && pendingPlaylist.id === playlistChoice ? pendingPlaylist : null);
+  const failedCount = tracks.filter((t) => publishStatus[t.id]?.state === 'error').length;
   return (
     <div className="audio-upload-review">
       <p className="audio-upload-step-help">
         Ready to publish {tracks.length} track{tracks.length !== 1 ? 's' : ''}
         {chosen ? ` to playlist "${chosen.name}"` : ''}.
       </p>
+
+      {failedCount > 0 && (
+        <div className="audio-upload-review-failed-banner">
+          <span>{failedCount} track{failedCount !== 1 ? 's' : ''} failed.</span>
+          <button
+            type="button"
+            className="audio-upload-btn-secondary"
+            onClick={onRetryAll}
+            disabled={isPublishing}
+          >
+            Retry all failed
+          </button>
+        </div>
+      )}
+
       {tracks.map((t, i) => {
         const status = publishStatus[t.id];
         return (
@@ -731,6 +1070,24 @@ function ReviewStep({ tracks, playlists, playlistChoice, pendingPlaylist, publis
               </small>
               {status && <PublishBadge status={status} />}
             </div>
+
+            {status?.state === 'error' && (
+              <div className="audio-upload-review-error">
+                <p className="audio-upload-review-error-msg">
+                  {status.stage ? `Failed during ${status.stage.toLowerCase()}: ` : 'Failed: '}
+                  {status.message || 'unknown error'}
+                </p>
+                <button
+                  type="button"
+                  className="audio-upload-btn-primary"
+                  onClick={() => onRetry?.(t.id)}
+                  disabled={isPublishing}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
             <audio controls preload="metadata" src={t.objectUrl} className="audio-upload-review-player" />
           </div>
         );
@@ -741,10 +1098,10 @@ function ReviewStep({ tracks, playlists, playlistChoice, pendingPlaylist, publis
 
 function PublishBadge({ status }) {
   if (!status?.state || status.state === 'pending') return null;
-  if (status.state === 'uploading') return <span className="audio-upload-review-badge uploading">Uploading…</span>;
-  if (status.state === 'posting') return <span className="audio-upload-review-badge posting">Posting to Hive…</span>;
+  if (status.state === 'uploading') return <span className="audio-upload-review-badge uploading">{status.stage || 'Uploading'}…</span>;
+  if (status.state === 'posting') return <span className="audio-upload-review-badge posting">{status.stage || 'Posting to Hive'}…</span>;
   if (status.state === 'success') return <span className="audio-upload-review-badge success"><MdCheck size={12} /> Published</span>;
-  if (status.state === 'error') return <span className="audio-upload-review-badge error" title={status.message}>Failed</span>;
+  if (status.state === 'error') return <span className="audio-upload-review-badge error">Failed</span>;
   return null;
 }
 

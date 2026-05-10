@@ -16,6 +16,7 @@ import UpvoteCount from '../UpvoteCount/UpvoteCount';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import AddToPlaylistModal from '../AddToPlaylistModal/AddToPlaylistModal';
 import BlogContent from '../playVideo/BlogContent';
+import Waveform from './Waveform';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { notifyMediaPlay, onMediaPlay } from '../../utils/mediaCoordinator';
 import mantequillaLogo from '../../assets/mantequilla-logo.png';
@@ -66,7 +67,7 @@ function GlobalAudioPlayer() {
     audioExpanded, audioShowQueue, audioPlayNonce,
     audioToggleNonce, audioSeekNonce, audioPendingSeek,
     audioPlay, audioStop,
-    audioSetIsPlaying, audioSetCurrentTime, audioSetDuration,
+    audioSetIsPlaying, audioSetCurrentTime,
     audioSetExpanded, audioSetShowQueue,
     audioRemoveFromQueue, audioMoveInQueue,
     authenticated, user,
@@ -104,9 +105,11 @@ function GlobalAudioPlayer() {
   // Wire <audio> element events to slice
   useEffect(() => {
     const el = audioRef.current; if (!el) return;
+    // Duration is sourced from the embed-audio Mongo doc (set in the slice
+    // when the track is selected) — we deliberately ignore <audio>.duration
+    // because VBR MP3s without Xing headers report it incorrectly.
     const h = {
       timeupdate: () => audioSetCurrentTime(el.currentTime),
-      loadedmetadata: () => audioSetDuration(el.duration),
       play: () => { audioSetIsPlaying(true); notifyMediaPlay('audio'); },
       pause: () => audioSetIsPlaying(false),
       ended: () => { audioSetIsPlaying(false); playNext(); },
@@ -319,7 +322,17 @@ function GlobalAudioPlayer() {
           <button className="audio-np-expand-btn" onClick={() => audioSetExpanded(v => !v)}>
             {audioExpanded ? <MdKeyboardArrowDown size={22} /> : <MdKeyboardArrowUp size={22} />}
           </button>
-          <button className="audio-np-close-btn" onClick={audioStop} title="Close player"><MdClose size={18} /></button>
+          <button
+            className="audio-np-close-btn"
+            onClick={() => {
+              const el = audioRef.current;
+              if (el) {
+                try { el.pause(); el.removeAttribute('src'); el.load(); } catch {}
+              }
+              audioStop();
+            }}
+            title="Close player"
+          ><MdClose size={18} /></button>
         </div>
 
         {audioExpanded && (
@@ -337,6 +350,18 @@ function GlobalAudioPlayer() {
               {subtitleData && <button className={`audio-np-sub-btn${showSubtitles ? ' active' : ''}`} onClick={() => setShowSubtitles(!showSubtitles)} title="Transcript"><MdSubtitles size={16} /></button>}
               <span className="audio-np-time">{fmt(audioCurrentTime)} / {fmt(audioDuration)}</span>
             </div>
+
+            {Array.isArray(nowPlaying.waveform?.[0]) && nowPlaying.waveform[0].length > 0 && (
+              <Waveform
+                samples={nowPlaying.waveform[0]}
+                audioRef={audioRef}
+                duration={audioDuration}
+                onSeek={(f) => {
+                  const el = audioRef.current;
+                  if (el && audioDuration > 0) el.currentTime = f * audioDuration;
+                }}
+              />
+            )}
 
             {!showSubtitles && (
               <>

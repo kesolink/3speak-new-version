@@ -10,10 +10,11 @@ import '../../page/Audio.scss';
 function audioThumb(item) {
   if (!item) return fallbackImg;
   const fixed = fixVideoThumbnail({ thumbnail_url: item.thumbnail_url, thumbnail: item.thumbnail_url });
-  if (!fixed || fixed === fallbackImg || fixed === '/images/speak.jpg') {
-    return `https://images.hive.blog/u/${item.owner}/avatar`;
-  }
-  return fixed;
+  if (fixed && fixed !== fallbackImg && fixed !== '/images/speak.jpg') return fixed;
+  // Fall back to the cover of the first playlist this audio was published into
+  // (set by the checker via $lookup against the playlists collection).
+  if (item.playlist_thumbnail) return item.playlist_thumbnail;
+  return `https://images.hive.blog/u/${item.owner}/avatar`;
 }
 
 function fmt(sec) {
@@ -31,6 +32,32 @@ function fmtAgo(ds) {
   if (d < 86400) return `${Math.floor(d / 3600)}h`;
   if (d < 2592000) return `${Math.floor(d / 86400)}d`;
   return `${Math.floor(d / 2592000)}mo`;
+}
+
+const CATEGORY_LABELS = {
+  podcast: 'Podcast',
+  voice_message: 'Voice',
+  song: 'Music',
+  audiobook: 'Audiobook',
+  interview: 'Interview',
+};
+
+// Build a one-line metadata summary shown beneath the username:
+//   - For music tracks with a genre, the genre replaces the type label
+//   - Audio with no category falls back to "Voice"
+//   - bpm is appended when present
+function getMetaLine(item) {
+  const parts = [];
+  const isMusic = item.category === 'song' || item.category === 'music';
+  if (isMusic && item.genre) {
+    parts.push(String(item.genre));
+  } else if (item.category && CATEGORY_LABELS[item.category]) {
+    parts.push(CATEGORY_LABELS[item.category]);
+  } else {
+    parts.push(CATEGORY_LABELS.voice_message);
+  }
+  if (item.bpm) parts.push(`${item.bpm} bpm`);
+  return parts.join(' · ');
 }
 
 /**
@@ -82,34 +109,48 @@ function AudioTile({
   };
 
   const thumb = audioThumb(item);
+  const metaLine = getMetaLine(item);
+
+  const actions = (
+    <div className="audio-tile-actions" onClick={(e) => e.stopPropagation()}>
+      <button className="audio-tile-action-btn" onClick={handleQueue} title="Queue"><MdAdd size={14} /></button>
+      {loggedIn && onAddToPlaylist && (
+        <button className="audio-tile-action-btn" onClick={(e) => { e.stopPropagation(); onAddToPlaylist(); }} title="Playlist"><MdPlaylistPlay size={14} /></button>
+      )}
+      {onShare && (
+        <button className="audio-tile-action-btn" onClick={(e) => { e.stopPropagation(); onShare(); }} title="Share"><MdShare size={14} /></button>
+      )}
+    </div>
+  );
+
+  const cover = (
+    <div className="audio-tile-cover" onClick={handlePlay}>
+      <img src={thumb} alt="" onError={(e) => { e.currentTarget.src = fallbackImg; }} />
+      <div className="audio-tile-overlay">
+        {isPlaying ? <div className="audio-tile-eq"><span /><span /><span /></div> : <MdPlayArrow size={28} />}
+      </div>
+      <span className="audio-tile-duration">{fmt(item.duration)}</span>
+      {actions}
+    </div>
+  );
+
+  const body = (
+    <div className="audio-tile-body">
+      <span className="audio-tile-title" onClick={handlePlay}>{item.title || 'Untitled'}</span>
+      <span className="audio-tile-author" onClick={handleAuthor}>@{item.owner}</span>
+      {metaLine && <span className="audio-tile-meta">{metaLine}</span>}
+      <div className="audio-tile-footer">
+        {item.plays > 0 && <span>{item.plays} plays</span>}
+        {item.stats?.total_hive_reward > 0 && <PayoutAmount amount={item.stats.total_hive_reward} size={10} />}
+        <span>{fmtAgo(item.createdAt)}</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className={`audio-tile${isCurrent ? ' audio-tile-active' : ''}`}>
-      <div className="audio-tile-cover" onClick={handlePlay}>
-        <img src={thumb} alt="" onError={(e) => { e.currentTarget.src = fallbackImg; }} />
-        <div className="audio-tile-overlay">
-          {isPlaying ? <div className="audio-tile-eq"><span /><span /><span /></div> : <MdPlayArrow size={28} />}
-        </div>
-        <span className="audio-tile-duration">{fmt(item.duration)}</span>
-      </div>
-      <div className="audio-tile-body">
-        <span className="audio-tile-title" onClick={handlePlay}>{item.title || 'Untitled'}</span>
-        <span className="audio-tile-author" onClick={handleAuthor}>@{item.owner}</span>
-        <div className="audio-tile-footer">
-          {item.plays > 0 && <span>{item.plays} plays</span>}
-          {item.stats?.total_hive_reward > 0 && <PayoutAmount amount={item.stats.total_hive_reward} size={10} />}
-          <span>{fmtAgo(item.createdAt)}</span>
-        </div>
-      </div>
-      <div className="audio-tile-actions">
-        <button className="audio-tile-action-btn" onClick={handleQueue} title="Queue"><MdAdd size={14} /></button>
-        {loggedIn && onAddToPlaylist && (
-          <button className="audio-tile-action-btn" onClick={(e) => { e.stopPropagation(); onAddToPlaylist(); }} title="Playlist"><MdPlaylistPlay size={14} /></button>
-        )}
-        {onShare && (
-          <button className="audio-tile-action-btn" onClick={(e) => { e.stopPropagation(); onShare(); }} title="Share"><MdShare size={14} /></button>
-        )}
-      </div>
+      {cover}
+      {body}
     </div>
   );
 }
