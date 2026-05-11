@@ -13,7 +13,10 @@
   align-items: center;
   justify-content: space-around;
   padding: 0 4px;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  // No `padding-bottom: env(safe-area-inset-bottom)` — that adds empty
+  // space *inside* the bar below the icons (the icons stay in the upper
+  // 56px content area while the bar grows taller). The visible result is
+  // icons that look pushed up.
   transition: background-color 0.3s ease;
 
   @include mix.respond(phone) {
@@ -81,6 +84,30 @@
   font-size: 26px;
   color: inherit;
   transition: color 0.2s ease;
+}
+
+.bottom-nav-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bottom-nav-live-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 0 2px var(--nav-bg, #1a1a1a);
+  animation: bottom-nav-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes bottom-nav-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--nav-bg, #1a1a1a), 0 0 0 0 rgba(255, 59, 48, 0.55); }
+  50%      { box-shadow: 0 0 0 2px var(--nav-bg, #1a1a1a), 0 0 0 5px rgba(255, 59, 48, 0); }
 }
 
 .upload-item {
@@ -239,6 +266,15 @@
     font-weight: 500;
     color: var(--text-primary);
   }
+}
+
+// Segmented LabeledToggle rows in bottom-nav profile menu
+.bottom-nav-menu .bottom-nav-menu-toggle {
+  display: block;
+  padding: 8px 16px;
+  cursor: default;
+
+  &:hover { background: transparent; }
 }
 
 .bottom-nav-menu .nsfw-toggle {

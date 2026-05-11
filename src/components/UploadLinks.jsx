@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { Clapperboard } from "lucide-react";
+import { MdGraphicEq } from "react-icons/md";
 import ShortsIcon from "./icons/ShortsIcon";
 import { FEATURE_EDITOR } from "../utils/config";
 
@@ -29,14 +30,24 @@ export default function UploadLinks({ linkClass, iconClass = "icon", onClick }) 
     if (onClick) onClick(e);
   };
 
+  const handleAudioClick = (e) => {
+    e.preventDefault();
+    pauseAllMedia();
+    window.dispatchEvent(new CustomEvent('open-audio-upload'));
+    if (onClick) onClick(e);
+  };
+
   return (
     <>
-      <Link to="/studio" className={linkClass} title="Upload Video" onClick={handleClick}>
-        <IoCloudUploadSharp className={iconClass} /> <span>Upload Video</span>
+      <Link to="/studio" className={linkClass} title="Video" onClick={handleClick}>
+        <IoCloudUploadSharp className={iconClass} /> <span>Video</span>
       </Link>
-      <Link to="/embed-studio?from=shorts" className={linkClass} title="Upload Short" onClick={handleClick}>
-        <ShortsIcon className={iconClass} outlineWidth={30} /> <span>Upload Short</span>
+      <Link to="/embed-studio?from=shorts" className={linkClass} title="Short" onClick={handleClick}>
+        <ShortsIcon className={iconClass} outlineWidth={30} /> <span>Short</span>
       </Link>
+      <a href="#" className={linkClass} title="Audio" onClick={handleAudioClick}>
+        <MdGraphicEq className={iconClass} /> <span>Audio</span>
+      </a>
       {FEATURE_EDITOR && (
         <a href="#" className={linkClass} title="Shorts Editor" onClick={handleEditorClick}>
           <Clapperboard className={iconClass} size={18} /> <span>Shorts Editor</span>

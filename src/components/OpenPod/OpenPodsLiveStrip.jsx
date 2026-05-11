@@ -6,9 +6,10 @@ import { useAppStore } from '../../lib/store';
 import { MdMic } from 'react-icons/md';
 import './OpenPodsLiveStrip.scss';
 
-const client = new HangoutsApiClient({
-  baseUrl: import.meta.env.VITE_HANGOUTS_API_URL,
-});
+const HANGOUTS_API_URL = import.meta.env.VITE_HANGOUTS_API_URL || '';
+const client = HANGOUTS_API_URL
+  ? new HangoutsApiClient({ baseUrl: HANGOUTS_API_URL })
+  : null;
 
 export default function OpenPodsLiveStrip() {
   const { openRoom } = useHangout();
@@ -20,6 +21,7 @@ export default function OpenPodsLiveStrip() {
     queryFn: () => client.listRooms(),
     refetchInterval: 30_000,
     staleTime: 20_000,
+    enabled: !!client,
   });
 
   if (rooms.length === 0) return null;

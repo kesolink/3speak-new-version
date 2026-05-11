@@ -1,0 +1,6 @@
+// Audio tab grid on the profile page — uses the shared `.audio-tile-grid` and
+// `.audio-tile` styles defined in Audio.scss. Adds breathing room so hover-scale
+// effects don't get cropped by the parent container's overflow.
+.user-audio-list-grid {
+  padding: 4px;
+}

@@ -14,6 +14,7 @@ import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
+import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
 
@@ -194,6 +195,13 @@ function Watch() {
     sdkSetVolume(vol);
     localStorage.setItem(VOLUME_STORAGE_KEY, String(vol));
   }, [sdkSetVolume]);
+
+  // Cross-player coordination: announce when this video starts, and pause
+  // when another player (audio / short) takes over.
+  useEffect(() => {
+    if (!playerState.paused) notifyMediaPlay('video');
+  }, [playerState.paused]);
+  useEffect(() => onMediaPlay('video', () => pause()), [pause]);
 
   // Track when the <video> element is mounted and attached to the Player
   const [videoAttached, setVideoAttached] = useState(false);

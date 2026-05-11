@@ -20,7 +20,14 @@ export default function OpenPodPublish() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { authenticated, user } = useAppStore();
-  const { sessionToken } = useHangout();
+  const { sessionToken, sessionLoading, retryLogin } = useHangout();
+
+  // Lazy login when actively opening Hangouts publish flow
+  useEffect(() => {
+    if (authenticated && user && !sessionToken && !sessionLoading) {
+      retryLogin(user);
+    }
+  }, [authenticated, user, sessionToken, sessionLoading, retryLogin]);
 
   const audioUrl  = searchParams.get('audioUrl')  || '';
   const roomTitle = searchParams.get('title')      || '';

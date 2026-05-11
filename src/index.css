@@ -704,7 +704,7 @@ img{
 #aioha-modal li a[class*="flex"][class*="items-center"][class*="p-3"] {
   border: 1px solid var(--border-color) !important;
   border-radius: 0.5rem !important;
-  padding: 1rem !important;
+  padding: 0.5rem 1rem !important;
   margin: 0.5rem 0 !important;
   background-color: var(--bg-secondary) !important;
   color: var(--text-primary) !important;
@@ -718,6 +718,18 @@ img{
 #aioha-modal li a[class*="flex"][class*="items-center"][class*="p-3"]:hover {
   background-color: var(--bg-hover) !important;
   border-color: var(--accent-primary) !important;
+}
+
+/* Mobile: collapse the vertical padding/margin on the provider tiles —
+   the default 1rem padding + 0.5rem vertical margin wastes too much
+   space on narrow screens. Grid gap handles separation instead. */
+@media (max-width: 540px) {
+  #aioha-modal ul li a.flex.items-center,
+  #aioha-modal ul.space-y-3 li a,
+  #aioha-modal li a[class*="flex"][class*="items-center"][class*="p-3"] {
+    padding: 0.5rem 1rem !important;
+    margin: 0 !important;
+  }
 }
 
 /* Provider icons - basic styling */

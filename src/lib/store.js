@@ -7,6 +7,7 @@ import { createVideoSlice } from './slices/createVideoSlice';
 import {createPostProcessingSlice} from "./slices/createPostProcessingSlice"
 import { createThemeSlice } from './slices/createThemeSlice';
 import { createMiniPlayerSlice } from './slices/createMiniPlayerSlice';
+import { createAudioPlayerSlice } from './slices/createAudioPlayerSlice';
 
 export const useAppStore = create(
   persist(
@@ -18,10 +19,15 @@ export const useAppStore = create(
       ...createPostProcessingSlice(...a),
       ...createThemeSlice(...a),
       ...createMiniPlayerSlice(...a),
+      ...createAudioPlayerSlice(...a),
       watchHistoryEnabled: true,
       setWatchHistoryEnabled: (enabled) => a[0]({ watchHistoryEnabled: enabled }),
       sidebarOpen: false,
       setSidebarOpen: (open) => a[0]({ sidebarOpen: typeof open === 'function' ? open(a[1]().sidebarOpen) : open }),
+      // User preference: completely hide the persistent left sidebar (default true).
+      // The hamburger drawer in the top bar still works regardless.
+      sidebarHidden: true,
+      setSidebarHidden: (val) => a[0]({ sidebarHidden: typeof val === 'function' ? val(a[1]().sidebarHidden) : val }),
       showNsfw: false,
       setShowNsfw: (val) => a[0]({ showNsfw: typeof val === 'function' ? val(a[1]().showNsfw) : val }),
     }),
@@ -33,6 +39,7 @@ export const useAppStore = create(
         theme: state.theme, // Persist theme preference
         watchHistoryEnabled: state.watchHistoryEnabled,
         sidebarOpen: state.sidebarOpen,
+        sidebarHidden: state.sidebarHidden,
         showNsfw: state.showNsfw,
       }),
     }

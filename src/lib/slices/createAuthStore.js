@@ -63,31 +63,38 @@ export const createAuthUserSlice = (set) => ({
 
   
 
-  LogOut: (user) => {
+  LogOut: async (user) => {
+    if (typeof window === "undefined") return
 
-    if (typeof window !== "undefined") {
-      aioha.logout()
-      const accounts = JSON.parse(localStorage.getItem("accountsList") || "[]");
-      const updatedAccounts = accounts.filter(acc => acc.username !== user);
-      localStorage.setItem("accountsList", JSON.stringify(updatedAccounts));
-      // Clear local storage
-      window.localStorage.removeItem("user_id");
-      window.localStorage.removeItem("access_token");
+    // Always attempt server-side logout — it clears httpOnly cookies
+    // (threespeak_session, threespeak_user, manteauth_pkce).
+    // Await it so we don't race a subsequent login attempt.
+    try {
+      await fetch('/api/manteauth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      })
+    } catch { /* ignore network errors, still proceed with local cleanup */ }
 
-      // Reset authentication state in the store
-      set({
-        authenticated: false,
-        userId: null,
-        user: null,
-        allowAccess: null,
-        userDetails: null,
-        listAccounts: [],
-        isProcessing: null,
-      });
-    //  toast.error("logged out successfully")
-    }
+    // Local cleanup
+    try { aioha.logout() } catch {}
+    const accounts = JSON.parse(localStorage.getItem("accountsList") || "[]")
+    const updatedAccounts = accounts.filter(acc => acc.username !== user)
+    localStorage.setItem("accountsList", JSON.stringify(updatedAccounts))
+    window.localStorage.removeItem("user_id")
+    window.localStorage.removeItem("access_token")
+    window.localStorage.removeItem("manteauth_login")
+    window.localStorage.removeItem("manteauth_token") // legacy
 
-
+    set({
+      authenticated: false,
+      userId: null,
+      user: null,
+      allowAccess: null,
+      userDetails: null,
+      listAccounts: [],
+      isProcessing: null,
+    })
   },
 
 

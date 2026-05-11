@@ -57,6 +57,8 @@ const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed
 const EMBED_API_URL = import.meta.env.VITE_EMBED_API_URL || 'https://embed.3speak.tv';
 const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
 const EMBED_DEBUG = import.meta.env.VITE_EMBED_DEBUG === 'true';
+const THREESPEAK_AUDIO_API_URL = import.meta.env.VITE_3SPEAK_AUDIO_API_URL || 'https://audio.3speak.tv';
+const THREESPEAK_API_KEY = import.meta.env.VITE_3SPEAK_API_KEY || '';
 
 // 3Speak Image Upload Service (thumbnail uploads)
 const IMAGE_UPLOAD_URL = import.meta.env.VITE_IMAGE_UPLOAD_URL || 'https://images.3speak.tv';
@@ -64,6 +66,9 @@ const IMAGE_UPLOAD_KEY = import.meta.env.VITE_IMAGE_UPLOAD_KEY || '';
 
 // Translation API (LibreTranslate)
 const TRANSLATE_API_URL = import.meta.env.VITE_TRANSLATE_API_URL || 'https://3speak-translator.okinoko.io';
+
+// Social verifier (mantequilla-social-verifier) — md5-hash ownership proof for web2 socials
+const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https://3speak-verify.okinoko.io').replace(/\/$/, '');
 
 // Watch history threshold - number of days to show unwatched indicator
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);
@@ -90,6 +95,8 @@ const REPORT_API_SECRET = import.meta.env.VITE_REPORT_API_SECRET;
 
 // Feature flags for MetaMask Snap login and 3Speak Pro subscriptions
 const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true';
+// Default-on: only disabled when explicitly set to "false".
+const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false';
 const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
 
 export {
@@ -130,5 +137,9 @@ export {
   REPORT_API_URL,
   REPORT_API_SECRET,
   ENABLE_METAMASK_SNAP,
+  ENABLE_BUTRAUTH,
   ENABLE_SUBS,
+  THREESPEAK_AUDIO_API_URL,
+  THREESPEAK_API_KEY,
+  SOCIAL_VERIFIER_URL,
 };

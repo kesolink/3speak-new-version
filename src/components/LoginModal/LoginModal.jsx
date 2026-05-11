@@ -3,7 +3,7 @@ import { AiohaModal, useAioha } from "@aioha/react-ui";
 import { Providers, KeyTypes } from "@aioha/aioha";
 import { MdEmail } from "react-icons/md";
 import { createPortal } from "react-dom";
-import { ENABLE_METAMASK_SNAP } from "../../utils/config";
+import { ENABLE_METAMASK_SNAP, ENABLE_BUTRAUTH } from "../../utils/config";
 import "./LoginModal.scss";
 
 /**
@@ -170,14 +170,46 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
         loginOptions={loginOptions}
       />
       {showEmailButton && buttonContainer && createPortal(
-        <button
-          className="email-login-btn"
-          onClick={handleEmailLogin}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <MdEmail size={20} />
-          <span>Login with E-Mail</span>
-        </button>,
+        <>
+          {ENABLE_BUTRAUTH && (
+          <button
+            className="butrauth-login-btn"
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                // Ask our backend to start an auth flow. The server generates the
+                // PKCE verifier and stores it in an httpOnly cookie — never exposed to JS.
+                const res = await fetch('/api/manteauth/start', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    redirect_uri: window.location.origin + '/callback',
+                    state: window.location.pathname
+                  })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.url) throw new Error(data.error || 'Failed to start ButrAuth login');
+                window.location.href = data.url;
+              } catch (err) {
+                console.error('ButrAuth start error:', err);
+              }
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <img src="https://butrauth.com/logo.png" alt="" width={32} height={32} />
+            <span>Butter Auth</span>
+          </button>
+          )}
+          <button
+            className="email-login-btn"
+            onClick={handleEmailLogin}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <MdEmail size={32} />
+            <span>E-Mail</span>
+          </button>
+        </>,
         buttonContainer
       )}
     </>

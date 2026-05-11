@@ -896,6 +896,22 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               )}
 
               <div className="info-buttons-right">
+                {authenticated && isLoggedIn() && !isVoted && (
+                  // Sits to the left of the share button; opens the
+                  // same vote tooltip the upvote count uses, so the
+                  // existing weight-picker / submit flow still drives
+                  // the actual broadcast. Hidden once the user has
+                  // already voted to avoid showing a stale CTA.
+                  <button
+                    type="button"
+                    className="vote-btn"
+                    onClick={toggleTooltip}
+                    title="Vote on this video"
+                  >
+                    <FaHeart size={14} />
+                    <span>Vote</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="share-btn"

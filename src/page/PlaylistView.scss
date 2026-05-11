@@ -57,6 +57,55 @@
         }
       }
 
+      // Album cover (when the playlist has a thumbnail)
+      .playlist-cover-wrap {
+        width: 120px;
+        height: 120px;
+        border-radius: 12px;
+        overflow: hidden;
+        flex-shrink: 0;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-light, #333);
+
+        @include respond(phone) {
+          width: 96px;
+          height: 96px;
+        }
+
+        .playlist-cover {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+      }
+
+      // Album metadata block (genre / year / label / credits / description)
+      .playlist-album-meta {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 16px;
+        font-size: 13px;
+        color: var(--text-secondary, #aaa);
+
+        > span strong {
+          color: var(--text-primary, #fff);
+          font-weight: 500;
+          margin-right: 4px;
+        }
+
+        .playlist-album-desc {
+          flex-basis: 100%;
+          margin: 4px 0 0;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--text-secondary);
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+      }
+
       .playlist-details {
         flex: 1;
 
@@ -885,4 +934,21 @@
       }
     }
   }
+}
+
+// Marker on audio playlist items
+.audio-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
 }

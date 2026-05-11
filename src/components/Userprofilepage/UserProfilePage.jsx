@@ -29,6 +29,8 @@ import useViewCounts from '../../hooks/useViewCounts';
 import { fetchUserShortsWithDetails } from '../../hive-api/hiveApi';
 import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
+import UserAudioList from './UserAudioList';
+import SocialLinks from './SocialLinks';
 
 
 
@@ -45,6 +47,7 @@ function UserProfilePage() {
       const tab = searchParams.get('tab');
       if (tab === 'playlists') return 'playlists';
       if (tab === 'shorts') return 'shorts';
+      if (tab === 'audio') return 'audio';
       return 'video';
     });
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -305,6 +308,7 @@ const {
                   <span className="status-dot">
                     <span className="dot"></span>Verified creator
                   </span>
+                  <SocialLinks hiveUsername={user} />
                 </div>
               </div>
             </div>
@@ -365,6 +369,7 @@ const {
         <div className="wrap">
           <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => setShow("shorts")}>Shorts</span>
+          <span className={show === "audio" ? "active" : ""} onClick={() => setShow("audio")}>Audio</span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
@@ -394,6 +399,8 @@ const {
     ) : (
       <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
     )
+  ) : show === "audio" ? (
+    <UserAudioList user={user} />
   ) : show === "playlists" ? (
     <>
       {isOwnProfile && (

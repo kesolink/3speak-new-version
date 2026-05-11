@@ -11,6 +11,7 @@ import { IoPower } from 'react-icons/io5';
 import { FaCheckToSlot, FaJxl, FaSquareXTwitter } from 'react-icons/fa6';
 import { TiThList } from "react-icons/ti";
 import { IoMdPerson } from 'react-icons/io';
+import { HiInformationCircle } from 'react-icons/hi';
 import { RiWallet3Fill } from 'react-icons/ri';
 import logo from "../../assets/image/3S_logo.svg";
 import logoDark from '../../assets/image/3S_logodark.png';
@@ -18,6 +19,7 @@ import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
 import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
 import UploadLinks from '../UploadLinks';
+import LabeledToggle from '../LabeledToggle/LabeledToggle';
 
 
 
@@ -25,7 +27,8 @@ import UploadLinks from '../UploadLinks';
 function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const location = useLocation();
   const navigate = useNavigate()
-  const { user, theme, showNsfw, setShowNsfw } = useAppStore();
+  const { user, theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, LogOut } = useAppStore();
+  const isManteAuth = localStorage.getItem("manteauth_login") === "true";
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -109,15 +112,47 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           {/* <Link className="wrap">
             <FaLanguage className="icon" /> <span>Language Settings</span>
           </Link> */}
-          <button type="button" className="wrap nsfw-toggle-wrap" role="switch" aria-checked={showNsfw} onClick={() => setShowNsfw(prev => !prev)}>
-            <span>Show NSFW</span>
-            <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
-              <div className="nsfw-toggle-thumb" />
-            </div>
-          </button>
-          <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
-            <IoPower className="icon" /> <span>Change account</span>
-          </a>
+          <div className="wrap profilenav-toggle-row">
+            <LabeledToggle
+              leftLabel="Hide NSFW"
+              rightLabel="Show NSFW"
+              value={showNsfw}
+              onChange={(v) => setShowNsfw(v)}
+              ariaLabel="Toggle NSFW content"
+            />
+          </div>
+          <div className="wrap profilenav-toggle-row">
+            <LabeledToggle
+              leftLabel="Light mode"
+              rightLabel="Dark mode"
+              value={theme === 'dark'}
+              onChange={(wantDark) => {
+                if ((theme === 'dark') !== wantDark) toggleTheme();
+              }}
+              ariaLabel="Toggle theme"
+            />
+          </div>
+          <div className="wrap profilenav-toggle-row">
+            <LabeledToggle
+              leftLabel="Show sidebar"
+              rightLabel="Hide sidebar"
+              value={!!sidebarHidden}
+              onChange={(hide) => setSidebarHidden(hide)}
+              ariaLabel="Toggle sidebar visibility"
+            />
+          </div>
+          <Link to="/about" className="wrap" onClick={onclose}>
+            <HiInformationCircle className="icon" /> <span>About 3Speak</span>
+          </Link>
+          {isManteAuth ? (
+            <a className="wrap" onClick={() => { LogOut(user); onclose(); navigate('/'); }}>
+              <IoPower className="icon" /> <span>Logout</span>
+            </a>
+          ) : (
+            <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
+              <IoPower className="icon" /> <span>Change account</span>
+            </a>
+          )}
 
            </div>
            <hr className="profile-divider" />

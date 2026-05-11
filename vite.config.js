@@ -4,6 +4,9 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  server: {
+    allowedHosts: ['3speak.okinoko.io'],
+  },
   plugins: [
     react(),
     nodePolyfills({
@@ -165,6 +168,11 @@ export default defineConfig({
       url: "url",
       'source-map-js': 'source-map-js',
     },
+    // Enforce a single React instance across the whole graph. Without this,
+    // dynamic imports + lazy chunks can resolve through a different React
+    // instance than the renderer, causing "Invalid hook call: dispatcher is
+    // null" errors when a lazy-loaded component first mounts.
+    dedupe: ['react', 'react-dom', '@livekit/components-react', 'livekit-client'],
   },
 
   optimizeDeps: {

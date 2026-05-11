@@ -11,7 +11,7 @@ import { useLegacyUpload} from "../../context/LegacyUploadContext";
 import BackgroundJobModal from "../modal/BackgroundJobModal";
 import { HIVE_API_URL } from "../../utils/config";
 import { useNavigate } from "react-router-dom";
-import { generateVideoThumbnails } from "@rajesh896/video-thumbnails-generator";
+import { generateVideoThumbnails } from "../../utils/videoThumbnails";
 
 function StudioPage() {
   const navigate = useNavigate();
@@ -110,6 +110,22 @@ function StudioPage() {
       const file = await handle.getFile();
       processIncomingVideo(file);
     });
+  }, []);
+
+  // Handle files handed off via window.__pwaSharedFile — used by:
+  //  - the Hangouts SDK (after stop, fetches the recording MP4 and parks it
+  //    here before navigating to /studio)
+  //  - this page itself when redirecting horizontal>60s shorts to /studio
+  //    (vertical-short detection sets the flag and bounces to /embed-studio
+  //    via the same channel)
+  const sharedFileHandled = useRef(false);
+  useEffect(() => {
+    if (sharedFileHandled.current) return;
+    const file = window.__pwaSharedFile;
+    if (!file) return;
+    sharedFileHandled.current = true;
+    delete window.__pwaSharedFile;
+    processIncomingVideo(file);
   }, []);
 
   // Handle files received via PWA share_target (iOS Share Sheet / Android share)

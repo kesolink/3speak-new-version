@@ -172,6 +172,52 @@
   color: var(--text-secondary);
 }
 
+// ─── Benefits list ─────
+.tsp-benefits {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tsp-benefits-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.4;
+
+  i {
+    color: #22c55e;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+}
+
+// ─── Coming-soon banner ─────
+.tsp-coming-soon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: rgba(252, 211, 77, 0.1);
+  border: 1px solid rgba(252, 211, 77, 0.25);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+
+  i {
+    color: #fcd34d;
+  }
+}
+
 // ─── Active subscription status ─────
 .tsp-status {
   display: flex;
