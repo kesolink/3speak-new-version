@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { HangoutsProvider, HangoutsRoom } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import { useWakeLock } from '../../hooks/useWakeLock';
@@ -23,25 +22,17 @@ function buildOpenPodShareUrl(roomName, origin) {
 export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, username, isAuthenticated }) {
   useWakeLock(isOpen);
 
-  // React fires child effects before parent effects. Without this flag,
-  // HangoutsRoom.useEffect (join) fires before HangoutsProvider.useEffect
-  // (setSessionToken on apiClient) — causing a 401 on every first join attempt.
-  // By deferring HangoutsRoom's mount to the render AFTER HangoutsProvider's
-  // effects have run, the token is guaranteed to be set before join() is called.
-  // Guests don't need a session token, so they're ready as soon as the
-  // modal opens.
-  const [roomReady, setRoomReady] = useState(false);
-  useEffect(() => {
-    if (!isOpen || !roomName) {
-      setRoomReady(false);
-      return;
-    }
-    // Authenticated user → wait for the hangouts session token first.
-    // Unauthenticated visitor → guest path; nothing to wait for.
-    setRoomReady(isAuthenticated ? !!sessionToken : true);
-  }, [sessionToken, isOpen, roomName, isAuthenticated]);
-
   if (!isOpen || !roomName) return null;
+
+  // Authenticated users must have a hangouts session token before we mount
+  // HangoutsProvider. The provider's apiClient is created via useMemo on its
+  // first render and only re-syncs the token via a follow-up useEffect — if
+  // HangoutsRoom (a child) calls join() before that effect runs, the request
+  // goes out with no Authorization header and the server replies "Missing or
+  // invalid Authorization header". Mirroring the gate from OpenPods.jsx, we
+  // simply don't mount the provider until the token is on hand. Guests bypass
+  // the gate since the SDK's guestFallback uses the public /listen endpoint.
+  const needsTokenWait = isAuthenticated && !sessionToken;
 
   // Audio recordings: close the OpenPods modal and forward the blob to
   // the AudioUploadModal at App level, pre-typed as a podcast. App.jsx
@@ -92,14 +83,18 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
       }}
     >
       <div className="openpod-modal" data-hh-theme="dark">
-        <HangoutsProvider
-          apiBaseUrl={API_URL}
-          livekitServerUrl={LK_URL}
-          imageServerApiKey={IMAGE_KEY || undefined}
-          sessionToken={sessionToken}
-          username={username || undefined}
-        >
-          {roomReady ? (
+        {needsTokenWait ? (
+          <div className="openpod-connecting">
+            Authenticating with OpenPods…
+          </div>
+        ) : (
+          <HangoutsProvider
+            apiBaseUrl={API_URL}
+            livekitServerUrl={LK_URL}
+            imageServerApiKey={IMAGE_KEY || undefined}
+            sessionToken={sessionToken}
+            username={username || undefined}
+          >
             <HangoutsRoom
               roomName={roomName}
               onLeave={onClose}
@@ -110,12 +105,8 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
               guestFallback
               getShareUrl={buildOpenPodShareUrl}
             />
-          ) : (
-            <div className="openpod-connecting">
-              {sessionToken ? 'Connecting to OpenPods…' : 'Authenticating with OpenPods…'}
-            </div>
-          )}
-        </HangoutsProvider>
+          </HangoutsProvider>
+        )}
       </div>
     </div>
   );
