@@ -12,14 +12,9 @@ import {
   SUBS_CONTRACT_ID,
   SUB_OFFER_ID,
   ONETIME_OFFER_ID,
-  THIRD_OFFER_ID,
 } from '../../utils/vscContract';
 import { KeyTypes } from '@aioha/aioha';
 import './ThreeSpeakPro.scss';
-
-// Re-exported for any inline reference inside this file. Source of
-// truth is `../../utils/vscContract` (which reads from env vars).
-void THIRD_OFFER_ID; // available for the third offer once wired up
 
 const INTERVAL_LABELS = {
   daily: 'Daily',
