@@ -18,6 +18,11 @@
 
   svg {
     display: block;
+    // FontAwesome's rocket sits in the top-right of its 0-512 viewBox
+    // (empty space toward the bottom-left), so the optical center is
+    // off. Nudge the path itself down-left inside the chip — chip stays
+    // round, rocket looks centered.
+    transform: translate(-7%, 7%);
   }
 
   // Branded hover tooltip. Pops instantly (no 500ms native delay) and
