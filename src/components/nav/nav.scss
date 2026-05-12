@@ -371,23 +371,17 @@
         display: none;
       }
     }
+    // Wrapper around the HiveAvatar in the top nav. Keep it pinned to
+    // its natural 35×35 size so flexbox doesn't stretch it, and hide on
+    // narrow viewports to match the bare-img rule above.
     .nav-avatar-wrap {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
+      width: 35px;
+      height: 35px;
+      flex: 0 0 35px;
+      align-self: center;
       cursor: pointer;
       @include mix.respond(phone) { display: none; }
       @include mix.respond(tab)   { display: none; }
-    }
-    .nav-avatar-premium {
-      position: absolute;
-      right: -3px;
-      top: -3px;
-      margin: 0;
-      background: var(--bg-primary, #181818);
-      border-radius: 50%;
-      padding: 2px;
-      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
     }
   }
   > .nav-right button:not(.notif-bell-btn) {

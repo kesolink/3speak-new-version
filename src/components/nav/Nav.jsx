@@ -15,7 +15,7 @@ import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
 import NotificationBell from "./NotificationBell";
-import PremiumBadge from "../PremiumBadge/PremiumBadge";
+import HiveAvatar from "../HiveAvatar/HiveAvatar";
 
 function NavPlaylistsDropdown({ user }) {
   const [open, setOpen] = useState(false);
@@ -247,10 +247,14 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           </Link>
           <NavUploadDropdown />
           <NotificationBell />
-          <span className="nav-avatar-wrap" onClick={toggleProfileNav}>
-            <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" />
-            <PremiumBadge username={user} size={14} className="nav-avatar-premium" />
-          </span>
+          <HiveAvatar
+            username={user}
+            size={null}
+            alt=""
+            onClick={toggleProfileNav}
+            className="nav-avatar-wrap"
+            badgeSize={14}
+          />
         </div>
       ) : (
         <div className="nav-right flex-div">
