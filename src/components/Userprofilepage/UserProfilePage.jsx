@@ -31,6 +31,7 @@ import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
 import UserAudioList from './UserAudioList';
 import SocialLinks from './SocialLinks';
+import HiveAvatar from '../HiveAvatar/HiveAvatar';
 
 
 
@@ -297,10 +298,7 @@ const {
           <div className="top-section">
             <div className="left-info">
               <div className="avatar">
-                <img
-                  src={`https://images.hive.blog/u/${user}/avatar`}
-                  alt="Profile avatar"
-                />
+                <HiveAvatar username={user} size={null} alt="Profile avatar" badgeSize={16} />
               </div>
               <div className="user-meta">
                 <h2>{user}</h2>

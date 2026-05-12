@@ -81,6 +81,7 @@ import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import EditorModal from '../components/modal/EditorModal';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
+import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 
 // Thin wrapper: reads currentTime from a ref via polling to avoid re-rendering the whole Shorts page
 function ShortsSubtitleOverlay({ timeRef, cues, style }) {
@@ -2562,10 +2563,12 @@ const VideoShort = () => {
                       title={`@${r.username}`}
                       onClick={(e) => { e.stopPropagation(); handleProfileNavigation(r.username); }}
                     >
-                      <img
-                        src={`https://images.hive.blog/u/${r.username}/avatar`}
+                      <HiveAvatar
+                        username={r.username}
+                        size={null}
                         alt={r.username}
-                        className="reshareAvatar"
+                        imgClassName="reshareAvatar"
+                        badgeSize={9}
                       />
                       <Repeat2 size={14} className="reshareBadge" />
                     </div>
@@ -2828,7 +2831,7 @@ const VideoShort = () => {
         {/* Comment Input */}
         <div className="commentInput">
           <div className="commentInputAvatar">
-            <img src={user ? `https://images.hive.blog/u/${user}/avatar` : "https://images.hive.blog/u/guest/avatar"} alt="" />
+            <HiveAvatar username={user || 'guest'} size={null} alt="" badgeSize={11} />
           </div>
           <textarea
             rows={1}

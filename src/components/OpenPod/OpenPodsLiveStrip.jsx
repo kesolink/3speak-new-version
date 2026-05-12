@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useHangout } from '../../context/HangoutContext';
 import { useAppStore } from '../../lib/store';
 import { MdMic } from 'react-icons/md';
+import HiveAvatar from '../HiveAvatar/HiveAvatar';
 import './OpenPodsLiveStrip.scss';
 
 const HANGOUTS_API_URL = import.meta.env.VITE_HANGOUTS_API_URL || '';
@@ -53,11 +54,13 @@ export default function OpenPodsLiveStrip() {
             onClick={() => handleJoinRoom(room.name)}
             aria-label={`Join OpenPod: ${room.title}`}
           >
-            <img
-              className="strip-card-avatar"
-              src={`https://images.hive.blog/u/${room.host}/avatar/sm`}
+            <HiveAvatar
+              username={room.host}
+              size="small"
+              imgClassName="strip-card-avatar"
               alt={room.host}
               onError={(e) => { e.target.style.display = 'none'; }}
+              badgeSize={10}
             />
             <div className="strip-card-info">
               <span className="strip-card-title">{room.title}</span>

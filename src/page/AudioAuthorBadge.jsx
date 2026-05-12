@@ -3,6 +3,7 @@ import { getRelationshipBetweenAccounts } from '../hive-api/api';
 import { followWithAioha, isLoggedIn } from '../hive-api/aioha';
 import { useAppStore } from '../lib/store';
 import { toast } from 'sonner';
+import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 
 /**
  * Compact vertical author card for the Audio page creators row.
@@ -41,11 +42,13 @@ function AudioAuthorBadge({ author, tracks, isFollowing: isFollowingProp, onClic
 
   return (
     <div className="audio-author-badge" onClick={onClick}>
-      <img
-        className="audio-author-avatar"
-        src={`https://images.hive.blog/u/${author}/avatar/small`}
+      <HiveAvatar
+        username={author}
+        size="small"
+        imgClassName="audio-author-avatar"
         alt={author}
         onError={e => { e.currentTarget.style.visibility = 'hidden'; }}
+        badgeSize={11}
       />
       <div className="audio-author-info">
         <span className="audio-author-name">@{author}</span>

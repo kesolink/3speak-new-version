@@ -1,0 +1,25 @@
+// HiveAvatar wraps an <img> so the premium badge can sit on top of
+// the corner. Display: inline-block + line-height: 0 prevents the
+// wrapper from adding stray bottom space inherited from text layouts.
+.hive-avatar {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  vertical-align: middle;
+
+  > img {
+    display: block;
+  }
+
+  &__badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    margin: 0;
+    background: var(--bg-primary, #181818);
+    border-radius: 50%;
+    padding: 1px;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+    line-height: 1;
+  }
+}

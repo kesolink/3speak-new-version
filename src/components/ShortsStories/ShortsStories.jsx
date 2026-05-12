@@ -5,6 +5,7 @@ import axios from "axios";
 import { FaChevronLeft, FaChevronRight, FaPlus } from "react-icons/fa";
 import { SHORTS_STORIES_URL } from "../../utils/config";
 import { useAppStore } from "../../lib/store";
+import HiveAvatar from "../HiveAvatar/HiveAvatar";
 import "./ShortsStories.scss";
 
 const fetchShortsStories = async (username) => {
@@ -167,13 +168,15 @@ const ShortsStories = ({ activeCreator, onCreatorSelect, compact = false, hidden
                       currentUserHasShort ? "border-foreground" : "border-primary"
                     }`}
                   >
-                    <img
-                      src={`https://images.hive.blog/u/${user}/avatar`}
+                    <HiveAvatar
+                      username={user}
+                      size={null}
                       alt={user}
-                      className="story-avatar"
+                      imgClassName="story-avatar"
                       onError={(e) => {
                         e.currentTarget.src = `https://ui-avatars.com/api/?name=${user}&background=dc2626&color=ffffff&size=150`;
                       }}
+                      badgeSize={12}
                     />
                     <div className="add-badge">
                       <FaPlus />
@@ -200,13 +203,15 @@ const ShortsStories = ({ activeCreator, onCreatorSelect, compact = false, hidden
                           creator.followed ? "border-primary" : "border-foreground"
                         }`}
                       >
-                        <img
-                          src={`https://images.hive.blog/u/${creator.username}/avatar`}
+                        <HiveAvatar
+                          username={creator.username}
+                          size={null}
                           alt={creator.username}
-                          className="story-avatar"
+                          imgClassName="story-avatar"
                           onError={(e) => {
                             e.currentTarget.src = `https://ui-avatars.com/api/?name=${creator.username}&background=dc2626&color=ffffff&size=150`;
                           }}
+                          badgeSize={12}
                         />
                         {creator.unseen_count > 1 && (
                           <div className="count-badge">{creator.unseen_count}</div>

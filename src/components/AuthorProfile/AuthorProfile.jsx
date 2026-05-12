@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import PropTypes from "prop-types";
+import HiveAvatar from "../HiveAvatar/HiveAvatar";
 import "./AuthorProfile.scss";
 
 /**
@@ -15,9 +16,10 @@ function AuthorProfile({ author, className = "", showAvatar = true, noLink = fal
   const content = (
     <>
       {showAvatar && (
-        <img
-          className="author-avatar"
-          src={`https://images.hive.blog/u/${author}/avatar`}
+        <HiveAvatar
+          username={author}
+          size={null}
+          imgClassName="author-avatar"
           alt={author}
         />
       )}

@@ -56,6 +56,12 @@
     }
   }
 
+  // The HiveAvatar wrapper keeps the same footprint as the bare <img>
+  // so flex-row layout (avatar + name column) doesn't shift.
+  .author-badge-avatar {
+    flex-shrink: 0;
+  }
+
   .author-text {
     display: flex;
     flex-direction: column;
