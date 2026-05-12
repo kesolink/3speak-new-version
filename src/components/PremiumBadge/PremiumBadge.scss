@@ -11,8 +11,61 @@
   color: #fff; // crown silhouette — sits inside a brand-red chip
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
   flex-shrink: 0;
+  // The badge's own position is set by the callsite (absolute on
+  // .hive-avatar__badge etc.) — `position: relative` here is a no-op
+  // in that case (already absolute) and only kicks in for inline use.
+  position: relative;
 
   svg {
     display: block;
+  }
+
+  // Branded hover tooltip. Pops instantly (no 500ms native delay) and
+  // is themed to match the chip itself. We rely on a CSS pseudo so we
+  // don't need a tooltip library / portal — caveat: ancestors with
+  // overflow:hidden will clip it. The native `title` attr on the span
+  // is the fallback for those callsites + assistive tech.
+  &::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.88);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform-origin: 50% calc(100% + 6px);
+    transition: opacity 0.12s ease;
+    z-index: 100;
+  }
+
+  // Small arrow below the tooltip.
+  &::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.88);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    z-index: 100;
+  }
+
+  &:hover::after,
+  &:hover::before,
+  &:focus-visible::after,
+  &:focus-visible::before {
+    opacity: 1;
   }
 }

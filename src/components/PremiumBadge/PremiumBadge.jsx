@@ -20,9 +20,14 @@ export default function PremiumBadge({ username, size = 14, title = '3Speak Pro'
   return (
     <span
       className={`hh-premium-badge${className ? ` ${className}` : ''}`}
-      title={title}
+      // `data-tooltip` powers the custom CSS hover tooltip (fast +
+      // branded). aria-label keeps screen readers covered. No `title`
+      // attribute — it'd double up with the native OS tooltip and
+      // flash 500ms after ours appears.
+      data-tooltip={title}
       aria-label={title}
       role="img"
+      tabIndex={0}
     >
       <svg
         width={size}
