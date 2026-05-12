@@ -384,6 +384,15 @@
       flex: 0 0 35px;
       align-self: center;
       cursor: pointer;
+      // The legacy `.nav-right > span { padding/background/border-radius }`
+      // rule below this block targets span children of .nav-right. Our
+      // wrap IS a span — explicitly reset its inherited pill styling so
+      // we don't end up with a gray padded rectangle where the avatar
+      // should be.
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+      transition: none;
       @include mix.respond(phone) { display: none; }
       @include mix.respond(tab)   { display: none; }
     }
