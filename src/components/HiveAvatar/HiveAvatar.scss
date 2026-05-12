@@ -13,12 +13,12 @@
 
   &__badge {
     position: absolute;
-    // Pulled in/down from the corner so the chip overlaps the avatar's
-    // upper-right arc instead of floating outside it. FontAwesome's
-    // rocket is diagonally biased (top-right heavy), so the optical
-    // center is slightly off — these offsets compensate.
-    top: 2px;
-    right: 2px;
+    // Chip sits at the corner of the avatar (overlapping just slightly)
+    // — scales well from 22px tile avatars up to 5rem profile avatars.
+    // FontAwesome's rocket bias is corrected by translate(-7%, 7%) on
+    // the SVG itself (see PremiumBadge.scss).
+    top: -2px;
+    right: -2px;
     margin: 0;
     background: var(--accent-primary, #e53935);
     border-radius: 50%;

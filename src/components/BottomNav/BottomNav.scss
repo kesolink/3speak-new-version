@@ -140,10 +140,8 @@
 .bottom-nav-avatar-premium,
 .bottom-nav-menu-avatar-premium {
   position: absolute;
-  // Pulled inside the avatar circle to compensate for the rocket's
-  // diagonal silhouette (top-right biased).
-  right: 1px;
-  top: 1px;
+  right: -2px;
+  top: -2px;
   margin: 0;
   background: var(--accent-primary, #e53935);
   border-radius: 50%;
