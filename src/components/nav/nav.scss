@@ -371,6 +371,24 @@
         display: none;
       }
     }
+    .nav-avatar-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      @include mix.respond(phone) { display: none; }
+      @include mix.respond(tab)   { display: none; }
+    }
+    .nav-avatar-premium {
+      position: absolute;
+      right: -3px;
+      bottom: -3px;
+      margin: 0;
+      background: var(--bg-primary, #181818);
+      border-radius: 50%;
+      padding: 2px;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
   }
   > .nav-right button:not(.notif-bell-btn) {
     padding: 7px 25px;

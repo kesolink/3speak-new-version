@@ -132,6 +132,28 @@
   transition: border-color 0.2s ease;
 }
 
+.bottom-nav-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.bottom-nav-avatar-premium,
+.bottom-nav-menu-avatar-premium {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  margin: 0;
+  background: var(--bg-primary, #181818);
+  border-radius: 50%;
+  padding: 1px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.bottom-nav-menu-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .bottom-nav-avatar-placeholder {
   width: 24px;
   height: 24px;

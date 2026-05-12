@@ -1,0 +1,17 @@
+// 3Speak Pro inline crown badge. Uses a gold gradient by default —
+// callers can override via `color` on the parent, since the SVG path
+// uses `currentColor`.
+.hh-premium-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+  color: #f5c43e; // warm gold — readable on both light & dark themes
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+  flex-shrink: 0;
+
+  svg {
+    display: block;
+  }
+}

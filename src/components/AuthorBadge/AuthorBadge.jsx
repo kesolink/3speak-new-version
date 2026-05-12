@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { getFollowers, getRelationshipBetweenAccounts } from '../../hive-api/api';
 import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
+import PremiumBadge from '../PremiumBadge/PremiumBadge';
 import './AuthorBadge.scss';
 
 function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing: isFollowingProp, onFollow, noLink, compact, reputation, color, tabHint }) {
@@ -86,7 +87,10 @@ function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFoll
     <>
       <img src={`https://images.hive.blog/u/${author}/avatar/small`} alt="" />
       <div className="author-text">
-        <span className="author-name">@{author}{reputation != null ? ` (${Math.round(reputation)})` : ''}</span>
+        <span className="author-name">
+          @{author}{reputation != null ? ` (${Math.round(reputation)})` : ''}
+          <PremiumBadge username={author} size={12} />
+        </span>
         {displayFollowers != null && (
           <span className="followers-count">{displayFollowers} Followers</span>
         )}
