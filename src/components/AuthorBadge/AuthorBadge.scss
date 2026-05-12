@@ -69,6 +69,17 @@
     min-width: 0;
   }
 
+  // Wraps the truncating name + the premium badge so the badge sits
+  // OUTSIDE the ellipsis calculation — name shrinks with "…" but the
+  // rocket stays full-size at the end.
+  .author-name-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .author-name {
     font-size: 13px;
     font-weight: 600;
@@ -76,6 +87,13 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+
+  .author-name-row .hh-premium-badge {
+    flex-shrink: 0;
+    margin-left: 0; // gap on the row already provides spacing
   }
 
   .followers-count {

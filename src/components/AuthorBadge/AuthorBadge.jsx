@@ -87,8 +87,8 @@ function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFoll
     <>
       <img src={`https://images.hive.blog/u/${author}/avatar/small`} alt="" />
       <div className="author-text">
-        <span className="author-name">
-          @{author}{reputation != null ? ` (${Math.round(reputation)})` : ''}
+        <span className="author-name-row">
+          <span className="author-name">@{author}{reputation != null ? ` (${Math.round(reputation)})` : ''}</span>
           <PremiumBadge username={author} size={11} />
         </span>
         {displayFollowers != null && (
