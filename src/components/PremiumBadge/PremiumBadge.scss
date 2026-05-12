@@ -8,7 +8,11 @@
   justify-content: center;
   vertical-align: middle;
   margin-left: 0.25rem;
-  color: #fff; // crown silhouette — sits inside a brand-red chip
+  // Default: red rocket on transparent background — fits inline uses
+  // (next to a username, etc.). Chip variants (.hive-avatar__badge,
+  // .bottom-nav-avatar-premium, …) set their own red background and
+  // override this color back to white.
+  color: var(--accent-primary, #e53935);
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
   flex-shrink: 0;
   // The badge's own position is set by the callsite (absolute on
