@@ -18,7 +18,7 @@
     margin: 0;
     background: var(--accent-primary, #e53935);
     border-radius: 50%;
-    padding: 1px;
+    padding: 3px; // breathing room between the rocket and the chip edge
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
     line-height: 1;
   }
