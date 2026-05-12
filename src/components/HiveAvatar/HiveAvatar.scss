@@ -13,8 +13,12 @@
 
   &__badge {
     position: absolute;
-    top: -3px;
-    right: -3px;
+    // Pulled in/down from the corner so the chip overlaps the avatar's
+    // upper-right arc instead of floating outside it. FontAwesome's
+    // rocket is diagonally biased (top-right heavy), so the optical
+    // center is slightly off — these offsets compensate.
+    top: 2px;
+    right: 2px;
     margin: 0;
     background: var(--accent-primary, #e53935);
     border-radius: 50%;
