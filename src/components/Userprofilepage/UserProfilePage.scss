@@ -397,7 +397,7 @@
           border-radius: 999px;
           border: 4px solid #020617;
           background: #0f172a;
-          overflow: hidden;
+          // overflow stays VISIBLE so the premium badge isn't clipped.
           display: flex;
           align-items: center;
           justify-content: center;
@@ -408,10 +408,16 @@
             width: 6rem;
           }
 
+          .hive-avatar {
+            width: 100%;
+            height: 100%;
+          }
+
           img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            border-radius: 50%;
           }
         }
 
