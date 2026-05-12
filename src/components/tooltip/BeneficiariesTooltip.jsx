@@ -2,6 +2,7 @@ import React, { useRef, useLayoutEffect, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { IoClose } from 'react-icons/io5'
+import HiveAvatar from '../HiveAvatar/HiveAvatar'
 
 import "./BeneficiariesTooltip.scss"
 
@@ -101,11 +102,12 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, displayTotal, anchorR
         )}
         {beneficiaries.map((b, index) => (
           <div key={index} className="beneficiaries-tooltip-row">
-            <img
-              className="beneficiaries-tooltip-avatar"
-              src={`https://images.hive.blog/u/${b.account}/avatar/small`}
+            <HiveAvatar
+              username={b.account}
+              size="small"
+              imgClassName="beneficiaries-tooltip-avatar"
               alt=""
-              loading="lazy"
+              badgeSize={10}
             />
             <a
               className="beneficiaries-tooltip-user"

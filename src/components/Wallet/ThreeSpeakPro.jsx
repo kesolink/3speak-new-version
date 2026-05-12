@@ -12,14 +12,9 @@ import {
   SUBS_CONTRACT_ID,
   SUB_OFFER_ID,
   ONETIME_OFFER_ID,
-  THIRD_OFFER_ID,
 } from '../../utils/vscContract';
 import { KeyTypes } from '@aioha/aioha';
 import './ThreeSpeakPro.scss';
-
-// Re-exported for any inline reference inside this file. Source of
-// truth is `../../utils/vscContract` (which reads from env vars).
-void THIRD_OFFER_ID; // available for the third offer once wired up
 
 const INTERVAL_LABELS = {
   daily: 'Daily',
@@ -42,6 +37,19 @@ const STATIC_INTERVALS = {
   monthly: 10,
   yearly: 100,
 };
+
+// Display formatter: trims trailing zeros so 5.000 HBD renders as "5
+// HBD", 5.500 as "5.5 HBD", 0.123 stays "0.123". Hive amounts on the
+// wire still need .toFixed(3) — DON'T use this for buildTransferIntent
+// payloads or deposit ops.
+const AMOUNT_FMT = new Intl.NumberFormat('en', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
+function fmtAmount(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  return AMOUNT_FMT.format(Number(n));
+}
 
 // Benefits listed at the top of the plans card so users see what
 // they're getting before the price comparison.
@@ -244,7 +252,7 @@ function ThreeSpeakPro() {
     setTxStatus({
       state: 'broadcasting',
       msg: depositNeeded > 0
-        ? `Depositing ${depositNeeded.toFixed(3)} ${payAsset.toUpperCase()} to VSC and purchasing…`
+        ? `Depositing ${fmtAmount(depositNeeded)} ${payAsset.toUpperCase()} to VSC and purchasing…`
         : 'Approve the transaction in your wallet…',
     });
 
@@ -300,7 +308,7 @@ function ThreeSpeakPro() {
     setTxStatus({
       state: 'broadcasting',
       msg: depositNeeded > 0
-        ? `Depositing ${depositNeeded.toFixed(3)} ${subAssetUpper} to VSC and topping up…`
+        ? `Depositing ${fmtAmount(depositNeeded)} ${subAssetUpper} to VSC and topping up…`
         : 'Approve the top-up in your wallet…',
     });
 
@@ -386,9 +394,9 @@ function ThreeSpeakPro() {
       {loggedIn && (
         <div className="tsp-l2-balances">
           <span className="tsp-l2-label">Your Magi Balance:</span>
-          <span className="tsp-l2-amount">{vscBalances.hive.toFixed(3)} HIVE</span>
+          <span className="tsp-l2-amount">{fmtAmount(vscBalances.hive)} HIVE</span>
           <span className="tsp-l2-sep">·</span>
-          <span className="tsp-l2-amount">{vscBalances.hbd.toFixed(3)} HBD</span>
+          <span className="tsp-l2-amount">{fmtAmount(vscBalances.hbd)} HBD</span>
         </div>
       )}
 
@@ -462,7 +470,7 @@ function ThreeSpeakPro() {
                 </div>
                 <div className="tsp-status-item">
                   <span className="tsp-status-label">Prepaid Balance</span>
-                  <span className="tsp-status-value tsp-balance">{currentBalance.toFixed(3)} {subAssetUpper}</span>
+                  <span className="tsp-status-value tsp-balance">{fmtAmount(currentBalance)} {subAssetUpper}</span>
                 </div>
                 <div className="tsp-status-item">
                   <span className="tsp-status-label">Next Billing</span>
@@ -470,7 +478,7 @@ function ThreeSpeakPro() {
                 </div>
                 <div className="tsp-status-item">
                   <span className="tsp-status-label">Interval Price</span>
-                  <span className="tsp-status-value">{intervals[currentInterval]?.toFixed(3) || '—'} {subAssetUpper}</span>
+                  <span className="tsp-status-value">{fmtAmount(intervals[currentInterval])} {subAssetUpper}</span>
                 </div>
               </div>
 
@@ -521,7 +529,7 @@ function ThreeSpeakPro() {
                   onClick={isActive || onetimeIsActive ? undefined : () => setSelectedPlan('onetime')}
                 >
                   <span className="tsp-plan-name">One Time</span>
-                  <span className="tsp-plan-price">{onetimePrice.toFixed(3)} {onetimeAssetUpper}</span>
+                  <span className="tsp-plan-price">{fmtAmount(onetimePrice)} {onetimeAssetUpper}</span>
                   {onetimeOffer.description && <span className="tsp-plan-desc">{onetimeOffer.description}</span>}
                 </div>
               )}
@@ -535,7 +543,7 @@ function ThreeSpeakPro() {
                 >
                   {interval === 'yearly' && <span className="tsp-plan-badge">Save 2 months</span>}
                   <span className="tsp-plan-name">{INTERVAL_LABELS[interval] || interval}</span>
-                  <span className="tsp-plan-price">{price.toFixed(3)} {subAssetUpper}</span>
+                  <span className="tsp-plan-price">{fmtAmount(price)} {subAssetUpper}</span>
                   <span className="tsp-plan-desc">{INTERVAL_DURATIONS[interval] || ''}</span>
                   {subOffer?.description && <span className="tsp-plan-desc">{subOffer.description}</span>}
                 </div>

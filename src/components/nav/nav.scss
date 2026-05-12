@@ -371,6 +371,43 @@
         display: none;
       }
     }
+    // Wrapper around the avatar img + premium overlay in the top nav.
+    // Pinned to 35×35 + align-self:center so the flex parent doesn't
+    // stretch it. Hidden on narrow viewports to match the bare-img rule
+    // above.
+    .nav-avatar-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      width: 35px;
+      height: 35px;
+      flex: 0 0 35px;
+      align-self: center;
+      cursor: pointer;
+      // The legacy `.nav-right > span { padding/background/border-radius }`
+      // rule below this block targets span children of .nav-right. Our
+      // wrap IS a span — explicitly reset its inherited pill styling so
+      // we don't end up with a gray padded rectangle where the avatar
+      // should be.
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+      transition: none;
+      @include mix.respond(phone) { display: none; }
+      @include mix.respond(tab)   { display: none; }
+    }
+    .nav-avatar-premium {
+      position: absolute;
+      right: -2px;
+      top: -2px;
+      margin: 0;
+      background: var(--accent-primary, #e53935);
+      color: #fff;
+      border-radius: 50%;
+      padding: 3px;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+      line-height: 1;
+    }
   }
   > .nav-right button:not(.notif-bell-btn) {
     padding: 7px 25px;

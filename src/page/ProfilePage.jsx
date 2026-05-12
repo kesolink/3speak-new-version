@@ -38,6 +38,7 @@ import WatchLaterPlaylistCard from "../components/Cards/WatchLaterPlaylistCard";
 import UserAudioList from "../components/Userprofilepage/UserAudioList";
 import { createPlaylist } from "../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
+import HiveAvatar from "../components/HiveAvatar/HiveAvatar";
 
 // Reserved playlist name for Watch Later
 const WATCH_LATER_NAME = 'Watch Later';
@@ -365,10 +366,7 @@ function ProfilePage() {
           <div className="top-section">
             <div className="left-info">
               <div className="avatar">
-                <img
-                  src={`https://images.hive.blog/u/${user}/avatar`}
-                  alt="avatar"
-                />
+                <HiveAvatar username={user} size={null} alt="avatar" badgeSize={16} />
               </div>
 
               <div className="user-meta">

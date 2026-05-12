@@ -13,6 +13,7 @@ import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { FEATURE_EDITOR } from "../../utils/config";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import PremiumBadge from "../PremiumBadge/PremiumBadge";
 import { toast } from "sonner";
 import "./BottomNav.scss";
 
@@ -193,11 +194,14 @@ const BottomNav = ({ openLoginModal }) => {
 
       <a href="#" className={`bottom-nav-item ${menuOpen ? "active" : ""}`} onClick={handleProfileClick}>
         {authenticated ? (
-          <img
-            src={`https://images.hive.blog/u/${user}/avatar/small`}
-            alt={user}
-            className="bottom-nav-avatar"
-          />
+          <span className="bottom-nav-avatar-wrap">
+            <img
+              src={`https://images.hive.blog/u/${user}/avatar/small`}
+              alt={user}
+              className="bottom-nav-avatar"
+            />
+            <PremiumBadge username={user} size={11} className="bottom-nav-avatar-premium" />
+          </span>
         ) : (
           <div className="bottom-nav-avatar-placeholder">
             <GiAstronautHelmet />
@@ -209,8 +213,14 @@ const BottomNav = ({ openLoginModal }) => {
       {menuOpen && authenticated && (
         <div className="bottom-nav-menu">
           <div className="bottom-nav-menu-header">
-            <img src={`https://images.hive.blog/u/${user}/avatar/small`} alt={user} className="bottom-nav-menu-avatar" />
-            <span className="bottom-nav-menu-user">{user}</span>
+            <span className="bottom-nav-menu-avatar-wrap">
+              <img src={`https://images.hive.blog/u/${user}/avatar/small`} alt={user} className="bottom-nav-menu-avatar" />
+              <PremiumBadge username={user} size={12} className="bottom-nav-menu-avatar-premium" />
+            </span>
+            <span className="bottom-nav-menu-user">
+              {user}
+              <PremiumBadge username={user} size={13} />
+            </span>
           </div>
           <div className="bottom-nav-menu-divider" />
           <Link to={`/p/${user}`} className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>

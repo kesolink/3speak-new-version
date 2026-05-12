@@ -22,6 +22,7 @@ import {
 import { groupNotifications } from '../utils/notificationGrouping';
 import { useWhaleDetection } from '../utils/whaleDetection';
 import threeSpeakLogo from '../assets/image/3S_mark.svg';
+import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 import './Notifications.scss';
 
 const MAX_STACKED_AVATARS = 5;
@@ -476,11 +477,13 @@ function Notifications() {
                       >
                         <div className="notifications-avatar-wrap">
                           {actor && (
-                            <img
-                              className="notifications-avatar"
-                              src={`https://images.hive.blog/u/${actor}/avatar/small`}
+                            <HiveAvatar
+                              username={actor}
+                              size="small"
+                              imgClassName="notifications-avatar"
                               alt={actor}
                               onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                              badgeSize={10}
                             />
                           )}
                           {tier && <span className={`notifications-tier-badge tier-${tier}`}>{tier === 'whale' ? '🐋' : '🐬'}</span>}
@@ -656,13 +659,15 @@ function GroupRow({ group, isUnread, is3Speak, getWhaleTier, onClick }) {
       >
         <div className="notifications-avatar-stack">
           {topActors.map((actor, i) => (
-            <img
+            <HiveAvatar
               key={actor}
-              className="notifications-stacked-avatar"
+              username={actor}
+              size="small"
+              imgClassName="notifications-stacked-avatar"
               style={{ zIndex: MAX_STACKED_AVATARS - i, marginLeft: i === 0 ? 0 : -10 }}
-              src={`https://images.hive.blog/u/${actor}/avatar/small`}
               alt={actor}
               onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+              badgeSize={9}
             />
           ))}
           {remaining > 0 && <span className="notifications-avatar-more">+{remaining}</span>}
@@ -696,11 +701,13 @@ function GroupRow({ group, isUnread, is3Speak, getWhaleTier, onClick }) {
           >
             <div className="notifications-avatar-wrap">
               {actor && (
-                <img
-                  className="notifications-avatar"
-                  src={`https://images.hive.blog/u/${actor}/avatar/small`}
+                <HiveAvatar
+                  username={actor}
+                  size="small"
+                  imgClassName="notifications-avatar"
                   alt={actor}
                   onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                  badgeSize={10}
                 />
               )}
               {tier && <span className={`notifications-tier-badge tier-${tier}`}>{tier === 'whale' ? '🐋' : '🐬'}</span>}

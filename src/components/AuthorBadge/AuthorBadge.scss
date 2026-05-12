@@ -56,11 +56,28 @@
     }
   }
 
+  // The HiveAvatar wrapper keeps the same footprint as the bare <img>
+  // so flex-row layout (avatar + name column) doesn't shift.
+  .author-badge-avatar {
+    flex-shrink: 0;
+  }
+
   .author-text {
     display: flex;
     flex-direction: column;
     line-height: 1.2;
     min-width: 0;
+  }
+
+  // Wraps the truncating name + the premium badge so the badge sits
+  // OUTSIDE the ellipsis calculation — name shrinks with "…" but the
+  // rocket stays full-size at the end.
+  .author-name-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .author-name {
@@ -70,6 +87,13 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+
+  .author-name-row .hh-premium-badge {
+    flex-shrink: 0;
+    margin-left: 0; // gap on the row already provides spacing
   }
 
   .followers-count {

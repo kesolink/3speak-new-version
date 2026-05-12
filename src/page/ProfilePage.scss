@@ -560,7 +560,9 @@ $bg: #ffffff;
           border-radius: 999px;
           border: 4px solid #020617;
           background: #0f172a;
-          overflow: hidden;
+          // overflow stays VISIBLE so the premium badge (top-right of
+          // the HiveAvatar wrapper) isn't clipped. The img itself is
+          // now rounded + clipped per-element.
           display: flex;
           align-items: center;
           justify-content: center;
@@ -571,10 +573,19 @@ $bg: #ffffff;
             width: 6rem;
           }
 
+          // HiveAvatar drops a <span class="hive-avatar"> wrapper, so
+          // size that to fill the .avatar box (the badge stays absolute
+          // relative to this span).
+          .hive-avatar {
+            width: 100%;
+            height: 100%;
+          }
+
           img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            border-radius: 50%;
           }
         }
 

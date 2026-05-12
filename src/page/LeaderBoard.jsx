@@ -1,6 +1,7 @@
 import React from 'react'
 import "./LeaderBoard.scss"
 import { GET_LEADER_BOARD } from '../graphql/queries';
+import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 import "./LeaderBoard.scss"
 function LeaderBoard() {
     
@@ -59,7 +60,7 @@ function LeaderBoard() {
                 <span> Score: {item.score}</span>
             </div>
             <div className="image-container">
-             <img src={`https://images.hive.blog/u/${item.username}/avatar`} alt="" />
+             <HiveAvatar username={item.username} size={null} alt="" badgeSize={14} />
             </div>
             <button>View Channel</button>
             <h3>{item.username}</h3>
@@ -76,7 +77,7 @@ function LeaderBoard() {
               <span> Rank: {item.rank}</span>
               <span> Score: {item.score}</span>
           </div>
-          <img src={`https://images.hive.blog/u/${item.username}/avatar`} alt="" />
+          <HiveAvatar username={item.username} size={null} alt="" badgeSize={14} />
           <button>View Channel</button>
           <h3>{item.username}</h3>
           
@@ -92,7 +93,7 @@ function LeaderBoard() {
               <span> Rank: {item.rank}</span>
               <span> Score: {item.score}</span>
           </div>
-          <img src={`https://images.hive.blog/u/${item.username}/avatar`} alt="" />
+          <HiveAvatar username={item.username} size={null} alt="" badgeSize={14} />
           <button>View Channel</button>
           <h3>{item.username}</h3>
           

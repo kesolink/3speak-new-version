@@ -40,14 +40,17 @@ export const SUBS_CONTRACT_ID = import.meta.env.VITE_VSC_SUBS_CONTRACT_ID
   || 'vsc1BpkPNtC1pBLhxtNn4uE3QkLhudoyzAiXUi';
 
 // Offer IDs configured on the subs contract. Numeric env values come
-// in as strings; coerce with Number() and fall back to the legacy
-// hardcoded IDs so the page still loads if the env isn't set yet.
+// in as strings; coerce with Number() and fall back to the current
+// mainnet IDs so the page still loads if the env isn't set yet.
+//
+// Mainnet (current): two offers total —
+//   - SUB_OFFER_ID = 5 — recurring subscription, monthly OR yearly
+//     billing intervals are both selected against this same offer.
+//   - ONETIME_OFFER_ID = 4 — single 1-day pass.
+// (Older builds had a third offer slot; the contract dropped it when
+// monthly/yearly were folded into a single offer with two intervals.)
 export const SUB_OFFER_ID = Number(import.meta.env.VITE_VSC_SUB_OFFER_ID ?? 5);
-export const ONETIME_OFFER_ID = Number(import.meta.env.VITE_VSC_ONETIME_OFFER_ID ?? 6);
-// Third offer slot for an additional product (e.g. a tip / one-off
-// boost). Set VITE_VSC_THIRD_OFFER_ID once the contract publishes the
-// real ID — when 0 / unset, the UI can hide the related option.
-export const THIRD_OFFER_ID = Number(import.meta.env.VITE_VSC_THIRD_OFFER_ID ?? 0);
+export const ONETIME_OFFER_ID = Number(import.meta.env.VITE_VSC_ONETIME_OFFER_ID ?? 4);
 
 // RC limit for contract calls
 const DEFAULT_RC_LIMIT = 10000;
