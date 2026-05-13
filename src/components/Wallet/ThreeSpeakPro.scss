@@ -551,3 +551,35 @@
   color: var(--text-secondary, #94a3b8);
   text-align: center;
 }
+
+/* Trial-active banner — replaces the "Try free" CTA while a trial is
+   in progress. Same gradient/red palette as the start banner so the
+   transition between the two reads as the same affordance. */
+.tsp-trial-active {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  margin: 0.75rem 0 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(229, 57, 53, 0.18), rgba(229, 57, 53, 0.04));
+  border: 1px solid rgba(229, 57, 53, 0.5);
+  font-size: 0.92rem;
+  color: var(--text-primary, #f1f5f9);
+
+  &--expired {
+    background: linear-gradient(135deg, rgba(148, 163, 184, 0.18), rgba(148, 163, 184, 0.04));
+    border-color: rgba(148, 163, 184, 0.4);
+  }
+
+  strong { font-weight: 700; }
+}
+
+.tsp-trial-active-icon {
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.tsp-trial-active-text {
+  line-height: 1.35;
+}

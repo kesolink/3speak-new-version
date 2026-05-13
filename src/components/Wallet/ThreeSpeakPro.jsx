@@ -71,6 +71,59 @@ const BENEFITS = [
 const ENABLE_PRO_TESTING = import.meta.env.VITE_ENABLE_PRO_TESTING === 'true';
 const HANGOUTS_API_URL = import.meta.env.VITE_HANGOUTS_API_URL || '';
 
+/**
+ * Formats a remaining-duration in ms into a short human string:
+ *   23h 14m / 47m / 32s. Returns "expired" for non-positive values
+ *   so the UI can switch back to the upgrade flow.
+ */
+function formatRemaining(ms) {
+  if (ms <= 0) return 'expired';
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${seconds}s`;
+}
+
+/** Live-updating "trial active for X" banner. Polls only the local
+ *  clock — server-side expiry is enforced separately (and a final
+ *  re-check happens implicitly the next time usePremiumStatus refreshes). */
+function TrialCountdown({ expiresAt }) {
+  const expiryMs = expiresAt ? Date.parse(expiresAt) : NaN;
+  const [remaining, setRemaining] = useState(() =>
+    Number.isFinite(expiryMs) ? Math.max(0, expiryMs - Date.now()) : 0,
+  );
+
+  useEffect(() => {
+    if (!Number.isFinite(expiryMs)) return undefined;
+    const tick = () => setRemaining(Math.max(0, expiryMs - Date.now()));
+    tick();
+    // Tick every 30s — the banner reads in hours/minutes, sub-minute
+    // precision isn't useful and saves us from re-rendering each second.
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, [expiryMs]);
+
+  if (!Number.isFinite(expiryMs)) return null;
+  const expired = remaining <= 0;
+  return (
+    <div className={`tsp-trial-active${expired ? ' tsp-trial-active--expired' : ''}`}>
+      <span className="tsp-trial-active-icon" aria-hidden="true">🚀</span>
+      <span className="tsp-trial-active-text">
+        {expired ? (
+          <>Your 3Speak Pro trial has ended — pick a plan below to keep your perks.</>
+        ) : (
+          <>
+            <strong>3Speak Pro trial active</strong> · {formatRemaining(remaining)} remaining
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function ThreeSpeakPro() {
   const { user, authenticated } = useAppStore();
   const loggedIn = authenticated && isLoggedIn();
@@ -101,6 +154,9 @@ function ThreeSpeakPro() {
   const trialAlreadyUsed = !!premiumStatus?.testingStarted || !!premiumStatus?.premium;
   const [trialPending, setTrialPending] = useState(false);
   const showTrialButton = ENABLE_PRO_TESTING && loggedIn && !trialAlreadyUsed && !!HANGOUTS_API_URL;
+  // Active trial banner: source==='testing' means the premium=true flag
+  // came from the trial endpoint (vs a paid sub or manual flag).
+  const isOnTrial = premiumStatus?.source === 'testing' && !!premiumStatus?.expiresAt;
 
   const startProTrial = useCallback(async () => {
     if (trialPending) return;
@@ -478,10 +534,13 @@ function ThreeSpeakPro() {
         ))}
       </ul>
 
-      {/* One-time 24h Pro trial. Gated server-side via env so it can be
-          flipped off without a client redeploy. Hidden once claimed
-          (the server tracks testing_started for life). */}
-      {showTrialButton && (
+      {/* Trial state — three mutually exclusive views:
+          - Active trial: live countdown banner ("X hours remaining")
+          - Trial available: the start-trial CTA button
+          - Otherwise: nothing (paid sub, never eligible, env disabled, …) */}
+      {isOnTrial ? (
+        <TrialCountdown expiresAt={premiumStatus.expiresAt} />
+      ) : showTrialButton ? (
         <div className="tsp-trial">
           <button
             type="button"
@@ -495,7 +554,7 @@ function ThreeSpeakPro() {
             One-time trial — once you start it, your account is on Pro for the next 24 hours.
           </span>
         </div>
-      )}
+      ) : null}
 
       {loadingOffer ? (
         <div className="tsp-loading">
