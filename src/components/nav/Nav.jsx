@@ -249,7 +249,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           <NotificationBell />
           <span className="nav-avatar-wrap" onClick={toggleProfileNav}>
             <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" />
-            <PremiumBadge username={user} size={14} className="nav-avatar-premium" />
+            <PremiumBadge username={user} size={10} className="nav-avatar-premium" />
           </span>
         </div>
       ) : (
