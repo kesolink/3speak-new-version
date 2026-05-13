@@ -200,7 +200,7 @@ const BottomNav = ({ openLoginModal }) => {
               alt={user}
               className="bottom-nav-avatar"
             />
-            <PremiumBadge username={user} size={11} className="bottom-nav-avatar-premium" />
+            <PremiumBadge username={user} size={10} className="bottom-nav-avatar-premium" />
           </span>
         ) : (
           <div className="bottom-nav-avatar-placeholder">

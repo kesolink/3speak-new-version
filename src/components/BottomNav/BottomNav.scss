@@ -140,13 +140,13 @@
 .bottom-nav-avatar-premium,
 .bottom-nav-menu-avatar-premium {
   position: absolute;
-  right: -2px;
-  top: -2px;
+  right: -4px;
+  top: -4px;
   margin: 0;
   background: var(--accent-primary, #e53935);
   color: #fff; // override the default red rocket — we're inside a red chip
   border-radius: 50%;
-  padding: 3px; // breathing room between the rocket and the chip edge
+  padding: 2px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
