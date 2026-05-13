@@ -5,6 +5,8 @@ import { generateVideoThumbnails } from '../../utils/videoThumbnails';
 import { getEditorUrl } from '../../utils/config';
 import { useAppStore } from '../../lib/store';
 import { useEmbedUpload } from '../../context/EmbedUploadContext';
+import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import { getLockedBeneficiaries } from '../../utils/beneficiaries';
 import './EditorModal.scss';
 
 function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStart, clipEnd, originalAuthor, originalPermlink, originalShortPermlink }) {
@@ -13,7 +15,9 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
   const iframeRef = useRef(null);
   const mediaLoadedRef = useRef(false);
   const [editorReady, setEditorReady] = useState(false);
-  const { theme, getEffectiveTheme } = useAppStore();
+  const { theme, getEffectiveTheme, user } = useAppStore();
+  const premiumStatus = usePremiumStatus(user);
+  const isPremium = !!premiumStatus?.premium;
   const [renderStatus, setRenderStatus] = useState(null); // null | 'sending' | 'rendering' | 'complete' | 'error' | 'preparing'
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderedVideoUrl, setRenderedVideoUrl] = useState(null);
@@ -281,13 +285,13 @@ function EditorModal({ isOpen, onClose, videoUrl, videoName, videoType, clipStar
       // Remix from shorts should use the short upload form (no title/tags)
       setFromStories(true);
 
-      // Pre-populate beneficiary list with locked minimums
-      const lockedBeneficiaries = [
-        { account: 'threespeakfund', percent: 10, locked: true, minPercent: 10 },
-      ];
-      if (originalAuthor) {
-        lockedBeneficiaries.push({ account: originalAuthor, percent: 5, locked: true, minPercent: 5 });
-      }
+      // Pre-populate beneficiary list with locked minimums. Pro
+      // subscribers skip the threespeakfund 10% — but the remix-author
+      // 5% attribution always stays.
+      const lockedBeneficiaries = getLockedBeneficiaries({
+        isPremium,
+        originalAuthor: originalAuthor || null,
+      });
       setList(lockedBeneficiaries);
       const usedPercent = lockedBeneficiaries.reduce((sum, b) => sum + b.percent, 0);
       setRemaingPercent(100 - usedPercent);

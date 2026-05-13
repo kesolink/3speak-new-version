@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
@@ -6,6 +6,8 @@ import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEB
 import { uploadThumbnail } from '../utils/uploadThumbnail';
 import { commentWithAioha, broadcastWithAioha, KeyTypes } from '../hive-api/aioha';
 import { useAppStore } from '../lib/store';
+import { usePremiumStatus } from '../hooks/usePremiumStatus';
+import { enforceLockedBeneficiaries, LOCKED_FUND_ACCOUNT } from '../utils/beneficiaries';
 import axios from 'axios';
 
 const EmbedUploadContext = createContext(null);
@@ -19,6 +21,11 @@ export function useEmbedUpload() {
 export function EmbedUploadProvider({ children }) {
   const { user } = useAppStore();
   const navigate = useNavigate();
+  // Pro subscribers skip the threespeakfund 10% — their sub fee
+  // covers what that split normally funds. Remix attribution to the
+  // original creator stays for both tiers (handled in the publish path).
+  const premiumStatus = usePremiumStatus(user);
+  const isPremium = !!premiumStatus?.premium;
 
   // Step tracking
   const [step, setStep] = useState(1);
@@ -53,10 +60,27 @@ export function EmbedUploadProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [benficaryOpen, setBeneficiaryOpen] = useState(false);
   const [BeneficiaryList, setBeneficiaryList] = useState([]);
+  // Initial UI list — show the locked threespeakfund only for non-premium
+  // users. Premium users (or remix flows) get an updated list pushed in
+  // by the relevant pre-fill code paths.
   const [list, setList] = useState([
-    { account: 'threespeakfund', percent: 10, locked: true, minPercent: 10 },
+    { account: LOCKED_FUND_ACCOUNT, percent: 10, locked: true, minPercent: 10 },
   ]);
   const [remaingPercent, setRemaingPercent] = useState(90);
+
+  // Premium status lands asynchronously (1 network call). When it flips
+  // to true we drop the locked threespeakfund row from the UI so the
+  // user doesn't see "10% to threespeakfund (locked)" while the publish
+  // path silently omits it. Non-Pro stays as-is.
+  useEffect(() => {
+    if (!isPremium) return;
+    setList((prev) => {
+      const next = prev.filter((b) => b.account !== LOCKED_FUND_ACCOUNT);
+      if (next.length === prev.length) return prev; // no change
+      return next;
+    });
+    setRemaingPercent((prev) => Math.min(100, prev + 10));
+  }, [isPremium]);
 
   // Entry origin (stories → "Share a Short", default → "Share a Video")
   const [fromStories, setFromStories] = useState(false);
@@ -351,13 +375,13 @@ export function EmbedUploadProvider({ children }) {
         beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
       }
 
-      // Ensure threespeakfund at minimum 10% (1000 weight)
-      beneMap.set('threespeakfund', Math.max(beneMap.get('threespeakfund') || 0, 1000));
-
-      // Ensure 5% for original author when this is a remix/clip
-      if (originalAuthor && originalPermlink) {
-        beneMap.set(originalAuthor, Math.max(beneMap.get(originalAuthor) || 0, 500));
-      }
+      // Apply locked beneficiaries: 10% threespeakfund for non-Pro users
+      // (skipped for Pro subscribers) + 5% to the original creator on
+      // remix/clip (kept for both tiers).
+      enforceLockedBeneficiaries(beneMap, {
+        isPremium,
+        originalAuthor: originalAuthor && originalPermlink ? originalAuthor : null,
+      });
 
       // Convert map to sorted array (sorted by account name — required by Hive protocol)
       const allBeneficiaries = [...beneMap.entries()]

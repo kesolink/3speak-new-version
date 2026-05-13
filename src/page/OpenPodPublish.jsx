@@ -11,6 +11,8 @@ import MarkdownComposer from '../components/studio/MarkdownComposer';
 import Community_modal from '../components/modal/Community_modal';
 import Beneficiary_modal from '../components/modal/Beneficiary_modal';
 import AudioPlayerInline from '../components/AudioPlayerInline/AudioPlayerInline';
+import { usePremiumStatus } from '../hooks/usePremiumStatus';
+import { enforceLockedBeneficiaries } from '../utils/beneficiaries';
 import './OpenPodPublish.scss';
 
 const HIVE_API = 'https://api.hive.blog';
@@ -21,6 +23,8 @@ export default function OpenPodPublish() {
   const [searchParams] = useSearchParams();
   const { authenticated, user } = useAppStore();
   const { sessionToken, sessionLoading, retryLogin } = useHangout();
+  const premiumStatus = usePremiumStatus(user);
+  const isPremium = !!premiumStatus?.premium;
 
   // Lazy login when actively opening Hangouts publish flow
   useEffect(() => {
@@ -108,12 +112,13 @@ export default function OpenPodPublish() {
       ...(thumbnailUrl && { image: [thumbnailUrl] }),
     };
 
-    // Build beneficiaries — threespeakfund 10% is always locked
+    // Build beneficiaries — threespeakfund 10% is locked for non-Pro
+    // hosts; Pro hosts skip the platform split entirely.
     const beneMap = new Map();
     for (const b of beneList) {
       beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
     }
-    beneMap.set('threespeakfund', Math.max(beneMap.get('threespeakfund') || 0, 1000));
+    enforceLockedBeneficiaries(beneMap, { isPremium, originalAuthor: null });
     const allBeneficiaries = [...beneMap.entries()]
       .map(([account, weight]) => ({ account, weight }))
       .sort((a, b) => a.account.localeCompare(b.account));
@@ -302,7 +307,9 @@ export default function OpenPodPublish() {
             <div className="bene-info">
               <span className="bene-title">Beneficiaries</span>
               <span className="bene-sub">
-                10% to @threespeakfund is locked. You can add more.
+                {isPremium
+                  ? 'You’re on 3Speak Pro — no platform fee. Add splits if you like.'
+                  : '10% to @threespeakfund is locked. You can add more.'}
               </span>
             </div>
             <button
