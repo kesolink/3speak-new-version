@@ -118,8 +118,10 @@ function ThreeSpeakPro() {
       }
       const resp = await fetch(`${HANGOUTS_API_URL.replace(/\/$/, '')}/premium/start-testing`, {
         method: 'POST',
+        // No body — Fastify's JSON parser would reject Content-Type:
+        // application/json with an empty payload, so we just send the
+        // Authorization header and skip Content-Type entirely.
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       });
