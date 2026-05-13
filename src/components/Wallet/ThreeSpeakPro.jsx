@@ -14,6 +14,8 @@ import {
   ONETIME_OFFER_ID,
 } from '../../utils/vscContract';
 import { KeyTypes } from '@aioha/aioha';
+import { useHangout } from '../../context/HangoutContext';
+import { usePremiumStatus } from '../../hooks/usePremiumStatus';
 import './ThreeSpeakPro.scss';
 
 const INTERVAL_LABELS = {
@@ -54,10 +56,20 @@ function fmtAmount(n) {
 // Benefits listed at the top of the plans card so users see what
 // they're getting before the price comparison.
 const BENEFITS = [
-  'Record and upload OpenPods videos',
-  'Prioritized transcription with 10 additional languages',
-  'Additional benefits will follow automatically very soon',
+  '1080p encoding (free tier stays at standard resolution)',
+  'Priority encoding queue',
+  'Priority automatic translation into 15 languages (10 more than standard)',
+  'OpenPods audio & video session recordings (free tier is live-only)',
+  'Higher upload limits (free tier remains capped)',
+  'No beneficiary fee on uploads — keep 100% of your post rewards. The standard 11% (3Speak platform + encoder fee) is waived for subscribers.',
+  'Additional benefits will follow automatically',
 ];
+
+// Trial gating env. When VITE_ENABLE_PRO_TESTING=true the panel shows a
+// "Try 3Speak Pro free for 24h" button — until the user claims it (once
+// in their lifetime, tracked by embed-users.testing_started on the server).
+const ENABLE_PRO_TESTING = import.meta.env.VITE_ENABLE_PRO_TESTING === 'true';
+const HANGOUTS_API_URL = import.meta.env.VITE_HANGOUTS_API_URL || '';
 
 function ThreeSpeakPro() {
   const { user, authenticated } = useAppStore();
@@ -79,6 +91,59 @@ function ThreeSpeakPro() {
   const [topUpAmount, setTopUpAmount] = useState('');
   const [processing, setProcessing] = useState(false);
   const [txStatus, setTxStatus] = useState(null); // { state: 'broadcasting'|'polling'|'done'|'error', msg }
+
+  // Pro trial state — needs the hangouts session JWT for the authed
+  // POST /premium/start-testing call. We also use usePremiumStatus to
+  // hide the button after the user already claimed (testing_started
+  // stays sticky for life).
+  const { sessionToken, retryLogin } = useHangout();
+  const premiumStatus = usePremiumStatus(user);
+  const trialAlreadyUsed = !!premiumStatus?.testingStarted || !!premiumStatus?.premium;
+  const [trialPending, setTrialPending] = useState(false);
+  const showTrialButton = ENABLE_PRO_TESTING && loggedIn && !trialAlreadyUsed && !!HANGOUTS_API_URL;
+
+  const startProTrial = useCallback(async () => {
+    if (trialPending) return;
+    setTrialPending(true);
+    try {
+      // Lazy-sign into Hangouts if the user hasn't done it yet — the
+      // endpoint needs a Bearer JWT. retryLogin resolves to the token.
+      let token = sessionToken;
+      if (!token) {
+        token = await retryLogin(user);
+      }
+      if (!token) {
+        toast.error('Sign in to Hive Keychain to start the trial');
+        return;
+      }
+      const resp = await fetch(`${HANGOUTS_API_URL.replace(/\/$/, '')}/premium/start-testing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.ok) {
+        toast.success('3Speak Pro trial active — enjoy it for the next 24h!');
+        // Premium status is cached for 60s on the public read path; we
+        // could optimistically flip locally, but a quick page refresh
+        // is simpler than threading state into every consumer.
+        setTimeout(() => window.location.reload(), 800);
+      } else if (resp.status === 409) {
+        toast.error('You have already used your one-time Pro trial.');
+      } else if (resp.status === 403) {
+        toast.error(data.message || 'Pro trial is not currently available.');
+      } else {
+        toast.error(data.message || `Trial failed (${resp.status})`);
+      }
+    } catch (err) {
+      console.error('[ThreeSpeakPro] startProTrial failed:', err);
+      toast.error('Could not reach the Pro trial service — try again in a moment.');
+    } finally {
+      setTrialPending(false);
+    }
+  }, [trialPending, sessionToken, retryLogin, user]);
 
   // Parse offer intervals from string "monthly=5.000,yearly=50.000"
   const parseIntervals = (intervalsStr) => {
@@ -410,6 +475,25 @@ function ThreeSpeakPro() {
           </li>
         ))}
       </ul>
+
+      {/* One-time 24h Pro trial. Gated server-side via env so it can be
+          flipped off without a client redeploy. Hidden once claimed
+          (the server tracks testing_started for life). */}
+      {showTrialButton && (
+        <div className="tsp-trial">
+          <button
+            type="button"
+            className="tsp-trial-btn"
+            onClick={startProTrial}
+            disabled={trialPending}
+          >
+            {trialPending ? 'Starting trial…' : '🚀 Try 3Speak Pro free for 24h'}
+          </button>
+          <span className="tsp-trial-note">
+            One-time trial — once you start it, your account is on Pro for the next 24 hours.
+          </span>
+        </div>
+      )}
 
       {loadingOffer ? (
         <div className="tsp-loading">

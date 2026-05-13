@@ -510,3 +510,44 @@
 
   &:hover { opacity: 1; }
 }
+
+/* Pro trial banner — sits between the benefits list and the plan cards. */
+.tsp-trial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.8rem 1rem;
+  margin: 0.75rem 0 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(229, 57, 53, 0.12), rgba(229, 57, 53, 0.02));
+  border: 1px dashed rgba(229, 57, 53, 0.45);
+}
+
+.tsp-trial-btn {
+  padding: 0.55rem 1.4rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(229, 57, 53, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(229, 57, 53, 0.4);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.tsp-trial-note {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #94a3b8);
+  text-align: center;
+}

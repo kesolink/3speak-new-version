@@ -27,9 +27,14 @@ async function fetchPremium(username) {
       return {
         premium: !!data.premium,
         expiresAt: data.premium_expires_at || null,
+        source: data.premium_source || null,
+        // testing_started is sticky — set the first time the user
+        // claims their Pro trial, never cleared. Consumers use it to
+        // hide the "Try Pro free" button after the first claim.
+        testingStarted: data.testing_started || null,
       };
     } catch {
-      return { premium: false, expiresAt: null };
+      return { premium: false, expiresAt: null, source: null, testingStarted: null };
     }
   })();
 
