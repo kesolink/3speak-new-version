@@ -16,6 +16,7 @@ import {
 import { KeyTypes } from '@aioha/aioha';
 import { useHangout } from '../../context/HangoutContext';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import SubscriberTicker from '../SubscriberTicker/SubscriberTicker';
 import './ThreeSpeakPro.scss';
 
 const INTERVAL_LABELS = {
@@ -522,6 +523,9 @@ function ThreeSpeakPro() {
           <span className="tsp-l2-amount">{fmtAmount(vscBalances.hbd)} HBD</span>
         </div>
       )}
+
+      {/* Active subscribers ticker → click for the full list */}
+      <SubscriberTicker />
 
       {/* Benefits — always visible so visitors can see what 3Speak Pro
           unlocks even before the on-chain offers are live. */}
