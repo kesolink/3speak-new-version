@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { getHiveClient } from '../utils/hiveNode';
 import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Card3 from '../components/Cards/Card3';
@@ -18,7 +19,7 @@ import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
 
-const hiveClient = new Client(HIVE_API_NODES);
+const hiveClient = getHiveClient();
 
 // Lazy-load the Hive markdown renderer
 let rendererPromise = null;

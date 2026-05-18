@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getHiveClient } from '../../utils/hiveNode';
 import './Beneficiary_modal.scss';
 import { MdDeleteForever } from 'react-icons/md';
 
@@ -7,7 +8,7 @@ import { useAppStore } from '../../lib/store';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
 import { HIVE_API_NODES } from '../../utils/config';
 
-const client = new Client(HIVE_API_NODES);
+const client = getHiveClient();
 
 // `variant` distinguishes the publish flow:
 //   'studio' — keeps the 1% Video-Encoding split even for Pro users

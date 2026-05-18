@@ -1,8 +1,9 @@
 import { Aioha, Asset, KeyTypes, Providers } from '@aioha/aioha'
 import { IS_VSC_TESTNET, VSC_NET_ID } from '../utils/vscContract.js'
 import { ENABLE_METAMASK_SNAP } from '../utils/config.js'
+import { getHiveUrl, ensureHealthyNode } from '../utils/hiveNode.js'
 
-const HIVE_API = IS_VSC_TESTNET ? 'https://testnet.techcoderx.com' : 'https://api.hive.blog'
+const HIVE_API = IS_VSC_TESTNET ? 'https://testnet.techcoderx.com' : getHiveUrl()
 const CHAIN_ID = IS_VSC_TESTNET
   ? '18dcf0a285365fc58b71f18b3d3fec954aa0c141c44e4e5cb4cf777b9eab274e'
   : 'beeab0de00000000000000000000000000000000000000000000000000000000'
@@ -22,6 +23,10 @@ aioha.registerHiveSigner({
   scope: ['login', 'vote', 'comment', 'follow', 'transfer'],
 })
 aioha.setApi(HIVE_API)
+// Upgrade to the session's healthy node once the probe resolves.
+if (!IS_VSC_TESTNET) {
+  ensureHealthyNode().then((u) => { try { aioha.setApi(u) } catch { /* ignore */ } })
+}
 aioha.loadAuth()
 aioha.vscSetNetId(VSC_NET_ID)
 if (typeof aioha.setChainId === 'function') {

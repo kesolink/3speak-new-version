@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import axios from 'axios';
 import { HIVE_API_URL } from '../utils/config';
 import { customJsonWithAioha } from '../hive-api/aioha';
@@ -30,7 +31,7 @@ const POLL_INTERVAL_MS = 60_000;
 async function fetchNotifications(account, limit = 50, lastId = null) {
   const params = { account, limit };
   if (lastId != null) params.last_id = lastId;
-  const res = await axios.post(HIVE_API_URL, {
+  const res = await axios.post(getHiveUrl(), {
     jsonrpc: '2.0',
     method: 'bridge.account_notifications',
     params,
@@ -42,7 +43,7 @@ async function fetchNotifications(account, limit = 50, lastId = null) {
 
 /** Fetch Hive's on-chain unread state: { lastread, unread } */
 async function fetchUnreadState(account) {
-  const res = await axios.post(HIVE_API_URL, {
+  const res = await axios.post(getHiveUrl(), {
     jsonrpc: '2.0',
     method: 'bridge.unread_notifications',
     params: { account },

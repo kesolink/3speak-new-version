@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getHiveUrl } from './hiveNode';
 import { THREESPEAK_AUDIO_API_URL, THREESPEAK_API_KEY, HIVE_API_URL } from './config';
 
 /**
@@ -8,7 +9,7 @@ import { THREESPEAK_AUDIO_API_URL, THREESPEAK_API_KEY, HIVE_API_URL } from './co
 export async function getSnapsContainer() {
   const author = 'peak.snaps';
   const beforeDate = new Date().toISOString().split('.')[0];
-  const { data } = await axios.post(HIVE_API_URL, {
+  const { data } = await axios.post(getHiveUrl(), {
     jsonrpc: '2.0',
     id: 1,
     method: 'condenser_api.get_discussions_by_author_before_date',

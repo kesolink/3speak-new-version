@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useParams, Navigate, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -95,7 +96,7 @@ function PostView() {
       try {
         let p = null;
         try {
-          const res = await axios.post(HIVE_API_URL, {
+          const res = await axios.post(getHiveUrl(), {
             jsonrpc: '2.0',
             method: 'bridge.get_post',
             params: { author, permlink, observer: '' },
@@ -105,7 +106,7 @@ function PostView() {
         } catch { /* fall through */ }
 
         if (!p || !p.author) {
-          const res2 = await axios.post(HIVE_API_URL, {
+          const res2 = await axios.post(getHiveUrl(), {
             jsonrpc: '2.0',
             method: 'condenser_api.get_content',
             params: [author, permlink],

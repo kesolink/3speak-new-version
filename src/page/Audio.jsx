@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAppStore } from '../lib/store';
@@ -239,7 +240,7 @@ function Audio() {
       if (!user) return [];
       const all = []; let start = '';
       while (true) {
-        const resp = await axios.post(HIVE_API_URL, { jsonrpc: '2.0', id: 1, method: 'condenser_api.get_following', params: [user, start, 'blog', 100] });
+        const resp = await axios.post(getHiveUrl(), { jsonrpc: '2.0', id: 1, method: 'condenser_api.get_following', params: [user, start, 'blog', 100] });
         const batch = resp.data?.result || []; if (!batch.length) break;
         all.push(...batch.map(f => f.following)); if (batch.length < 100) break;
         start = batch[batch.length - 1].following;

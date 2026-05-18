@@ -11,8 +11,12 @@ import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { HIVE_API_NODES, ENABLE_SUBS } from '../utils/config';
 import { IS_VSC_TESTNET, HIVE_TESTNET_NODES } from '../utils/vscContract';
+import { getHiveClient } from '../utils/hiveNode';
 
-const client = new Client(IS_VSC_TESTNET ? HIVE_TESTNET_NODES : HIVE_API_NODES);
+// Mainnet → the shared session-picked node client. Testnet keeps its own.
+const client = IS_VSC_TESTNET
+  ? new Client(HIVE_TESTNET_NODES, { timeout: 3000, failoverThreshold: 2, consoleOnFailover: true })
+  : getHiveClient();
 
 function Wallet() {
   const { user: currentUser } = useAppStore();

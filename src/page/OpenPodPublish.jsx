@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -15,7 +16,6 @@ import { usePremiumStatus } from '../hooks/usePremiumStatus';
 import { enforceLockedBeneficiaries } from '../utils/beneficiaries';
 import './OpenPodPublish.scss';
 
-const HIVE_API = 'https://api.hive.blog';
 const HANGOUTS_API = import.meta.env.VITE_HANGOUTS_API_URL;
 
 export default function OpenPodPublish() {
@@ -68,7 +68,7 @@ export default function OpenPodPublish() {
 
   // Fetch communities for the modal
   useEffect(() => {
-    axios.post(HIVE_API, {
+    axios.post(getHiveUrl(), {
       jsonrpc: '2.0',
       method: 'bridge.list_communities',
       params: { last: '', limit: 100 },

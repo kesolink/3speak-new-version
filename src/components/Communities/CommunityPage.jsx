@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getHiveClient } from '../../utils/hiveNode';
 import { useParams } from "react-router-dom";
 import { Client } from "@hiveio/dhive";
 import "./CommunityPage.scss";
@@ -13,7 +14,7 @@ import { useWatchHistory } from "../../hooks/useWatchHistory";
 import useViewCounts from "../../hooks/useViewCounts";
 
 // Hive client
-const client = new Client(HIVE_API_NODES);
+const client = getHiveClient();
 
 function CommunityPage() {
   const { communityName: id } = useParams();

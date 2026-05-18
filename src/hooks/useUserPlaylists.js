@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { getHiveUrl } from '../utils/hiveNode';
 import axios from 'axios';
 import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
 import { fallbackImg } from '../utils/fixThumbnails';
@@ -11,7 +12,7 @@ import { fallbackImg } from '../utils/fixThumbnails';
  */
 async function fetchVideoThumbnail(author, permlink) {
   try {
-    const response = await axios.post(HIVE_API_URL, {
+    const response = await axios.post(getHiveUrl(), {
       jsonrpc: '2.0',
       method: 'condenser_api.get_content',
       params: [author, permlink],

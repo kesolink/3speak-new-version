@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { getHiveClient } from '../../utils/hiveNode';
 import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
 import { MdImage, MdUpload } from 'react-icons/md';
@@ -9,7 +10,7 @@ import { commentWithAioha } from '../../hive-api/aioha';
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
 import './EditVideoModal.scss';
 
-const hiveClient = new Client(HIVE_API_NODES);
+const hiveClient = getHiveClient();
 
 const TITLE_MIN = 5;
 const TITLE_MAX = 250;

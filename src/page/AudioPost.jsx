@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { MdPlayArrow, MdPause, MdQueueMusic, MdThumbUp } from 'react-icons/md';
@@ -98,7 +99,7 @@ function AudioPost() {
       try {
         const [postRes, audioRes] = await Promise.all([
           // Bridge first; fall back to condenser if bridge errors
-          axios.post(HIVE_API_URL, {
+          axios.post(getHiveUrl(), {
             jsonrpc: '2.0', method: 'bridge.get_post',
             params: { author, permlink, observer: '' }, id: 1,
           }).catch(() => null),
@@ -107,7 +108,7 @@ function AudioPost() {
 
         let p = postRes?.data?.result;
         if (!p) {
-          const fb = await axios.post(HIVE_API_URL, {
+          const fb = await axios.post(getHiveUrl(), {
             jsonrpc: '2.0', method: 'condenser_api.get_content',
             params: [author, permlink], id: 1,
           });

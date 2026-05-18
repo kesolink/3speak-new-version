@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -22,7 +23,7 @@ async function fetchVideosFromHistory(items) {
 
   const videoPromises = items.map(async (item) => {
     try {
-      const response = await axios.post(HIVE_API_URL, {
+      const response = await axios.post(getHiveUrl(), {
         jsonrpc: '2.0',
         method: 'condenser_api.get_content',
         params: [item.author, item.permlink],

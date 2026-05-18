@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { getHiveUrl } from '../../utils/hiveNode';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -657,7 +658,7 @@ export function AudioShareDropdown({ item, onClose }) {
   useEffect(() => {
     if (hivePermlink || !author || !item?.permlink) return;
     let c = false; setSearching(true);
-    axios.post('https://api.hive.blog', {
+    axios.post(getHiveUrl(), {
       jsonrpc: '2.0', method: 'bridge.get_account_posts',
       params: { sort: 'posts', account: author, limit: 20 }, id: 1
     }).then(({ data }) => {

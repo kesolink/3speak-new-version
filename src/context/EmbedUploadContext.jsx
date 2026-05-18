@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
@@ -413,7 +414,7 @@ export function EmbedUploadProvider({ children }) {
       } else if (fromStories) {
         addMessage('Finding snaps container post...');
         try {
-          const snapsRes = await axios.post(HIVE_API_URL, {
+          const snapsRes = await axios.post(getHiveUrl(), {
             jsonrpc: '2.0',
             method: 'bridge.get_account_posts',
             params: { sort: 'posts', account: 'peak.snaps', start_author: '', start_permlink: '', limit: 1 },

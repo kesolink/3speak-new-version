@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getHiveUrl } from './hiveNode';
 import axios from 'axios';
 import { HIVE_API_URL } from './config';
 
@@ -56,7 +57,7 @@ function tierFromVests(vests) {
  * @returns {Promise<number>} effective vests
  */
 export async function fetchAccountVests(username) {
-  const res = await axios.post(HIVE_API_URL, {
+  const res = await axios.post(getHiveUrl(), {
     jsonrpc: '2.0',
     method: 'condenser_api.get_accounts',
     params: [[username]],
@@ -79,7 +80,7 @@ export async function fetchAccountVests(username) {
  */
 async function fetchBatch(usernames) {
   try {
-    const res = await axios.post(HIVE_API_URL, {
+    const res = await axios.post(getHiveUrl(), {
       jsonrpc: '2.0',
       method: 'condenser_api.get_accounts',
       params: [usernames],

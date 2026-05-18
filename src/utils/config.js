@@ -5,7 +5,7 @@ const UPLOAD_TOKEN = import.meta.env.VITE_UPLOAD_TOKEN;
 const UPLOAD_URL = import.meta.env.VITE_UPLOAD_URL;
 const PLAYER_URL = import.meta.env.VITE_PLAYER_URL;
 
-const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://techcoderx.com';
+const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://api.hive.blog';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
 const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://3speak-checker.okinoko.io';
 const TAG_FEED_URL = CHECKER_URL;
@@ -83,9 +83,10 @@ const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https:
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);
 
 const HIVE_API_NODES = [
-  import.meta.env.VITE_HIVE_API_URL || 'https://techcoderx.com',
+  import.meta.env.VITE_HIVE_API_URL || 'https://api.hive.blog',
   'https://api.deathwing.me',
   'https://api.openhive.network',
+  'https://techcoderx.com',
 ];
 
 /**

@@ -1,9 +1,10 @@
 import axios from 'axios';
+import { getHiveUrl } from './hiveNode';
 
-const HIVE_API_URL = 'https://api.hive.blog';
+// node URL comes from the session node manager
 
 export async function fetchLatestSnapsPost() {
-  const res = await axios.post(HIVE_API_URL, {
+  const res = await axios.post(getHiveUrl(), {
     jsonrpc: '2.0',
     method: 'bridge.get_account_posts',
     params: { sort: 'posts', account: 'peak.snaps', start_author: '', start_permlink: '', limit: 1 },

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { getHiveUrl } from '../../utils/hiveNode';
 import "../legacy-studio/StudioPage.scss";
 import { StepProgress } from "../legacy-studio/StepProgress";
 import EmbedVideoUploadStep1 from "./EmbedVideoUploadStep1";
@@ -119,7 +120,7 @@ function EmbedStudioPage() {
   useEffect(() => {
     const fetchCommunities = async () => {
       try {
-        const response = await axios.post(HIVE_API_URL, {
+        const response = await axios.post(getHiveUrl(), {
           jsonrpc: "2.0",
           method: "bridge.list_communities",
           params: { last: "", limit: 100 },

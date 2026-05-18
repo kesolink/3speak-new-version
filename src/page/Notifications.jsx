@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { HIVE_API_URL } from '../utils/config';
@@ -239,7 +240,7 @@ function Notifications() {
           const params = { account: user, limit: BATCH };
           if (lastId != null) params.last_id = lastId;
 
-          const res = await axios.post(HIVE_API_URL, {
+          const res = await axios.post(getHiveUrl(), {
             jsonrpc: '2.0',
             method: 'bridge.account_notifications',
             params,

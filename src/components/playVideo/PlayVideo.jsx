@@ -1,4 +1,5 @@
 import PropTypes from "prop-types";
+import { getHiveUrl } from '../../utils/hiveNode';
 import "./PlayVideo.scss";
 import VideoControls from "../VideoControls/VideoControls";
 import ViewCount from "../ViewCount/ViewCount";
@@ -385,7 +386,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     }
     const fetchCommunity = async () => {
       try {
-        const response = await axios.post(HIVE_API_URL, {
+        const response = await axios.post(getHiveUrl(), {
           jsonrpc: '2.0',
           method: 'bridge.get_community',
           params: { name: community_id },

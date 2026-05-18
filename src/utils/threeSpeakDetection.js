@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getHiveUrl } from './hiveNode';
 import axios from 'axios';
 import { HIVE_API_URL } from './config';
 
@@ -75,7 +76,7 @@ function isThreeSpeakFromPost(post) {
 }
 
 async function fetchPost(author, permlink) {
-  const res = await axios.post(HIVE_API_URL, {
+  const res = await axios.post(getHiveUrl(), {
     jsonrpc: '2.0',
     method: 'bridge.get_post',
     params: { author, permlink, observer: '' },

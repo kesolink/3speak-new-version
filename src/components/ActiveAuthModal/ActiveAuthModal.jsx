@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getHiveClient } from '../../utils/hiveNode';
 import { createPortal } from 'react-dom';
 import { Client, PrivateKey } from '@hiveio/dhive';
 import { KeyTypes, Providers } from '@aioha/aioha';
@@ -7,11 +8,7 @@ import aioha, { setActiveAuthHandler } from '../../hive-api/aioha';
 import { HIVE_API_NODES } from '../../utils/config';
 import './ActiveAuthModal.scss';
 
-const client = new Client(HIVE_API_NODES, {
-  timeout: 4000,
-  failoverThreshold: 3,
-  consoleOnFailover: true,
-});
+const client = getHiveClient();
 
 // Human-readable summary of what the user is about to sign.
 function describeOps(operations) {
