@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { getHiveClient } from '../../utils/hiveNode';
 import './CommentSection.scss';
 import './BlogContent.scss';
 import { BiDislike } from 'react-icons/bi';
@@ -25,7 +26,7 @@ import { HIVE_API_NODES } from '../../utils/config';
 import TimeAgo from '../TimeAgo/TimeAgo';
 import { Link } from 'react-router-dom';
 
-const client = new Client(HIVE_API_NODES);
+const client = getHiveClient();
 
 // Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
 let rendererPromise = null;

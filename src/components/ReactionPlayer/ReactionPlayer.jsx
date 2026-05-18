@@ -1,4 +1,5 @@
 import { Fragment, useRef, useState, useEffect, useCallback } from 'react';
+import { getHiveClient } from '../../utils/hiveNode';
 import { MdChevronLeft, MdChevronRight, MdClose, MdAspectRatio, MdVideocam, MdComment, MdKeyboardArrowDown, MdKeyboardArrowUp, MdTranslate } from 'react-icons/md';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 import { TbRewindBackward10, TbRewindForward10 } from 'react-icons/tb';
@@ -9,7 +10,7 @@ import { markByReputation } from '../../utils/reputation';
 import { translateText, getTargetLanguage } from '../../utils/translate';
 import TranslateButton from '../TranslateButton/TranslateButton';
 
-const hiveClient = new Client(HIVE_API_NODES);
+const hiveClient = getHiveClient();
 
 // Lazy-load the Hive markdown renderer
 let rendererPromise = null;

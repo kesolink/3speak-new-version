@@ -5,6 +5,7 @@
  */
 
 import axios from "axios";
+import { getHiveUrl } from '../utils/hiveNode';
 import { convert } from "html-to-text";
 import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL, appendNsfw } from "../utils/config";
 import { useAppStore } from "../lib/store";
@@ -28,7 +29,7 @@ export function regenerateShortsSeed() {
 
 async function hiveRpc(method, params) {
   try {
-    const response = await axios.post(HIVE_API_URL, {
+    const response = await axios.post(getHiveUrl(), {
       jsonrpc: "2.0",
       method,
       params,

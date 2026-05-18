@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { getHiveUrl } from '../utils/hiveNode';
 import axios from 'axios';
 import { useAppStore } from '../lib/store';
 import { PLAYLISTS_API_URL, HIVE_API_URL } from '../utils/config';
@@ -41,7 +42,7 @@ export function useMyPlaylists(options = {}) {
           if (playlist.items?.length > 0) {
             const firstItem = playlist.items[0];
             try {
-              const res = await axios.post(HIVE_API_URL, {
+              const res = await axios.post(getHiveUrl(), {
                 jsonrpc: '2.0',
                 method: 'condenser_api.get_content',
                 params: [firstItem.author, firstItem.permlink],

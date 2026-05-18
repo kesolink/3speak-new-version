@@ -3,7 +3,7 @@ import "./ProfileNav.scss"
 import '../../page/Login/KeyChainLogin.scss';
 import { useAppStore } from '../../lib/store';
 import { useGetMyQuery } from '../../hooks/getUserDetails';
-import { MdCloudUpload, MdKeyboardArrowDown, MdOutlineKeyboardArrowUp } from "react-icons/md";
+import { MdCloudUpload, MdKeyboardArrowDown, MdOutlineKeyboardArrowUp, MdSettings } from "react-icons/md";
 import { ImPower } from "react-icons/im";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaDiscord, FaLanguage } from 'react-icons/fa';
@@ -18,6 +18,7 @@ import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
 import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
 import UploadLinks from '../UploadLinks';
+import SettingsModal from '../SettingsModal/SettingsModal';
 
 
 
@@ -29,6 +30,7 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handlewallletNavigation = () => {
     navigate(`/wallet/${user}`)
@@ -115,6 +117,9 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
               <div className="nsfw-toggle-thumb" />
             </div>
           </button>
+          <a className="wrap" onClick={() => { setSettingsOpen(true); onclose(); }}>
+            <MdSettings className="icon" /> <span>Settings</span>
+          </a>
           <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
             <IoPower className="icon" /> <span>Change account</span>
           </a>
@@ -139,6 +144,8 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
         </div>
            
            <span className='close-btn' onClick={onclose}>X</span>
+
+           <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
         
       </div>

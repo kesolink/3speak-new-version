@@ -1,4 +1,5 @@
 import { initAioha, Asset, KeyTypes, Providers } from '@aioha/aioha'
+import { getHiveUrl, ensureHealthyNode } from '../utils/hiveNode.js'
 
 const aioha = initAioha({
   hiveauth: {
@@ -12,8 +13,9 @@ const aioha = initAioha({
   }
 })
 
-// Override default RPC node (aioha defaults to techcoderx.com which rate-limits)
-aioha.setApi('https://api.hive.blog')
+// Start on the best static guess, then upgrade to the probed healthy node.
+aioha.setApi(getHiveUrl())
+ensureHealthyNode().then((u) => { try { aioha.setApi(u) } catch { /* ignore */ } })
 
 // Store for HiveAuth waiting callbacks
 let hiveAuthCallbacks = {

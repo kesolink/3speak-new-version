@@ -1,10 +1,12 @@
 import { Client, SMTAsset } from '@hiveio/dhive';
+import { getHiveUrl } from './hiveNode';
+import { getHiveClient } from './hiveNode';
 import moment from 'moment';
 import axios from 'axios';
 import { HIVE_API_NODES, HIVE_API_URL } from './config';
 
 // Connect to a Hive node
-const client = new Client(HIVE_API_NODES);
+const client = getHiveClient();
 
 /**
  * Batch fetch content data for multiple posts in a single API call
@@ -26,7 +28,7 @@ export async function batchGetContent(posts, activeUser = null) {
   }));
 
   try {
-    const response = await axios.post(HIVE_API_URL, batchRequest);
+    const response = await axios.post(getHiveUrl(), batchRequest);
     const results = new Map();
 
     // Process each response
