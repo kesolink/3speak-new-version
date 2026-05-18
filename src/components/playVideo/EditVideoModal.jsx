@@ -4,8 +4,9 @@ import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
 import { MdImage, MdUpload } from 'react-icons/md';
 import { toast } from 'sonner';
+import axios from 'axios';
 import { Client } from '@hiveio/dhive';
-import { HIVE_API_NODES } from '../../utils/config';
+import { HIVE_API_NODES, CHECKER_URL, CHECKER_API_KEY } from '../../utils/config';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
 import './EditVideoModal.scss';
@@ -312,6 +313,22 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
       }
 
       toast.success('Video updated!');
+
+      // Push the new thumbnail straight to the checker's MongoDB (Pancreas
+      // API) so listings refresh immediately instead of waiting for the
+      // Hive→Mongo sync. Best-effort; no-op when key unset.
+      if (trimmedThumb && CHECKER_API_KEY) {
+        try {
+          await axios.put(
+            `${CHECKER_URL}/video/thumbnail`,
+            { owner: author, permlink, thumbnail: trimmedThumb },
+            { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } },
+          );
+        } catch (thumbErr) {
+          console.warn('Thumbnail Mongo update failed (will reconcile on sync):', thumbErr?.message);
+        }
+      }
+
       onSaved?.({
         title: title.trim(),
         body: finalBody,
