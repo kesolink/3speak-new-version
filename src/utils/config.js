@@ -112,6 +112,10 @@ const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true
 // Default-on: only disabled when explicitly set to "false".
 const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false';
 const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
+// Pay-per-listen reward controls in the audio uploader. Enabled by
+// default; set VITE_ENABLE_PPL=false to hide the earn-mode chooser and
+// never attach the PPL beneficiary op.
+const ENABLE_PPL = import.meta.env.VITE_ENABLE_PPL !== 'false';
 
 export {
   appendNsfw,
@@ -156,6 +160,7 @@ export {
   ENABLE_METAMASK_SNAP,
   ENABLE_BUTRAUTH,
   ENABLE_SUBS,
+  ENABLE_PPL,
   THREESPEAK_AUDIO_API_URL,
   THREESPEAK_API_KEY,
   SOCIAL_VERIFIER_URL,

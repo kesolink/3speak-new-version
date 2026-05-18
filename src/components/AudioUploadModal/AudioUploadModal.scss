@@ -625,6 +625,66 @@
   color: var(--text-primary);
 }
 
+// ─── Standalone-post composer ───
+.audio-upload-post-form {
+  margin-top: 6px;
+}
+
+.audio-upload-community-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+  border-radius: 8px;
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.03));
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+
+  img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+  &:hover { border-color: var(--accent-primary, #e0594b); }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+.audio-upload-community-change {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.audio-upload-post-desc,
+.audio-upload-post-tags {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+  border-radius: 8px;
+  background: var(--input-bg, rgba(0, 0, 0, 0.2));
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+
+  &:focus { outline: none; border-color: var(--accent-primary, #e0594b); }
+  &:disabled { opacity: 0.55; }
+}
+
+.audio-upload-post-desc { resize: vertical; min-height: 64px; }
+
+.audio-upload-review-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+
+  strong { color: var(--text-primary); font-weight: 600; }
+}
+
 .audio-upload-reward-opt {
   display: flex;
   flex-direction: column;
