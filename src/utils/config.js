@@ -75,7 +75,9 @@ const IMAGE_UPLOAD_KEY = import.meta.env.VITE_IMAGE_UPLOAD_KEY || '';
 const TRANSLATE_API_URL = import.meta.env.VITE_TRANSLATE_API_URL || 'https://3speak-translator.okinoko.io';
 
 // Social verifier (mantequilla-social-verifier) — md5-hash ownership proof for web2 socials
-const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https://3speak-verify.okinoko.io').replace(/\/$/, '');
+// Social-link verifier was merged into the checker — it now serves /verify
+// at the checker host. (Env still overrides for local/testnet.)
+const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https://3speak-checker.okinoko.io').replace(/\/$/, '');
 
 // Watch history threshold - number of days to show unwatched indicator
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);
