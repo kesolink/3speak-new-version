@@ -102,6 +102,10 @@ function appendNsfw(url, showNsfw) {
 
 const REPORT_API_URL = import.meta.env.VITE_REPORT_API_URL;
 const REPORT_API_SECRET = import.meta.env.VITE_REPORT_API_SECRET;
+// Bearer key for the checker's protected PUT /video/thumbnail (Pancreas
+// API). Empty → the immediate-Mongo-update is skipped (Hive→Mongo sync
+// still reconciles it). Must equal the checker's API_SECRET_KEY.
+const CHECKER_API_KEY = import.meta.env.VITE_CHECKER_API_KEY || '';
 
 // Feature flags for MetaMask Snap login and 3Speak Pro subscriptions
 const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true';
@@ -146,6 +150,7 @@ export {
   IMAGE_UPLOAD_KEY,
   REPORT_API_URL,
   REPORT_API_SECRET,
+  CHECKER_API_KEY,
   PPL_BENEFICIARY,
   LISTEN_BEAT_KEY,
   ENABLE_METAMASK_SNAP,

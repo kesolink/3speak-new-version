@@ -5,13 +5,14 @@ import "./EditVideo.scss";
 import {  toast } from 'sonner'
 import { convert } from 'html-to-text';
 import axios from 'axios';
-import { API_URL_FROM_WEST, HIVE_API_NODES } from '../utils/config';
+import { API_URL_FROM_WEST, CHECKER_URL, CHECKER_API_KEY } from '../utils/config';
+import { getHiveClient } from '../utils/hiveNode';
 import TextEditor from '../components/studio/TextEditor';
 import { useAppStore } from '../lib/store';
 import * as dhive from '@hiveio/dhive';
 import MarkdownComposer from '../components/studio/MarkdownComposer';
 import { broadcastWithAioha, isLoggedIn, KeyTypes } from '../hive-api/aioha';
-const client = new dhive.Client(HIVE_API_NODES);
+const client = getHiveClient();
 
 // Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
 let rendererPromise = null;
@@ -129,6 +130,24 @@ const handleSubmit = async (e) => {
   try {
     await broadcastWithAioha([commentOp], KeyTypes.Posting);
     toast.success("Post successfully updated on Hive!");
+
+    // Push the new thumbnail straight to the checker's MongoDB (Pancreas
+    // API) so it reflects immediately instead of waiting for the
+    // Hive→Mongo sync. Best-effort: a failure here doesn't fail the edit
+    // (the sync reconciles it eventually). Skipped if no API key set.
+    if (thumbnailUrl && CHECKER_API_KEY) {
+      try {
+        await axios.put(
+          `${CHECKER_URL}/video/thumbnail`,
+          { owner: user, permlink, thumbnail: thumbnailUrl },
+          { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } },
+        );
+      } catch (thumbErr) {
+        console.warn('Thumbnail Mongo update failed (will reconcile on sync):', thumbErr?.message);
+        toast.info('Thumbnail saved on Hive — it may take a moment to refresh.');
+      }
+    }
+
     navigate("/draft");
   } catch (error) {
     toast.error(`Failed to update post: ${error.message}`);
