@@ -267,6 +267,7 @@ function EmbedDetails() {
         list={list}
         setRemaingPercent={setRemaingPercent}
         remaingPercent={remaingPercent}
+        variant="embed"
       />}
 
     </>

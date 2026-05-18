@@ -12,6 +12,7 @@ import { uploadAudioTo3Speak, getSnapsContainer } from '../../utils/audioUpload'
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
 import { broadcastWithAioha } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
+import { PPL_BENEFICIARY } from '../../utils/config';
 import './AudioUploadModal.scss';
 
 // Hive post conventions: mirror snapie — comments under the latest peak.snaps container.
@@ -107,6 +108,10 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
   // publishStatus: { [trackId]: { state: 'pending'|'uploading'|'posting'|'success'|'error', message?: string, playUrl?: string } }
   const [publishStatus, setPublishStatus] = useState({});
   const [isPublishing, setIsPublishing] = useState(false);
+  // 'post'  → keep the normal one-time Hive author payout.
+  // 'ppl'   → assign 100% beneficiaries to @threespeak-audio; a separate
+  //           program pays the author per listen for the track's lifetime.
+  const [rewardMode, setRewardMode] = useState('post');
 
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -411,6 +416,24 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
       },
     ]];
 
+    // Pay-per-listen: route 100% of the post's rewards to @threespeak-audio.
+    // Must immediately follow the comment op (and precede any custom_json) so
+    // the comment exists in-block before comment_options references it.
+    if (rewardMode === 'ppl') {
+      ops.push([
+        'comment_options',
+        {
+          author: user,
+          permlink: hivePermlink,
+          max_accepted_payout: '1000000.000 HBD',
+          percent_hbd: 10000,
+          allow_votes: true,
+          allow_curation_rewards: true,
+          extensions: [[0, { beneficiaries: [{ account: PPL_BENEFICIARY, weight: 10000 }] }]],
+        },
+      ]);
+    }
+
     if (playlistChoice) {
       ops.push([
         'custom_json',
@@ -430,7 +453,7 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
 
     await broadcastWithAioha(ops, KeyTypes.Posting);
     setTrackStatus(track.id, { state: 'success', stage: undefined });
-  }, [user, playlistChoice]);
+  }, [user, playlistChoice, rewardMode]);
 
   const retryTrack = useCallback(async (trackId) => {
     const track = tracks.find((t) => t.id === trackId);
@@ -579,6 +602,8 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
               onRetry={retryTrack}
               onRetryAll={retryAllFailed}
               isPublishing={isPublishing}
+              rewardMode={rewardMode}
+              setRewardMode={setRewardMode}
             />
           )}
         </div>
@@ -1033,16 +1058,43 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
   );
 }
 
-function ReviewStep({ tracks, playlists, playlistChoice, pendingPlaylist, publishStatus = {}, onRetry, onRetryAll, isPublishing }) {
+function ReviewStep({ tracks, playlists, playlistChoice, pendingPlaylist, publishStatus = {}, onRetry, onRetryAll, isPublishing, rewardMode, setRewardMode }) {
   const chosen = playlists.find(p => p.id === playlistChoice)
     || (pendingPlaylist && pendingPlaylist.id === playlistChoice ? pendingPlaylist : null);
   const failedCount = tracks.filter((t) => publishStatus[t.id]?.state === 'error').length;
+  // Once any track has started publishing the choice is locked in on-chain.
+  const rewardLocked = isPublishing || tracks.some(t => publishStatus[t.id]?.state);
   return (
     <div className="audio-upload-review">
       <p className="audio-upload-step-help">
         Ready to publish {tracks.length} track{tracks.length !== 1 ? 's' : ''}
         {chosen ? ` to playlist "${chosen.name}"` : ''}.
       </p>
+
+      <div className="audio-upload-reward">
+        <span className="audio-upload-reward-label">How should this audio earn?</span>
+        <button
+          type="button"
+          className={`audio-upload-reward-opt${rewardMode === 'post' ? ' is-active' : ''}`}
+          onClick={() => setRewardMode('post')}
+          disabled={rewardLocked}
+        >
+          <strong>Post rewards (one-time)</strong>
+          <small>You receive the normal Hive author payout for this post — paid out once, ~7 days after publishing.</small>
+        </button>
+        <button
+          type="button"
+          className={`audio-upload-reward-opt${rewardMode === 'ppl' ? ' is-active' : ''}`}
+          onClick={() => setRewardMode('ppl')}
+          disabled={rewardLocked}
+        >
+          <strong>Pay-per-listen (lifetime)</strong>
+          <small>
+            All post rewards go to @{PPL_BENEFICIARY}. Instead of a single payout,
+            a 3Speak program pays you per listen for the lifetime of the track.
+          </small>
+        </button>
+      </div>
 
       {failedCount > 0 && (
         <div className="audio-upload-review-failed-banner">

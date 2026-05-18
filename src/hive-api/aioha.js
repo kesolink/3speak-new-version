@@ -40,6 +40,22 @@ export const setHiveAuthCallbacks = (onWaiting, onComplete) => {
   hiveAuthCallbacks.onComplete = onComplete;
 };
 
+// Butter Auth sessions only carry posting authority. When an active-key op is
+// attempted under a Butter Auth login we don't fail — we hand the operations
+// to a registered modal handler that lets the user complete the signature
+// themselves (Hive Keychain wallet, or a pasted private active key). The
+// handler resolves with { success, result } or rejects if the user cancels.
+let activeAuthHandler = null;
+export const setActiveAuthHandler = (fn) => { activeAuthHandler = fn; };
+
+const requestButrauthActiveSign = async (operations) => {
+  if (typeof activeAuthHandler !== 'function') {
+    throw new Error('Active key operations need a Hive wallet. Please reload and try again.')
+  }
+  // Handler shows the modal and returns the broadcast result, or throws on cancel.
+  return activeAuthHandler(operations)
+}
+
 // Check if current provider is HiveAuth
 export const isHiveAuthProvider = () => {
   return aioha.getCurrentProvider() === Providers.HiveAuth;
@@ -86,6 +102,15 @@ export const voteWithAioha = async (author, permlink, weight = 10000) => {
 
 // Helper function to transfer HIVE or HBD
 export const transferWithAioha = async (to, amount, currency, memo = '') => {
+  // Transfers are an active-key op — a Butter Auth session can't sign them.
+  // Route through the same active-auth modal handler as broadcastWithAioha.
+  if (isManteAuthLogin()) {
+    const from = localStorage.getItem('user_id')
+    const formatted = `${Number(amount).toFixed(3)} ${currency}`
+    return requestButrauthActiveSign([
+      ['transfer', { from, to, amount: formatted, memo: memo || '' }]
+    ])
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.transfer(to, amount, currency, memo);
@@ -209,7 +234,9 @@ export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) 
     return broadcastViaManteAuth(operations)
   }
   if (isManteAuthLogin() && keyType === KeyTypes.Active) {
-    throw new Error('Active key operations are not supported with ManteAuth. Please use a Hive wallet.')
+    // Posting-only Butter Auth session — let the user sign this active op
+    // with their own wallet / active key via the modal handler.
+    return requestButrauthActiveSign(operations)
   }
   return withHiveAuthWaiting(async () => {
     try {

@@ -4,12 +4,17 @@ import { MdDeleteForever } from 'react-icons/md';
 
 import { Client } from '@hiveio/dhive';
 import { useAppStore } from '../../lib/store';
+import { usePremiumStatus } from '../../hooks/usePremiumStatus';
 import { HIVE_API_NODES } from '../../utils/config';
 
 const client = new Client(HIVE_API_NODES);
 
-function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList, setList, list, remaingPercent, setRemaingPercent }) {
+// `variant` distinguishes the publish flow:
+//   'studio' — keeps the 1% Video-Encoding split even for Pro users
+//   'embed'  — no platform splits at all for Pro users
+function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList, setList, list, remaingPercent, setRemaingPercent, variant = 'studio' }) {
   const {user} = useAppStore();
+  const isPremium = !!usePremiumStatus(user)?.premium;
   const [account, setAccount] = useState('');
   const [percent, setPercent] = useState(0);
   const [error, setError] = useState('');
@@ -265,17 +270,27 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
             <button onClick={handleSave}>Continue</button>
           </div>
 
-          {!list.some(item => item.locked) && (
-            <div className="default-bene-wrap">
-              <p>Default Beneficiaries (2)</p>
-              <div className="wrap">
-                <span>spk.beneficiary</span> <span>10% === Infrastructure</span>
+          {(() => {
+            if (list.some(item => item.locked)) return null;
+            // Pro users skip the 10% threespeakfund split entirely. The 1%
+            // encoder split is kept for /studio uploads (3Speak encodes
+            // them) but not for /embed (external media, no encoding).
+            const entries = [];
+            if (!isPremium) {
+              entries.push(<div key="fund" className="wrap"><span>threespeakfund</span> <span>10% === Infrastructure</span></div>);
+            }
+            const keepEncoder = variant === 'studio' ? true : !isPremium;
+            if (keepEncoder) {
+              entries.push(<div key="enc" className="wrap"><span> Video Encoding === 1%</span></div>);
+            }
+            if (entries.length === 0) return null;
+            return (
+              <div className="default-bene-wrap">
+                <p>Default Beneficiaries ({entries.length})</p>
+                {entries}
               </div>
-              <div className="wrap">
-                 <span> Video Encoding === 1%</span>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
       </div>

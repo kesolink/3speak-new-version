@@ -10,6 +10,7 @@ import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import AddToPlaylistModal from '../components/AddToPlaylistModal/AddToPlaylistModal';
 import { AudioShareDropdown } from '../components/GlobalAudioPlayer/GlobalAudioPlayer';
 import AudioTile, { AudioTileSkeleton } from '../components/AudioTile/AudioTile';
+import AudioPlaylistTile from '../components/AudioPlaylistTile/AudioPlaylistTile';
 import { isLoggedIn } from '../hive-api/aioha';
 
 import './Audio.scss';
@@ -185,6 +186,22 @@ function Audio() {
     enabled: !isFiltered && !selectedCreator,
   });
 
+  // Music playlists, split "by artist" (only the creator's tracks) vs
+  // "by listeners" (contains tracks from other authors).
+  const { data: playlistGroups } = useQuery({
+    queryKey: ['audio-playlists', typeFilter, genreFilter],
+    queryFn: async () => {
+      const p = new URLSearchParams();
+      if (typeFilter) p.set('category', typeFilter);
+      if (typeFilter === 'song' && genreFilter) p.set('genre', genreFilter);
+      const { data } = await axios.get(`${CHECKER_URL}/audio/playlists?${p}`);
+      return data || { by_artist: [], by_listeners: [] };
+    },
+    // Show albums even while filtering — the endpoint applies the same
+    // category/genre filter, so a "Music" filter keeps music albums.
+    enabled: !selectedCreator,
+  });
+
   // Filtered results (when tag or date is active)
   const { data: filteredAudio, isLoading: filteredLoading } = useQuery({
     queryKey: ['audio-filtered', filterParams],
@@ -285,6 +302,18 @@ function Audio() {
     onAuthorClick: () => setSelectedCreator(item.owner),
     loggedIn,
   });
+
+  const renderGroupedSection = (k) => {
+    const items = grouped?.[k];
+    if (!items?.length) return null;
+    const conf = SECTION_CONFIG[k];
+    return (
+      <section key={k} className="audio-section">
+        <h2 className="audio-section-title"><i className={conf.icon} /> {conf.label}</h2>
+        <div className="audio-tile-row">{items.map((item, idx) => <AudioTile key={item._id || idx} {...tp(item, items)} />)}</div>
+      </section>
+    );
+  };
 
   const clearFilters = () => {
     setActiveTags([]);
@@ -400,6 +429,33 @@ function Audio() {
             </section>
           )}
 
+          {/* ─── Popular (above the albums) ────── */}
+          {!isFiltered && renderGroupedSection('popular')}
+
+          {/* ─── Music playlists (prominent) ────── */}
+          {playlistGroups?.by_artist?.length > 0 && (
+            <section className="audio-section">
+              <h2 className="audio-section-title">
+                <i className="fa-solid fa-compact-disc" /> Albums &amp; Playlists by Artist
+                <span className="audio-section-count">{playlistGroups.by_artist.length}</span>
+              </h2>
+              <div className="audio-tile-row">
+                {playlistGroups.by_artist.map(p => <AudioPlaylistTile key={p.id} playlist={p} />)}
+              </div>
+            </section>
+          )}
+          {playlistGroups?.by_listeners?.length > 0 && (
+            <section className="audio-section">
+              <h2 className="audio-section-title">
+                <i className="fa-solid fa-headphones" /> Playlists by Listeners
+                <span className="audio-section-count">{playlistGroups.by_listeners.length}</span>
+              </h2>
+              <div className="audio-tile-row">
+                {playlistGroups.by_listeners.map(p => <AudioPlaylistTile key={p.id} playlist={p} />)}
+              </div>
+            </section>
+          )}
+
           {/* ─── Filtered results ────── */}
           {isFiltered ? (
             <section className="audio-section">
@@ -419,15 +475,9 @@ function Audio() {
             /* ─── Grouped sections ──── */
             groupedLoading ? (
               SECTION_ORDER.slice(0, 3).map(k => <section key={k} className="audio-section"><div className="audio-tile-row"><AudioTileSkeleton count={5} /></div></section>)
-            ) : grouped && SECTION_ORDER.filter(k => grouped[k]?.length > 0).map(k => {
-              const conf = SECTION_CONFIG[k]; const items = grouped[k];
-              return (
-                <section key={k} className="audio-section">
-                  <h2 className="audio-section-title"><i className={conf.icon} /> {conf.label}</h2>
-                  <div className="audio-tile-row">{items.map((item, idx) => <AudioTile key={item._id || idx} {...tp(item, items)} />)}</div>
-                </section>
-              );
-            })
+            ) : grouped && SECTION_ORDER
+              .filter(k => k !== 'popular' && grouped[k]?.length > 0) // popular is rendered above the albums
+              .map(k => renderGroupedSection(k))
           )}
         </>
       )}

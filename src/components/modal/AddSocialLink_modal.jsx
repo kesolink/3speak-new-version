@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
-import { FaYoutube, FaCopy, FaCheck, FaTrash, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaYoutube, FaSoundcloud, FaCopy, FaCheck, FaTrash, FaExternalLinkAlt } from 'react-icons/fa';
 import { toast } from 'sonner';
 import {
   getHash,
@@ -16,6 +16,7 @@ import './AddSocialLink_modal.scss';
 
 const PLATFORM_ICONS = {
   youtube: FaYoutube,
+  soundcloud: FaSoundcloud,
 };
 
 export default function AddSocialLink_modal({ isOpen, onClose, hiveUsername, onChange }) {

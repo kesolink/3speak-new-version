@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -6,9 +7,10 @@ import {
   MdQueueMusic, MdPlaylistPlay, MdClose, MdDragIndicator, MdDelete,
   MdSubtitles, MdShare, MdContentCopy, MdOpenInNew,
   MdKeyboardArrowUp, MdKeyboardArrowDown,
+  MdVolumeUp, MdVolumeOff,
 } from 'react-icons/md';
 import { useAppStore } from '../../lib/store';
-import { CHECKER_URL } from '../../utils/config';
+import { CHECKER_URL, LISTEN_BEAT_KEY } from '../../utils/config';
 import { isLoggedIn } from '../../hive-api/aioha';
 import { getUersContent } from '../../utils/hiveUtils';
 import PayoutAmount from '../PayoutAmount/PayoutAmount';
@@ -24,6 +26,37 @@ import '../../page/Audio.scss';
 import './GlobalAudioPlayer.scss';
 
 const AUDIO_CDN = 'https://hotipfs-3speak-1.b-cdn.net/ipfs';
+
+// Optional heartbeat obfuscation — AES-256-GCM with a key derived from the
+// shared LISTEN_BEAT_KEY (must match the checker's). Output is
+// base64(iv|ciphertext|tag), the layout the backend expects. Best-effort:
+// any failure → null so the caller falls back to a plaintext beat.
+let _beatKeyPromise = null;
+function getBeatKey() {
+  if (!LISTEN_BEAT_KEY || !globalThis.crypto?.subtle) return null;
+  if (!_beatKeyPromise) {
+    _beatKeyPromise = (async () => {
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(LISTEN_BEAT_KEY));
+      return crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt']);
+    })().catch(() => null);
+  }
+  return _beatKeyPromise;
+}
+async function encryptBeat(obj) {
+  try {
+    const key = await getBeatKey();
+    if (!key) return null;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(
+      await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj)))
+    );
+    const out = new Uint8Array(iv.length + ct.length);
+    out.set(iv); out.set(ct, iv.length);
+    let bin = '';
+    for (let i = 0; i < out.length; i++) bin += String.fromCharCode(out[i]);
+    return btoa(bin);
+  } catch { return null; }
+}
 
 function audioThumb(item) {
   if (!item) return fallbackImg;
@@ -69,13 +102,35 @@ function GlobalAudioPlayer() {
     audioPlay, audioStop,
     audioSetIsPlaying, audioSetCurrentTime,
     audioSetExpanded, audioSetShowQueue,
-    audioRemoveFromQueue, audioMoveInQueue,
+    audioRemoveFromQueue, audioMoveInQueue, audioClearQueue,
     authenticated, user,
   } = useAppStore();
   const loggedIn = authenticated && isLoggedIn();
   const navigate = useNavigate();
 
   const audioRef = useRef(null);
+
+  // Pay-per-listen accounting. The server measures real elapsed playback:
+  // we open a session on track start (only when logged in — anonymous plays
+  // never earn) and send a heartbeat while the audio is actually advancing.
+  // The backend credits the wall-clock time it observes between beats, so a
+  // listen can't be forged with a single request.
+  const listenRef = useRef({ permlink: null, sid: null, token: null, beatMs: 10000, lastBeatAt: 0, credited: false, encrypted: false });
+  const beatOnce = useCallback(async () => {
+    const L = listenRef.current;
+    if (!L.sid || L.credited) return;
+    L.lastBeatAt = Date.now();
+    try {
+      let body = { sid: L.sid, token: L.token };
+      if (L.encrypted) {
+        const enc = await encryptBeat(body);
+        if (!enc) return; // server requires encryption but we couldn't — skip
+        body = { enc };
+      }
+      const { data } = await axios.post(`${CHECKER_URL}/audio/play-beat`, body);
+      if (data?.done || data?.credited) L.credited = true;
+    } catch { /* best-effort — never disrupt playback */ }
+  }, []);
 
   // Vote / share / playlist for the now-playing track
   const [showVoteTooltip, setShowVoteTooltip] = useState(false);
@@ -94,6 +149,24 @@ function GlobalAudioPlayer() {
   const [npTags, setNpTags] = useState([]);
   const [npMantecurated, setNpMantecurated] = useState(false);
 
+  // Volume (persisted across sessions; player is a singleton so local state is fine)
+  const [volume, setVolume] = useState(() => {
+    const v = parseFloat(localStorage.getItem('audio-volume'));
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+  });
+  const [muted, setMuted] = useState(() => localStorage.getItem('audio-muted') === '1');
+  const [volOpen, setVolOpen] = useState(false);
+  const [volRect, setVolRect] = useState(null); // button rect for the portal popover
+  const volWrapRef = useRef(null);
+  const volBtnRef = useRef(null);
+  const volPopRef = useRef(null);
+
+  const openVol = () => {
+    const r = volBtnRef.current?.getBoundingClientRect();
+    if (r) setVolRect({ cx: r.left + r.width / 2, top: r.top });
+    setVolOpen(o => !o);
+  };
+
   // Subtitles
   const [showSubtitles, setShowSubtitles] = useState(false);
   const [subtitleData, setSubtitleData] = useState(null);
@@ -102,6 +175,29 @@ function GlobalAudioPlayer() {
   const [loadingSubs, setLoadingSubs] = useState(false);
   const activeCueRef = useRef(null);
 
+  // Apply + persist volume/mute. Re-applied on track change since a new src
+  // is loaded on the same element (volume sticks, but stay safe).
+  useEffect(() => {
+    const el = audioRef.current;
+    if (el) { el.volume = volume; el.muted = muted; }
+    try {
+      localStorage.setItem('audio-volume', String(volume));
+      localStorage.setItem('audio-muted', muted ? '1' : '0');
+    } catch { /* storage may be unavailable */ }
+  }, [volume, muted, audioCurrent?._id, audioPlayNonce]);
+
+  // Close the volume popover on outside click / Escape
+  useEffect(() => {
+    if (!volOpen) return;
+    const onDown = (e) => {
+      if (!volWrapRef.current?.contains(e.target) && !volPopRef.current?.contains(e.target)) setVolOpen(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setVolOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [volOpen]);
+
   // Wire <audio> element events to slice
   useEffect(() => {
     const el = audioRef.current; if (!el) return;
@@ -109,7 +205,16 @@ function GlobalAudioPlayer() {
     // when the track is selected) — we deliberately ignore <audio>.duration
     // because VBR MP3s without Xing headers report it incorrectly.
     const h = {
-      timeupdate: () => audioSetCurrentTime(el.currentTime),
+      timeupdate: () => {
+        audioSetCurrentTime(el.currentTime);
+        // timeupdate only fires while audio is genuinely advancing (not when
+        // paused), so it doubles as our "still listening" signal. Beat at
+        // most once per interval; the server measures the real gap.
+        const L = listenRef.current;
+        if (L.sid && !L.credited && Date.now() - L.lastBeatAt >= L.beatMs) {
+          beatOnce();
+        }
+      },
       play: () => { audioSetIsPlaying(true); notifyMediaPlay('audio'); },
       pause: () => audioSetIsPlaying(false),
       ended: () => { audioSetIsPlaying(false); playNext(); },
@@ -155,6 +260,32 @@ function GlobalAudioPlayer() {
     el.play().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioCurrent?._id, audioPlayNonce]);
+
+  // Open a measured listen session on track change/replay. Only logged-in
+  // listeners earn the author a pay-per-listen credit; anonymous playback
+  // still works, it just doesn't open a session.
+  useEffect(() => {
+    const perm = audioCurrent?.permlink;
+    listenRef.current = { permlink: perm || null, sid: null, token: null, beatMs: 10000, lastBeatAt: 0, credited: false, encrypted: false };
+    // Only pay-per-listen tracks need a session — skip the call entirely
+    // for everything else (no play-start, no heartbeats).
+    if (!perm || !loggedIn || !user || audioCurrent?.ppl !== true) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await axios.post(`${CHECKER_URL}/audio/play-start`, { permlink: perm, username: user });
+        const L = listenRef.current;
+        if (cancelled || !data?.sid || !data?.payable || L.permlink !== perm) return;
+        L.sid = data.sid;
+        L.token = data.token;
+        L.encrypted = !!data.encrypted;
+        L.beatMs = (data.beatSeconds || 10) * 1000;
+        L.lastBeatAt = Date.now(); // first beat one interval from now
+      } catch { /* best-effort — never disrupt playback */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioCurrent?.permlink, audioPlayNonce, loggedIn, user]);
 
   // Fetch Hive post enrichment
   useEffect(() => {
@@ -315,6 +446,17 @@ function GlobalAudioPlayer() {
             <button className="audio-np-play-btn" onClick={togglePlay}>{audioIsPlaying ? <MdPause size={26} /> : <MdPlayArrow size={26} />}</button>
             <button className="audio-np-btn" onClick={playNext}><MdSkipNext size={22} /></button>
           </div>
+          <div className={`audio-np-volume${volOpen ? ' open' : ''}`} ref={volWrapRef}>
+            <button
+              ref={volBtnRef}
+              className="audio-np-btn audio-np-vol-btn"
+              onClick={openVol}
+              onDoubleClick={() => setMuted(m => !m)}
+              title="Volume"
+            >
+              {muted || volume === 0 ? <MdVolumeOff size={20} /> : <MdVolumeUp size={20} />}
+            </button>
+          </div>
           <button className="audio-np-queue-btn" onClick={() => audioSetShowQueue(v => !v)} title="Queue">
             <MdQueueMusic size={20} />
             {audioQueue.length > 0 && <span className="audio-np-queue-badge">{audioQueue.length}</span>}
@@ -417,7 +559,14 @@ function GlobalAudioPlayer() {
           <div className="audio-queue-panel" onClick={e => e.stopPropagation()}>
             <div className="audio-queue-header">
               <h3>Queue <span className="audio-queue-count">{audioQueue.length}</span></h3>
-              <button className="audio-queue-close" onClick={() => audioSetShowQueue(false)}><MdClose size={20} /></button>
+              <div className="audio-queue-header-actions">
+                {audioQueue.length > 0 && (
+                  <button className="audio-queue-clear" onClick={audioClearQueue} title="Clear queue">
+                    <MdDelete size={16} /> Clear all
+                  </button>
+                )}
+                <button className="audio-queue-close" onClick={() => audioSetShowQueue(false)}><MdClose size={20} /></button>
+              </div>
             </div>
             {audioQueue.length === 0 ? (
               <p className="audio-queue-empty">Queue is empty.</p>
@@ -467,6 +616,31 @@ function GlobalAudioPlayer() {
           author={playlistTarget.author} permlink={playlistTarget.permlink}
           videoTitle={playlistTarget.title}
         />
+      )}
+
+      {volOpen && volRect && createPortal(
+        <div
+          ref={volPopRef}
+          className="audio-np-vol-pop"
+          style={{ left: volRect.cx, top: volRect.top }}
+        >
+          <input
+            className="audio-np-vol-slider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={muted ? 0 : volume}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              setVolume(v);
+              if (v > 0 && muted) setMuted(false);
+              if (v === 0) setMuted(true);
+            }}
+            aria-label="Volume"
+          />
+        </div>,
+        document.body
       )}
     </>
   );

@@ -27,7 +27,7 @@ const ManteAuthCallback = () => {
       if (code) processedCodes.add(code)
 
       if (!code || !username) {
-        toast.error("ManteAuth login failed")
+        toast.error("Butter Auth login failed")
         navigate("/")
         return
       }
@@ -55,10 +55,10 @@ const ManteAuthCallback = () => {
         localStorage.setItem("user_id", data.username)
         localStorage.setItem("manteauth_login", "true")
         setUser(data.username)
-        toast.success(`Logged in as @${data.username} via ManteAuth`)
+        toast.success(`Logged in as @${data.username} via Butter Auth`)
         navigate(state || "/")
       } catch (err) {
-        toast.error("ManteAuth login failed: " + err.message)
+        toast.error("Butter Auth login failed: " + err.message)
         navigate("/")
       }
     }
@@ -75,7 +75,7 @@ const ManteAuthCallback = () => {
       height: "87vh",
     }}>
       <h2 style={{ marginBottom: "20px", color: "var(--accent-primary)" }}>
-        Logging in via ManteAuth...
+        Logging in via Butter Auth...
       </h2>
     </div>
   )

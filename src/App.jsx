@@ -97,6 +97,7 @@ import EmbedPreview from "./components/embed-studio/EmbedPreview";
 import FollowFeed from "./page/FollowFeed";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
+import ActiveAuthModal from "./components/ActiveAuthModal/ActiveAuthModal";
 import EditorModal from "./components/modal/EditorModal";
 import { FEATURE_EDITOR } from "./utils/config";
 import BottomNav from "./components/BottomNav/BottomNav";
@@ -407,6 +408,7 @@ function App() {
             keyType: KeyTypes.Posting
           }}
         />
+        <ActiveAuthModal />
         {FEATURE_EDITOR && (
           <EditorModal
             isOpen={editorModalOpen}

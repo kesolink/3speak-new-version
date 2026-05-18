@@ -102,6 +102,10 @@ export const createAudioPlayerSlice = (set, get) => {
       persistQueue(next);
       set({ audioQueue: next });
     },
+    audioClearQueue: () => {
+      persistQueue([]);
+      set({ audioQueue: [] });
+    },
     audioMoveInQueue: (from, to) => {
       const n = [...get().audioQueue];
       const [m] = n.splice(from, 1);

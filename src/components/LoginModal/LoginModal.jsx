@@ -197,7 +197,7 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <img src="https://butrauth.com/logo.png" alt="" width={32} height={32} />
+            <img src="/butrauth-logo.png" alt="" width={32} height={32} />
             <span>Butter Auth</span>
           </button>
           )}

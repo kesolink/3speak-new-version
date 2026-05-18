@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaYoutube } from 'react-icons/fa';
+import { FaYoutube, FaSoundcloud } from 'react-icons/fa';
 import { IoClose } from 'react-icons/io5';
 import { toast } from 'sonner';
 import {
@@ -12,6 +12,7 @@ import './SocialLinks.scss';
 
 const PLATFORM_ICONS = {
   youtube: FaYoutube,
+  soundcloud: FaSoundcloud,
 };
 
 export default function SocialLinks({ hiveUsername, refreshKey = 0, canDelete = false, onChange }) {

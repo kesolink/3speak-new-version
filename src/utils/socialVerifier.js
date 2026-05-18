@@ -71,6 +71,12 @@ export const PLATFORMS = {
     inputPlaceholder: '@handle or UCxxxxxxxxxxxxxxxxxxxxxx',
     inputHelp: 'Paste your YouTube @handle or your UC… channel ID. We canonicalize to the channel ID.',
   },
+  soundcloud: {
+    label: 'SoundCloud',
+    profileUrl: (canonical) => `https://soundcloud.com/${canonical}`,
+    inputPlaceholder: 'your-profile or https://soundcloud.com/your-profile',
+    inputHelp: 'Paste your SoundCloud profile URL or just the username from it. Put the hash anywhere in your profile bio.',
+  },
 };
 
 export function platformProfileUrl(platform, canonical) {

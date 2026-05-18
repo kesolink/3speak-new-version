@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { MdPlayArrow, MdPlaylistPlay, MdShare, MdAdd } from 'react-icons/md';
 import { useAppStore } from '../../lib/store';
 import PayoutAmount from '../PayoutAmount/PayoutAmount';
+import PremiumBadge from '../PremiumBadge/PremiumBadge';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 // Reuse the existing tile styles defined in Audio.scss so this component is the
 // single source of truth and stays visually identical across pages.
@@ -137,7 +138,7 @@ function AudioTile({
   const body = (
     <div className="audio-tile-body">
       <span className="audio-tile-title" onClick={handlePlay}>{item.title || 'Untitled'}</span>
-      <span className="audio-tile-author" onClick={handleAuthor}>@{item.owner}</span>
+      <span className="audio-tile-author" onClick={handleAuthor}>@{item.owner}<PremiumBadge username={item.owner} size={11} /></span>
       {metaLine && <span className="audio-tile-meta">{metaLine}</span>}
       <div className="audio-tile-footer">
         {item.plays > 0 && <span>{item.plays} plays</span>}

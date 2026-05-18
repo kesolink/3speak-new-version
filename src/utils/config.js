@@ -59,6 +59,13 @@ const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
 const EMBED_DEBUG = import.meta.env.VITE_EMBED_DEBUG === 'true';
 const THREESPEAK_AUDIO_API_URL = import.meta.env.VITE_3SPEAK_AUDIO_API_URL || 'https://audio.3speak.tv';
 const THREESPEAK_API_KEY = import.meta.env.VITE_3SPEAK_API_KEY || '';
+// Account that receives 100% beneficiaries when an audio post is published in
+// "pay-per-listen" mode. Temporary value until the per-listen payout program
+// ships — override with VITE_PPL_BENEFICIARY.
+const PPL_BENEFICIARY = import.meta.env.VITE_PPL_BENEFICIARY || 'tibfox';
+// Optional shared key to obfuscate audio listen heartbeats. Must equal the
+// checker's LISTEN_BEAT_KEY. Empty → plaintext beats (still server-measured).
+const LISTEN_BEAT_KEY = import.meta.env.VITE_LISTEN_BEAT_KEY || '';
 
 // 3Speak Image Upload Service (thumbnail uploads)
 const IMAGE_UPLOAD_URL = import.meta.env.VITE_IMAGE_UPLOAD_URL || 'https://images.3speak.tv';
@@ -136,6 +143,8 @@ export {
   IMAGE_UPLOAD_KEY,
   REPORT_API_URL,
   REPORT_API_SECRET,
+  PPL_BENEFICIARY,
+  LISTEN_BEAT_KEY,
   ENABLE_METAMASK_SNAP,
   ENABLE_BUTRAUTH,
   ENABLE_SUBS,

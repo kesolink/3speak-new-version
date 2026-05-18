@@ -776,7 +776,72 @@
   padding: 24px;
   width: 90%;
   max-width: 440px;
+  max-height: 85vh;
+  overflow-y: auto;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+
+  textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-light, #333);
+    border-radius: 8px;
+    background: var(--input-bg, #0f0f1a);
+    color: var(--text-primary, #fff);
+    font-size: 14px;
+    box-sizing: border-box;
+    resize: vertical;
+    font-family: inherit;
+    &:focus { outline: none; border-color: var(--accent-primary, #e53935); }
+  }
+
+  .form-row {
+    display: flex;
+    gap: 12px;
+    .form-group { flex: 1; }
+  }
+
+  .playlist-edit-thumb {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 110px;
+    padding: 14px;
+    border: 1px dashed var(--border-light, #333);
+    border-radius: 8px;
+    background: var(--input-bg, #0f0f1a);
+    color: var(--text-secondary, #aaa);
+    cursor: pointer;
+    text-align: center;
+
+    &:hover { border-color: var(--accent-primary, #e53935); }
+    small { font-size: 11px; opacity: 0.7; }
+
+    &.has-image {
+      padding: 0;
+      min-height: 0;
+      overflow: hidden;
+      img { width: 100%; max-height: 200px; object-fit: cover; display: block; }
+    }
+  }
+
+  .playlist-edit-thumb-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
 
   h3 {
     margin: 0 0 20px;

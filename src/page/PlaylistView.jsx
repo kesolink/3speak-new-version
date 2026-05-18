@@ -1,8 +1,8 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { useState, useMemo } from 'react';
-import { MdPlaylistPlay, MdClose, MdDragIndicator, MdEdit, MdLock, MdPublic } from 'react-icons/md';
+import { useState, useMemo, useRef } from 'react';
+import { MdPlaylistPlay, MdClose, MdDragIndicator, MdEdit, MdLock, MdPublic, MdCloudUpload } from 'react-icons/md';
 import { IoArrowBack, IoTrash, IoSave, IoReorderThree } from 'react-icons/io5';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -20,7 +20,9 @@ import './PlaylistView.scss';
 import { HIVE_API_URL, PLAYLISTS_API_URL, CHECKER_URL } from '../utils/config';
 import { MdPlayArrow as MdPlayIcon } from 'react-icons/md';
 import AudioTile from '../components/AudioTile/AudioTile';
+import AddToPlaylistModal from '../components/AddToPlaylistModal/AddToPlaylistModal';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
+import { uploadThumbnail } from '../utils/uploadThumbnail';
 import { DATE_FILTERS, getSinceTimestamp, formatRelativeDate } from '../utils/dateFilters';
 dayjs.extend(relativeTime);
 
@@ -127,8 +129,18 @@ function PlaylistView() {
   const [editName, setEditName] = useState('');
   const [editAccess, setEditAccess] = useState('public');
   const [editTags, setEditTags] = useState([]);
+  // Album metadata + cover image
+  const [editThumb, setEditThumb] = useState('');
+  const [editThumbUploading, setEditThumbUploading] = useState(false);
+  const [editMusicStyle, setEditMusicStyle] = useState('');
+  const [editYear, setEditYear] = useState('');
+  const [editLabel, setEditLabel] = useState('');
+  const [editCredits, setEditCredits] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const editThumbInputRef = useRef(null);
   const [editTagInput, setEditTagInput] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [playlistTarget, setPlaylistTarget] = useState(null);
 
   // Fetch playlist data
   const { data: playlist, isLoading: playlistLoading, error: playlistError } = useQuery({
@@ -197,7 +209,30 @@ function PlaylistView() {
     setEditAccess(playlist.access || 'public');
     setEditTags([...playlistTags]);
     setEditTagInput('');
+    const album = playlist.metadata?.album || {};
+    setEditThumb(playlist.thumbnail || album.thumbnail || '');
+    setEditMusicStyle(album.musicStyle || '');
+    setEditYear(album.year ? String(album.year) : '');
+    setEditLabel(album.label || '');
+    setEditCredits(album.credits || '');
+    setEditDescription(album.description || '');
     setShowEditModal(true);
+  };
+
+  const onEditThumbFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Pick an image file'); return; }
+    setEditThumbUploading(true);
+    try {
+      const url = await uploadThumbnail(file);
+      setEditThumb(url);
+    } catch (err) {
+      toast.error(`Thumbnail upload failed: ${err?.message || 'unknown'}`);
+    } finally {
+      setEditThumbUploading(false);
+      if (editThumbInputRef.current) editThumbInputRef.current.value = '';
+    }
   };
 
   // Save edit
@@ -208,10 +243,23 @@ function PlaylistView() {
     }
     setIsUpdating(true);
     try {
+      // Build the album payload — only include fields with values
+      // (mirrors the create flow in AudioUploadModal).
+      const album = {};
+      if (editCredits.trim()) album.credits = editCredits.trim();
+      if (editMusicStyle.trim()) album.musicStyle = editMusicStyle.trim();
+      const yearNum = parseInt(editYear, 10);
+      if (!isNaN(yearNum) && yearNum > 0) album.year = yearNum;
+      if (editLabel.trim()) album.label = editLabel.trim();
+      if (editDescription.trim()) album.description = editDescription.trim();
+      if (editThumb) album.thumbnail = editThumb;
+
       await updatePlaylist(playlistId, {
         name: editName.trim(),
         access: editAccess,
         json_metadata: JSON.stringify({ tags: editTags }),
+        thumbnail: editThumb || '',
+        metadata: { album },
       });
       toast.success('Playlist updated! Changes may take a moment to appear.');
       setShowEditModal(false);
@@ -589,6 +637,12 @@ function PlaylistView() {
                     ? { ...v.audioDoc, thumbnail_url: playlist.thumbnail }
                     : v.audioDoc
                 ))}
+                loggedIn={!!authenticatedUser}
+                onAddToPlaylist={() => setPlaylistTarget({
+                  author: video.audioDoc.owner,
+                  permlink: video.audioDoc.post_permlink || video.audioDoc.permlink,
+                  title: video.audioDoc.title,
+                })}
               />
             ) : (
               <Link
@@ -719,16 +773,81 @@ function PlaylistView() {
                 />
               </div>
             </div>
+            <div className="form-group">
+              <label>Cover image</label>
+              <div
+                className={`playlist-edit-thumb${editThumb ? ' has-image' : ''}`}
+                onClick={() => !editThumbUploading && editThumbInputRef.current?.click()}
+              >
+                {editThumb ? (
+                  <>
+                    <img src={editThumb} alt="Cover" />
+                    <button
+                      type="button"
+                      className="playlist-edit-thumb-remove"
+                      onClick={(e) => { e.stopPropagation(); setEditThumb(''); }}
+                      aria-label="Remove cover"
+                    ><MdClose size={14} /></button>
+                  </>
+                ) : (
+                  <>
+                    <MdCloudUpload size={26} />
+                    <span>{editThumbUploading ? 'Uploading…' : 'Add cover image'}</span>
+                    <small>JPG / PNG / WebP</small>
+                  </>
+                )}
+                <input
+                  ref={editThumbInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={onEditThumbFile}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Genre</label>
+              <input type="text" value={editMusicStyle} onChange={(e) => setEditMusicStyle(e.target.value)} placeholder="e.g. Hip-Hop" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Year</label>
+                <input type="number" value={editYear} onChange={(e) => setEditYear(e.target.value)} placeholder="1996" />
+              </div>
+              <div className="form-group">
+                <label>Label</label>
+                <input type="text" value={editLabel} onChange={(e) => setEditLabel(e.target.value)} placeholder="Record label" />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Credits</label>
+              <input type="text" value={editCredits} onChange={(e) => setEditCredits(e.target.value)} placeholder="Produced by…" />
+            </div>
+            <div className="form-group">
+              <label>Description</label>
+              <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="About this album (optional)" rows={3} maxLength={1000} />
+            </div>
             <div className="modal-actions">
               <button type="button" className="btn-cancel" onClick={() => setShowEditModal(false)} disabled={isUpdating}>
                 Cancel
               </button>
-              <button type="button" className="btn-confirm-delete" style={{ background: 'var(--accent-primary, #e53935)' }} onClick={handleSaveEdit} disabled={isUpdating || !editName.trim()}>
+              <button type="button" className="btn-confirm-delete" style={{ background: 'var(--accent-primary, #e53935)', color: '#fff' }} onClick={handleSaveEdit} disabled={isUpdating || !editName.trim()}>
                 {isUpdating ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {playlistTarget && (
+        <AddToPlaylistModal
+          isOpen={!!playlistTarget}
+          onClose={() => setPlaylistTarget(null)}
+          author={playlistTarget.author}
+          permlink={playlistTarget.permlink}
+          videoTitle={playlistTarget.title}
+        />
       )}
     </div>
   );
