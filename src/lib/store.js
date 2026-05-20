@@ -22,6 +22,9 @@ export const useAppStore = create(
       setWatchHistoryEnabled: (enabled) => a[0]({ watchHistoryEnabled: enabled }),
       sidebarOpen: false,
       setSidebarOpen: (open) => a[0]({ sidebarOpen: typeof open === 'function' ? open(a[1]().sidebarOpen) : open }),
+      // Hard hide for the desktop sidebar — opt-in via the settings popup.
+      sidebarHidden: false,
+      setSidebarHidden: (val) => a[0]({ sidebarHidden: typeof val === 'function' ? val(a[1]().sidebarHidden) : val }),
       showNsfw: false,
       setShowNsfw: (val) => a[0]({ showNsfw: typeof val === 'function' ? val(a[1]().showNsfw) : val }),
     }),
@@ -33,6 +36,7 @@ export const useAppStore = create(
         theme: state.theme, // Persist theme preference
         watchHistoryEnabled: state.watchHistoryEnabled,
         sidebarOpen: state.sidebarOpen,
+        sidebarHidden: state.sidebarHidden,
         showNsfw: state.showNsfw,
       }),
     }

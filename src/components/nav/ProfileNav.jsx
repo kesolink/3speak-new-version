@@ -26,7 +26,7 @@ import SettingsModal from '../SettingsModal/SettingsModal';
 function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const location = useLocation();
   const navigate = useNavigate()
-  const { user, theme, showNsfw, setShowNsfw } = useAppStore();
+  const { user, theme } = useAppStore();
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -111,12 +111,6 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           {/* <Link className="wrap">
             <FaLanguage className="icon" /> <span>Language Settings</span>
           </Link> */}
-          <button type="button" className="wrap nsfw-toggle-wrap" role="switch" aria-checked={showNsfw} onClick={() => setShowNsfw(prev => !prev)}>
-            <span>Show NSFW</span>
-            <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
-              <div className="nsfw-toggle-thumb" />
-            </div>
-          </button>
           <a className="wrap" onClick={() => { setSettingsOpen(true); onclose(); }}>
             <MdSettings className="icon" /> <span>Settings</span>
           </a>
