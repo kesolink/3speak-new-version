@@ -18,6 +18,7 @@ import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
 import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
 import UploadLinks from '../UploadLinks';
+import { getHiveUrl, ensureHealthyNode } from '../../utils/hiveNode';
 
 
 
@@ -29,6 +30,13 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
+  // Currently chosen Hive RPC node (auto-picked by the session probe).
+  const [rpcNode, setRpcNode] = useState(getHiveUrl());
+  useEffect(() => {
+    let cancelled = false;
+    ensureHealthyNode().then((u) => { if (!cancelled) setRpcNode(u || getHiveUrl()); });
+    return () => { cancelled = true; };
+  }, []);
 
   const handlewallletNavigation = () => {
     navigate(`/wallet/${user}`)
@@ -121,6 +129,11 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
 
            </div>
            <hr className="profile-divider" />
+           <div className="rpc-node-line" title={rpcNode}>
+             <span className="rpc-node-dot" aria-hidden="true" />
+             <span className="rpc-node-label">RPC:</span>
+             <span className="rpc-node-host">{rpcNode.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+           </div>
            <div className="logo-wrap">
           {theme === "light" ? <img className="logo" src={logo} alt="3Speak Logo" /> :
             <img className="logo" src={logoDark} alt="3Speak Logo" />}
