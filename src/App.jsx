@@ -112,7 +112,6 @@ function App() {
   const { aioha, user: aiohaUser } = useAioha();
   const sidebar = useAppStore((s) => s.sidebarOpen);
   const setSideBar = useAppStore((s) => s.setSidebarOpen);
-  const sidebarHidden = useAppStore((s) => s.sidebarHidden);
   const [profileNavVisible, setProfileNavVisible] = useState(false);
 
   const [globalCloseRender, setGlobalCloseRender] = useState(false)
@@ -267,8 +266,8 @@ function App() {
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
       )}
       <div>
-        {!hideNavOnMobile && !sidebarHidden && <Sidebar sidebar={sidebar} />}
-        <div className={`container ${sidebar && !sidebarHidden ? "" : "large-container"} ${hideNavOnMobile ? "shorts-mobile-container" : ""}`}>
+        {!hideNavOnMobile && <Sidebar sidebar={sidebar} />}
+        <div className={`container ${sidebar ? "" : "large-container"} ${hideNavOnMobile ? "shorts-mobile-container" : ""}`}>
           <ScrollToTop />
           {/* <Toaster richColors position="top-right" /> */}
           <Routes>
