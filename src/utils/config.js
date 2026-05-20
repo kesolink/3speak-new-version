@@ -68,12 +68,27 @@ const TRANSLATE_API_URL = import.meta.env.VITE_TRANSLATE_API_URL || 'https://3sp
 // Watch history threshold - number of days to show unwatched indicator
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);
 
-const HIVE_API_NODES = [
-  import.meta.env.VITE_HIVE_API_URL || 'https://api.hive.blog',
+// Hive RPC candidate pool — primary first, then fallbacks. Both env vars are
+// optional; leave them unset to use these defaults. VITE_HIVE_API_FALLBACKS is
+// comma- or whitespace-separated.
+const DEFAULT_HIVE_PRIMARY = 'https://api.hive.blog';
+const DEFAULT_HIVE_FALLBACKS = [
   'https://api.deathwing.me',
   'https://api.openhive.network',
   'https://techcoderx.com',
 ];
+const parseList = (s) => (s || '')
+  .split(/[\s,]+/)
+  .map((x) => x.trim())
+  .filter(Boolean);
+
+const HIVE_API_NODES = (() => {
+  const primary = import.meta.env.VITE_HIVE_API_URL || DEFAULT_HIVE_PRIMARY;
+  const fallbacks = import.meta.env.VITE_HIVE_API_FALLBACKS
+    ? parseList(import.meta.env.VITE_HIVE_API_FALLBACKS)
+    : DEFAULT_HIVE_FALLBACKS;
+  return [...new Set([primary, ...fallbacks])];
+})();
 
 /**
  * Append nsfw=true to a URL when NSFW content is enabled.
