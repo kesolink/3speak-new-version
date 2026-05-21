@@ -34,6 +34,21 @@ export const isHiveAuthProvider = () => {
   return aioha.getCurrentProvider() === Providers.HiveAuth;
 };
 
+// Extract a human-readable reason from aioha's `result.error` (which may be a
+// string, an object with .message, or a nested Hive node error). Falls back to
+// a default label when aioha returns success:false with nothing useful.
+const extractAiohaError = (result, fallback) => {
+  if (!result) return fallback;
+  const e = result.error;
+  if (typeof e === 'string' && e.trim()) return e;
+  if (e && typeof e === 'object') {
+    if (typeof e.message === 'string' && e.message.trim()) return e.message;
+    try { return JSON.stringify(e); } catch { /* ignore */ }
+  }
+  if (typeof result.message === 'string' && result.message.trim()) return result.message;
+  return `${fallback} (no error returned by aioha)`;
+};
+
 // Wrapper to handle HiveAuth waiting state
 const withHiveAuthWaiting = async (operation, message = 'Waiting for approval...') => {
   const isHiveAuth = isHiveAuthProvider();
@@ -60,7 +75,8 @@ export const voteWithAioha = async (author, permlink, weight = 10000) => {
       if (result.success) {
         return { success: true, result: result.result };
       } else {
-        throw new Error(result.error || 'Vote failed');
+        console.error('Vote rejected, full aioha result:', result);
+        throw new Error(extractAiohaError(result, 'Vote failed'));
       }
     } catch (error) {
       console.error('Vote error:', error);
@@ -77,7 +93,8 @@ export const transferWithAioha = async (to, amount, currency, memo = '') => {
       if (result.success) {
         return { success: true, result: result.result };
       } else {
-        throw new Error(result.error || 'Transfer failed');
+        console.error('Transfer rejected, full aioha result:', result);
+        throw new Error(extractAiohaError(result, 'Transfer failed'));
       }
     } catch (error) {
       console.error('Transfer error:', error);
@@ -105,7 +122,8 @@ export const followWithAioha = async (target, follow = true) => {
       if (result.success) {
         return { success: true, result: result.result };
       } else {
-        throw new Error(result.error || 'Follow/Unfollow failed');
+        console.error('Follow/Unfollow rejected, full aioha result:', result);
+        throw new Error(extractAiohaError(result, 'Follow/Unfollow failed'));
       }
     } catch (error) {
       console.error('Follow error:', error);
@@ -122,7 +140,8 @@ export const customJsonWithAioha = async (keyType, id, json, displayTitle = '') 
       if (result.success) {
         return { success: true, result: result.result };
       } else {
-        throw new Error(result.error || 'Custom JSON failed');
+        console.error('Custom JSON rejected, full aioha result:', result);
+        throw new Error(extractAiohaError(result, 'Custom JSON failed'));
       }
     } catch (error) {
       console.error('Custom JSON error:', error);
@@ -139,7 +158,8 @@ export const commentWithAioha = async (parentAuthor, parentPermlink, permlink, t
       if (result.success) {
         return { success: true, result: result.result };
       } else {
-        throw new Error(result.error || 'Comment failed');
+        console.error('Comment rejected, full aioha result:', result);
+        throw new Error(extractAiohaError(result, 'Comment failed'));
       }
     } catch (error) {
       console.error('Comment error:', error);
@@ -156,7 +176,8 @@ export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) 
       if (result.success) {
         return { success: true, result: result.result };
       } else {
-        throw new Error(result.error || 'Broadcast failed');
+        console.error('Broadcast rejected, full aioha result:', result);
+        throw new Error(extractAiohaError(result, 'Broadcast failed'));
       }
     } catch (error) {
       console.error('Broadcast error:', error);
