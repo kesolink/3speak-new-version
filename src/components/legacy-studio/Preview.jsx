@@ -221,6 +221,12 @@ function Preview() {
       return;
     }
 
+    const trimmedTitleLen = title.trim().length;
+    if (trimmedTitleLen < 5 || trimmedTitleLen > 250) {
+      toast.error(`Title must be between 5 and 250 characters (${trimmedTitleLen}/250)`);
+      return;
+    }
+
     if (isScheduled && !scheduleDateTime) {
       toast.error("Please select a date and time for your scheduled post.");
       return;
@@ -410,13 +416,18 @@ function Preview() {
                 </button>
                 <button
                   onClick={handlePostVideo}
-                  disabled={isWaitingForUpload}
+                  disabled={isWaitingForUpload || !title?.trim() || title.trim().length < 5 || title.trim().length > 250}
                 >
-                  {isWaitingForUpload 
-                    ? `Waiting for upload... ${Math.round(uploadVideoProgress)}%` 
+                  {isWaitingForUpload
+                    ? `Waiting for upload... ${Math.round(uploadVideoProgress)}%`
                     : 'Post Video'
                   }
                 </button>
+                {title && (title.trim().length < 5 || title.trim().length > 250) && (
+                  <span className="input-hint input-hint--error" style={{ display: 'block', marginTop: '0.5rem' }}>
+                    Title must be between 5 and 250 characters ({title.trim().length}/250). Click "Edit Post" to fix.
+                  </span>
+                )}
                 
                 {isWaitingForUpload && (
                   <div style={{ 
