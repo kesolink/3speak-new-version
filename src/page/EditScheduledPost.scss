@@ -1,0 +1,113 @@
+// Most of the form's look is inherited from legacy-studio/StudioPage.scss
+// (.studio-main-container, .input-group, .preview-tags, .advance-option,
+//  .bene-btn-wrap, .submit-btn-wrap, etc.) so the page matches the embed-studio
+// composer. We only add the bits the studio doesn't cover: the thumbnail
+// preview row, the permlink chip in the header, and the two secondary buttons
+// in the submit row (Back / Cancel scheduled).
+
+.edit-scheduled-page {
+  .permlink-line {
+    margin-top: 4px;
+    font-size: 0.85em;
+    opacity: 0.75;
+    code {
+      background: rgba(127, 127, 127, 0.15);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+  }
+
+  // Thumbnail editor — there's no equivalent inline thumbnail field in
+  // EmbedDetails (the studio asks for it on a separate step), so we add a
+  // self-contained row here.
+  .thumbnail-edit-row {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin-top: 6px;
+  }
+  .thumbnail-edit-preview {
+    width: 220px;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid rgba(127, 127, 127, 0.25);
+    background: rgba(127, 127, 127, 0.06);
+
+    &--placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(127, 127, 127, 0.8);
+      font-size: 0.85em;
+    }
+  }
+  .thumbnail-edit-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .thumbnail-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(127, 127, 127, 0.35);
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.9em;
+    position: relative;
+    overflow: hidden;
+
+    &:hover { background: rgba(127, 127, 127, 0.08); }
+    &[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+    input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    &--ghost {
+      border-color: rgba(234, 56, 76, 0.5);
+      color: #ea384c;
+      &:hover { background: rgba(234, 56, 76, 0.08); }
+    }
+  }
+
+  // Submit row — same .submit-btn-wrap as the studio composer (which gives us
+  // the primary button styling). Style the two extra secondary buttons.
+  .submit-btn-wrap {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+
+    .es-btn-secondary,
+    .es-btn-danger {
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95em;
+      transition: background 0.2s, color 0.2s;
+      &[disabled] { opacity: 0.55; cursor: not-allowed; }
+    }
+    .es-btn-secondary {
+      background: transparent;
+      border: 1px solid rgba(127, 127, 127, 0.35);
+      color: inherit;
+      &:hover { background: rgba(127, 127, 127, 0.08); }
+    }
+    .es-btn-danger {
+      background: transparent;
+      border: 1px solid rgba(234, 56, 76, 0.5);
+      color: #ea384c;
+      margin-left: auto;
+      &:hover { background: #ea384c; color: #fff; }
+    }
+  }
+}

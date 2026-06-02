@@ -186,6 +186,23 @@ export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) 
   }, 'Approve transaction on HiveAuth...');
 };
 
+// Sign an arbitrary message with the given key (used for image-upload challenges).
+export const signMessageWithAioha = async (message, keyType = KeyTypes.Posting, displayTitle = 'Approve image upload signature') => {
+  return withHiveAuthWaiting(async () => {
+    try {
+      const result = await aioha.signMessage(message, keyType);
+      if (result.success && result.result) {
+        return { success: true, result: result.result };
+      }
+      console.error('Sign message rejected, full aioha result:', result);
+      throw new Error(extractAiohaError(result, 'Sign message failed'));
+    } catch (error) {
+      console.error('Sign message error:', error);
+      throw error;
+    }
+  }, displayTitle);
+};
+
 // Check if user is logged in
 export const isLoggedIn = () => {
   return aioha.isLoggedIn();

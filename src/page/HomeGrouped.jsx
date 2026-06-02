@@ -17,9 +17,12 @@ import { TrendingIcon, NewContentIcon, FirstUploadIcon } from "../components/Fee
 
 // Fetch functions for each feed
 const fetchHome = async () => {
-  const res = await axios.get(`${FEED_URL}/apiv2/feeds/home?page=0`);
-  const data = res.data.trends || res.data;
-  return Array.isArray(data) ? data : [];
+  // Use the checker's trendingSorted feed for the "home" group — the older
+  // /apiv2/feeds/home path on legacy is gone now that FEED_URL points at the
+  // checker. trendingSorted is the broadest curated set the checker exposes
+  // (more videos than /feeds/trending).
+  const res = await axios.get(`${TRENDING_SORTED_URL}?page=1&limit=50`);
+  return res.data.videos || res.data.trends || [];
 };
 
 const fetchFollowFeed = async (username) => {
@@ -180,9 +183,12 @@ const HomeGrouped = () => {
     gcTime: 10 * 60 * 1000,
   });
 
+  // Trending row is only shown for logged-in users; skip the fetch entirely
+  // when anonymous so we don't pay the request cost.
   const { data: trendingData, isLoading: trendingLoading } = useQuery({
     queryKey: ["trending-grouped", showNsfw],
     queryFn: fetchTrending,
+    enabled: authenticated,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -244,15 +250,17 @@ const HomeGrouped = () => {
         getViewCount={getViewCount}
       />
 
-      <VideoRow
-        title="Trending"
-        videos={trendingData || []}
-        linkTo="/trend"
-        isLoading={trendingLoading}
-        getContentForVideo={getContentForVideo}
-        isWatched={isWatched}
-        getViewCount={getViewCount}
-      />
+      {authenticated && (
+        <VideoRow
+          title="Trending"
+          videos={trendingData || []}
+          linkTo="/trend"
+          isLoading={trendingLoading}
+          getContentForVideo={getContentForVideo}
+          isWatched={isWatched}
+          getViewCount={getViewCount}
+        />
+      )}
 
       <VideoRow
         title="First Time Uploads"
