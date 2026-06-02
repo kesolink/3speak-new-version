@@ -20,8 +20,9 @@ import LoginNew from "./page/Login/LoginNew";
 import { useAppStore } from "./lib/store";
 import { useEffect } from "react";
 import ProfileNav from "./components/nav/ProfileNav";
-import StudioPage from "./components/legacy-studio/StudioPage";
-// import StudioPage2 from "./components/legacy-studio/StudioPage";
+// Legacy studio is retired: /studio routes now redirect to /embed-studio
+// (the embed-studio uploader in non-short mode is the only video upload flow).
+// import StudioPage from "./components/legacy-studio/StudioPage";
 import CommunitiesRender from "./components/Communities/CommunitiesRender";
 import CommunityPage from "./components/Communities/CommunityPage";
 import TagFeed from "./page/TagFeed";
@@ -32,15 +33,19 @@ import Testing from "./components/Testingfile/Testing";
 import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
 import DraftStudio from "./components/studio/DraftStudio";
 import EditVideo from "./page/EditVideo";
+import EditScheduledPost from "./page/EditScheduledPost";
 import ScrollToTop from "./components/ScrollToTop";
 import AddAccount_modal from "./components/modal/AddAccount_modal";
 import TestingLogin3 from "./page/Login/TestingLogin3";
 // import TestingLogin from "./page/Login/TestingLogin";
 import AboutPage from "./components/LandingPage/AboutPage";
 import { toast, Toaster } from 'sonner'
-import Thumbnail from "./components/legacy-studio/Thumbnail";
-import Details from "./components/legacy-studio/Details";
-import Preview from "./components/legacy-studio/Preview";
+// Retired alongside the legacy /studio flow — kept here as comments for ease of
+// roll-back; the embed-studio equivalents at /embed-studio/{thumbnail,details,preview}
+// are what users hit now.
+// import Thumbnail from "./components/legacy-studio/Thumbnail";
+// import Details from "./components/legacy-studio/Details";
+// import Preview from "./components/legacy-studio/Preview";
 import Test from "./page/Test";
 import Short from "./page/Short";
 import ShortsStoryFeed from "./page/ShortsStoryFeed";
@@ -349,18 +354,21 @@ function App() {
             <Route path="/callback" element={<ManteAuthCallback />} />
             {/* <Route path="/email" element={<Email/>} />  */}
             <Route path="/newlogin" element={<LoginNew />} />
-            <Route path="/studio" element={<StudioPage />} />
-            <Route path="/studio/thumbnail" element={<Thumbnail />} />
-            <Route path="/studio/details" element={<Details />} />
-            <Route path="/studio/preview" element={<Preview />} />
+            {/* Legacy /studio retired — redirect to the embed-studio non-short uploader.
+                The embed-studio defaults to non-short mode when no ?from=stories|shorts
+                query string is present, which is the case for these plain redirects. */}
+            <Route path="/studio" element={<Navigate to="/embed-studio" replace />} />
+            <Route path="/studio/thumbnail" element={<Navigate to="/embed-studio/thumbnail" replace />} />
+            <Route path="/studio/details" element={<Navigate to="/embed-studio/details" replace />} />
+            <Route path="/studio/preview" element={<Navigate to="/embed-studio/preview" replace />} />
             {/* Embed studio (uses embed.okinoko.io upload service) */}
             <Route path="/embed-studio" element={<EmbedStudioPage />} />
             <Route path="/embed-studio/thumbnail" element={<EmbedThumbnail />} />
             <Route path="/embed-studio/details" element={<EmbedDetails />} />
             <Route path="/embed-studio/preview" element={<EmbedPreview />} />
-            {/* <Route path="/studio2" element={<StudioPage2 />} /> */}
             <Route path="/draft" element={<DraftStudio />} />
             <Route path="/editvideo/:d" element={<EditVideo />} />
+            <Route path="/edit-scheduled/:permlink" element={<EditScheduledPost />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/shorts/stories" element={<ShortsStoryFeed />} />

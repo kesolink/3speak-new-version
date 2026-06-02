@@ -5,7 +5,8 @@ import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
-import { commentWithAioha, broadcastWithAioha, KeyTypes } from '../hive-api/aioha';
+import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, KeyTypes } from '../hive-api/aioha';
+import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
 import { enforceLockedBeneficiaries, LOCKED_FUND_ACCOUNT } from '../utils/beneficiaries';
@@ -259,10 +260,24 @@ export function EmbedUploadProvider({ children }) {
           });
         } catch { }
 
+        // Adaptive chunk/parallel sizing (tusd Concatenation extension). Larger files
+        // get bigger chunks and 3 parallel slots for throughput; small files stay light.
+        const MB = 1024 * 1024;
+        const sizeBytes = videoFile.size || 0;
+        let chunkSize, parallelUploads;
+        if (sizeBytes > 500 * MB) {
+          chunkSize = 20 * MB; parallelUploads = 3;
+        } else if (sizeBytes > 50 * MB) {
+          chunkSize = 10 * MB; parallelUploads = 3;
+        } else {
+          chunkSize = 5 * MB; parallelUploads = 2;
+        }
+
         await new Promise((resolve, reject) => {
           const upload = new tus.Upload(videoFile, {
             endpoint: EMBED_UPLOAD_URL,
-            chunkSize: 5 * 1024 * 1024,
+            chunkSize,
+            parallelUploads,
             retryDelays: [0, 2000, 5000, 10000],
             storeFingerprintForResuming: false,
             removeFingerprintOnSuccess: true,
@@ -318,7 +333,7 @@ export function EmbedUploadProvider({ children }) {
         try {
           setStatusText('Uploading thumbnail...');
           addMessage('Uploading thumbnail...');
-          thumbnailUrl = await uploadThumbnail(thumbnailFile);
+          thumbnailUrl = await uploadThumbnail(thumbnailFile, user);
           addMessage('Thumbnail uploaded');
         } catch (thumbErr) {
           console.warn('Thumbnail upload failed:', thumbErr);
@@ -352,14 +367,28 @@ export function EmbedUploadProvider({ children }) {
         postBody += `\n\n---\n*Based on a video by [@${originalAuthor}](${originalLink})*`;
       }
 
+      // Tag taxonomy differs by upload type:
+      //   - shorts: forced ['3speak', 'hive-181335', 'short', ...userTags]
+      //   - regular video: ['3speak', communityTag, ...userTags] — uses the actually-
+      //     selected community, no 'short' tag.
+      const baseTags = fromStories
+        ? ['3speak', 'hive-181335', 'short']
+        : ['3speak', communityTag];
       const jsonMetadata = {
         app: '3speak/embed',
         format: 'markdown',
-        tags: ['3speak', 'hive-181335', 'short', ...tagsPreview.filter(t => !['3speak', 'hive-181335', 'short'].includes(t))],
+        tags: [...baseTags, ...tagsPreview.filter(t => !baseTags.includes(t))],
+        // Top-level `image: [url]` is the Hive-wide convention frontends read to
+        // pick a post's cover (peakd, ecency, hive.blog, …). Only add it when we
+        // actually have a thumbnail — otherwise we'd post `image: [null]` which
+        // some renderers choke on. The same field is duplicated inside `video`
+        // for legacy 3Speak readers that look for it there.
+        ...(thumbnailUrl ? { image: [thumbnailUrl] } : {}),
         video: {
           platform: '3speak',
           url: capturedEmbedUrl,
           reusable: (originalAuthor && originalPermlink) ? true : reusable,
+          ...(thumbnailUrl ? { thumbnail: thumbnailUrl } : {}),
           ...(originalAuthor ? { originalAuthor, originalPermlink } : {}),
         },
       };
@@ -431,6 +460,93 @@ export function EmbedUploadProvider({ children }) {
         } catch (snapErr) {
           console.error('Failed to fetch snaps container:', snapErr);
           throw new Error('Could not find a snaps container post to reply to');
+        }
+      }
+
+      // ─── Scheduled-post branch ─────────────────────────────────────
+      // If the user toggled "schedule this post", we don't broadcast now.
+      // Instead we ensure @threespeak is in their posting account_auths (asks
+      // for an account_update2 signature on the first scheduled post ever),
+      // then POST the fully-built post to the checker, which has a 5-minute
+      // cron that broadcasts due posts as @threespeak on the user's behalf.
+      if (isScheduled && scheduleDateTime && !fromStories) {
+        try {
+          setStatusText('Checking @threespeak posting authority...');
+          addMessage('Checking @threespeak posting authority...');
+          const hasAuth = await hasThreespeakPostingAuth(user);
+          if (!hasAuth) {
+            setStatusText('Authorizing @threespeak (sign with active key)...');
+            addMessage('Authorizing @threespeak to post on your behalf...');
+            await addThreespeakToPostingAuth(user);
+            addMessage('@threespeak authorized');
+          }
+
+          // The HTML datetime-local string is local-tz; convert to a real ISO UTC.
+          const scheduledOnIso = new Date(scheduleDateTime).toISOString();
+          const timestamp = Date.now();
+          const message = ['scheduled-post', 'create', user, hivePermlink, scheduledOnIso, String(timestamp)].join('|');
+
+          setStatusText('Signing schedule request...');
+          const { result: signature } = await signMessageWithAioha(
+            message,
+            KeyTypes.Posting,
+            'Sign to queue this post for scheduled publishing',
+          );
+
+          const payoutOptions = declineRewards ? 'decline' : (rewardPowerup ? 'powerup' : 'default');
+          const checkerBase =
+            import.meta.env.VITE_SCHEDULED_POSTS_API_URL || 'https://prod-checker.okinoko.io';
+          const url = `${checkerBase.replace(/\/$/, '')}/scheduled-posts/create`;
+
+          // The embedvideos service indexes uploads by their own permlink. We extract
+          // it from the capturedEmbedUrl (format: ?v=<owner>/<embedPermlink>) so the
+          // cron can later link the broadcast Hive post back to the embed-video record.
+          let embedPermlink = null;
+          try {
+            const v = new URL(capturedEmbedUrl).searchParams.get('v');
+            if (v) embedPermlink = v.split('/').pop() || null;
+          } catch { /* leave null — link step in cron is best-effort */ }
+
+          setStatusText('Saving scheduled post...');
+          addMessage('Saving scheduled post...');
+          const resp = await axios.post(url, {
+            owner: user,
+            permlink: hivePermlink,
+            scheduledOn: scheduledOnIso,
+            title,
+            description,
+            body: postBody,
+            tags: jsonMetadata.tags,
+            jsonMetadata,
+            beneficiaries: allBeneficiaries,
+            payoutOptions,
+            thumbnail: thumbnailUrl,
+            parentAuthor,
+            parentPermlink,
+            embedPermlink,
+            timestamp,
+            signature,
+          });
+
+          if (resp.status !== 201 || !resp.data?.success) {
+            throw new Error(resp.data?.error || 'Failed to save scheduled post');
+          }
+
+          // We deliberately SKIP the regular Hive broadcast and the embed-link
+          // step here — the cron does both at publish time.
+          setStatusText(`Scheduled for ${new Date(scheduledOnIso).toLocaleString()}`);
+          addMessage(`Scheduled for ${new Date(scheduledOnIso).toLocaleString()}`, 'success');
+          toast.success('Post scheduled!');
+          setCompleted(true);
+          setUploading(false);
+          setUploadProgress(100);
+          return;
+        } catch (schedErr) {
+          console.error('Scheduled-post error:', schedErr);
+          const msg = schedErr?.response?.data?.error || schedErr?.message || 'Could not schedule post';
+          addMessage(`Schedule failed: ${msg}`, 'error');
+          toast.error(`Schedule failed: ${msg}`);
+          throw schedErr;
         }
       }
 

@@ -42,22 +42,17 @@ function CommunityPage() {
   // FETCH COMMUNITY VIDEOS
   // ---------------------------
   const fetchVideos = async ({ pageParam = 0 }) => {
-    const LIMIT = 200;
-    let url;
-
-    if (trend) {
-      // 🔥 Trending feed
-        url = `${FEED_URL}/apiv2/feeds/community/${id}/trending?limit=${LIMIT}`;
-      
-    } else {
-      // 🆕 New feed
-        url = `${FEED_URL}/apiv2/feeds/community/${id}/new?limit=${LIMIT}`;
-
-    }
+    const LIMIT = 100; // checker caps page size at 100
+    // checker's /feeds/community/:id/{trending,new} is 1-based; our infinite
+    // query supplies 0-indexed pageParam.
+    const page = (Number(pageParam) || 0) + 1;
+    const variant = trend ? 'trending' : 'new';
+    const url = `${FEED_URL}/feeds/community/${id}/${variant}?page=${page}&limit=${LIMIT}`;
 
     const res = await axios.get(url);
-    // /more returns { trends: [...] }, main endpoint returns array
-    return res.data.trends || res.data;
+    // Checker returns {videos: [...]}; legacy /apiv2 returned {trends: [...]}
+    // or a bare array. Support all three so a flip back never breaks the page.
+    return res.data.videos || res.data.trends || res.data;
   };
 
   const {

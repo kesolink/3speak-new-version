@@ -24,16 +24,15 @@ const fetchFollowFeedVideos = async ({ pageParam = 1 }, username) => {
 };
 
 const fetchHomeVideos = async ({ pageParam = 0 }) => {
-  let url;
-
-  if (pageParam === 0) {
-    url = `${FEED_URL}/apiv2/feeds/home?page=${pageParam}`;
-  } else {
-    url = `${FEED_URL}/api/feed/more?skip=${pageParam}`;
-  }
-
+  // checker's /feeds/trending is 1-based (`?page=1,2,...`) and returns
+  // `{success, feed, page, limit, total, totalPages, videos: [...]}`. Our
+  // infinite-query supplies pageParam 0,1,2…, so bump it by 1 here.
+  const page = (Number(pageParam) || 0) + 1;
+  const url = `${FEED_URL}/feeds/trending?page=${page}`;
   const res = await axios.get(url);
-  return res.data.trends || res.data;
+  // Fall back through the older shapes in case FEED_URL is ever pointed back
+  // at legacy.3speak.tv — keeps the consumer agnostic to either response.
+  return res.data.videos || res.data.trends || res.data;
 };
 
 function Feed() {

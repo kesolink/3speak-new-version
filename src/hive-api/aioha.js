@@ -258,6 +258,23 @@ export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) 
   }, 'Approve transaction on HiveAuth...');
 };
 
+// Sign an arbitrary message with the given key (used for image-upload challenges).
+export const signMessageWithAioha = async (message, keyType = KeyTypes.Posting, displayTitle = 'Approve image upload signature') => {
+  return withHiveAuthWaiting(async () => {
+    try {
+      const result = await aioha.signMessage(message, keyType);
+      if (result.success && result.result) {
+        return { success: true, result: result.result };
+      }
+      console.error('Sign message rejected, full aioha result:', result);
+      throw new Error(result.error || result.errorMessage || 'Sign message failed');
+    } catch (error) {
+      console.error('Sign message error:', error);
+      throw error;
+    }
+  }, displayTitle);
+};
+
 // ManteAuth proxy broadcast via 3speak backend service
 // Auth happens via httpOnly cookie set during /api/manteauth/exchange — no token in JS.
 const THREESPEAK_API = import.meta.env.VITE_THREESPEAK_API || '/api'
