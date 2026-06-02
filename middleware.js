@@ -22,6 +22,12 @@ const HIVE_API = 'https://api.hive.blog';
 const BUNNY_IPFS_CDN = 'https://hotipfs-3speak-1.b-cdn.net';
 const BASE_URL = 'https://3speak.tv';
 const FALLBACK_THUMBNAIL = `${BASE_URL}/3speak.jpeg`;
+// Same service the SPA uses (see src/utils/config.js / .env VITE_TRANSLATE_API_URL).
+const TRANSLATE_API_URL =
+  (typeof process !== 'undefined' && process.env && process.env.TRANSLATE_API_URL) ||
+  'https://translate.3speak.tv';
+// Cap the transcript we inline so a long video can't bloat the bot response.
+const MAX_TRANSCRIPT_CHARS = 20000;
 
 /**
  * Parse video author/permlink from the URL.
@@ -66,6 +72,13 @@ function isBot(userAgent) {
 
 /**
  * Fetch post data from the Hive blockchain.
+ *
+ * Uses bridge.get_post (not condenser_api.get_content) because bridge also
+ * returns the moderation signals we need for the indexability decision:
+ *   - stats.gray  → downvoted / low-reputation / muted by community
+ *   - stats.hide  → hidden by community moderation
+ *   - blacklists  → author present on abuse blacklists
+ * Note: bridge returns json_metadata as an object; condenser returned a string.
  */
 async function fetchHivePost(author, permlink) {
   const res = await fetch(HIVE_API, {
@@ -73,8 +86,8 @@ async function fetchHivePost(author, permlink) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      method: 'condenser_api.get_content',
-      params: [author, permlink],
+      method: 'bridge.get_post',
+      params: { author, permlink, observer: '' },
       id: 1,
     }),
   });
@@ -85,6 +98,96 @@ async function fetchHivePost(author, permlink) {
   const post = data?.result;
   if (!post || !post.author || post.author === '') return null;
   return post;
+}
+
+/**
+ * Parse json_metadata defensively — bridge returns an object, but some posts
+ * carry a stringified value, and a few carry invalid JSON.
+ */
+function parseMeta(jsonMetadata) {
+  if (!jsonMetadata) return {};
+  if (typeof jsonMetadata === 'object') return jsonMetadata;
+  try {
+    return JSON.parse(jsonMetadata);
+  } catch (_) {
+    return {};
+  }
+}
+
+/**
+ * Conservative title heuristic for legacy adult posts that deliberately omit
+ * the `nsfw` tag — mirrors Ecency's approach. Kept narrow to avoid false
+ * positives on ordinary titles.
+ */
+function isAdultByTitle(title) {
+  if (!title) return false;
+  return /(\bporn\b|\bxxx\b|\bnsfw\b|\bnude[sd]?\b|\bnaked\b|sex\s*tape|onlyfans|\bhentai\b|camgirl|\bescort\b)/i.test(
+    title,
+  );
+}
+
+/**
+ * Decide whether this page should be indexed by search engines.
+ *
+ * Mirrors the "reduce the low-quality footprint" lever: NSFW, community-muted
+ * /blacklisted, and effectively-empty pages get `noindex` so they don't drag
+ * down the domain's site-level quality assessment. We still emit `follow` so
+ * link equity continues to flow.
+ *
+ * Returns { index: boolean, reason?: string }.
+ */
+function getIndexability(post, meta) {
+  const tags = Array.isArray(meta?.tags)
+    ? meta.tags.map((t) => String(t).toLowerCase())
+    : [];
+
+  // NSFW — explicit tags, then conservative title heuristic.
+  if (tags.includes('nsfw') || tags.includes('xxx') || tags.includes('porn')) {
+    return { index: false, reason: 'nsfw-tag' };
+  }
+  if (isAdultByTitle(post.title)) {
+    return { index: false, reason: 'nsfw-title' };
+  }
+
+  // Abuse / community moderation (bridge stats).
+  if (post.stats?.gray === true || post.stats?.hide === true) {
+    return { index: false, reason: 'muted' };
+  }
+  if (Array.isArray(post.blacklists) && post.blacklists.length > 0) {
+    return { index: false, reason: 'blacklist' };
+  }
+
+  // Effectively-empty: not a recognizable video AND no meaningful body.
+  // Errs toward indexing — only noindex when we're confident there's nothing.
+  const videoInfo = meta?.video?.info || {};
+  const hasVideo = !!(
+    videoInfo.duration ||
+    videoInfo.ipfs ||
+    videoInfo.filename ||
+    (Array.isArray(videoInfo.sourceMap) &&
+      videoInfo.sourceMap.some((s) => s && s.type && s.type !== 'thumbnail'))
+  );
+  const appIsSpeak = String(meta?.app || '').toLowerCase().includes('speak');
+  const bodyLen = (post.body || '').trim().length;
+  if (!hasVideo && !appIsSpeak && bodyLen < 50) {
+    return { index: false, reason: 'empty' };
+  }
+
+  return { index: true };
+}
+
+/**
+ * Resolve the canonical URL. Honors an explicit author-declared
+ * `canonical_url` (genuine syndication intent — respected first, matching
+ * Ecency's stance), otherwise self-canonicalizes to the clean 3Speak URL.
+ */
+function resolveCanonical(meta, selfUrl) {
+  const declared = meta?.canonical_url;
+  if (typeof declared === 'string') {
+    const trimmed = declared.trim();
+    if (/^https?:\/\/[^\s"'<>]+$/i.test(trimmed)) return trimmed;
+  }
+  return selfUrl;
 }
 
 /**
@@ -165,6 +268,94 @@ function extractDescription(body) {
 }
 
 /**
+ * Convert a duration in seconds to an ISO-8601 duration (e.g. PT1H2M3S),
+ * the format schema.org VideoObject.duration expects.
+ */
+function secondsToISO8601(sec) {
+  const total = Math.round(Number(sec) || 0);
+  if (total <= 0) return null;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `PT${h ? `${h}H` : ''}${m ? `${m}M` : ''}${s ? `${s}S` : ''}` || 'PT0S';
+}
+
+/**
+ * Hive timestamps are naive UTC ("2026-05-18T18:13:27"). schema.org wants a
+ * valid ISO-8601 instant — append Z if there's no timezone designator.
+ */
+function toIsoDate(created) {
+  if (!created || typeof created !== 'string') return null;
+  return /[zZ]|[+-]\d{2}:?\d{2}$/.test(created) ? created : `${created}Z`;
+}
+
+/**
+ * Strip an SRT file down to plain transcript text: drop index and timestamp
+ * lines, join cues, collapse whitespace, and drop consecutive duplicate lines
+ * (auto-captions repeat a lot). Capped to MAX_TRANSCRIPT_CHARS.
+ */
+function srtToText(srt) {
+  if (!srt || typeof srt !== 'string') return '';
+  const out = [];
+  let last = '';
+  for (const block of srt.trim().replace(/\r\n/g, '\n').split(/\n\n+/)) {
+    const lines = block.split('\n');
+    const tsIdx = lines.findIndex((l) => l.includes('-->'));
+    if (tsIdx === -1) continue;
+    const text = lines
+      .slice(tsIdx + 1)
+      .join(' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text && text !== last) {
+      out.push(text);
+      last = text;
+    }
+  }
+  let joined = out.join(' ').replace(/\s+/g, ' ').trim();
+  if (joined.length > MAX_TRANSCRIPT_CHARS) {
+    joined = joined.slice(0, MAX_TRANSCRIPT_CHARS).replace(/\s+\S*$/, '') + '…';
+  }
+  return joined;
+}
+
+/**
+ * Fetch the video transcript from the translate service (same contract as the
+ * SPA's useSubtitles hook): list subtitles, prefer English, then pull the SRT
+ * from the IPFS CDN. Best-effort and time-boxed — never blocks the bot
+ * response; returns { text, lang } or null.
+ */
+async function fetchTranscript(author, permlink) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 2500);
+  try {
+    const listRes = await fetch(
+      `${TRANSLATE_API_URL}/subtitles/${author}/${permlink}`,
+      { signal: ctrl.signal },
+    );
+    if (!listRes.ok) return null;
+    const list = await listRes.json();
+    if (!Array.isArray(list) || list.length === 0) return null;
+
+    const entry = list.find((l) => l && l.lang === 'en') || list[0];
+    if (!entry || !entry.cid) return null;
+
+    const srtRes = await fetch(`${BUNNY_IPFS_CDN}/ipfs/${entry.cid}`, {
+      signal: ctrl.signal,
+    });
+    if (!srtRes.ok) return null;
+    const text = srtToText(await srtRes.text());
+    if (!text) return null;
+    return { text, lang: entry.lang || 'en' };
+  } catch (_) {
+    return null; // timeout / network / parse — transcript is optional
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * HTML-entity-escape a string to prevent XSS in meta tags.
  */
 function escapeHtml(str) {
@@ -180,7 +371,18 @@ function escapeHtml(str) {
 /**
  * Build the minimal HTML page with OG / Twitter Card meta tags.
  */
-function buildOgHtml({ title, description, image, url, duration, author }) {
+function buildOgHtml({
+  title,
+  description,
+  image,
+  url,
+  duration,
+  author,
+  noindex,
+  uploadDate,
+  embedUrl,
+  transcript,
+}) {
   const safeTitle = escapeHtml(title);
   const safeDesc = escapeHtml(description);
   const safeImage = escapeHtml(image);
@@ -191,11 +393,47 @@ function buildOgHtml({ title, description, image, url, duration, author }) {
     ? `<meta property="og:video:duration" content="${Math.round(duration)}" />`
     : '';
 
+  const robotsMeta = noindex
+    ? '<meta name="robots" content="noindex, follow" />'
+    : '<meta name="robots" content="index, follow" />';
+
+  // schema.org VideoObject — drives Google Video results / rich results.
+  // JSON.stringify safely escapes values for a <script type=ld+json> block.
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type': 'VideoObject',
+    name: title,
+    description: description || title,
+    thumbnailUrl: image,
+    contentUrl: url,
+    embedUrl,
+    url,
+    author: { '@type': 'Person', name: `@${author}`, url: `${BASE_URL}/user/${author}` },
+    publisher: {
+      '@type': 'Organization',
+      name: '3Speak',
+      logo: { '@type': 'ImageObject', url: FALLBACK_THUMBNAIL },
+    },
+  };
+  if (uploadDate) ld.uploadDate = uploadDate;
+  const isoDuration = secondsToISO8601(duration);
+  if (isoDuration) ld.duration = isoDuration;
+  if (transcript) ld.transcript = transcript;
+  const jsonLd = `<script type="application/ld+json">${JSON.stringify(ld).replace(
+    /</g,
+    '\\u003c',
+  )}</script>`;
+
+  const transcriptSection = transcript
+    ? `\n  <section>\n    <h2>Transcript</h2>\n    <p>${escapeHtml(transcript)}</p>\n  </section>`
+    : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>${safeTitle} - 3Speak</title>
+  ${robotsMeta}
 
   <!-- Open Graph -->
   <meta property="og:type" content="video.other" />
@@ -214,9 +452,13 @@ function buildOgHtml({ title, description, image, url, duration, author }) {
   <meta name="twitter:image" content="${safeImage}" />
 
   <link rel="canonical" href="${safeUrl}" />
+
+  ${jsonLd}
 </head>
 <body>
+  <h1>${safeTitle}</h1>
   <p><a href="${safeUrl}">${safeTitle}</a> by @${safeAuthor} on <a href="${escapeHtml(BASE_URL)}">3Speak</a></p>
+  <p>${safeDesc}</p>${transcriptSection}
 </body>
 </html>`;
 }
@@ -236,15 +478,15 @@ export default async function middleware(request) {
   if (!video) return; // not a video URL, pass through
 
   try {
-    const post = await fetchHivePost(video.author, video.permlink);
+    // Transcript only needs author/permlink, so fetch it in parallel with the
+    // post to avoid adding latency to the bot response.
+    const [post, transcriptResult] = await Promise.all([
+      fetchHivePost(video.author, video.permlink),
+      fetchTranscript(video.author, video.permlink),
+    ]);
     if (!post) return; // post not found, fall through to SPA
 
-    let meta = {};
-    try {
-      meta = JSON.parse(post.json_metadata || '{}');
-    } catch (_) {
-      // invalid JSON, continue with empty meta
-    }
+    const meta = parseMeta(post.json_metadata);
 
     const videoInfo = meta.video?.info || {};
 
@@ -259,8 +501,10 @@ export default async function middleware(request) {
 
     const title = post.title || `Video by @${video.author}`;
     const description = extractDescription(post.body);
-    const canonicalUrl = `${BASE_URL}/watch?v=${video.author}/${video.permlink}`;
+    const selfUrl = `${BASE_URL}/watch?v=${video.author}/${video.permlink}`;
+    const canonicalUrl = resolveCanonical(meta, selfUrl);
     const duration = videoInfo.duration || null;
+    const { index } = getIndexability(post, meta);
 
     const html = buildOgHtml({
       title,
@@ -269,6 +513,11 @@ export default async function middleware(request) {
       url: canonicalUrl,
       duration,
       author: video.author,
+      noindex: !index,
+      uploadDate: toIsoDate(post.created),
+      embedUrl: `${BASE_URL}/embed?v=${video.author}/${video.permlink}`,
+      // Skip the transcript on noindexed pages — no SEO value there.
+      transcript: index ? transcriptResult?.text || null : null,
     });
 
     return new Response(html, {

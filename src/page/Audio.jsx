@@ -433,29 +433,26 @@ function Audio() {
           {/* ─── Popular (above the albums) ────── */}
           {!isFiltered && renderGroupedSection('popular')}
 
-          {/* ─── Music playlists (prominent) ────── */}
-          {playlistGroups?.by_artist?.length > 0 && (
-            <section className="audio-section">
-              <h2 className="audio-section-title">
-                <i className="fa-solid fa-compact-disc" /> Albums &amp; Playlists by Artist
-                <span className="audio-section-count">{playlistGroups.by_artist.length}</span>
-              </h2>
-              <div className="audio-tile-row">
-                {playlistGroups.by_artist.map(p => <AudioPlaylistTile key={p.id} playlist={p} />)}
-              </div>
-            </section>
-          )}
-          {playlistGroups?.by_listeners?.length > 0 && (
-            <section className="audio-section">
-              <h2 className="audio-section-title">
-                <i className="fa-solid fa-headphones" /> Playlists by Listeners
-                <span className="audio-section-count">{playlistGroups.by_listeners.length}</span>
-              </h2>
-              <div className="audio-tile-row">
-                {playlistGroups.by_listeners.map(p => <AudioPlaylistTile key={p.id} playlist={p} />)}
-              </div>
-            </section>
-          )}
+          {/* ─── Albums & Playlists (artist-curated + listener-curated, combined) ─── */}
+          {(() => {
+            // Artist albums first, then listener playlists. Each tile shows its
+            // own kind label beneath the title so the merge stays legible.
+            const artist = (playlistGroups?.by_artist || []).map(p => ({ ...p, _kind: 'artist' }));
+            const listeners = (playlistGroups?.by_listeners || []).map(p => ({ ...p, _kind: 'listener' }));
+            const all = [...artist, ...listeners];
+            if (all.length === 0) return null;
+            return (
+              <section className="audio-section">
+                <h2 className="audio-section-title">
+                  <i className="fa-solid fa-compact-disc" /> Albums &amp; Playlists
+                  <span className="audio-section-count">{all.length}</span>
+                </h2>
+                <div className="audio-tile-row">
+                  {all.map(p => <AudioPlaylistTile key={p.id} playlist={p} kind={p._kind} />)}
+                </div>
+              </section>
+            );
+          })()}
 
           {/* ─── Filtered results ────── */}
           {isFiltered ? (

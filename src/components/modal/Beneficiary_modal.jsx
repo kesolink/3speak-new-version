@@ -275,12 +275,17 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
             if (list.some(item => item.locked)) return null;
             // Pro users skip the 10% threespeakfund split entirely. The 1%
             // encoder split is kept for /studio uploads (3Speak encodes
-            // them) but not for /embed (external media, no encoding).
+            // them), shown for /embed non-premium, and NEVER for audio
+            // (no encoding pipeline for audio posts).
             const entries = [];
             if (!isPremium) {
               entries.push(<div key="fund" className="wrap"><span>threespeakfund</span> <span>10% === Infrastructure</span></div>);
             }
-            const keepEncoder = variant === 'studio' ? true : !isPremium;
+            const keepEncoder = variant === 'studio'
+              ? true
+              : variant === 'audio'
+                ? false
+                : !isPremium;
             if (keepEncoder) {
               entries.push(<div key="enc" className="wrap"><span> Video Encoding === 1%</span></div>);
             }

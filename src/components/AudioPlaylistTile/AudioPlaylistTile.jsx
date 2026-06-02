@@ -13,7 +13,7 @@ import '../../page/Audio.scss';
  * Cover click → queue the whole album and start track 1 (no navigation).
  * Title/author click → open the playlist view.
  */
-export default function AudioPlaylistTile({ playlist }) {
+export default function AudioPlaylistTile({ playlist, kind }) {
   const navigate = useNavigate();
   const audioPlay = useAppStore((s) => s.audioPlay);
   const audioAddToQueue = useAppStore((s) => s.audioAddToQueue);
@@ -44,6 +44,11 @@ export default function AudioPlaylistTile({ playlist }) {
         <span className="audio-tile-author" onClick={open}>@{playlist.owner}<PremiumBadge username={playlist.owner} size={11} /></span>
         {playlist.album?.musicStyle && (
           <span className="audio-tile-meta">{playlist.album.musicStyle}</span>
+        )}
+        {kind && (
+          <span className={`audio-tile-meta audio-tile-kind audio-tile-kind-${kind}`}>
+            {kind === 'artist' ? 'Artist album' : 'Listener playlist'}
+          </span>
         )}
       </div>
     </div>
