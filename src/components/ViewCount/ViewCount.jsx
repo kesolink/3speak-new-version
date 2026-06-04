@@ -37,7 +37,7 @@ function ViewCount({ views, watched, formatViews, author, permlink, size }) {
   }, [author, permlink, views]);
 
   const isWatched = watched ?? selfWatched;
-  const displayViews = views || selfViews;
+  const displayViews = views ?? selfViews;
   const display = formatViews ? formatViews(displayViews) : displayViews?.toLocaleString() ?? '0';
   const iconSize = size ? Math.round(size * 1.15) : undefined;
 
