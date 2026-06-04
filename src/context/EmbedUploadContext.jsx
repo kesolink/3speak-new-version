@@ -287,8 +287,8 @@ export function EmbedUploadProvider({ children }) {
       const hivePermlink = `3speak-${Date.now()}`;
       const communityTag = typeof community === 'string' ? community : community?.name || 'hive-181335';
 
-      // Build body: description + embed URL + credit to original author
-      let postBody = `${description}\n\n${capturedEmbedUrl}`;
+      // Build body: embed URL (video first) + description + credit to original author
+      let postBody = `${capturedEmbedUrl}\n\n${description}`;
       if (originalAuthor && originalPermlink) {
         // Use shorts link format when remix comes from a short
         const shortPl = originalShortPermlink || originalPermlink;
