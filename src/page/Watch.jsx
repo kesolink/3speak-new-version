@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { getHiveClient } from '../utils/hiveNode';
 import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Card3 from '../components/Cards/Card3';
@@ -14,10 +15,11 @@ import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
+import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
 
-const hiveClient = new Client(HIVE_API_NODES);
+const hiveClient = getHiveClient();
 
 // Lazy-load the Hive markdown renderer
 let rendererPromise = null;
@@ -184,6 +186,35 @@ function Watch() {
     },
   });
 
+  // Record a view once playback actually starts. We POST the player backend's
+  // /api/view (which increments the view count) directly — the SDK's
+  // recordView() lives on its API-client class, not the Player instance
+  // usePlayer returns, so it isn't reachable here. A video lives in exactly one
+  // collection, so we try 'embed' (also matches hive_permlink) then 'legacy';
+  // whichever owns it counts, and we stop. Deduped per author/permlink so
+  // seeking/pausing never double-counts.
+  const recordedViewsRef = useRef(new Set());
+  useEffect(() => {
+    if (!author || author === 'unknown' || !permlink) return;
+    if (playerState?.paused !== false) return; // only once it's really playing
+    const key = `${author}/${permlink}`;
+    if (recordedViewsRef.current.has(key)) return;
+    recordedViewsRef.current.add(key);
+    (async () => {
+      for (const type of ['embed', 'legacy']) {
+        try {
+          const res = await fetch(`${PLAYER_URL}/api/view`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner: author, permlink, type }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (data?.counted) break;
+        } catch { /* try next type */ }
+      }
+    })();
+  }, [author, permlink, playerState?.paused]);
+
   // Wrap setMuted/setVolume to persist to localStorage
   const setMuted = useCallback((muted) => {
     sdkSetMuted(muted);
@@ -194,6 +225,13 @@ function Watch() {
     sdkSetVolume(vol);
     localStorage.setItem(VOLUME_STORAGE_KEY, String(vol));
   }, [sdkSetVolume]);
+
+  // Cross-player coordination: announce when this video starts, and pause
+  // when another player (audio / short) takes over.
+  useEffect(() => {
+    if (!playerState.paused) notifyMediaPlay('video');
+  }, [playerState.paused]);
+  useEffect(() => onMediaPlay('video', () => pause()), [pause]);
 
   // Track when the <video> element is mounted and attached to the Player
   const [videoAttached, setVideoAttached] = useState(false);
@@ -740,7 +778,40 @@ function Watch() {
     return () => { cancelled = true; };
   }, [videoLoading, videoData, author, permlink]);
 
-  const videoDetails = videoData?.socialPost || hiveFallback;
+  // Optimistic override populated right after the author saves an edit.
+  // The GraphQL indexer may lag a few minutes behind the Hive blockchain,
+  // so we merge these values onto videoDetails immediately, then let a
+  // scheduled refetch replace them with real server data.
+  const [editOverride, setEditOverride] = useState(null);
+  const baseVideoDetails = videoData?.socialPost || hiveFallback;
+  const videoDetails = useMemo(() => {
+    if (!baseVideoDetails || !editOverride) return baseVideoDetails;
+    const merged = { ...baseVideoDetails, ...editOverride };
+    // Update thumbnail inside nested spkvideo shape as well
+    if (editOverride.thumbnail_url && baseVideoDetails.spkvideo) {
+      merged.spkvideo = { ...baseVideoDetails.spkvideo, thumbnail_url: editOverride.thumbnail_url };
+    }
+    return merged;
+  }, [baseVideoDetails, editOverride]);
+
+  const handleVideoEdited = useCallback((changes) => {
+    if (!changes) return;
+    setEditOverride({
+      title: changes.title,
+      body: changes.body,
+      tags: changes.tags,
+      thumbnail_url: changes.thumbnail || undefined,
+    });
+    // Wipe hive fallback so a fresh fetch can happen, and re-run the GraphQL query.
+    setHiveFallback(null);
+    setHiveFallbackDone(false);
+    // Apollo indexers typically trail chain by ~30-90s; requery a few times.
+    const timers = [8000, 20000, 45000].map((delay) =>
+      setTimeout(() => { refetchVideo().catch(() => {}); }, delay)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [refetchVideo]);
+
   // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
     if (!user || !author || !permlink || author === 'unknown' || watchHistoryEnabled === false) {
@@ -983,6 +1054,8 @@ function Watch() {
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
         onClosePlaylist={() => setShowPlaylist(false)}
+        onVideoEdited={handleVideoEdited}
+        overrideBody={editOverride?.body}
         videoControls={{
           currentTime: playerState.currentTime,
           duration: playerState.duration,

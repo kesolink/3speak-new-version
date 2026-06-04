@@ -4,12 +4,16 @@
   align-items: center;
   padding: 10px 2% 10px 1%;
   padding-top: calc(10px + env(safe-area-inset-top, 0px));
-  justify-content: space-between;
   box-shadow: var(--nav-shadow);
   background: var(--nav-bg);
   position: sticky;
   top: 0px;
   z-index: 1000;
+
+  // Anchor everything left after the logo; the right cluster floats out
+  > .nav-right {
+    margin-left: auto;
+  }
   transition: background-color 0.3s ease, box-shadow 0.3s ease;
 
   // Auto-hide on mobile scroll — margin-bottom collapses the sticky space
@@ -57,6 +61,154 @@
     }
     .logo {
       width: 130px;
+    }
+  }
+
+  .nav-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 16px;
+    flex-shrink: 0;
+
+    @include mix.respond(tab) { display: none; }
+    @include mix.respond(phone) { display: none; }
+  }
+
+  // Mobile-only Discover shortcut in the top bar, sits next to upload in nav-right
+  .nav-mobile-discover {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border-light, #444);
+    border-radius: 17px;
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: var(--bg-hover);
+      border-color: var(--text-secondary);
+    }
+
+    .nav-mobile-discover-label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    @include mix.respond(phone) { display: inline-flex; }
+    @include mix.respond(tab)   { display: inline-flex; }
+  }
+
+  .nav-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border-light, #444);
+    border-radius: 17px;
+    background-color: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    white-space: nowrap;
+
+    .nav-tab-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .nav-tab-live-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff3b30;
+      box-shadow: 0 0 0 2px var(--bg-secondary, #1a1a1a);
+      animation: nav-tab-live-pulse 1.6s ease-in-out infinite;
+    }
+  }
+
+  // Playlists dropdown — matches the .nav-tab pill style
+  .nav-playlists-wrapper {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .nav-playlists-trigger {
+    cursor: pointer;
+    // Inherit family/style only — .nav-tab supplies size/weight + border/padding.
+    font-family: inherit;
+    font-style: inherit;
+
+    &.open {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+      border-color: var(--text-secondary);
+    }
+
+    .nav-playlists-chevron {
+      flex-shrink: 0;
+      transition: transform 0.15s ease;
+      &.open { transform: rotate(180deg); }
+    }
+  }
+
+  .nav-playlists-flyout {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 200px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--border-light);
+    padding: 6px 0;
+    z-index: 100;
+  }
+
+  .nav-playlists-flyout-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    .nav-playlists-flyout-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    &:hover {
+      background-color: var(--bg-hover, var(--sidebar-hover-bg));
+      color: var(--accent-primary);
+    }
+
+    &:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+      border-color: var(--text-secondary);
+    }
+
+    &.active {
+      color: var(--text-primary);
+      background: var(--bg-tertiary);
+      border-color: var(--text-secondary);
     }
   }
 
@@ -132,11 +284,12 @@
         gap: 6px;
         height: 34px;
         padding: 0 12px;
+        border: 1px solid #e53935;
         border-radius: 17px;
-        background-color: var(--accent-primary, #e53935);
-        color: #fff;
+        background-color: transparent;
+        color: #e53935;
         cursor: pointer;
-        transition: filter 0.2s ease;
+        transition: background 0.15s ease, border-color 0.15s ease;
         white-space: nowrap;
 
         .nav-upload-label {
@@ -146,13 +299,11 @@
           border-radius: 0;
           background: transparent;
           color: inherit;
-          @include mix.respond(phone) {
-            display: none;
-          }
         }
 
         &:hover {
-          filter: brightness(0.9);
+          background: var(--bg-hover);
+          border-color: #c62828;
         }
       }
 
@@ -220,8 +371,45 @@
         display: none;
       }
     }
+    // Wrapper around the avatar img + premium overlay in the top nav.
+    // Pinned to 35×35 + align-self:center so the flex parent doesn't
+    // stretch it. Hidden on narrow viewports to match the bare-img rule
+    // above.
+    .nav-avatar-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      width: 35px;
+      height: 35px;
+      flex: 0 0 35px;
+      align-self: center;
+      cursor: pointer;
+      // The legacy `.nav-right > span { padding/background/border-radius }`
+      // rule below this block targets span children of .nav-right. Our
+      // wrap IS a span — explicitly reset its inherited pill styling so
+      // we don't end up with a gray padded rectangle where the avatar
+      // should be.
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+      transition: none;
+      @include mix.respond(phone) { display: none; }
+      @include mix.respond(tab)   { display: none; }
+    }
+    .nav-avatar-premium {
+      position: absolute;
+      right: -4px;
+      top: -4px;
+      margin: 0;
+      background: var(--accent-primary, #e53935);
+      color: #fff;
+      border-radius: 50%;
+      padding: 2px;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+      line-height: 1;
+    }
   }
-  > .nav-right button {
+  > .nav-right button:not(.notif-bell-btn) {
     padding: 7px 25px;
     border-radius: 5px;
     font-weight: 500;
@@ -237,6 +425,17 @@
     }
     &:hover {
       border: 1px solid #1e293b;
+    }
+  }
+
+  > .nav-right button.manteauth-btn {
+    background: #e8d89b;
+    color: #161107;
+    font-weight: 600;
+    border: none;
+    &:hover {
+      background: #d4c488;
+      border: none;
     }
   }
 
@@ -333,4 +532,9 @@
       }
     }
   }
+}
+
+@keyframes nav-tab-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--bg-secondary, #1a1a1a), 0 0 0 0 rgba(255, 59, 48, 0.55); }
+  50%      { box-shadow: 0 0 0 2px var(--bg-secondary, #1a1a1a), 0 0 0 5px rgba(255, 59, 48, 0); }
 }

@@ -6,8 +6,29 @@ import VideoCard from '../Draft/VideoCard';
 import { useNavigate } from 'react-router-dom';
 import BarLoader from '../Loader/BarLoader';
 import { useAppStore } from '../../lib/store';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { MY_VIDEOS_URL } from '../../utils/config';
+
+const CHECKER_BASE =
+  import.meta.env.VITE_SCHEDULED_POSTS_API_URL || 'https://prod-checker.okinoko.io';
+
+// Map a scheduled-posts doc (from the checker) into the shape VideoCard expects.
+// VideoCard already has built-in handling for status='scheduled' + publish_data.
+function normalizeScheduledDoc(doc) {
+  return {
+    _id: `scheduled:${doc.id}`,         // unique React key, distinct from my-videos _ids
+    id: doc.id,
+    permlink: doc.permlink,
+    owner: doc.owner,
+    title: doc.title || '(untitled)',
+    description: doc.description || '',
+    thumbnail: doc.thumbnail || null,
+    status: 'scheduled',
+    publish_data: doc.scheduledOn,       // VideoCard reads this for "Publishes …"
+    created_at: doc.createdAt,
+    _scheduled: true,                    // local marker so handleEdit can branch
+  };
+}
 
 const DraftStudio = () => {
   const { user, authenticated } = useAppStore();
@@ -68,7 +89,40 @@ const DraftStudio = () => {
     enabled: !!user,
   });
 
-  const videos = data?.pages.flat() || [];
+  /* ===============================
+       SCHEDULED-POSTS FEED
+       (separate source: prod-checker /scheduled-posts)
+    =============================== */
+  const { data: scheduledData } = useQuery({
+    queryKey: ['scheduled-posts', user],
+    queryFn: async () => {
+      const res = await axios.get(
+        `${CHECKER_BASE.replace(/\/$/, '')}/scheduled-posts/${encodeURIComponent(user)}`,
+        { params: { status: 'scheduled', limit: 100 } },
+      );
+      return Array.isArray(res.data?.scheduled_posts) ? res.data.scheduled_posts : [];
+    },
+    enabled: !!user,
+    staleTime: 30 * 1000,
+  });
+
+  const scheduledItems = (scheduledData || []).map(normalizeScheduledDoc);
+  const publishedItems = data?.pages.flat() || [];
+
+  // Filter visibility for scheduled items: show on "all" + "scheduled" tabs;
+  // hide on "published" / "publish_manual" (failed). VideoCard's own check
+  // already shows the publish-date label.
+  const showScheduled = filter === 'all' || filter === 'scheduled';
+  const filteredScheduled = showScheduled ? scheduledItems : [];
+
+  // Render order: scheduled posts first (sorted by upcoming time), then the
+  // regular published/failed list as the upstream API ordered it.
+  const videos = [
+    ...filteredScheduled.slice().sort((a, b) =>
+      new Date(a.publish_data || 0) - new Date(b.publish_data || 0),
+    ),
+    ...publishedItems,
+  ];
 
   /* ===============================
        SCROLL HANDLER
@@ -94,7 +148,13 @@ const DraftStudio = () => {
   };
 
   const handleEdit = (video) => {
-    navigate(`/editvideo/${video._id}`, { state: { video } });
+    // Scheduled posts go to a different editor (Mongo-backed) than published
+    // ones (Hive comment-update).
+    if (video._scheduled) {
+      navigate(`/edit-scheduled/${encodeURIComponent(video.permlink)}`);
+    } else {
+      navigate(`/editvideo/${video._id}`, { state: { video } });
+    }
   };
 
   if (loading || isLoading) return <div><BarLoader /></div>;

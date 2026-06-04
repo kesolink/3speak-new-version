@@ -1,6 +1,6 @@
 @use "../mixins.scss" as mix;
 .firstupload-container{
-    .card-container .card .img-wrap img {
+    .card-container:not(.card-container--shorts) .card .img-wrap img {
         height: auto;
         aspect-ratio: 16 / 9;
     }

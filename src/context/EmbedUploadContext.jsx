@@ -1,11 +1,15 @@
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
-import { commentWithAioha, broadcastWithAioha, KeyTypes } from '../hive-api/aioha';
+import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, KeyTypes } from '../hive-api/aioha';
+import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
+import { usePremiumStatus } from '../hooks/usePremiumStatus';
+import { enforceLockedBeneficiaries, LOCKED_FUND_ACCOUNT } from '../utils/beneficiaries';
 import axios from 'axios';
 
 const EmbedUploadContext = createContext(null);
@@ -19,6 +23,11 @@ export function useEmbedUpload() {
 export function EmbedUploadProvider({ children }) {
   const { user } = useAppStore();
   const navigate = useNavigate();
+  // Pro subscribers skip the threespeakfund 10% — their sub fee
+  // covers what that split normally funds. Remix attribution to the
+  // original creator stays for both tiers (handled in the publish path).
+  const premiumStatus = usePremiumStatus(user);
+  const isPremium = !!premiumStatus?.premium;
 
   // Step tracking
   const [step, setStep] = useState(1);
@@ -53,10 +62,27 @@ export function EmbedUploadProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [benficaryOpen, setBeneficiaryOpen] = useState(false);
   const [BeneficiaryList, setBeneficiaryList] = useState([]);
+  // Initial UI list — show the locked threespeakfund only for non-premium
+  // users. Premium users (or remix flows) get an updated list pushed in
+  // by the relevant pre-fill code paths.
   const [list, setList] = useState([
-    { account: 'threespeakfund', percent: 10, locked: true, minPercent: 10 },
+    { account: LOCKED_FUND_ACCOUNT, percent: 10, locked: true, minPercent: 10 },
   ]);
   const [remaingPercent, setRemaingPercent] = useState(90);
+
+  // Premium status lands asynchronously (1 network call). When it flips
+  // to true we drop the locked threespeakfund row from the UI so the
+  // user doesn't see "10% to threespeakfund (locked)" while the publish
+  // path silently omits it. Non-Pro stays as-is.
+  useEffect(() => {
+    if (!isPremium) return;
+    setList((prev) => {
+      const next = prev.filter((b) => b.account !== LOCKED_FUND_ACCOUNT);
+      if (next.length === prev.length) return prev; // no change
+      return next;
+    });
+    setRemaingPercent((prev) => Math.min(100, prev + 10));
+  }, [isPremium]);
 
   // Entry origin (stories → "Share a Short", default → "Share a Video")
   const [fromStories, setFromStories] = useState(false);
@@ -76,6 +102,23 @@ export function EmbedUploadProvider({ children }) {
   const [statusText, setStatusText] = useState('');
   const [statusMessages, setStatusMessages] = useState([]);
   const [embedUrl, setEmbedUrl] = useState('');
+
+  // Prefilled state — set when arriving from an external upload (e.g. Hangouts
+  // server-side recording) that already pushed a video to the embed service.
+  // When prefilled, the publish flow skips the TUS upload and goes straight to
+  // thumbnail + Hive post + link, using the captured embed URL.
+  const [prefilled, setPrefilled] = useState(false);
+  const [prefilledPermlink, setPrefilledPermlink] = useState('');
+  const [prefilledOwner, setPrefilledOwner] = useState('');
+  const [prefilledEmbedUrl, setPrefilledEmbedUrl] = useState('');
+
+  const setPrefilledFromQuery = ({ permlink, owner, embedUrl: url }) => {
+    setPrefilled(true);
+    setPrefilledPermlink(permlink || '');
+    setPrefilledOwner(owner || '');
+    setPrefilledEmbedUrl(url || '');
+    setEmbedUrl(url || '');
+  };
 
   const tusUploadRef = useRef(null);
 
@@ -132,6 +175,10 @@ export function EmbedUploadProvider({ children }) {
     setBeneficiaryList([]);
     setList([]);
     setRemaingPercent(100);
+    setPrefilled(false);
+    setPrefilledPermlink('');
+    setPrefilledOwner('');
+    setPrefilledEmbedUrl('');
   };
 
   /**
@@ -141,8 +188,14 @@ export function EmbedUploadProvider({ children }) {
    * 3. Link embed video to Hive post
    */
   const publishToEmbed = async () => {
-    if (!videoFile || !user) {
-      toast.error('No video file or user not logged in');
+    if (!user) {
+      toast.error('User not logged in');
+      return;
+    }
+    // For non-prefilled flows we need a local file. Prefilled flows already
+    // have the embed URL handed over from an external uploader.
+    if (!prefilled && !videoFile) {
+      toast.error('No video file');
       return;
     }
     if (!fromStories && !title?.trim()) {
@@ -160,14 +213,31 @@ export function EmbedUploadProvider({ children }) {
 
     setUploading(true);
     setUploadProgress(0);
-    setStatusText('Uploading video...');
-    addMessage('Starting video upload...');
+    setStatusText(prefilled ? 'Preparing publish...' : 'Uploading video...');
+    addMessage(prefilled ? 'Using pre-uploaded video' : 'Starting video upload...');
 
     try {
-      // ─── Step 1: TUS upload to embed service ───
-      let capturedEmbedUrl = '';
+      // For prefilled flows, the permlink was decided by whoever uploaded the
+      // file (e.g. the Hangouts server). Reuse it so the Hive post permlink
+      // matches the embed permlink — that's what the existing /video/{p}/hive
+      // link endpoint expects.
+      const trimmedDesc = (description || '').trim();
+      const slug = trimmedDesc
+        ? trimmedDesc.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 27).replace(/-+$/, '')
+        : '';
+      const generatedPermlink = prefilled && prefilledPermlink
+        ? prefilledPermlink
+        : (slug ? `${slug}-${Date.now() % 1000}` : '');
 
-      if (EMBED_DEBUG) {
+      // ─── Step 1: TUS upload to embed service (skipped when prefilled) ───
+      let capturedEmbedUrl = prefilled ? prefilledEmbedUrl : '';
+
+      if (prefilled) {
+        // Nothing to upload — the file was already pushed to embed.3speak.tv
+        // by an external uploader. Skip straight to thumbnail + Hive linking.
+        setUploadProgress(100);
+        addMessage('Pre-uploaded video ready');
+      } else if (EMBED_DEBUG) {
         // Debug mode: simulate upload progress without actually uploading
         addMessage('[DEBUG] Simulating upload...');
         for (let pct = 0; pct <= 100; pct += 5) {
@@ -190,10 +260,24 @@ export function EmbedUploadProvider({ children }) {
           });
         } catch { }
 
+        // Adaptive chunk/parallel sizing (tusd Concatenation extension). Larger files
+        // get bigger chunks and 3 parallel slots for throughput; small files stay light.
+        const MB = 1024 * 1024;
+        const sizeBytes = videoFile.size || 0;
+        let chunkSize, parallelUploads;
+        if (sizeBytes > 500 * MB) {
+          chunkSize = 20 * MB; parallelUploads = 3;
+        } else if (sizeBytes > 50 * MB) {
+          chunkSize = 10 * MB; parallelUploads = 3;
+        } else {
+          chunkSize = 5 * MB; parallelUploads = 2;
+        }
+
         await new Promise((resolve, reject) => {
           const upload = new tus.Upload(videoFile, {
             endpoint: EMBED_UPLOAD_URL,
-            chunkSize: 5 * 1024 * 1024,
+            chunkSize,
+            parallelUploads,
             retryDelays: [0, 2000, 5000, 10000],
             storeFingerprintForResuming: false,
             removeFingerprintOnSuccess: true,
@@ -207,6 +291,7 @@ export function EmbedUploadProvider({ children }) {
               owner: user,
               short: fromStories ? 'true' : 'false',
               duration: String(Math.round(videoDuration)),
+              ...(generatedPermlink ? { permlink: generatedPermlink } : {}),
             },
             onError: (err) => {
               console.error('TUS upload error:', err);
@@ -248,7 +333,7 @@ export function EmbedUploadProvider({ children }) {
         try {
           setStatusText('Uploading thumbnail...');
           addMessage('Uploading thumbnail...');
-          thumbnailUrl = await uploadThumbnail(thumbnailFile);
+          thumbnailUrl = await uploadThumbnail(thumbnailFile, user);
           addMessage('Thumbnail uploaded');
         } catch (thumbErr) {
           console.warn('Thumbnail upload failed:', thumbErr);
@@ -268,7 +353,7 @@ export function EmbedUploadProvider({ children }) {
       addMessage('Publishing to Hive blockchain...');
 
       // ─── Step 2: Post to Hive via aioha ───
-      const hivePermlink = `3speak-${Date.now()}`;
+      const hivePermlink = generatedPermlink;
       const communityTag = typeof community === 'string' ? community : community?.name || 'hive-181335';
 
       // Build body: description + embed URL + credit to original author
@@ -282,14 +367,28 @@ export function EmbedUploadProvider({ children }) {
         postBody += `\n\n---\n*Based on a video by [@${originalAuthor}](${originalLink})*`;
       }
 
+      // Tag taxonomy differs by upload type:
+      //   - shorts: forced ['3speak', 'hive-181335', 'short', ...userTags]
+      //   - regular video: ['3speak', communityTag, ...userTags] — uses the actually-
+      //     selected community, no 'short' tag.
+      const baseTags = fromStories
+        ? ['3speak', 'hive-181335', 'short']
+        : ['3speak', communityTag];
       const jsonMetadata = {
         app: '3speak/embed',
         format: 'markdown',
-        tags: ['3speak', 'hive-181335', 'short', ...tagsPreview.filter(t => !['3speak', 'hive-181335', 'short'].includes(t))],
+        tags: [...baseTags, ...tagsPreview.filter(t => !baseTags.includes(t))],
+        // Top-level `image: [url]` is the Hive-wide convention frontends read to
+        // pick a post's cover (peakd, ecency, hive.blog, …). Only add it when we
+        // actually have a thumbnail — otherwise we'd post `image: [null]` which
+        // some renderers choke on. The same field is duplicated inside `video`
+        // for legacy 3Speak readers that look for it there.
+        ...(thumbnailUrl ? { image: [thumbnailUrl] } : {}),
         video: {
           platform: '3speak',
           url: capturedEmbedUrl,
           reusable: (originalAuthor && originalPermlink) ? true : reusable,
+          ...(thumbnailUrl ? { thumbnail: thumbnailUrl } : {}),
           ...(originalAuthor ? { originalAuthor, originalPermlink } : {}),
         },
       };
@@ -306,13 +405,13 @@ export function EmbedUploadProvider({ children }) {
         beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
       }
 
-      // Ensure threespeakfund at minimum 10% (1000 weight)
-      beneMap.set('threespeakfund', Math.max(beneMap.get('threespeakfund') || 0, 1000));
-
-      // Ensure 5% for original author when this is a remix/clip
-      if (originalAuthor && originalPermlink) {
-        beneMap.set(originalAuthor, Math.max(beneMap.get(originalAuthor) || 0, 500));
-      }
+      // Apply locked beneficiaries: 10% threespeakfund for non-Pro users
+      // (skipped for Pro subscribers) + 5% to the original creator on
+      // remix/clip (kept for both tiers).
+      enforceLockedBeneficiaries(beneMap, {
+        isPremium,
+        originalAuthor: originalAuthor && originalPermlink ? originalAuthor : null,
+      });
 
       // Convert map to sorted array (sorted by account name — required by Hive protocol)
       const allBeneficiaries = [...beneMap.entries()]
@@ -344,7 +443,7 @@ export function EmbedUploadProvider({ children }) {
       } else if (fromStories) {
         addMessage('Finding snaps container post...');
         try {
-          const snapsRes = await axios.post(HIVE_API_URL, {
+          const snapsRes = await axios.post(getHiveUrl(), {
             jsonrpc: '2.0',
             method: 'bridge.get_account_posts',
             params: { sort: 'posts', account: 'peak.snaps', start_author: '', start_permlink: '', limit: 1 },
@@ -361,6 +460,93 @@ export function EmbedUploadProvider({ children }) {
         } catch (snapErr) {
           console.error('Failed to fetch snaps container:', snapErr);
           throw new Error('Could not find a snaps container post to reply to');
+        }
+      }
+
+      // ─── Scheduled-post branch ─────────────────────────────────────
+      // If the user toggled "schedule this post", we don't broadcast now.
+      // Instead we ensure @threespeak is in their posting account_auths (asks
+      // for an account_update2 signature on the first scheduled post ever),
+      // then POST the fully-built post to the checker, which has a 5-minute
+      // cron that broadcasts due posts as @threespeak on the user's behalf.
+      if (isScheduled && scheduleDateTime && !fromStories) {
+        try {
+          setStatusText('Checking @threespeak posting authority...');
+          addMessage('Checking @threespeak posting authority...');
+          const hasAuth = await hasThreespeakPostingAuth(user);
+          if (!hasAuth) {
+            setStatusText('Authorizing @threespeak (sign with active key)...');
+            addMessage('Authorizing @threespeak to post on your behalf...');
+            await addThreespeakToPostingAuth(user);
+            addMessage('@threespeak authorized');
+          }
+
+          // The HTML datetime-local string is local-tz; convert to a real ISO UTC.
+          const scheduledOnIso = new Date(scheduleDateTime).toISOString();
+          const timestamp = Date.now();
+          const message = ['scheduled-post', 'create', user, hivePermlink, scheduledOnIso, String(timestamp)].join('|');
+
+          setStatusText('Signing schedule request...');
+          const { result: signature } = await signMessageWithAioha(
+            message,
+            KeyTypes.Posting,
+            'Sign to queue this post for scheduled publishing',
+          );
+
+          const payoutOptions = declineRewards ? 'decline' : (rewardPowerup ? 'powerup' : 'default');
+          const checkerBase =
+            import.meta.env.VITE_SCHEDULED_POSTS_API_URL || 'https://prod-checker.okinoko.io';
+          const url = `${checkerBase.replace(/\/$/, '')}/scheduled-posts/create`;
+
+          // The embedvideos service indexes uploads by their own permlink. We extract
+          // it from the capturedEmbedUrl (format: ?v=<owner>/<embedPermlink>) so the
+          // cron can later link the broadcast Hive post back to the embed-video record.
+          let embedPermlink = null;
+          try {
+            const v = new URL(capturedEmbedUrl).searchParams.get('v');
+            if (v) embedPermlink = v.split('/').pop() || null;
+          } catch { /* leave null — link step in cron is best-effort */ }
+
+          setStatusText('Saving scheduled post...');
+          addMessage('Saving scheduled post...');
+          const resp = await axios.post(url, {
+            owner: user,
+            permlink: hivePermlink,
+            scheduledOn: scheduledOnIso,
+            title,
+            description,
+            body: postBody,
+            tags: jsonMetadata.tags,
+            jsonMetadata,
+            beneficiaries: allBeneficiaries,
+            payoutOptions,
+            thumbnail: thumbnailUrl,
+            parentAuthor,
+            parentPermlink,
+            embedPermlink,
+            timestamp,
+            signature,
+          });
+
+          if (resp.status !== 201 || !resp.data?.success) {
+            throw new Error(resp.data?.error || 'Failed to save scheduled post');
+          }
+
+          // We deliberately SKIP the regular Hive broadcast and the embed-link
+          // step here — the cron does both at publish time.
+          setStatusText(`Scheduled for ${new Date(scheduledOnIso).toLocaleString()}`);
+          addMessage(`Scheduled for ${new Date(scheduledOnIso).toLocaleString()}`, 'success');
+          toast.success('Post scheduled!');
+          setCompleted(true);
+          setUploading(false);
+          setUploadProgress(100);
+          return;
+        } catch (schedErr) {
+          console.error('Scheduled-post error:', schedErr);
+          const msg = schedErr?.response?.data?.error || schedErr?.message || 'Could not schedule post';
+          addMessage(`Schedule failed: ${msg}`, 'error');
+          toast.error(`Schedule failed: ${msg}`);
+          throw schedErr;
         }
       }
 
@@ -517,6 +703,12 @@ export function EmbedUploadProvider({ children }) {
     statusText, setStatusText,
     statusMessages, setStatusMessages,
     embedUrl, setEmbedUrl,
+    // Prefilled flow (e.g. Hangouts server-side recording)
+    prefilled,
+    prefilledPermlink,
+    prefilledOwner,
+    prefilledEmbedUrl,
+    setPrefilledFromQuery,
     // Entry origin
     fromStories, setFromStories,
     // Original video attribution

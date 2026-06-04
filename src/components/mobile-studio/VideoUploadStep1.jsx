@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 import { Upload, Video } from "lucide-react";
 import "./VideoUploadStep1.scss"
-import {generateVideoThumbnails} from "@rajesh896/video-thumbnails-generator";
+import { generateVideoThumbnails } from "../../utils/videoThumbnails";
 import * as tus from "tus-js-client";
 import { getTusUploadOptions } from "../../utils/tusConfig";
 import {  toast } from 'sonner'

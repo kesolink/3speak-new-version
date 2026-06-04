@@ -37,7 +37,10 @@ import {
   Music,
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
-import { MdTranslate, MdClosedCaption, MdClosedCaptionOff } from 'react-icons/md';
+import { MdTranslate, MdClosedCaption, MdClosedCaptionOff, MdFlag } from 'react-icons/md';
+import mantequillaLogo from '../assets/mantequilla-logo.png';
+import ReportModal, { isReported } from '../components/modal/ReportModal';
+import { Flag } from 'lucide-react';
 import useTranslation from '../hooks/useTranslation';
 import TranslateButton from '../components/TranslateButton/TranslateButton';
 import useSubtitles from '../hooks/useSubtitles';
@@ -77,6 +80,8 @@ import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import EditorModal from '../components/modal/EditorModal';
+import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
+import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 
 // Thin wrapper: reads currentTime from a ref via polling to avoid re-rendering the whole Shorts page
 function ShortsSubtitleOverlay({ timeRef, cues, style }) {
@@ -191,6 +196,14 @@ const VideoShort = () => {
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // Cross-player coordination — announce play, pause when another player starts.
+  useEffect(() => {
+    if (isPlaying) notifyMediaPlay('short');
+  }, [isPlaying]);
+  useEffect(() => onMediaPlay('short', () => {
+    try { playerRef.current?.pause?.(); } catch {}
+  }), []);
   const [isMuted, setIsMuted] = useState(() => {
     const stored = localStorage.getItem('3speak-muted');
     if (stored !== null) return stored === '1';
@@ -245,6 +258,9 @@ const VideoShort = () => {
   const [reshareCount, setReshareCount] = useState(0);
   const [hasReshared, setHasReshared] = useState(false);
   const [reshareUsers, setReshareUsers] = useState([]); // [{username, reshared_at}]
+
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState({ type: 'video', author: '', permlink: '' });
 
   // Reply state
   const [activeReply, setActiveReply] = useState(null);
@@ -738,6 +754,25 @@ const VideoShort = () => {
       }
     })();
   }, [currentIndex, videos, user]);
+
+  // Fetch extended video details (mantecurated etc.) from checker API
+  const detailsVideoIdRef = useRef(null);
+  useEffect(() => {
+    const currentVid = videos[currentIndex];
+    if (!currentVid) return;
+    if (detailsVideoIdRef.current === currentVid.id) return;
+    detailsVideoIdRef.current = currentVid.id;
+    const videoId = currentVid.id;
+
+    fetch(`${import.meta.env.VITE_CHECKER_URL}/videodetails/${currentVid.author}/${currentVid.permlink}`)
+      .then(r => r.ok ? r.json() : {})
+      .then(details => {
+        setVideos(prev => prev.map(v =>
+          v.id === videoId ? { ...v, mantecurated: details.mantecurated === true } : v
+        ));
+      })
+      .catch(() => {});
+  }, [currentIndex, videos]);
 
   // Fetch reshare data when current video changes
   // Use video id to avoid re-fetching on videos array enrichment (which causes avatar flashing)
@@ -2097,6 +2132,7 @@ const VideoShort = () => {
   }
 
   return (
+    <>
     <main className="short-main">
       <div className="landscape-block"
         onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
@@ -2527,10 +2563,12 @@ const VideoShort = () => {
                       title={`@${r.username}`}
                       onClick={(e) => { e.stopPropagation(); handleProfileNavigation(r.username); }}
                     >
-                      <img
-                        src={`https://images.hive.blog/u/${r.username}/avatar`}
+                      <HiveAvatar
+                        username={r.username}
+                        size={null}
                         alt={r.username}
-                        className="reshareAvatar"
+                        imgClassName="reshareAvatar"
+                        badgeSize={9}
                       />
                       <Repeat2 size={14} className="reshareBadge" />
                     </div>
@@ -2550,12 +2588,44 @@ const VideoShort = () => {
               />
             </div>
             <div className={`caption${captionExpanded ? ' caption--expanded' : ''}`} onClick={(e) => { e.stopPropagation(); setCaptionExpanded(prev => !prev); }}>
-              <p className="captionText">{renderCaption(translatedCaption || currentVideo.caption)}</p>
+              {!captionExpanded && !currentVideo.caption?.trim() && (
+                <button
+                  className={`captionReportBtn${currentVideo && isReported('short', `${currentVideo.author}/${currentVideo.permlink}`) ? ' reported' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setReportTarget({ type: 'short', author: currentVideo.author, permlink: currentVideo.permlink });
+                    setIsReportOpen(true);
+                  }}
+                  title="Report"
+                >
+                  <MdFlag size={14} />
+                </button>
+              )}
+              <p className="captionText">
+                {renderCaption(translatedCaption || currentVideo.caption)}
+                {!captionExpanded && currentVideo.mantecurated && (
+                  <span className="shortsCuratedBadge shortsCuratedBadge--inline" title="Curated by Mantequilla" onClick={(e) => { e.stopPropagation(); navigate('/t/mantecurated'); }}>
+                    <img src={mantequillaLogo} alt="" />
+                    Curated
+                  </span>
+                )}
+              </p>
               {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && (
                 <span className="captionDate">{currentVideo.timeAgo}</span>
               )}
               {captionExpanded && (
                 <div className="captionActions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className={`captionReportBtn${currentVideo && isReported('short', `${currentVideo.author}/${currentVideo.permlink}`) ? ' reported' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReportTarget({ type: 'short', author: currentVideo.author, permlink: currentVideo.permlink });
+                      setIsReportOpen(true);
+                    }}
+                    title="Report"
+                  >
+                    <MdFlag size={14} />
+                  </button>
                   {translatedCaption ? (
                     <button className="captionDismissTranslation" onClick={() => setTranslatedCaption(null)}>
                       <MdTranslate size={12} />
@@ -2567,6 +2637,12 @@ const VideoShort = () => {
                       onTranslate={handleCaptionTranslate}
                       isTranslating={!!translating?.[currentVideo.permlink]}
                     />
+                  )}
+                  {currentVideo.mantecurated && (
+                    <span className="shortsCuratedBadge" title="Curated by Mantequilla" onClick={(e) => { e.stopPropagation(); navigate('/t/mantecurated'); }}>
+                      <img src={mantequillaLogo} alt="" />
+                      Curated
+                    </span>
                   )}
                 </div>
               )}
@@ -2675,7 +2751,9 @@ const VideoShort = () => {
         </div>
       </div>
 
-      {/* Mobile Comments Overlay */}
+      {/* Mobile Comments Overlay + Panel — portaled to body so it renders above nav */}
+      {createPortal(
+      <div className="short-main shorts-comments-portal">
       <div
         className={`commentsOverlay ${showComments ? 'visible' : ''}`}
         onClick={handleToggleComments}
@@ -2753,7 +2831,7 @@ const VideoShort = () => {
         {/* Comment Input */}
         <div className="commentInput">
           <div className="commentInputAvatar">
-            <img src={user ? `https://images.hive.blog/u/${user}/avatar` : "https://images.hive.blog/u/guest/avatar"} alt="" />
+            <HiveAvatar username={user || 'guest'} size={null} alt="" badgeSize={11} />
           </div>
           <textarea
             rows={1}
@@ -2781,6 +2859,9 @@ const VideoShort = () => {
           </button>
         </div>
       </div>
+      </div>,
+      document.body
+      )}
       {/* Editor Modal */}
       <EditorModal
         isOpen={showEditorModal}
@@ -2793,6 +2874,15 @@ const VideoShort = () => {
         originalShortPermlink={editorOriginalShortPermlink}
       />
     </main>
+  {isReportOpen && (
+    <ReportModal
+      isOpen={isReportOpen}
+      onClose={() => setIsReportOpen(false)}
+      type={reportTarget.type}
+      target={{ author: reportTarget.author, permlink: reportTarget.permlink }}
+    />
+  )}
+  </>
   );
 };
 
@@ -2832,6 +2922,7 @@ const CommentItem = ({
   const [collapsed, setCollapsed] = useState(false);
   const [translatedText, setTranslatedText] = useState(null);
   const [translateError, setTranslateError] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const maxDepth = 3;
 
   const handleTranslate = async (langCode) => {
@@ -2858,7 +2949,7 @@ const CommentItem = ({
 
   if (collapsed) {
     return (
-      <div className={`commentItem ${depth > 0 ? 'nested' : ''}`} style={{ marginLeft: depth > 0 ? '12px' : '0' }}>
+      <div className="commentItem">
         <div className="comment-collapsed-bar" onClick={() => setCollapsed(false)}>
           <img className="comment-collapsed-avatar" src={comment.user?.avatar} alt="" />
           <span className="comment-collapsed-name">@{comment.user?.username}</span>
@@ -2868,110 +2959,124 @@ const CommentItem = ({
     );
   }
 
+  const hasChildren = comment.children && comment.children.length > 0;
+
   return (
-    <div className={`commentItem ${depth > 0 ? 'nested' : ''}`} style={{ marginLeft: depth > 0 ? '12px' : '0' }}>
-      <div className="commentAvatar">
-        <img src={comment.user?.avatar} alt="" />
-      </div>
-      <div className="commentContent">
-        <div className="commentMeta">
-          <span className="commentUsername">{comment.user?.username}</span>
-          <span className="commentTime">{comment.timeAgo}</span>
-          <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><ChevronUp size={16} /></span>
+    <div className={`commentWrapper ${depth > 0 ? 'nested' : ''}`}>
+      {/* Main comment row */}
+      <div className="commentItem">
+        <div className="commentAvatar">
+          <img src={comment.user?.avatar} alt="" />
         </div>
-        <div className="commentText markdown-view" dangerouslySetInnerHTML={{ __html: getCommentHtml() }} />
-        {translatedText && (
-          <div className="comment-translation">
-            <div className="comment-translation-header">
-              <MdTranslate size={12} />
-              <span>Translation</span>
-              <button className="comment-translation-dismiss" onClick={() => { setTranslatedText(null); clearTranslation?.(comment.permlink); }}>&times;</button>
+        <div className="commentContent">
+          <div className="commentMeta">
+            <span className="commentUsername">{comment.user?.username}</span>
+            <span className="commentTime">{comment.timeAgo}</span>
+            <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><ChevronUp size={16} /></span>
+          </div>
+          <div className="commentText markdown-view" dangerouslySetInnerHTML={{ __html: getCommentHtml() }} />
+          {translatedText && (
+            <div className="comment-translation">
+              <div className="comment-translation-header">
+                <MdTranslate size={12} />
+                <span>Translation</span>
+                <button className="comment-translation-dismiss" onClick={() => { setTranslatedText(null); clearTranslation?.(comment.permlink); }}>&times;</button>
+              </div>
+              <p>{translatedText}</p>
             </div>
-            <p>{translatedText}</p>
-          </div>
-        )}
-        {translateError && <div className="comment-translation comment-translation--error"><p>Translation failed</p></div>}
-        <div className="commentActions">
-          <TranslateButton onTranslate={handleTranslate} isTranslating={!!translating?.[comment.permlink]} compact />
-          <button
-            className={`commentActionBtn ${comment.has_voted ? 'liked' : ''}`}
-            onClick={() => toggleVoteTooltip(comment.author, comment.permlink)}
-          >
-            <Heart size={14} fill={comment.has_voted ? '#ff2d55' : 'none'} />
-            <span>{comment.stats?.num_likes ?? 0}</span>
-          </button>
-          <div className="commentReward">
-            <GiTwoCoins size={14} />
-            <span>${comment.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span>
-          </div>
-          <button
-            className="replyBtn"
-            onClick={() => {
-              setActiveReply(comment.permlink);
-              setReplyText('');
-            }}
-          >
-            Reply
-          </button>
-          <CommentVoteTooltip
-            author={comment.author}
-            permlink={comment.permlink}
-            showTooltip={showTooltip && activeTooltipPermlink === comment.permlink}
-            setShowTooltip={setShowTooltip}
-            setCommentList={setCommentList}
-            setActiveTooltipPermlink={setActiveTooltipPermlink}
-            weight={weight}
-            setWeight={setWeight}
-            voteValue={voteValue}
-            setVoteValue={setVoteValue}
-            accountData={accountData}
-            setAccountData={setAccountData}
-            cachedDynamicProps={cachedDynamicProps}
-            onVoteDataRefresh={onVoteDataRefresh}
-          />
-        </div>
-
-        {/* Reply Input */}
-        {isReplying && (
-          <div className="replyInputWrapper">
-            <input
-              type="text"
-              placeholder="Write a reply..."
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              disabled={postingComment}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && !postingComment) {
-                  handlePostComment(comment.author, comment.permlink, replyText, true);
-                }
+          )}
+          {translateError && <div className="comment-translation comment-translation--error"><p>Translation failed</p></div>}
+          <div className="commentActions">
+            <button
+              className={`comment-report-btn${isReported('comment', `${comment.author}/${comment.permlink}`) ? ' reported' : ''}`}
+              onClick={() => setIsReportOpen(true)}
+              title="Report comment"
+            >
+              <MdFlag size={14} />
+            </button>
+            <TranslateButton onTranslate={handleTranslate} isTranslating={!!translating?.[comment.permlink]} compact />
+            <button
+              className={`commentActionBtn ${comment.has_voted ? 'liked' : ''}`}
+              onClick={() => toggleVoteTooltip(comment.author, comment.permlink)}
+            >
+              <Heart size={14} fill={comment.has_voted ? '#ff2d55' : 'none'} />
+              <span>{comment.stats?.num_likes ?? 0}</span>
+            </button>
+            <div className="commentReward">
+              <GiTwoCoins size={14} />
+              <span>${comment.stats?.total_hive_reward?.toFixed(2) ?? '0.00'}</span>
+            </div>
+            <button
+              className="replyBtn"
+              onClick={() => {
+                setActiveReply(comment.permlink);
+                setReplyText('');
               }}
+            >
+              Reply
+            </button>
+            <CommentVoteTooltip
+              author={comment.author}
+              permlink={comment.permlink}
+              showTooltip={showTooltip && activeTooltipPermlink === comment.permlink}
+              setShowTooltip={setShowTooltip}
+              setCommentList={setCommentList}
+              setActiveTooltipPermlink={setActiveTooltipPermlink}
+              weight={weight}
+              setWeight={setWeight}
+              voteValue={voteValue}
+              setVoteValue={setVoteValue}
+              accountData={accountData}
+              setAccountData={setAccountData}
+              cachedDynamicProps={cachedDynamicProps}
+              onVoteDataRefresh={onVoteDataRefresh}
             />
-            <div className="replyActions">
-              <button onClick={() => setActiveReply(null)}>Cancel</button>
-              <button
-                className="submitReply"
-                onClick={() => handlePostComment(comment.author, comment.permlink, replyText, true)}
-                disabled={!replyText.trim() || postingComment}
-              >
-                {postingComment ? <Loader2 size={14} className="spinner" /> : 'Reply'}
-              </button>
-            </div>
           </div>
-        )}
 
-        {/* Show replies toggle */}
-        {comment.children && comment.children.length > 0 && (
-          <button
-            className="viewRepliesBtn"
-            onClick={() => setShowReplies(!showReplies)}
-          >
-            {showReplies ? 'Hide' : 'View'} {comment.children.length} {comment.children.length === 1 ? 'reply' : 'replies'}
-            <ArrowDown size={14} style={{ transform: showReplies ? 'rotate(180deg)' : 'none' }} />
-          </button>
-        )}
+          {/* Reply Input */}
+          {isReplying && (
+            <div className="replyInputWrapper">
+              <input
+                type="text"
+                placeholder="Write a reply..."
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                disabled={postingComment}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !postingComment) {
+                    handlePostComment(comment.author, comment.permlink, replyText, true);
+                  }
+                }}
+              />
+              <div className="replyActions">
+                <button onClick={() => setActiveReply(null)}>Cancel</button>
+                <button
+                  className="submitReply"
+                  onClick={() => handlePostComment(comment.author, comment.permlink, replyText, true)}
+                  disabled={!replyText.trim() || postingComment}
+                >
+                  {postingComment ? <Loader2 size={14} className="spinner" /> : 'Reply'}
+                </button>
+              </div>
+            </div>
+          )}
 
-        {/* Nested replies */}
-        {showReplies && comment.children && depth < maxDepth && (
+          {/* Show replies toggle */}
+          {hasChildren && (
+            <button
+              className="viewRepliesBtn"
+              onClick={() => setShowReplies(!showReplies)}
+            >
+              {showReplies ? 'Hide' : 'View'} {comment.children.length} {comment.children.length === 1 ? 'reply' : 'replies'}
+              <ArrowDown size={14} style={{ transform: showReplies ? 'rotate(180deg)' : 'none' }} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Nested replies — outside the flex row, with thread line */}
+      {showReplies && hasChildren && depth < maxDepth && (
+        <div className="commentThreadArea">
           <div className="nestedComments">
             {comment.children.map((child) => (
               <CommentItem
@@ -3008,8 +3113,16 @@ const CommentItem = ({
               />
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+      {isReportOpen && (
+        <ReportModal
+          isOpen={isReportOpen}
+          onClose={() => setIsReportOpen(false)}
+          type="comment"
+          target={{ author: comment.author, permlink: comment.permlink }}
+        />
+      )}
     </div>
   );
 };

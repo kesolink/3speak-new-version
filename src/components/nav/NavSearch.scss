@@ -3,8 +3,20 @@
 /* ── NavSearch wrapper ── */
 .navsearch-wrap {
   position: relative;
-  flex: 1;
-  max-width: 600px;
+  flex: 0 0 auto;
+  width: 220px;
+  transition: width 0.18s ease;
+
+  &:focus-within,
+  &.has-value {
+    width: 420px;
+  }
+
+  @include mix.respond(tab) {
+    width: 180px;
+    &:focus-within,
+    &.has-value { width: 320px; }
+  }
 
   @include mix.respond(phone) {
     display: none;

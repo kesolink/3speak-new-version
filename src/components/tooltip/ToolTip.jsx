@@ -2,6 +2,7 @@ import React, { useRef, useLayoutEffect, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { IoClose } from 'react-icons/io5'
+import HiveAvatar from '../HiveAvatar/HiveAvatar'
 
 import "./ToolTip.scss"
 
@@ -62,11 +63,12 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
       <div className="votes-tooltip-list">
         {tooltipVoters.map((voter, index) => (
           <div key={index} className="votes-tooltip-row">
-            <img
-              className="votes-tooltip-avatar"
-              src={`https://images.hive.blog/u/${voter.username}/avatar/small`}
+            <HiveAvatar
+              username={voter.username}
+              size="small"
+              imgClassName="votes-tooltip-avatar"
               alt=""
-              loading="lazy"
+              badgeSize={10}
             />
             <a
               className="votes-tooltip-user"

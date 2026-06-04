@@ -1,0 +1,1412 @@
+@use "../mixins.scss" as mix;
+
+.audio-page {
+  max-width: 100%;
+  padding: 20px 24px 140px;
+  min-height: 100vh;
+  @include mix.respond(phone) { padding: 12px 10px 180px; }
+}
+
+// ─── Header ─────────────────────────
+.audio-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.audio-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.audio-title-icon { color: var(--accent-primary); }
+
+// ─── Toolbar (upload + date presets) ─
+.audio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+// ─── Type filter ────────────────────
+.audio-type-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 3px;
+  margin-right: auto;
+  flex-wrap: wrap;
+}
+
+.audio-type-chip {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+
+  &.active {
+    background: var(--accent-primary);
+    color: #fff;
+  }
+
+  &:hover:not(.active) {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
+}
+
+.audio-genre-select {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+
+  &:focus { border-color: var(--accent-primary); }
+}
+
+.audio-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-primary);
+  background: var(--accent-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  &:hover { filter: brightness(1.1); }
+
+  @include mix.respond(phone) {
+    padding: 6px 10px;
+    .audio-upload-label { display: none; }
+  }
+}
+
+// ─── Date presets ───────────────────
+.audio-date-presets {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 8px;
+  width: fit-content;
+  margin-left: auto;
+}
+
+// Inside the toolbar, drop the auto margin / bottom margin
+.audio-toolbar .audio-date-presets {
+  margin: 0;
+}
+
+// ─── Filter row (tags + duration) ───
+.audio-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0 12px;
+
+  .audio-topic-tags {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+  }
+
+  @include mix.respond(phone) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+}
+
+// ─── Duration filter ────────────────
+.audio-duration-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  flex-shrink: 0;
+  height: 26px;
+
+  .audio-duration-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .audio-duration-slider {
+    position: relative;
+    width: 110px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .audio-duration-track {
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    height: 3px;
+    transform: translateY(-50%);
+    background: var(--bg-hover, #333);
+    border-radius: 2px;
+  }
+
+  .audio-duration-fill {
+    position: absolute;
+    top: 50%;
+    height: 3px;
+    transform: translateY(-50%);
+    background: var(--accent-primary);
+    border-radius: 2px;
+  }
+
+  .audio-duration-input {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 16px;
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    pointer-events: none;
+    outline: none;
+
+    &::-webkit-slider-runnable-track { background: transparent; height: 16px; }
+    &::-moz-range-track { background: transparent; height: 16px; }
+
+    &::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+      border: 1.5px solid #fff;
+      pointer-events: auto;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      margin-top: 0;
+    }
+
+    &::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+      border: 1.5px solid #fff;
+      pointer-events: auto;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  // Max thumb sits above min thumb so it stays grabbable when they meet at the right
+  .audio-duration-input-max { z-index: 2; }
+  .audio-duration-input-min { z-index: 1; }
+
+  .audio-duration-value {
+    font-size: 11px;
+    color: var(--text-primary);
+    font-weight: 600;
+    flex-shrink: 0;
+    min-width: 72px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.audio-date-btn {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+
+  &.active {
+    background: var(--accent-primary);
+    color: #fff;
+  }
+
+  &:hover:not(.active) {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
+}
+
+.audio-clear-chip {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  background: var(--accent-primary) !important;
+  border-color: var(--accent-primary) !important;
+  color: #fff !important;
+}
+
+// ─── Topic tags (from subtitles-tags) ─
+.audio-topic-tags {
+  display: flex;
+  gap: 6px;
+  padding: 6px 0 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.audio-topic-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+  &:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+  &.active { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
+}
+
+// ─── Back button ────────────────────
+.audio-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  &:hover { background: var(--bg-hover); }
+}
+
+// ─── Creator chips row ──────────────
+.audio-creators-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 4px 4px 4px;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+// ─── Audio Author Badge ─────────────
+.audio-author-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  flex-shrink: 0;
+  min-width: 140px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: var(--accent-primary);
+    transform: scale(1.02);
+  }
+}
+
+.audio-author-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-tertiary);
+}
+
+.audio-author-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.audio-author-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-author-follow-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-primary);
+  background: transparent;
+  color: var(--accent-primary);
+  cursor: pointer;
+  align-self: flex-start;
+  transition: all 0.12s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--accent-primary);
+    color: #fff;
+  }
+
+  &.following {
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    border-color: transparent;
+  }
+
+  &:disabled { opacity: 0.5; }
+}
+
+.audio-author-tracks {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+// ─── Creator drill-down view ────────
+.audio-creator-view {
+  margin-top: 8px;
+}
+
+.audio-creator-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.audio-creator-stat {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+// ─── Playlists placeholder ──────────
+.audio-playlists-row {
+  display: flex;
+  gap: 10px;
+  padding-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.audio-playlist-card {
+  min-width: 140px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  svg { opacity: 0.3; }
+}
+
+.audio-playlist-soon {
+  font-size: 10px;
+  opacity: 0.5;
+  font-style: italic;
+}
+
+// ─── Sections ───────────────────────
+.audio-section {
+  margin-bottom: 24px;
+}
+
+.audio-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.audio-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  i { font-size: 14px; color: var(--accent-primary); }
+}
+
+.audio-section-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-left: 6px;
+}
+
+.audio-section-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  &:hover { color: var(--accent-primary); }
+}
+
+// ─── Tile row (horizontal scroll) ───
+.audio-tile-row {
+  // Horizontal feed (matches the video home page rails): fill top→bottom then
+  // scroll right. Row count adapts to tile count via --audio-rows (set by the
+  // AudioTileRow component); defaults to 2.
+  display: grid;
+  grid-template-rows: repeat(var(--audio-rows, 2), auto);
+  grid-auto-flow: column;
+  grid-auto-columns: 170px;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+
+  // On phones, drop the horizontal-scroll rail and wrap tiles into a normal
+  // 2-column vertical grid that grows downward (--audio-rows is ignored here).
+  @include mix.respond(phone) {
+    grid-auto-flow: row;
+    grid-template-rows: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-columns: auto;
+    gap: 10px;
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+}
+
+// ─── Tile grid (search results) ─────
+.audio-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  @include mix.respond(phone) { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+}
+
+// ─── Audio Tile ─────────────────────
+.audio-tile {
+  width: 170px;
+  min-width: 170px;
+  flex-shrink: 0;
+  position: relative;
+  @include mix.respond(phone) {
+    width: 150px; min-width: 150px;
+    // Inside a wrapped row grid on phones, stretch to fill the grid column.
+    .audio-tile-row & { width: auto; min-width: 0; }
+  }
+
+  .audio-tile-grid & { width: auto; min-width: 0; }
+}
+
+.audio-tile-cover {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+}
+
+.audio-tile-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+
+  .audio-tile:hover &,
+  .audio-tile-active & { opacity: 1; }
+}
+
+.audio-tile-eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 20px;
+  span {
+    display: block;
+    width: 4px;
+    background: #fff;
+    border-radius: 2px;
+    animation: eq-bar 0.8s ease-in-out infinite;
+    &:nth-child(1) { height: 7px; animation-delay: 0s; }
+    &:nth-child(2) { height: 14px; animation-delay: 0.2s; }
+    &:nth-child(3) { height: 10px; animation-delay: 0.4s; }
+  }
+}
+
+@keyframes eq-bar {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+.audio-tile-duration {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+// ─── Playlist tile (Audio page rails) ──
+// Looks identical to AudioTile — hover uses the shared .audio-tile-overlay
+// (dark fade + plain play arrow). Just the track-count badge is custom.
+.audio-playlist-count {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+
+.audio-tile-subs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 5px;
+  padding: 2px 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: default;
+
+  svg { opacity: 0.7; }
+  span { font-weight: 500; }
+}
+
+.audio-tile-body {
+  padding: 4px 2px 0;
+}
+
+// One-line metadata summary shown beneath the username (e.g. "reggae · 103 bpm").
+.audio-tile-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audio-tile-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  &:hover { color: var(--accent-primary); }
+  .audio-tile-active & { color: var(--accent-primary); }
+}
+
+.audio-tile-author {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: block;
+  margin-top: 2px;
+  cursor: pointer;
+  &:hover { color: var(--accent-primary); }
+}
+
+.audio-tile-footer {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+// Action buttons live inside the thumbnail (top-right of cover) so they
+// stay anchored to the artwork in both the compact and detailed variants.
+.audio-tile-cover .audio-tile-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 2;
+  .audio-tile:hover & { display: flex; }
+}
+
+.audio-tile-action-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease;
+  &:hover { background: var(--accent-primary); }
+}
+
+.audio-tile-skeleton {
+  width: 170px;
+  min-width: 170px;
+  flex-shrink: 0;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  animation: audio-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes audio-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
+// ─── Search results ─────────────────
+.audio-search-results {
+  .audio-section-title { margin-bottom: 12px; }
+}
+
+.audio-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+  p { font-size: 14px; margin: 0; }
+}
+
+// ─── Queue Panel ────────────────────
+.audio-queue-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.audio-queue-panel {
+  background: var(--bg-secondary);
+  border-radius: 16px 16px 0 0;
+  width: 100%;
+  max-width: 500px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 16px;
+  animation: queue-slide-up 0.25s ease;
+}
+
+@keyframes queue-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.audio-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--text-primary);
+  }
+}
+
+.audio-queue-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.audio-queue-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.audio-queue-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+
+  &:hover { color: var(--accent-primary, #e0594b); background: var(--bg-hover, rgba(255,255,255,0.06)); }
+}
+
+.audio-queue-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.audio-queue-empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 20px;
+}
+
+.audio-queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.audio-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border-light);
+  &:last-child { border-bottom: none; }
+  &.current { background: color-mix(in srgb, var(--accent-primary) 6%, transparent); border-radius: 6px; }
+}
+
+.audio-queue-drag {
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.audio-queue-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.audio-queue-info {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.audio-queue-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-queue-author {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.audio-queue-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 12px;
+    border-radius: 4px;
+    &:hover { background: var(--bg-hover); color: var(--text-primary); }
+  }
+}
+
+// ─── Now Playing Bar ────────────────
+.audio-now-playing {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated, var(--bg-secondary));
+  border-top: 1px solid var(--border-light);
+  box-shadow: 0 -2px 20px rgba(0,0,0,0.12);
+  z-index: 90;
+  @include mix.respond(phone) { bottom: calc(var(--bottom-nav-height, 56px)); }
+}
+
+.audio-np-progress {
+  height: 6px;
+  background: var(--border-light);
+  cursor: pointer;
+  overflow: hidden;
+  transition: height 0.12s ease;
+
+  &:hover { height: 10px; }
+}
+
+.audio-np-progress-fill {
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width 0.25s linear;
+}
+
+.audio-np-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+
+  @include mix.respond(phone) {
+    gap: 8px;
+    padding: 10px 12px;
+    flex-wrap: wrap;
+  }
+}
+
+.audio-np-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-tertiary);
+}
+
+.audio-np-info {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+
+  @include mix.respond(phone) {
+    // Make it tappable to expand
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.audio-np-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.audio-np-author {
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  &:hover { color: var(--accent-primary); }
+}
+
+// Desktop-only meta (payout + votes inline)
+.audio-np-desktop-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  .upvote-count-wrap { display: inline-flex; align-items: center; cursor: pointer; }
+  @include mix.respond(phone) { display: none; }
+}
+
+// Desktop-only extras (playlist, share, subtitles, time)
+.audio-np-extras {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  @include mix.respond(phone) { display: none; }
+}
+
+// Mobile expand/collapse toggle
+.audio-np-expand-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  &:hover { color: var(--text-primary); }
+  @include mix.respond(phone) { display: inline-flex; }
+}
+
+// ─── Expanded area (mobile) ─────────
+.audio-np-expanded-area {
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 40vh;
+  overflow-y: auto;
+
+  // On desktop, hide mobile-extras (already shown inline)
+  .audio-np-mobile-extras {
+    display: none;
+    @include mix.respond(phone) {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      .upvote-count-wrap { display: inline-flex; align-items: center; cursor: pointer; }
+    }
+  }
+}
+
+.audio-np-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.audio-np-curated-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  color: var(--accent-primary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+
+  img {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+  }
+}
+
+.audio-np-tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+
+  &:hover {
+    background: var(--accent-primary);
+    color: #fff;
+  }
+}
+
+.audio-np-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.audio-np-vote-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  border-radius: 4px;
+  transition: color 0.12s ease;
+  &:hover, &.active { color: var(--accent-primary); }
+}
+
+.audio-np-playlist-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  border-radius: 4px;
+  &:hover { color: var(--accent-primary); }
+}
+
+.audio-np-share-wrap {
+  position: relative;
+}
+
+.audio-np-share-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  border-radius: 4px;
+  &:hover { color: var(--accent-primary); }
+}
+
+.audio-np-sub-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  &.active { color: var(--accent-primary); }
+  &:hover { color: var(--accent-primary); }
+}
+
+.audio-np-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  @include mix.respond(phone) { display: none; }
+}
+
+.audio-np-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.audio-np-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  &:hover { background: var(--bg-hover); }
+}
+
+.audio-np-play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-primary);
+  color: #fff;
+  cursor: pointer;
+  &:hover { opacity: 0.9; }
+}
+
+.audio-np-volume {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+// Portaled to <body> with inline left/top (button center / button top in the
+// viewport) so the player bar's overflow:hidden can't crop it.
+.audio-np-vol-pop {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 8px));
+  background: var(--bg-elevated, var(--bg-secondary, #1c1c1e));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  padding: 12px 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 3000;
+  display: flex;
+  justify-content: center;
+}
+
+.audio-np-vol-slider {
+  // Vertical slider inside the popover.
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 6px;
+  height: 96px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.audio-np-queue-btn {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  &:hover { color: var(--accent-primary); }
+}
+
+.audio-np-queue-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--accent-primary);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+// ─── Share dropdown ─────────────────
+.audio-share-dropdown {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg, 0 4px 16px rgba(0,0,0,0.2));
+  overflow: hidden;
+  z-index: 110;
+
+  // When inside the now-playing bar, position above
+  .audio-np-share-wrap & {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+  }
+}
+
+.audio-share-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s ease;
+
+  &:hover {
+    background: var(--bg-hover, var(--sidebar-hover-bg));
+    color: var(--accent-primary);
+  }
+
+  svg { color: var(--text-secondary); flex-shrink: 0; }
+}
+
+.audio-share-loading {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+// Overlay for tile share popups
+.audio-share-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 105;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.3);
+}
+
+.audio-share-popup {
+  animation: audio-share-fade-in 0.12s ease;
+}
+
+@keyframes audio-share-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+// ─── Transcript panel ───────────────
+.audio-transcript-panel {
+  border-top: 1px solid var(--border-light);
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+
+  @include mix.respond(phone) {
+    max-height: 180px;
+  }
+}
+
+.audio-transcript-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  flex-shrink: 0;
+
+  @include mix.respond(phone) { padding: 6px 10px; }
+}
+
+.audio-transcript-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.audio-transcript-langs {
+  display: flex;
+  gap: 3px;
+}
+
+.audio-lang-btn {
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+
+  &:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+
+  &.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #fff;
+  }
+}
+
+.audio-transcript-cues {
+  overflow-y: auto;
+  padding: 0 16px 8px;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
+
+  @include mix.respond(phone) { padding: 0 10px 8px; }
+}
+
+.audio-transcript-loading {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.audio-cue {
+  display: flex;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+
+  &:hover { background: var(--bg-hover); }
+}
+
+.audio-cue-active {
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  .audio-cue-text { color: var(--accent-primary); font-weight: 500; }
+  .audio-cue-time { color: var(--accent-primary); }
+}
+
+.audio-cue-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 36px;
+  padding-top: 1px;
+}
+
+.audio-cue-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}

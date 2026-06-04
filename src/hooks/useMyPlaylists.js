@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { getHiveUrl } from '../utils/hiveNode';
 import axios from 'axios';
 import { useAppStore } from '../lib/store';
 import { PLAYLISTS_API_URL, HIVE_API_URL } from '../utils/config';
@@ -35,13 +36,23 @@ export function useMyPlaylists(options = {}) {
         return dateB - dateA;
       });
 
-      // Fetch thumbnails from the first video in each playlist
+      // Prefer the playlist's own thumbnail (set via _update on the indexer when
+      // the album has a cover image). Fall back to fetching the first video's
+      // thumbnail from Hive otherwise.
       const playlistsWithThumbnails = await Promise.all(
         playlists.map(async (playlist) => {
+          // Already has a top-level thumbnail (album cover) — use it as-is.
+          if (playlist.thumbnail) return playlist;
+
+          // Some playlists store it nested under metadata.album.thumbnail.
+          const albumThumb = playlist.metadata?.album?.thumbnail;
+          if (albumThumb) return { ...playlist, thumbnail: albumThumb };
+
+          // Fall back to the first video in the playlist (legacy video playlists).
           if (playlist.items?.length > 0) {
             const firstItem = playlist.items[0];
             try {
-              const res = await axios.post(HIVE_API_URL, {
+              const res = await axios.post(getHiveUrl(), {
                 jsonrpc: '2.0',
                 method: 'condenser_api.get_content',
                 params: [firstItem.author, firstItem.permlink],

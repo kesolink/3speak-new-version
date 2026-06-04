@@ -1,0 +1,30 @@
+// HiveAvatar wraps an <img> so the premium badge can sit on top of
+// the corner. Display: inline-block + line-height: 0 prevents the
+// wrapper from adding stray bottom space inherited from text layouts.
+.hive-avatar {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  vertical-align: middle;
+
+  > img {
+    display: block;
+  }
+
+  &__badge {
+    position: absolute;
+    // Chip sits at the corner of the avatar (overlapping just slightly)
+    // — scales well from 22px tile avatars up to 5rem profile avatars.
+    // FontAwesome's rocket bias is corrected by translate(-7%, 7%) on
+    // the SVG itself (see PremiumBadge.scss).
+    top: -2px;
+    right: -2px;
+    margin: 0;
+    background: var(--accent-primary, #e53935);
+    color: #fff; // override the default red rocket — we're inside a red chip
+    border-radius: 50%;
+    padding: 3px; // breathing room between the rocket and the chip edge
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+    line-height: 1;
+  }
+}

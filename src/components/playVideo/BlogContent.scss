@@ -340,6 +340,21 @@
       margin: 10px 0;
     }
 
+    // Audio player embed container (from @snapie/renderer)
+    .audio-container {
+      width: 100%;
+      margin: 8px 0;
+
+      iframe {
+        width: 100% !important;
+        height: 80px !important;
+        max-height: none !important;
+        border: none;
+        display: block;
+        border-radius: 8px;
+      }
+    }
+
     // 3Speak video embed container (from @snapie/renderer)
     .video-container {
       position: relative;

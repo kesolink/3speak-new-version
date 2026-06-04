@@ -9,9 +9,12 @@ import {
   MdPlaylistPlay,
   MdWatchLater,
   MdHistory,
+  MdMic,
 } from "react-icons/md";
+import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { LuNewspaper } from "react-icons/lu";
 import { FaFire, FaRegSmile } from "react-icons/fa";
+import { MdGraphicEq } from "react-icons/md";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { RiRssFill } from "react-icons/ri";
 import { BiChevronRight } from "react-icons/bi";
@@ -60,6 +63,7 @@ const SidebarDropdown = ({ icon: Icon, label, children, sidebar }) => {
 
 const Sidebar = ({ sidebar, onNavigate }) => {
   const { authenticated, user } = useAppStore();
+  const livePodsCount = useOpenPodsCount();
   const { data: playlists = [] } = useMyPlaylists({ enabled: !!authenticated });
   const watchLaterPlaylist = playlists.find(p => p.name === 'Watch Later');
   const watchLaterLink = watchLaterPlaylist ? `/playlist/${watchLaterPlaylist.id}` : '/profile?tab=playlists';
@@ -73,6 +77,9 @@ const Sidebar = ({ sidebar, onNavigate }) => {
         </Link>
         <Link to="/shorts" className="side-link" title="Shorts" onClick={nav}>
           <ShortsIcon className="icon" outlineWidth={30} /> <span>Shorts</span>
+        </Link>
+        <Link to="/audio" className="side-link" title="Audio" onClick={nav}>
+          <MdGraphicEq className="icon" /> <span>Audio</span>
         </Link>
        {authenticated && (
           <SidebarDropdown icon={IoCloudUploadSharp} label="Upload" sidebar={sidebar}>
@@ -125,6 +132,13 @@ const Sidebar = ({ sidebar, onNavigate }) => {
           </SidebarDropdown>
         )}
 
+        <Link to="/openpods" className="side-link" title="OpenPods" onClick={nav}>
+          <MdMic className="icon" />
+          <span>OpenPods</span>
+          {livePodsCount > 0 && (
+            <span className="sidebar-live-badge">{livePodsCount}</span>
+          )}
+        </Link>
         <Link to="/communities" className="side-link" title="Communities" onClick={nav}>
           <MdOutlineDynamicFeed className="icon" /> <span>Communities</span>
         </Link>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState,useRef } from 'react'
+import { getHiveClient } from '../../utils/hiveNode';
 import "./SearchList.scss"
 import { Client } from "@hiveio/dhive";
 import { useNavigate } from 'react-router-dom';
@@ -6,7 +7,7 @@ import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
 import { HIVE_API_NODES } from '../../utils/config';
 
-const client = new Client(HIVE_API_NODES);
+const client = getHiveClient();
 
 
 function SearchList_Sm({searchTerm, setSearchTerm, handleNav, setIsDropdownOpensm, isDropdownOpensm, searchBoxRefsm}) {

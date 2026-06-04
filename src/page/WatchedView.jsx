@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
+import { getHiveUrl } from '../utils/hiveNode';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { MdHistory, MdDelete } from 'react-icons/md';
-import { IoArrowBack, IoChevronBack, IoChevronForward } from 'react-icons/io5';
+import { IoArrowBack } from 'react-icons/io5';
 import BarLoader from '../components/Loader/BarLoader';
 import Card3 from '../components/Cards/Card3';
 import icon from '../../public/images/stack.png';
@@ -12,8 +13,9 @@ import { getWatchHistory, getWatchHistoryCount, deleteWatchHistoryEntry } from '
 import { HIVE_API_URL } from '../utils/config';
 import { toast } from 'sonner';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
-import { DATE_FILTERS, getSinceTimestamp, formatRelativeDate } from '../utils/dateFilters';
+import { getSinceTimestamp, formatRelativeDate } from '../utils/dateFilters';
 import { findShortByEmbedUrl } from '../hive-api/hiveApi';
+import { FeedToolbar, Pagination } from '../components/FeedToolbar/FeedToolbar';
 import './WatchedView.scss';
 
 async function fetchVideosFromHistory(items) {
@@ -21,7 +23,7 @@ async function fetchVideosFromHistory(items) {
 
   const videoPromises = items.map(async (item) => {
     try {
-      const response = await axios.post(HIVE_API_URL, {
+      const response = await axios.post(getHiveUrl(), {
         jsonrpc: '2.0',
         method: 'condenser_api.get_content',
         params: [item.author, item.permlink],
@@ -87,54 +89,6 @@ async function fetchVideosFromHistory(items) {
 const LIMIT = 20;
 
 
-function Pagination({ page, totalPages, onPageChange }) {
-  if (totalPages <= 1) return null;
-
-  const pages = [];
-  const maxVisible = 5;
-  let start = Math.max(1, page - Math.floor(maxVisible / 2));
-  let end = Math.min(totalPages, start + maxVisible - 1);
-  if (end - start < maxVisible - 1) {
-    start = Math.max(1, end - maxVisible + 1);
-  }
-
-  for (let i = start; i <= end; i++) {
-    pages.push(i);
-  }
-
-  return (
-    <div className="pagination">
-      <button type="button" className="page-btn" disabled={page === 1} onClick={() => onPageChange(page - 1)}>
-        <IoChevronBack />
-      </button>
-      {start > 1 && (
-        <>
-          <button type="button" className="page-btn" onClick={() => onPageChange(1)}>1</button>
-          {start > 2 && <span className="page-ellipsis">...</span>}
-        </>
-      )}
-      {pages.map(p => (
-        <button
-          key={p}
-          type="button"
-          className={`page-btn ${p === page ? 'active' : ''}`}
-          onClick={() => onPageChange(p)}
-        >
-          {p}
-        </button>
-      ))}
-      {end < totalPages && (
-        <>
-          {end < totalPages - 1 && <span className="page-ellipsis">...</span>}
-          <button type="button" className="page-btn" onClick={() => onPageChange(totalPages)}>{totalPages}</button>
-        </>
-      )}
-      <button type="button" className="page-btn" disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>
-        <IoChevronForward />
-      </button>
-    </div>
-  );
-}
 
 function WatchedView() {
   const { username } = useParams();
@@ -179,7 +133,7 @@ function WatchedView() {
   const totalPages = Math.max(1, Math.ceil(currentCount / LIMIT));
   const offset = (currentPage - 1) * LIMIT;
 
-  const { data: items = [], isLoading, isError } = useQuery({
+  const { data: items = [], isLoading, isFetching, isError } = useQuery({
     queryKey: ['watchedVideos', username, apiType, currentPage, since],
     queryFn: async () => {
       const historyItems = await getWatchHistory(username, LIMIT, offset, apiType, since);
@@ -187,7 +141,6 @@ function WatchedView() {
     },
     enabled: !!username,
     staleTime: 60 * 1000,
-    placeholderData: (prev) => prev,
   });
 
   const filtered = items.filter(v => !deletedKeys.has(`${v.author}/${v.permlink}`));
@@ -243,41 +196,24 @@ function WatchedView() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="watched-tabs">
-        <button
-          className={`tab-btn ${activeTab === 'videos' ? 'active' : ''}`}
-          onClick={() => setActiveTab('videos')}
-        >
-          Videos ({videosCount})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'shorts' ? 'active' : ''}`}
-          onClick={() => setActiveTab('shorts')}
-        >
-          Shorts ({shortsCount})
-        </button>
-      </div>
-
-      {/* Date filter + Pagination top */}
-      <div className="watched-toolbar">
-        <div className="date-filters">
-          {DATE_FILTERS.map(f => (
-            <button
-              key={f.key}
-              className={`date-filter-btn ${dateFilter === f.key ? 'active' : ''}`}
-              onClick={() => handleDateFilterChange(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <Pagination page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-      </div>
+      {/* Tabs + Date filter + Pagination */}
+      <FeedToolbar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        dateFilter={dateFilter}
+        onDateFilterChange={handleDateFilterChange}
+        tabs={[
+          { key: 'videos', label: `Videos (${videosCount})` },
+          { key: 'shorts', label: `Shorts (${shortsCount})` },
+        ]}
+        page={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+      />
 
       {/* Content */}
       <div className="watched-content">
-        {isLoading ? (
+        {(isLoading || isFetching) ? (
           <div className="loading-more"><BarLoader /></div>
         ) : isError ? (
           <div className="empty-wrap">

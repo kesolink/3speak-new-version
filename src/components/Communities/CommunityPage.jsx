@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getHiveClient } from '../../utils/hiveNode';
 import { useParams } from "react-router-dom";
 import { Client } from "@hiveio/dhive";
 import "./CommunityPage.scss";
@@ -8,17 +9,19 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import Card3 from "../Cards/Card3";
 import CardSkeleton from "../Cards/CardSkeleton";
 import Com_PageSke_Loader from "./Com_PageSke_Loader";
+import ProfileHeader from "../ProfileHeader/ProfileHeader";
+import HiveMarkdown from "../HiveMarkdown/HiveMarkdown";
 import { useContentBatch } from "../../hooks/useContentBatch";
 import { useWatchHistory } from "../../hooks/useWatchHistory";
 import useViewCounts from "../../hooks/useViewCounts";
 
 // Hive client
-const client = new Client(HIVE_API_NODES);
+const client = getHiveClient();
 
 function CommunityPage() {
   const { communityName: id } = useParams();
   const [dataMain, setDataMain] = useState(null);
-  const [trend, setTrend] = useState(true); // true = trending, false = new
+  const [trend, setTrend] = useState(false); // false = new (default), true = trending
 
   // Fetch community info
   const fetchCommunityData = async (id) => {
@@ -41,22 +44,17 @@ function CommunityPage() {
   // FETCH COMMUNITY VIDEOS
   // ---------------------------
   const fetchVideos = async ({ pageParam = 0 }) => {
-    const LIMIT = 200;
-    let url;
-
-    if (trend) {
-      // 🔥 Trending feed
-        url = `${FEED_URL}/apiv2/feeds/community/${id}/trending?limit=${LIMIT}`;
-      
-    } else {
-      // 🆕 New feed
-        url = `${FEED_URL}/apiv2/feeds/community/${id}/new?limit=${LIMIT}`;
-
-    }
+    const LIMIT = 100; // checker caps page size at 100
+    // checker's /feeds/community/:id/{trending,new} is 1-based; our infinite
+    // query supplies 0-indexed pageParam.
+    const page = (Number(pageParam) || 0) + 1;
+    const variant = trend ? 'trending' : 'new';
+    const url = `${FEED_URL}/feeds/community/${id}/${variant}?page=${page}&limit=${LIMIT}`;
 
     const res = await axios.get(url);
-    // /more returns { trends: [...] }, main endpoint returns array
-    return res.data.trends || res.data;
+    // Checker returns {videos: [...]}; legacy /apiv2 returned {trends: [...]}
+    // or a bare array. Support all three so a flip back never breaks the page.
+    return res.data.videos || res.data.trends || res.data;
   };
 
   const {
@@ -112,18 +110,15 @@ function CommunityPage() {
 
   return (
     <div className="community-page-wrap">
-      <div className="com-profile-img-wrap">
-        <img src={`https://images.hive.blog/u/${id}/cover`} alt="" />
-        <div className="wrap">
-          <img src={`https://images.hive.blog/u/${id}/avatar`} alt="" />
-          <span>{dataMain?.title || id}</span>
-        </div>
-      </div>
+      <ProfileHeader
+        username={id}
+        name={dataMain?.title || id}
+        bio={dataMain?.about}
+      />
 
-      <div className="title-wrap">
-        <h3>{dataMain?.about}</h3>
-        <p>{dataMain?.description}</p>
-      </div>
+      {dataMain?.description ? (
+        <HiveMarkdown body={dataMain.description} className="community-description" collapsible />
+      ) : null}
 
       <hr />
 
@@ -134,16 +129,16 @@ function CommunityPage() {
         </div> */}
         <div className="trend-btn-wrap">
           <span
-            className={trend ? "active" : ""}
-            onClick={() => setTrend(true)}
-          >
-            Trend
-          </span>
-          <span
             className={!trend ? "active" : ""}
             onClick={() => setTrend(false)}
           >
             New
+          </span>
+          <span
+            className={trend ? "active" : ""}
+            onClick={() => setTrend(true)}
+          >
+            Trending
           </span>
         </div>
       </div>

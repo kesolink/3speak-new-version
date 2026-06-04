@@ -1,20 +1,17 @@
 // import { keychainBroadcast, addAccountTokeychain } from "../helpers/keychain";
 import { Client, PrivateKey } from "@hiveio/dhive";
+import { getHiveClient, getHiveUrl } from '../utils/hiveNode';
 import axios from "axios";
 import { broadcastWithAioha, isLoggedIn, KeyTypes } from "./aioha";
 import { HIVE_API_URL, HIVE_API_NODES } from "../utils/config";
 
-const client = new Client(HIVE_API_NODES, {
-    timeout: 3000,
-    failoverThreshold: 3,
-    consoleOnFailover: true
-  });
+const client = getHiveClient();
   const bridgeApiCall = (endpoint, params) =>
     client.call("bridge", endpoint, params);
 
   // Hive Bridge API helper
   export const hiveBridgeCall = async (method, params = {}) => {
-    const { data } = await axios.post(HIVE_API_URL, {
+    const { data } = await axios.post(getHiveUrl(), {
       jsonrpc: "2.0",
       id: 1,
       method: "bridge." + method,

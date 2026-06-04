@@ -62,11 +62,27 @@
                 margin-top: 0;
                 padding: 8px 10px;
                 background-color: var(--card-bg);
+                width: 100%;
+                box-sizing: border-box;
+
+                &.title-collapsed {
+                    border-radius: 0 0 10px 10px;
+                }
             }
 
             .video-title-col {
                 flex: 1;
                 min-width: 0;
+
+                .video-title-line {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+
+                    h3 {
+                        min-width: 0;
+                    }
+                }
             }
 
             h3 {
@@ -122,6 +138,9 @@
             @include mix.respond(phone) {
                 padding: 8px 10px 10px;
                 background-color: var(--card-bg);
+                width: 100%;
+                box-sizing: border-box;
+                border-radius: 0 0 10px 10px;
 
                 &.collapsed {
                     display: none;
@@ -185,6 +204,21 @@
                 @include mix.respond(phone) {
                     padding: 3px 10px;
                     font-size: 12px;
+                }
+            }
+
+            .curated-tag {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                cursor: default;
+                background: var(--bg-tertiary);
+                border-color: var(--accent-color);
+
+                .curated-tag-icon {
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 2px;
                 }
             }
         }
@@ -321,6 +355,10 @@
                     display: flex;
                     align-items: center;
                     gap: 7px;
+                    // Stay right-aligned even when the left (clip) group isn't
+                    // rendered — otherwise space-between would drop this group
+                    // to the left when the author disallows clipping.
+                    margin-left: auto;
                     @include mix.respond(phone) {
                         gap: 5px;
                     }
@@ -413,6 +451,82 @@
                 &:hover {
                   background-color: var(--accent-primary);
                   color: var(--text-inverse);
+                }
+            }
+
+            .vote-btn,
+            .summary-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                padding: 4px 10px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: var(--text-secondary);
+                border: none;
+                border-radius: 5px;
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+
+                &:hover {
+                  background-color: var(--accent-primary);
+                  color: var(--text-inverse);
+                }
+            }
+
+            .summary-btn {
+                white-space: nowrap;
+
+                @include mix.respond(phone) {
+                    // Keep just the icon on small screens to save room.
+                    span { display: none; }
+                }
+            }
+
+            .edit-video-btn {
+                display: inline-flex;
+                align-items: center;
+                padding: 4px 8px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: var(--text-secondary);
+                border: none;
+                border-radius: 5px;
+                font-size: 13px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+
+                &:hover {
+                  background-color: var(--accent-primary);
+                  color: var(--text-inverse);
+                }
+            }
+
+            .report-btn {
+                display: inline-flex;
+                align-items: center;
+                padding: 4px 8px;
+                background-color: rgba(255, 255, 255, 0.1);
+                color: var(--text-secondary);
+                border: none;
+                border-radius: 5px;
+                font-size: 13px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+
+                &:hover {
+                  background-color: var(--accent-primary);
+                  color: var(--text-inverse);
+                }
+
+                &.reported {
+                  color: #e31337;
+                  background-color: rgba(227, 19, 55, 0.12);
+
+                  &:hover {
+                    background-color: rgba(227, 19, 55, 0.2);
+                    color: #e31337;
+                  }
                 }
             }
 
@@ -800,6 +914,22 @@
   gap: 16px;
   background: rgba(0, 0, 0, 0.65);
   padding: 16px;
+
+  @media (max-width: 768px) {
+    flex-direction: row;
+    gap: 10px;
+    padding: 10px;
+  }
+}
+
+.video-ended-mobile-card {
+  display: none;
+
+  @media (max-width: 768px) {
+    display: block;
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .video-ended-suggestions {
@@ -808,6 +938,10 @@
   width: 100%;
   padding: 0 16px;
   box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 }
 
 .video-ended-card {
@@ -895,6 +1029,12 @@
   &:hover {
     background: rgba(255, 255, 255, 0.25);
     transform: scale(1.1);
+  }
+
+  @media (max-width: 768px) {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
   }
 }
 
@@ -1053,7 +1193,7 @@
                 min-height: 60px;
               }
             &.sub{
-                min-height: 50px;
+                min-height: 100px;
                 border-radius: 12px;
             }
             &::placeholder {
@@ -1118,9 +1258,15 @@
     pointer-events: auto;
 
     @include mix.respond(phone) {
+        left: auto;
         right: 6px;
-        left: 6px;
-        max-width: none;
+        max-width: fit-content;
+        padding: 6px 10px;
+        gap: 6px;
+
+        .hide-mobile {
+            display: none;
+        }
     }
 }
 
@@ -1466,11 +1612,18 @@
       margin-top: 0;
       padding: 8px 10px;
       background-color: var(--card-bg);
+
+      &.title-collapsed {
+        border-radius: 0 0 10px 10px;
+      }
     }
 
     .video-details-collapsible {
       padding: 8px 10px 10px;
       background-color: var(--card-bg);
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 0 0 10px 10px;
 
       &.collapsed {
         display: none;

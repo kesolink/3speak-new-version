@@ -1,6 +1,25 @@
 // MUST be first import - sets up Buffer before other modules
 import './polyfills';
 
+// Dev (preview.3speak.tv) is served live by the Vite dev server and registers
+// NO service worker. But a stale SW from this origin's previous static (dist)
+// deployment can still be installed in the browser — it serves its cached app
+// shell on first load, so you see an old page and only the *next* refresh shows
+// current code. Evict any leftover SW + caches here. Stripped from prod builds
+// (import.meta.env.DEV === false), so 3speak.tv's real PWA is untouched.
+if (import.meta.env.DEV && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations()
+    .then((regs) => regs.forEach((r) => r.unregister()))
+    .catch(() => {});
+  if (typeof caches !== 'undefined' && caches.keys) {
+    caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
+  }
+}
+
+// Pick the healthy Hive RPC node for this session as early as possible.
+import { ensureHealthyNode } from './utils/hiveNode';
+ensureHealthyNode();
+
 import React from 'react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

@@ -1,0 +1,136 @@
+@use "../../mixins.scss" as mix;
+
+.report-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  @include mix.respond(phone) {
+    align-items: flex-end;
+  }
+}
+
+.report-modal-content {
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #000);
+  border-radius: 12px;
+  padding: 24px;
+  width: 420px;
+  max-width: 95vw;
+  position: relative;
+
+  @include mix.respond(phone) {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding: 20px 16px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    animation: modal-slide-up 0.3s ease forwards;
+  }
+}
+
+.report-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary, #000);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.report-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.report-target {
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+  margin: 0 0 16px;
+  word-break: break-all;
+}
+
+.report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.report-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.report-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #ddd);
+  background: var(--input-bg, #f9f9f9);
+  color: var(--text-primary, #000);
+  font-size: 14px;
+  appearance: auto;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent-color, #e31337);
+  }
+}
+
+.report-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #ddd);
+  background: var(--input-bg, #f9f9f9);
+  color: var(--text-primary, #000);
+  font-size: 14px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent-color, #e31337);
+  }
+}
+
+.report-submit-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent-color, #e31337);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 4px;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+}
+
+@keyframes modal-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}

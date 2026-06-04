@@ -1,0 +1,136 @@
+@use "../../mixins.scss" as mix;
+
+.aauth-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  // Must sit above every other modal (TipModal/Transfer use 9999) since it
+  // is triggered from inside them.
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  @include mix.respond(phone) {
+    align-items: flex-end;
+  }
+}
+
+.aauth-content {
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #000);
+  border-radius: 14px;
+  padding: 26px 24px;
+  width: 440px;
+  max-width: 95vw;
+  position: relative;
+
+  @include mix.respond(phone) {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding: 22px 16px;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.aauth-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  padding: 4px;
+  line-height: 0;
+
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.aauth-title {
+  margin: 0 36px 8px 0;
+  font-size: 19px;
+}
+
+.aauth-desc {
+  margin: 0 0 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary, #555);
+}
+
+.aauth-ops {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.aauth-op + .aauth-op { margin-top: 6px; }
+
+.aauth-error {
+  background: rgba(224, 89, 75, 0.12);
+  color: #e0594b;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.aauth-choices,
+.aauth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aauth-hint {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary, #555);
+}
+
+.aauth-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color, #d0d0d0);
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #000);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &.primary {
+    background: var(--accent, #e0594b);
+    border-color: var(--accent, #e0594b);
+    color: #fff;
+  }
+
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+.aauth-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color, #d0d0d0);
+  background: var(--input-bg, #fafafa);
+  color: var(--text-primary, #000);
+  font-size: 14px;
+  font-family: "SF Mono", monospace;
+}
+
+.aauth-link {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px;
+
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}

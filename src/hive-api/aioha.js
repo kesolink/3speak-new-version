@@ -1,19 +1,37 @@
-import { initAioha, Asset, KeyTypes, Providers } from '@aioha/aioha'
+import { Aioha, Asset, KeyTypes, Providers } from '@aioha/aioha'
+import { IS_VSC_TESTNET, VSC_NET_ID } from '../utils/vscContract.js'
+import { ENABLE_METAMASK_SNAP } from '../utils/config.js'
+import { getHiveUrl, ensureHealthyNode } from '../utils/hiveNode.js'
 
-const aioha = initAioha({
-  hiveauth: {
-    name: '3Speak',
-    description: '3Speak - Decentralized Video Platform'
-  },
-  hivesigner: {
-    app: import.meta.env.VITE_HIVESIGNER_APP,
-    callbackURL: window.location.origin + '/hivesigner.html',
-    scope: ['login', 'vote', 'comment', 'follow', 'transfer'],
-  }
+const HIVE_API = IS_VSC_TESTNET ? 'https://testnet.techcoderx.com' : getHiveUrl()
+const CHAIN_ID = IS_VSC_TESTNET
+  ? '18dcf0a285365fc58b71f18b3d3fec954aa0c141c44e4e5cb4cf777b9eab274e'
+  : 'beeab0de00000000000000000000000000000000000000000000000000000000'
+
+// Manual Aioha setup so we can conditionally register MetaMask Snap
+const aioha = new Aioha(HIVE_API)
+aioha.registerKeychain()
+aioha.registerLedger()
+aioha.registerPeakVault()
+if (ENABLE_METAMASK_SNAP) {
+  aioha.registerMetaMaskSnap()
+}
+aioha.registerHiveAuth({ name: '3Speak', description: '3Speak - Decentralized Video Platform' })
+aioha.registerHiveSigner({
+  app: import.meta.env.VITE_HIVESIGNER_APP,
+  callbackURL: window.location.origin + '/hivesigner.html',
+  scope: ['login', 'vote', 'comment', 'follow', 'transfer'],
 })
-
-// Override default RPC node (aioha defaults to techcoderx.com which rate-limits)
-aioha.setApi('https://api.hive.blog')
+aioha.setApi(HIVE_API)
+// Upgrade to the session's healthy node once the probe resolves.
+if (!IS_VSC_TESTNET) {
+  ensureHealthyNode().then((u) => { try { aioha.setApi(u) } catch { /* ignore */ } })
+}
+aioha.loadAuth()
+aioha.vscSetNetId(VSC_NET_ID)
+if (typeof aioha.setChainId === 'function') {
+  aioha.setChainId(CHAIN_ID)
+}
 
 // Store for HiveAuth waiting callbacks
 let hiveAuthCallbacks = {
@@ -26,6 +44,22 @@ export const setHiveAuthCallbacks = (onWaiting, onComplete) => {
   hiveAuthCallbacks.onWaiting = onWaiting;
   hiveAuthCallbacks.onComplete = onComplete;
 };
+
+// Butter Auth sessions only carry posting authority. When an active-key op is
+// attempted under a Butter Auth login we don't fail — we hand the operations
+// to a registered modal handler that lets the user complete the signature
+// themselves (Hive Keychain wallet, or a pasted private active key). The
+// handler resolves with { success, result } or rejects if the user cancels.
+let activeAuthHandler = null;
+export const setActiveAuthHandler = (fn) => { activeAuthHandler = fn; };
+
+const requestButrauthActiveSign = async (operations) => {
+  if (typeof activeAuthHandler !== 'function') {
+    throw new Error('Active key operations need a Hive wallet. Please reload and try again.')
+  }
+  // Handler shows the modal and returns the broadcast result, or throws on cancel.
+  return activeAuthHandler(operations)
+}
 
 // Check if current provider is HiveAuth
 export const isHiveAuthProvider = () => {
@@ -52,6 +86,10 @@ const withHiveAuthWaiting = async (operation, message = 'Waiting for approval...
 
 // Helper function to vote on content
 export const voteWithAioha = async (author, permlink, weight = 10000) => {
+  if (isManteAuthLogin()) {
+    const voter = localStorage.getItem('user_id')
+    return broadcastViaManteAuth([['vote', { voter, author, permlink, weight }]])
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.vote(author, permlink, weight);
@@ -69,6 +107,15 @@ export const voteWithAioha = async (author, permlink, weight = 10000) => {
 
 // Helper function to transfer HIVE or HBD
 export const transferWithAioha = async (to, amount, currency, memo = '') => {
+  // Transfers are an active-key op — a Butter Auth session can't sign them.
+  // Route through the same active-auth modal handler as broadcastWithAioha.
+  if (isManteAuthLogin()) {
+    const from = localStorage.getItem('user_id')
+    const formatted = `${Number(amount).toFixed(3)} ${currency}`
+    return requestButrauthActiveSign([
+      ['transfer', { from, to, amount: formatted, memo: memo || '' }]
+    ])
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.transfer(to, amount, currency, memo);
@@ -86,6 +133,20 @@ export const transferWithAioha = async (to, amount, currency, memo = '') => {
 
 // Helper function to follow/unfollow a user
 export const followWithAioha = async (target, follow = true) => {
+  if (isManteAuthLogin()) {
+    const follower = localStorage.getItem('user_id')
+    const json = JSON.stringify(['follow', {
+      follower,
+      following: target,
+      what: follow ? ['blog'] : []
+    }])
+    return broadcastViaManteAuth([['custom_json', {
+      required_auths: [],
+      required_posting_auths: [follower],
+      id: 'follow',
+      json
+    }]])
+  }
   return withHiveAuthWaiting(async () => {
     try {
       let result;
@@ -114,6 +175,15 @@ export const followWithAioha = async (target, follow = true) => {
 
 // Helper function for custom_json operations
 export const customJsonWithAioha = async (keyType, id, json, displayTitle = '') => {
+  if (isManteAuthLogin() && keyType === KeyTypes.Posting) {
+    const user = localStorage.getItem('user_id')
+    return broadcastViaManteAuth([['custom_json', {
+      required_auths: [],
+      required_posting_auths: [user],
+      id,
+      json
+    }]])
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.customJSON(keyType, id, json, displayTitle);
@@ -131,6 +201,22 @@ export const customJsonWithAioha = async (keyType, id, json, displayTitle = '') 
 
 // Helper function to post a comment
 export const commentWithAioha = async (parentAuthor, parentPermlink, permlink, title, body, jsonMetadata = {}, options = null) => {
+  if (isManteAuthLogin()) {
+    const author = localStorage.getItem('user_id')
+    const ops = [['comment', {
+      parent_author: parentAuthor,
+      parent_permlink: parentPermlink,
+      author,
+      permlink,
+      title,
+      body,
+      json_metadata: JSON.stringify(jsonMetadata)
+    }]]
+    if (options) {
+      ops.push(['comment_options', { author, permlink, ...options }])
+    }
+    return broadcastViaManteAuth(ops)
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.comment(parentAuthor, parentPermlink, permlink, title, body, JSON.stringify(jsonMetadata), options);
@@ -146,8 +232,17 @@ export const commentWithAioha = async (parentAuthor, parentPermlink, permlink, t
   }, 'Approve comment on HiveAuth...');
 };
 
-// Generic broadcast for raw operations (e.g., account_create, custom operations)
+// Generic broadcast for raw operations
+// ManteAuth only supports posting-level ops — active key ops (transfers, etc.) will fail
 export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) => {
+  if (isManteAuthLogin() && keyType === KeyTypes.Posting) {
+    return broadcastViaManteAuth(operations)
+  }
+  if (isManteAuthLogin() && keyType === KeyTypes.Active) {
+    // Posting-only Butter Auth session — let the user sign this active op
+    // with their own wallet / active key via the modal handler.
+    return requestButrauthActiveSign(operations)
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.signAndBroadcastTx(operations, keyType);
@@ -163,9 +258,51 @@ export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) 
   }, 'Approve transaction on HiveAuth...');
 };
 
-// Check if user is logged in
+// Sign an arbitrary message with the given key (used for image-upload challenges).
+export const signMessageWithAioha = async (message, keyType = KeyTypes.Posting, displayTitle = 'Approve image upload signature') => {
+  return withHiveAuthWaiting(async () => {
+    try {
+      const result = await aioha.signMessage(message, keyType);
+      if (result.success && result.result) {
+        return { success: true, result: result.result };
+      }
+      console.error('Sign message rejected, full aioha result:', result);
+      throw new Error(result.error || result.errorMessage || 'Sign message failed');
+    } catch (error) {
+      console.error('Sign message error:', error);
+      throw error;
+    }
+  }, displayTitle);
+};
+
+// ManteAuth proxy broadcast via 3speak backend service
+// Auth happens via httpOnly cookie set during /api/manteauth/exchange — no token in JS.
+const THREESPEAK_API = import.meta.env.VITE_THREESPEAK_API || '/api'
+
+// Honors the VITE_ENABLE_BUTRAUTH=false flag — when disabled, treat ManteAuth
+// state as absent so no manteauth-specific code paths run.
+export const isManteAuthLogin = () => {
+  if (import.meta.env.VITE_ENABLE_BUTRAUTH === 'false') return false;
+  return localStorage.getItem('manteauth_login') === 'true'
+}
+
+export const broadcastViaManteAuth = async (operations) => {
+  const res = await fetch(`${THREESPEAK_API}/broadcast`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ operations })
+  })
+  const data = await res.json()
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || data.message || 'Broadcast failed')
+  }
+  return { success: true, result: data.result }
+}
+
+// Check if user is logged in (aioha or ManteAuth)
 export const isLoggedIn = () => {
-  return aioha.isLoggedIn();
+  return aioha.isLoggedIn() || isManteAuthLogin();
 };
 
 // Get current user

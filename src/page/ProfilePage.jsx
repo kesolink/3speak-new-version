@@ -16,9 +16,11 @@ import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
 import { fetchUserShortsWithDetails } from "../hive-api/hiveApi";
 
-import { FaVideo } from "react-icons/fa";
+import { FaVideo, FaPlus } from "react-icons/fa";
 import { IoMdShare, IoMdAdd } from "react-icons/io";
 import { MdLock, MdPublic, MdClose } from "react-icons/md";
+import SocialLinks from "../components/Userprofilepage/SocialLinks";
+import AddSocialLink_modal from "../components/modal/AddSocialLink_modal";
 
 import { LineSpinner, Quantum } from "ldrs/react";
 import "ldrs/react/Quantum.css";
@@ -33,8 +35,10 @@ import { useWatchedVideosCount } from "../hooks/useWatchedVideos";
 import PlaylistCard from "../components/Cards/PlaylistCard";
 import WatchedPlaylistCard from "../components/Cards/WatchedPlaylistCard";
 import WatchLaterPlaylistCard from "../components/Cards/WatchLaterPlaylistCard";
+import UserAudioList from "../components/Userprofilepage/UserAudioList";
 import { createPlaylist } from "../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
+import ProfileHeader from "../components/ProfileHeader/ProfileHeader";
 
 // Reserved playlist name for Watch Later
 const WATCH_LATER_NAME = 'Watch Later';
@@ -53,6 +57,7 @@ function ProfilePage() {
     const tab = searchParams.get('tab');
     if (tab === 'playlists') return 'playlists';
     if (tab === 'shorts') return 'shorts';
+    if (tab === 'audio') return 'audio';
     return 'video';
   });
   // Sync tab state when URL search params change (e.g. navigating from sidebar)
@@ -60,6 +65,7 @@ function ProfilePage() {
     const tab = searchParams.get('tab');
     if (tab === 'playlists') setShow('playlists');
     else if (tab === 'shorts') setShow('shorts');
+    else if (tab === 'audio') setShow('audio');
   }, [searchParams]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -68,6 +74,8 @@ function ProfilePage() {
   const [newPlaylistTags, setNewPlaylistTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showSocialLinkModal, setShowSocialLinkModal] = useState(false);
+  const [socialLinksRefreshKey, setSocialLinksRefreshKey] = useState(0);
 
   // Fetch user's playlists (all - public and private)
   const { data: playlists = [], isLoading: playlistsLoading, refetch: refetchPlaylists } = useMyPlaylists();
@@ -345,80 +353,75 @@ function ProfilePage() {
   return (
     <div className="profile-page-container">
       {/* ================= PROFILE HEADER ================= */}
-      <div className="profile-card">
-        <div className="profile-header">
-          <img
-            className="gradient-bg"
-            src={`https://images.hive.blog/u/${user}/cover`}
-            alt=""
-          />
-        </div>
+      <ProfileHeader
+        username={user}
+        name={user}
+        fetchBio
+        badges={
+          <>
+            <span className="status-dot">
+              <span className="dot" /> Verified creator
+            </span>
+            <SocialLinks
+              hiveUsername={user}
+              refreshKey={socialLinksRefreshKey}
+              canDelete
+              onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
+            />
+            <button
+              type="button"
+              className="add-social-link-btn"
+              onClick={() => setShowSocialLinkModal(true)}
+              title="Link an external profile"
+            >
+              <FaPlus /> Add profile
+            </button>
+          </>
+        }
+        actions={
+          <>
+            <button
+              className="btn btn-primary"
+              onClick={() => setShow("follower")}
+            >
+              Followers{" "}
+              {follower?.follower_count ?? (
+                <Quantum size="15" speed="1.75" color="red" />
+              )}
+            </button>
 
-        <div className="profile-body">
-          <div className="top-section">
-            <div className="left-info">
-              <div className="avatar">
-                <img
-                  src={`https://images.hive.blog/u/${user}/avatar`}
-                  alt="avatar"
-                />
-              </div>
-
-              <div className="user-meta">
-                <h2>{user}</h2>
-
-                <div className="user-badges">
-                  <span className="status-dot">
-                    <span className="dot" /> Verified creator
-                  </span>
-                </div>
-              </div>
-
-            </div>
-
-            <div className="button-group">
-              <button
-                className="btn btn-primary"
-                onClick={() => setShow("follower")}
-              >
-                Followers{" "}
-                {follower?.follower_count ?? (
-                  <Quantum size="15" speed="1.75" color="red" />
-                )}
-              </button>
-
-              <button
-                className="btn btn-secondary"
-                onClick={async () => {
-                  const profileUrl = `${window.location.origin}/@${user}`;
-                  const shareData = { title: `${user} on 3Speak`, url: profileUrl };
-                  try {
-                    if (navigator.share && navigator.canShare?.(shareData)) {
-                      await navigator.share(shareData);
-                    } else {
-                      await navigator.clipboard.writeText(profileUrl);
-                      toast.success('Profile link copied to clipboard!');
-                    }
-                  } catch (err) {
-                    if (err.name !== 'AbortError') {
-                      await navigator.clipboard.writeText(profileUrl);
-                      toast.success('Profile link copied to clipboard!');
-                    }
+            <button
+              className="btn btn-secondary"
+              onClick={async () => {
+                const profileUrl = `${window.location.origin}/@${user}`;
+                const shareData = { title: `${user} on 3Speak`, url: profileUrl };
+                try {
+                  if (navigator.share && navigator.canShare?.(shareData)) {
+                    await navigator.share(shareData);
+                  } else {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success('Profile link copied to clipboard!');
                   }
-                }}
-              >
-                <IoMdShare />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+                } catch (err) {
+                  if (err.name !== 'AbortError') {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success('Profile link copied to clipboard!');
+                  }
+                }
+              }}
+            >
+              <IoMdShare />
+            </button>
+          </>
+        }
+      />
 
       {/* ================= TOGGLE ================= */}
       <div className="toggle-wrap">
         <div className="wrap">
           <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => setShow("shorts")}>Shorts</span>
+          <span className={show === "audio" ? "active" : ""} onClick={() => setShow("audio")}>Audio</span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
@@ -523,6 +526,8 @@ function ProfilePage() {
           ) : (
             <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
           )
+        ) : show === "audio" ? (
+          <UserAudioList user={user} />
         ) : show === "playlists" ? (
           <>
             <button className="create-playlist-btn" onClick={() => setShowCreateModal(true)}>
@@ -644,6 +649,13 @@ function ProfilePage() {
           </div>
         </div>
       )}
+
+      <AddSocialLink_modal
+        isOpen={showSocialLinkModal}
+        onClose={() => setShowSocialLinkModal(false)}
+        hiveUsername={user}
+        onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
+      />
     </div>
   );
 }

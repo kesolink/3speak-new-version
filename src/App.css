@@ -7,8 +7,13 @@
   transition: background-color 0.3s ease;
 }
 .large-container {
-  padding-left: 8%;
+  padding-left: 4%;
 
+}
+
+/* Sidebar fully removed via the profile-menu switch — collapse the leftover gap */
+.container.sidebar-fully-hidden {
+  padding-left: 1%;
 }
 
 /* Shorts mobile container - full screen with no padding */

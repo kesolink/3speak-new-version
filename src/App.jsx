@@ -1,5 +1,5 @@
 import { Route, Routes, useLocation, useNavigate, Navigate, useParams } from "react-router-dom";
-import { useRef } from "react";
+import { useRef, lazy, Suspense } from "react";
 import "./App.css";
 // import Home from './page/Home'
 // import Treanding from './page/Treanding'
@@ -20,8 +20,9 @@ import LoginNew from "./page/Login/LoginNew";
 import { useAppStore } from "./lib/store";
 import { useEffect } from "react";
 import ProfileNav from "./components/nav/ProfileNav";
-import StudioPage from "./components/legacy-studio/StudioPage";
-// import StudioPage2 from "./components/legacy-studio/StudioPage";
+// Legacy studio is retired: /studio routes now redirect to /embed-studio
+// (the embed-studio uploader in non-short mode is the only video upload flow).
+// import StudioPage from "./components/legacy-studio/StudioPage";
 import CommunitiesRender from "./components/Communities/CommunitiesRender";
 import CommunityPage from "./components/Communities/CommunityPage";
 import TagFeed from "./page/TagFeed";
@@ -32,15 +33,19 @@ import Testing from "./components/Testingfile/Testing";
 import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
 import DraftStudio from "./components/studio/DraftStudio";
 import EditVideo from "./page/EditVideo";
+import EditScheduledPost from "./page/EditScheduledPost";
 import ScrollToTop from "./components/ScrollToTop";
 import AddAccount_modal from "./components/modal/AddAccount_modal";
 import TestingLogin3 from "./page/Login/TestingLogin3";
 // import TestingLogin from "./page/Login/TestingLogin";
 import AboutPage from "./components/LandingPage/AboutPage";
 import { toast, Toaster } from 'sonner'
-import Thumbnail from "./components/legacy-studio/Thumbnail";
-import Details from "./components/legacy-studio/Details";
-import Preview from "./components/legacy-studio/Preview";
+// Retired alongside the legacy /studio flow — kept here as comments for ease of
+// roll-back; the embed-studio equivalents at /embed-studio/{thumbnail,details,preview}
+// are what users hit now.
+// import Thumbnail from "./components/legacy-studio/Thumbnail";
+// import Details from "./components/legacy-studio/Details";
+// import Preview from "./components/legacy-studio/Preview";
 import Test from "./page/Test";
 import Short from "./page/Short";
 import ShortsStoryFeed from "./page/ShortsStoryFeed";
@@ -52,14 +57,48 @@ import ShortsPreloader from "./components/ShortsPreloader";
 
 import { jwtDecode } from "jwt-decode";
 import AuthCallback from "./page/Login/AuthCallback";
+import ManteAuthCallback from "./page/Login/ManteAuthCallback";
 import NotFound from "./page/NotFound";
 import ProfileModal from "./components/modal/ProfileModal";
 import HiveImageUploader from "./page/HiveImageUploader";
 import PlaylistView from "./page/PlaylistView";
 import WatchedView from "./page/WatchedView";
+import Notifications from "./page/Notifications";
+import PostView from "./page/PostView";
+import Audio from "./page/Audio";
+import AudioPost from "./page/AudioPost";
 import { LegacyUploadProvider } from "./context/LegacyUploadContext";
 import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
+import { HangoutContextProvider, useHangout } from "./context/HangoutContext";
+import OpenPods from "./page/OpenPods";
+import OpenPodPublish from "./page/OpenPodPublish";
+
+const OpenPodModal = lazy(() => import("./components/OpenPod/OpenPodModal"));
+
+function OpenPodModalMounter() {
+  const { activeRoom, closeRoom, sessionToken, hangoutsUser } = useHangout();
+  const { provider } = useAioha();
+  if (!activeRoom) return null;
+  // Treat the user as a real hangouts participant (vs. listen-only guest) only
+  // when we have a session token, or a wallet that can still hand one over. A
+  // stale `authenticated` flag with no signable provider must fall through to
+  // guest mode so the modal joins via /listen instead of hanging on
+  // "Authenticating with OpenPods…".
+  const canParticipate = !!sessionToken || (!!provider && provider !== Providers.HiveSigner);
+  return (
+    <Suspense fallback={null}>
+      <OpenPodModal
+        isOpen
+        onClose={closeRoom}
+        roomName={activeRoom}
+        sessionToken={sessionToken}
+        username={hangoutsUser}
+        isAuthenticated={canParticipate}
+      />
+    </Suspense>
+  );
+}
 
 // Embed studio pages
 import EmbedStudioPage from "./components/embed-studio/EmbedStudioPage";
@@ -69,15 +108,19 @@ import EmbedPreview from "./components/embed-studio/EmbedPreview";
 import FollowFeed from "./page/FollowFeed";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
+import ActiveAuthModal from "./components/ActiveAuthModal/ActiveAuthModal";
 import EditorModal from "./components/modal/EditorModal";
 import { FEATURE_EDITOR } from "./utils/config";
 import BottomNav from "./components/BottomNav/BottomNav";
 import MiniPlayer from "./components/MiniPlayer/MiniPlayer";
-import { KeyTypes } from "@aioha/aioha";
+import GlobalAudioPlayer from "./components/GlobalAudioPlayer/GlobalAudioPlayer";
+import AudioUploadModal from "./components/AudioUploadModal/AudioUploadModal";
+import { KeyTypes, Providers } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
 
-// Hive-like URL redirects: /@user → profile, /@user/permlink → watch, /@user/shorts → profile shorts tab
+// Hive-like URL redirects: /@user → profile, /@user/permlink → post view, /@user/shorts → profile shorts tab
+// PostView handles 3Speak video detection and redirects to /watch when appropriate
 const HiveLinkRedirect = () => {
   const location = useLocation();
   const path = location.pathname;
@@ -88,9 +131,10 @@ const HiveLinkRedirect = () => {
       return <Navigate to={`/p/${user}?tab=shorts`} replace />;
     }
     if (permlink) {
-      return <Navigate to={`/watch?v=${user}/${permlink}`} replace />;
+      return <Navigate to={`/post/${user}/${permlink}${location.search || ''}`} replace />;
     }
-    return <Navigate to={`/p/${user}`} replace />;
+    // Preserve query string (e.g. ?tab=audio) when redirecting /@user → /p/user
+    return <Navigate to={`/p/${user}${location.search || ''}`} replace />;
   }
   return <NotFound />;
 };
@@ -112,6 +156,7 @@ function App() {
   const { aioha, user: aiohaUser } = useAioha();
   const sidebar = useAppStore((s) => s.sidebarOpen);
   const setSideBar = useAppStore((s) => s.setSidebarOpen);
+  const sidebarHidden = useAppStore((s) => s.sidebarHidden);
   const [profileNavVisible, setProfileNavVisible] = useState(false);
 
   const [globalCloseRender, setGlobalCloseRender] = useState(false)
@@ -120,6 +165,11 @@ function App() {
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
   const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [audioUploadOpen, setAudioUploadOpen] = useState(false);
+  // Carries an in-flight blob handed off from another flow (e.g. an
+  // OpenPods recording stop). The AudioUploadModal seeds it as the
+  // first track on open with the type its sender chose.
+  const [pendingAudioTrack, setPendingAudioTrack] = useState(null);
   const loginInProgress = useRef(false); // Track if login is being processed
   const aiohaUserSeen = useRef(false); // Track if aiohaUser has ever been populated
 
@@ -142,6 +192,25 @@ function App() {
     const handleOpenEditor = () => setEditorModalOpen(true);
     window.addEventListener('open-shorts-editor', handleOpenEditor);
     return () => window.removeEventListener('open-shorts-editor', handleOpenEditor);
+  }, []);
+
+  // Listen for "open-audio-upload" custom event from UploadLinks. The
+  // event may carry a payload with a pre-recorded blob (e.g. handed off
+  // from the OpenPods modal) that the modal seeds as its first track.
+  useEffect(() => {
+    const handleOpenAudioUpload = (e) => {
+      const detail = e?.detail;
+      if (detail?.blob) {
+        setPendingAudioTrack({
+          blob: detail.blob,
+          filename: detail.filename || 'recording.ogg',
+          type: detail.type ?? null,
+        });
+      }
+      setAudioUploadOpen(true);
+    };
+    window.addEventListener('open-audio-upload', handleOpenAudioUpload);
+    return () => window.removeEventListener('open-audio-upload', handleOpenAudioUpload);
   }, []);
 
   useEffect(() => {
@@ -256,6 +325,7 @@ function App() {
   }
 
   return (
+    <HangoutContextProvider tokenStorage={import.meta.env.VITE_HANGOUTS_TOKEN_STORAGE || 'none'}>
     <HiveAuthProvider>
     <LegacyUploadProvider>
     <EmbedUploadProvider>
@@ -266,8 +336,8 @@ function App() {
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
       )}
       <div>
-        {!hideNavOnMobile && <Sidebar sidebar={sidebar} />}
-        <div className={`container ${sidebar ? "" : "large-container"} ${hideNavOnMobile ? "shorts-mobile-container" : ""}`}>
+        {!hideNavOnMobile && !sidebarHidden && <Sidebar sidebar={sidebar} />}
+        <div className={`container ${sidebar && !sidebarHidden ? "" : "large-container"} ${sidebarHidden ? "sidebar-fully-hidden" : ""} ${hideNavOnMobile ? "shorts-mobile-container" : ""}`}>
           <ScrollToTop />
           {/* <Toaster richColors position="top-right" /> */}
           <Routes>
@@ -275,28 +345,36 @@ function App() {
             <Route path="/home-feed" element={<Feed />} />
             <Route path="/follow-feed" element={<FollowFeed />} />
             <Route path="/watch" element={<Watch />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/post/:author/:permlink" element={<PostView />} />
             <Route path="/upload" element={<UploadVideo />} />
             <Route path="/firstupload" element={<FirstUploads />} />
             <Route path="/trend" element={<Trend />} />
             <Route path="/discover" element={<Discover />} />
+            <Route path="/audio" element={<Audio />} />
+            <Route path="/audio/:author/:permlink" element={<AudioPost />} />
             <Route path="/new" element={<NewVideos />} />
             <Route path="/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
             <Route path="/auth/login" element={<LoginRedirect openLoginModal={openLoginModal} />} />
              <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/callback" element={<ManteAuthCallback />} />
             {/* <Route path="/email" element={<Email/>} />  */}
             <Route path="/newlogin" element={<LoginNew />} />
-            <Route path="/studio" element={<StudioPage />} />
-            <Route path="/studio/thumbnail" element={<Thumbnail />} />
-            <Route path="/studio/details" element={<Details />} />
-            <Route path="/studio/preview" element={<Preview />} />
+            {/* Legacy /studio retired — redirect to the embed-studio non-short uploader.
+                The embed-studio defaults to non-short mode when no ?from=stories|shorts
+                query string is present, which is the case for these plain redirects. */}
+            <Route path="/studio" element={<Navigate to="/embed-studio" replace />} />
+            <Route path="/studio/thumbnail" element={<Navigate to="/embed-studio/thumbnail" replace />} />
+            <Route path="/studio/details" element={<Navigate to="/embed-studio/details" replace />} />
+            <Route path="/studio/preview" element={<Navigate to="/embed-studio/preview" replace />} />
             {/* Embed studio (uses embed.okinoko.io upload service) */}
             <Route path="/embed-studio" element={<EmbedStudioPage />} />
             <Route path="/embed-studio/thumbnail" element={<EmbedThumbnail />} />
             <Route path="/embed-studio/details" element={<EmbedDetails />} />
             <Route path="/embed-studio/preview" element={<EmbedPreview />} />
-            {/* <Route path="/studio2" element={<StudioPage2 />} /> */}
             <Route path="/draft" element={<DraftStudio />} />
             <Route path="/editvideo/:d" element={<EditVideo />} />
+            <Route path="/edit-scheduled/:permlink" element={<EditScheduledPost />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/shorts/stories" element={<ShortsStoryFeed />} />
@@ -315,13 +393,23 @@ function App() {
             <Route path="/wallet/:user" element={<Wallet />} />
             <Route path="/test" element={<ProfileModal />} />
             <Route path="/image" element={<HiveImageUploader />} />
+            <Route path="/openpods" element={<OpenPods />} />
+            <Route path="/openpods/publish" element={<OpenPodPublish />} />
+            <Route path="/openpods/:roomName" element={<OpenPods />} />
             <Route path="*" element={<HiveLinkRedirect />} />
           </Routes>
+          <OpenPodModalMounter />
         </div>
         {!hideNavOnMobile && (
           <ProfileNav isVisible={profileNavVisible} onclose={toggleProfileNav} toggleAddAccount={toggleAddAccount} openLoginModal={openLoginModal} />
         )}
         <MiniPlayer />
+        <GlobalAudioPlayer />
+        <AudioUploadModal
+          isOpen={audioUploadOpen}
+          onClose={() => { setAudioUploadOpen(false); setPendingAudioTrack(null); }}
+          initialTrack={pendingAudioTrack}
+        />
         <BottomNav openLoginModal={openLoginModal} />
         {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} /> }
         <LoginModal
@@ -334,6 +422,7 @@ function App() {
             keyType: KeyTypes.Posting
           }}
         />
+        <ActiveAuthModal />
         {FEATURE_EDITOR && (
           <EditorModal
             isOpen={editorModalOpen}
@@ -346,6 +435,7 @@ function App() {
     </EmbedUploadProvider>
     </LegacyUploadProvider>
     </HiveAuthProvider>
+    </HangoutContextProvider>
   );
 }
 

@@ -47,10 +47,10 @@ const VideoCard = ({  video, onEdit, onView, onDelete, onPublish}) => {
           </div>
         )}
         <div className="actions">
-          {video.status === 'published' ? (
+          {(video.status === 'published' || video.status === 'scheduled') ? (
             <>
-              <button 
-                className="btn btn--secondary btn--sm" 
+              <button
+                className="btn btn--secondary btn--sm"
                 onClick={() => onEdit(video.id)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -59,16 +59,19 @@ const VideoCard = ({  video, onEdit, onView, onDelete, onPublish}) => {
                 </svg>
                 Edit
               </button>
-              <button 
-                className="btn btn--secondary btn--sm" 
-                onClick={handleNavigate}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                View
-              </button>
+              {/* Scheduled posts don't have a public URL yet, so only show "View" for published. */}
+              {video.status === 'published' && (
+                <button
+                  className="btn btn--secondary btn--sm"
+                  onClick={handleNavigate}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  View
+                </button>
+              )}
               {/* <button 
                 className="btn btn--danger btn--sm" 
                 onClick={() => onDelete(video.id)}

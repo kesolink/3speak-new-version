@@ -6,29 +6,28 @@ import { Link } from "react-router-dom";
 import "./HomeGrouped.scss";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL, FIRST_UPLOADS_URL, appendNsfw } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL, appendNsfw } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
+import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
-import { TrendingIcon, NewContentIcon, FirstUploadIcon } from "../components/FeedIcons";
+import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
-  const res = await axios.get(`${FEED_URL}/apiv2/feeds/home?page=0`);
-  const data = res.data.trends || res.data;
-  return Array.isArray(data) ? data : [];
+  // Use the checker's trendingSorted feed for the "home" group — the older
+  // /apiv2/feeds/home path on legacy is gone now that FEED_URL points at the
+  // checker. trendingSorted is the broadest curated set the checker exposes
+  // (more videos than /feeds/trending).
+  const res = await axios.get(`${TRENDING_SORTED_URL}?page=1&limit=50`);
+  return res.data.videos || res.data.trends || [];
 };
 
 const fetchFollowFeed = async (username) => {
   const res = await axios.get(appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=1&limit=50`, useAppStore.getState().showNsfw));
-  return res.data?.videos || [];
-};
-
-const fetchFirstUploads = async () => {
-  const res = await axios.get(appendNsfw(`${FIRST_UPLOADS_URL}?page=1&limit=50`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 
@@ -102,9 +101,18 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
     "Home Feed": <TrendingIcon />,
     "Follow Feed": <TrendingIcon />,
     "New Content": <NewContentIcon />,
-    "First Time Uploads": <FirstUploadIcon />,
     "Trending": <TrendingIcon />
   };
+
+  // Hide the section entirely once it has finished loading with no videos,
+  // instead of showing perpetual skeletons (e.g. an empty follow feed).
+  if (!isLoading && videos.length === 0) return null;
+
+  // Adaptive row count: fill up to 3 rows, but collapse to 1–2 rows when there
+  // are only enough videos to fill them so sparse sections don't render
+  // half-empty 3-row grids. ~6 videos comfortably fill one row.
+  const ROW_FILL_TARGET = 6;
+  const rowCount = Math.min(3, Math.max(1, Math.ceil(videos.length / ROW_FILL_TARGET)));
 
   return (
     <div className="video-row">
@@ -128,9 +136,9 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
         )}
 
         <div className="video-scroll-container-horizontal" ref={scrollContainerRef}>
-          {isLoading || videos.length === 0 ? (
+          {isLoading ? (
             <div className="skeleton-horizontal-container">
-              {Array.from({ length: 12 }).map((_, index) => (
+              {Array.from({ length: 18 }).map((_, index) => (
                 <div key={`skeleton-${index}`} className="skeleton-card-horizontal">
                   <div className="skeleton video-thumbnail-skeleton"></div>
                   <div className="skeleton line-skeleton title-skeleton"></div>
@@ -146,8 +154,8 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
               ))}
             </div>
           ) : (
-            <div className="card-container-horizontal">
-              <Card3 videos={videos.slice(0, 16)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+            <div className="card-container-horizontal" style={{ "--vr-rows": rowCount }}>
+              <Card3 videos={videos.slice(0, 36)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
             </div>
           )}
         </div>
@@ -173,16 +181,12 @@ const HomeGrouped = () => {
     gcTime: 10 * 60 * 1000,
   });
 
-  const { data: firstUploadsData, isLoading: firstUploadsLoading } = useQuery({
-    queryKey: ["firstuploads-grouped", showNsfw],
-    queryFn: fetchFirstUploads,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
-
+  // Trending row is only shown for logged-in users; skip the fetch entirely
+  // when anonymous so we don't pay the request cost.
   const { data: trendingData, isLoading: trendingLoading } = useQuery({
     queryKey: ["trending-grouped", showNsfw],
     queryFn: fetchTrending,
+    enabled: authenticated,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -199,8 +203,7 @@ const HomeGrouped = () => {
     ...(homeData || []).slice(0, 16),
     ...deduplicateVideos(newContentData || []).slice(0, 16),
     ...(trendingData || []).slice(0, 16),
-    ...(firstUploadsData || []).slice(0, 16),
-  ], [homeData, newContentData, trendingData, firstUploadsData]);
+  ], [homeData, newContentData, trendingData]);
 
   const { getContentForVideo } = useContentBatch(allVideos);
 
@@ -213,7 +216,6 @@ const HomeGrouped = () => {
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: authenticated ? ["follow-feed", user] : ["home-grouped"] });
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["firstuploads-grouped"] }),
       queryClient.invalidateQueries({ queryKey: ["trending-grouped"] }),
       queryClient.invalidateQueries({ queryKey: ["newcontent-grouped"] }),
     ]);
@@ -223,6 +225,7 @@ const HomeGrouped = () => {
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container">
       <ShortsStories />
+      <OpenPodsLiveStrip />
 
       <VideoRow
         title={authenticated ? "Follow Feed" : "Home Feed"}
@@ -244,25 +247,17 @@ const HomeGrouped = () => {
         getViewCount={getViewCount}
       />
 
-      <VideoRow
-        title="Trending"
-        videos={trendingData || []}
-        linkTo="/trend"
-        isLoading={trendingLoading}
-        getContentForVideo={getContentForVideo}
-        isWatched={isWatched}
-        getViewCount={getViewCount}
-      />
-
-      <VideoRow
-        title="First Time Uploads"
-        videos={firstUploadsData || []}
-        linkTo="/firstupload"
-        isLoading={firstUploadsLoading}
-        getContentForVideo={getContentForVideo}
-        isWatched={isWatched}
-        getViewCount={getViewCount}
-      />
+      {authenticated && (
+        <VideoRow
+          title="Trending"
+          videos={trendingData || []}
+          linkTo="/trend"
+          isLoading={trendingLoading}
+          getContentForVideo={getContentForVideo}
+          isWatched={isWatched}
+          getViewCount={getViewCount}
+        />
+      )}
     </div>
     </PullToRefresh>
   );

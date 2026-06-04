@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { getHiveUrl } from '../utils/hiveNode';
 import axios from 'axios';
 import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
 import { fallbackImg } from '../utils/fixThumbnails';
@@ -11,7 +12,7 @@ import { fallbackImg } from '../utils/fixThumbnails';
  */
 async function fetchVideoThumbnail(author, permlink) {
   try {
-    const response = await axios.post(HIVE_API_URL, {
+    const response = await axios.post(getHiveUrl(), {
       jsonrpc: '2.0',
       method: 'condenser_api.get_content',
       params: [author, permlink],
@@ -60,9 +61,13 @@ export function useUserPlaylists(owner, options = {}) {
       // Filter to only return public playlists
       const publicPlaylists = playlists.filter(playlist => playlist.access === 'public');
 
-      // Fetch thumbnails for the first video in each playlist
+      // Prefer the playlist's own album cover (set via _update on the indexer).
+      // Fall back to fetching the first video's thumbnail otherwise.
       const playlistsWithThumbnails = await Promise.all(
         publicPlaylists.map(async (playlist) => {
+          if (playlist.thumbnail) return playlist;
+          const albumThumb = playlist.metadata?.album?.thumbnail;
+          if (albumThumb) return { ...playlist, thumbnail: albumThumb };
           if (playlist.items?.length > 0) {
             const firstItem = playlist.items[0];
             const thumbnail = await fetchVideoThumbnail(firstItem.author, firstItem.permlink);

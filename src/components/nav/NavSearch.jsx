@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { MdMusicNote, MdVideoLibrary, MdGroup, MdCheck, MdPerson, MdClose, MdCalendarToday, MdLabel, MdSearch } from "react-icons/md";
+import { MdMusicNote, MdVideoLibrary, MdGroup, MdCheck, MdPerson, MdClose, MdCalendarToday, MdLabel, MdSearch, MdPlaylistPlay, MdExpandMore, MdExpandLess } from "react-icons/md";
 import { RiMovieLine } from "react-icons/ri";
 import { CHECKER_URL } from "../../utils/config";
 import { useAppStore } from "../../lib/store";
@@ -18,6 +18,7 @@ const SEARCH_TYPES = [
   { key: 'video', label: 'Videos', icon: <MdVideoLibrary size={16} /> },
   { key: 'short', label: 'Shorts', icon: <RiMovieLine size={16} /> },
   { key: 'audio', label: 'Audio', icon: <MdMusicNote size={16} /> },
+  { key: 'playlist', label: 'Playlists', icon: <MdPlaylistPlay size={16} /> },
 ];
 
 const DATE_PRESETS = [
@@ -70,6 +71,7 @@ function NavSearch() {
   const [showCommunityDropdown, setShowCommunityDropdown] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState({});
 
   const navigate = useNavigate();
   const inputRef = useRef(null);
@@ -172,7 +174,29 @@ function NavSearch() {
   });
 
   const toggleFilter = useCallback((key) => {
-    setExcludedFilters(prev => ({ ...prev, [key]: !prev[key] }));
+    setExcludedFilters(prev => {
+      const wasActive = !prev[key];
+      const activeCount = SEARCH_TYPES.filter(t => !prev[t.key]).length;
+
+      // If all are active (default state), solo-select this one
+      if (activeCount === SEARCH_TYPES.length) {
+        const next = {};
+        for (const t of SEARCH_TYPES) next[t.key] = t.key !== key;
+        return next;
+      }
+
+      // If this is the only active one and we're clicking it, reset to all
+      if (wasActive && activeCount === 1) {
+        return defaultExcluded;
+      }
+
+      // Otherwise toggle this one
+      return { ...prev, [key]: !prev[key] };
+    });
+  }, []);
+
+  const toggleGroup = useCallback((key) => {
+    setCollapsedGroups(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
   const selectSuggestion = useCallback((suggestion) => {
@@ -186,6 +210,15 @@ function NavSearch() {
       setDebouncedTerm('');
       inputRef.current?.blur();
       navigate(path);
+      return;
+    }
+
+    if (suggestion.type === 'playlist') {
+      setShowSuggestions(false);
+      setSearchTerm('');
+      setDebouncedTerm('');
+      inputRef.current?.blur();
+      navigate(`/playlist/${suggestion.id}`);
       return;
     }
 
@@ -248,7 +281,7 @@ function NavSearch() {
   const hasResults = Object.keys(grouped).length > 0;
 
   return (
-    <div className="navsearch-wrap" ref={panelRef}>
+    <div className={`navsearch-wrap${searchTerm ? ' has-value' : ''}`} ref={panelRef}>
       <div className="navsearch-input-wrap" ref={suggestWrapRef}>
         <svg xmlns="http://www.w3.org/2000/svg" className="navsearch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="11" cy="11" r="7" />
@@ -320,6 +353,21 @@ function NavSearch() {
                         <img src={`https://images.hive.blog/u/${s.name}/avatar`} alt="" onError={(e) => { e.target.style.display = 'none'; }} />
                       </div>
                       <span>{s.title || s.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {groupedSuggestions.playlist?.length > 0 && (
+              <div className="discover-suggest-group">
+                <span className="discover-suggest-group-label">Playlists</span>
+                <div className="discover-suggest-badges">
+                  {groupedSuggestions.playlist.map((s, i) => (
+                    <button key={i} className="discover-suggest-badge" onMouseDown={(e) => { e.stopPropagation(); selectSuggestion(s); }}>
+                      <MdPlaylistPlay size={12} />
+                      <span>{s.name}</span>
+                      <span className="discover-suggest-count">{s.video_count}</span>
                     </button>
                   ))}
                 </div>
@@ -516,10 +564,14 @@ function NavSearch() {
                 {SEARCH_TYPES.filter(t => !communityFilter || (t.key !== 'user' && t.key !== 'community')).map(t => {
                   const items = grouped[t.key];
                   if (!items || items.length === 0) return null;
+                  const isCollapsed = !!collapsedGroups[t.key];
                   return (
                     <div key={t.key} className="discover-result-group">
-                      <h3 className="discover-group-title">{t.icon} {t.label} ({items.length})</h3>
-                      {t.key === 'community' ? (
+                      <h3 className="discover-group-title" onClick={() => toggleGroup(t.key)}>
+                        {t.icon} {t.label} ({items.length})
+                        {isCollapsed ? <MdExpandMore size={18} className="discover-group-toggle" /> : <MdExpandLess size={18} className="discover-group-toggle" />}
+                      </h3>
+                      {!isCollapsed && (t.key === 'community' ? (
                         <div className="discover-community-list">
                           {items.map(c => (
                             <Link to={`/community/${c.name}`} key={c.name} className="discover-community-card" onClick={closePanel}>
@@ -552,6 +604,20 @@ function NavSearch() {
                             </Link>
                           ))}
                         </div>
+                      ) : t.key === 'playlist' ? (
+                        <div className="discover-playlist-list">
+                          {items.map(p => (
+                            <Link to={`/playlist/${p.id}`} key={p.id} className="discover-playlist-card" onClick={closePanel}>
+                              <div className="discover-playlist-icon-wrap">
+                                <MdPlaylistPlay size={24} />
+                              </div>
+                              <div className="discover-playlist-info">
+                                <span className="discover-playlist-name">{p.name}</span>
+                                <span className="discover-playlist-meta">@{p.owner} &middot; {p.video_count} video{p.video_count !== 1 ? 's' : ''}</span>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
                       ) : (
                         <div className="discover-media-list">
                           {items.map((item, i) => (
@@ -580,7 +646,7 @@ function NavSearch() {
                             </Link>
                           ))}
                         </div>
-                      )}
+                      ))}
                     </div>
                   );
                 })}
