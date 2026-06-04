@@ -19,6 +19,8 @@ import Login from "./page/Login/Login";
 import LoginNew from "./page/Login/LoginNew";
 import { useAppStore } from "./lib/store";
 import { useEffect } from "react";
+import { checkAppVersion } from "./utils/appVersion";
+import ChangelogModal from "./components/Changelog/ChangelogModal";
 import ProfileNav from "./components/nav/ProfileNav";
 // Legacy studio is retired: /studio routes now redirect to /embed-studio
 // (the embed-studio uploader in non-short mode is the only video upload flow).
@@ -219,6 +221,15 @@ function App() {
 
   }, []);
 
+  // Record the current app version in browser storage on load. If the user upgraded
+  // from a previously stored version, expose the old version via the store so a
+  // changelog / "what's new" prompt can be shown later. First-time visitors (no stored
+  // version) get the version stored silently and never see a prompt.
+  useEffect(() => {
+    const previous = checkAppVersion();
+    if (previous) useAppStore.getState().setAppUpdatedFrom(previous);
+  }, []);
+
   // Persist the last visited non-login route so the app can return
   // users to the same page after they sign in.
   useEffect(() => {
@@ -331,6 +342,7 @@ function App() {
     <EmbedUploadProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
       <Toaster richColors position="top-right" />
+      <ChangelogModal />
       <ShortsPreloader />
       {!hideNavOnMobile && (
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
