@@ -185,6 +185,35 @@ function Watch() {
     },
   });
 
+  // Record a view once playback actually starts. We POST the player backend's
+  // /api/view (which increments the view count) directly — the SDK's
+  // recordView() lives on its API-client class, not the Player instance
+  // usePlayer returns, so it isn't reachable here. A video lives in exactly one
+  // collection, so we try 'embed' (also matches hive_permlink) then 'legacy';
+  // whichever owns it counts, and we stop. Deduped per author/permlink so
+  // seeking/pausing never double-counts.
+  const recordedViewsRef = useRef(new Set());
+  useEffect(() => {
+    if (!author || author === 'unknown' || !permlink) return;
+    if (playerState?.paused !== false) return; // only once it's really playing
+    const key = `${author}/${permlink}`;
+    if (recordedViewsRef.current.has(key)) return;
+    recordedViewsRef.current.add(key);
+    (async () => {
+      for (const type of ['embed', 'legacy']) {
+        try {
+          const res = await fetch(`${PLAYER_URL}/api/view`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner: author, permlink, type }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (data?.counted) break;
+        } catch { /* try next type */ }
+      }
+    })();
+  }, [author, permlink, playerState?.paused]);
+
   // Wrap setMuted/setVolume to persist to localStorage
   const setMuted = useCallback((muted) => {
     sdkSetMuted(muted);
