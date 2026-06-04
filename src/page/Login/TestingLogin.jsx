@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getHiveUrl } from '../../utils/hiveNode';
 import axios from 'axios';
 import { AIOHA } from '@aioha/aioha';
 import './TestingLogin.scss';
@@ -89,7 +90,7 @@ export default function TestingLogin({
 
   const getPublicKey = async (username) => {
     try {
-      const response = await axios.post(HIVE_API_URL, {
+      const response = await axios.post(getHiveUrl(), {
         jsonrpc: '2.0',
         method: 'condenser_api.get_accounts',
         params: [[username]],

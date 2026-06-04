@@ -8,9 +8,10 @@ import { Client } from '@hiveio/dhive';
 import TransferModal from '../components/Wallet/TransferModal';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { HIVE_API_NODES } from '../utils/config';
+import { getHiveClient } from '../utils/hiveNode';
 
-const client = new Client(HIVE_API_NODES);
+// Shared session-picked Hive client (healthy-node-first w/ fast failover).
+const client = getHiveClient();
 
 function Wallet() {
   const { user: currentUser } = useAppStore();

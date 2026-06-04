@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { getHiveClient } from '../utils/hiveNode';
 import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Card3 from '../components/Cards/Card3';
@@ -17,7 +18,7 @@ import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
 
-const hiveClient = new Client(HIVE_API_NODES);
+const hiveClient = getHiveClient();
 
 // Lazy-load the Hive markdown renderer
 let rendererPromise = null;
@@ -183,6 +184,35 @@ function Watch() {
       maxBufferSize: 60 * 1000 * 1000, // 60 MB
     },
   });
+
+  // Record a view once playback actually starts. We POST the player backend's
+  // /api/view (which increments the view count) directly — the SDK's
+  // recordView() lives on its API-client class, not the Player instance
+  // usePlayer returns, so it isn't reachable here. A video lives in exactly one
+  // collection, so we try 'embed' (also matches hive_permlink) then 'legacy';
+  // whichever owns it counts, and we stop. Deduped per author/permlink so
+  // seeking/pausing never double-counts.
+  const recordedViewsRef = useRef(new Set());
+  useEffect(() => {
+    if (!author || author === 'unknown' || !permlink) return;
+    if (playerState?.paused !== false) return; // only once it's really playing
+    const key = `${author}/${permlink}`;
+    if (recordedViewsRef.current.has(key)) return;
+    recordedViewsRef.current.add(key);
+    (async () => {
+      for (const type of ['embed', 'legacy']) {
+        try {
+          const res = await fetch(`${PLAYER_URL}/api/view`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner: author, permlink, type }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (data?.counted) break;
+        } catch { /* try next type */ }
+      }
+    })();
+  }, [author, permlink, playerState?.paused]);
 
   // Wrap setMuted/setVolume to persist to localStorage
   const setMuted = useCallback((muted) => {
@@ -465,7 +495,12 @@ function Watch() {
 
         if (!cancelled) setCommentMarkers(markers);
       } catch (err) {
-        console.error('Failed to fetch comments for markers:', err);
+        // "Invalid parameters" → post doesn't exist on Hive (social-only, deleted,
+        // or bad permlink). Markers are non-essential, so log quietly.
+        const benign = err?.name === 'RPCError';
+        (benign ? console.warn : console.error)(
+          `[markers] ${author}/${permlink}:`, err?.jse_shortmsg || err?.message || err,
+        );
       }
     })();
 
@@ -731,7 +766,10 @@ function Watch() {
           _hiveFallback: true,
         });
       } catch (err) {
-        console.error('Hive fallback failed:', err);
+        const benign = err?.name === 'RPCError';
+        (benign ? console.warn : console.error)(
+          `[hive-fallback] ${author}/${permlink}:`, err?.jse_shortmsg || err?.message || err,
+        );
       } finally {
         if (!cancelled) { setHiveFallbackLoading(false); setHiveFallbackDone(true); }
       }

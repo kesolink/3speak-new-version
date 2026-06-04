@@ -1,6 +1,7 @@
 import { Client, PrivateKey } from "@hiveio/dhive";
+import { getHiveClient } from '../utils/hiveNode';
 
-const client = new Client(["https://api.hive.blog"]); // Use a Hive RPC node
+const client = getHiveClient(); // Use a Hive RPC node
 
 export const createHiveCommunityKY = async (username, communityName, keys, activeKey) => {
   return new Promise(async (resolve, reject) => {

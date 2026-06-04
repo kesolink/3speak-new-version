@@ -142,9 +142,13 @@ const handleTagChange = (e) => {
           <div className="wrap">
           <span>Separate multiple tags with </span> <span>Space</span>
           </div>
-          {/* Show the tags */}
+          {/* Show the tags — shorts get the hardcoded shorts taxonomy prepended;
+              regular video uploads only show what the user actually typed. */}
         <div className="preview-tags">
-        <span>{['3speak', 'hive-181335', 'short', ...tagsPreview.filter(t => !['3speak', 'hive-181335', 'short'].includes(t))].map((item, index) => (
+        <span>{(fromStories
+            ? ['3speak', 'hive-181335', 'short', ...tagsPreview.filter(t => !['3speak', 'hive-181335', 'short'].includes(t))]
+            : tagsPreview
+          ).map((item, index) => (
       <span className="item" key={index} style={{ marginRight: '8px' }}>
         {item}
       </span>
@@ -203,7 +207,50 @@ const handleTagChange = (e) => {
           </div>
         </div>
 
-        {/* Schedule section hidden for now */}
+        {/* Schedule section — only for regular videos (not shorts). When toggled on,
+            the post is queued on our checker backend and auto-broadcast at the chosen
+            time by the @threespeak account (requires the user to grant threespeak as
+            a posting account_auth on first schedule). */}
+        {!fromStories && (
+          <div className="schedule-box-wrap" style={{ marginTop: '12px' }}>
+            <div className="schedule-wrap toggle-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>Schedule this post</span>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={isScheduled}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsScheduled(checked);
+                    if (checked && !scheduleDateTime) {
+                      // Prefill with min (now + 1h) so the input isn't empty.
+                      const { minFormatted, minDate } = getMinMaxDates();
+                      setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16));
+                    }
+                  }}
+                />
+                <span className="toggle-track"><span className="toggle-thumb" /></span>
+              </label>
+            </div>
+            {isScheduled && (() => {
+              const { minFormatted, maxFormatted } = getMinMaxDates();
+              return (
+                <div style={{ marginTop: '8px' }}>
+                  <input
+                    type="datetime-local"
+                    value={scheduleDateTime}
+                    min={minFormatted}
+                    max={maxFormatted}
+                    onChange={(e) => setScheduleDateTime(e.target.value)}
+                  />
+                  <div style={{ fontSize: '0.85em', opacity: 0.7, marginTop: '4px' }}>
+                    Range: at least 15 minutes from now, up to 90 days. Posted automatically by @threespeak on your behalf — you'll be asked to authorize this once.
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         <div className="submit-btn-wrap">
           <button

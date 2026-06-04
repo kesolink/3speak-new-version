@@ -23,7 +23,7 @@ export function formatDateTimeLocal(date) {
  */
 export function getMinMaxDates() {
   const now = Date.now();
-  const minDate = new Date(now + 60 * 60 * 1000); // +1 hour
+  const minDate = new Date(now + 15 * 60 * 1000); // +15 minutes
   const maxDate = new Date(now + 90 * 24 * 60 * 60 * 1000); // +90 days
   
   return {

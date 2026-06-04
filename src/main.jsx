@@ -1,6 +1,10 @@
 // MUST be first import - sets up Buffer before other modules
 import './polyfills';
 
+// Pick the healthy Hive RPC node for this session as early as possible.
+import { ensureHealthyNode } from './utils/hiveNode';
+ensureHealthyNode();
+
 import React from 'react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
