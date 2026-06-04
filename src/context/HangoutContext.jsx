@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { HangoutsApiClient, loginWithSignFn } from '@snapie/hangouts-core';
+import { HangoutsApiClient, loginWithAioha } from '@snapie/hangouts-core';
+import { Providers } from '@aioha/aioha';
 import { useAppStore } from '../lib/store';
-import aioha, { KeyTypes } from '../hive-api/aioha';
+import aioha from '../hive-api/aioha';
 
 const HangoutContext = createContext(undefined);
 
@@ -108,6 +109,15 @@ export function HangoutContextProvider({ children, tokenStorage = 'none' }) {
       return cached;
     }
 
+    // No cached token, so we'd have to sign a fresh challenge. That needs a
+    // wallet provider that can actually sign a message. The app's
+    // `authenticated` flag can be true without one (a restored/stale session,
+    // or a provider like HiveSigner that can't sign messages) — in that case
+    // don't start a signature that can never complete. Bail and let the caller
+    // stay in OpenPods guest mode instead of hanging on "Waiting for wallet…".
+    const provider = aioha.getCurrentProvider?.() ?? null;
+    if (!provider || provider === Providers.HiveSigner) return null;
+
     // Deduplicate: if a login is already in-flight, await it
     if (pendingLogin?.user === requestedUser) {
       try {
@@ -130,13 +140,10 @@ export function HangoutContextProvider({ children, tokenStorage = 'none' }) {
 
     setSessionLoading(true);
 
-    const signFn = async (message) => {
-      const res = await aioha.signMessage(message, KeyTypes.Posting);
-      if (!res.success) throw new Error(res.error || 'Failed to sign hangouts challenge');
-      return res.result;
-    };
-
-    const loginPromise = loginWithSignFn(hangoutsClient, requestedUser, signFn)
+    // Hand the already-authenticated Aioha session to the hangouts server.
+    // loginWithAioha resolves the username, fetches a challenge, and signs it
+    // with the active provider's posting key (Keychain, HiveAuth, PeakVault, …).
+    const loginPromise = loginWithAioha(hangoutsClient, aioha, requestedUser)
       .then(session => {
         const tokenUser = session.username || requestedUser;
         sessionCache.set(tokenUser, session.token);

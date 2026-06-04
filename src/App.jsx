@@ -78,8 +78,14 @@ const OpenPodModal = lazy(() => import("./components/OpenPod/OpenPodModal"));
 
 function OpenPodModalMounter() {
   const { activeRoom, closeRoom, sessionToken, hangoutsUser } = useHangout();
-  const { authenticated } = useAppStore();
+  const { provider } = useAioha();
   if (!activeRoom) return null;
+  // Treat the user as a real hangouts participant (vs. listen-only guest) only
+  // when we have a session token, or a wallet that can still hand one over. A
+  // stale `authenticated` flag with no signable provider must fall through to
+  // guest mode so the modal joins via /listen instead of hanging on
+  // "Authenticating with OpenPods…".
+  const canParticipate = !!sessionToken || (!!provider && provider !== Providers.HiveSigner);
   return (
     <Suspense fallback={null}>
       <OpenPodModal
@@ -88,7 +94,7 @@ function OpenPodModalMounter() {
         roomName={activeRoom}
         sessionToken={sessionToken}
         username={hangoutsUser}
-        isAuthenticated={authenticated}
+        isAuthenticated={canParticipate}
       />
     </Suspense>
   );
@@ -109,7 +115,7 @@ import BottomNav from "./components/BottomNav/BottomNav";
 import MiniPlayer from "./components/MiniPlayer/MiniPlayer";
 import GlobalAudioPlayer from "./components/GlobalAudioPlayer/GlobalAudioPlayer";
 import AudioUploadModal from "./components/AudioUploadModal/AudioUploadModal";
-import { KeyTypes } from "@aioha/aioha";
+import { KeyTypes, Providers } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
 

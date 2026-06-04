@@ -38,7 +38,7 @@ import WatchLaterPlaylistCard from "../components/Cards/WatchLaterPlaylistCard";
 import UserAudioList from "../components/Userprofilepage/UserAudioList";
 import { createPlaylist } from "../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
-import HiveAvatar from "../components/HiveAvatar/HiveAvatar";
+import ProfileHeader from "../components/ProfileHeader/ProfileHeader";
 
 // Reserved playlist name for Watch Later
 const WATCH_LATER_NAME = 'Watch Later';
@@ -353,85 +353,68 @@ function ProfilePage() {
   return (
     <div className="profile-page-container">
       {/* ================= PROFILE HEADER ================= */}
-      <div className="profile-card">
-        <div className="profile-header">
-          <img
-            className="gradient-bg"
-            src={`https://images.hive.blog/u/${user}/cover`}
-            alt=""
-          />
-        </div>
+      <ProfileHeader
+        username={user}
+        name={user}
+        fetchBio
+        badges={
+          <>
+            <span className="status-dot">
+              <span className="dot" /> Verified creator
+            </span>
+            <SocialLinks
+              hiveUsername={user}
+              refreshKey={socialLinksRefreshKey}
+              canDelete
+              onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
+            />
+            <button
+              type="button"
+              className="add-social-link-btn"
+              onClick={() => setShowSocialLinkModal(true)}
+              title="Link an external profile"
+            >
+              <FaPlus /> Add profile
+            </button>
+          </>
+        }
+        actions={
+          <>
+            <button
+              className="btn btn-primary"
+              onClick={() => setShow("follower")}
+            >
+              Followers{" "}
+              {follower?.follower_count ?? (
+                <Quantum size="15" speed="1.75" color="red" />
+              )}
+            </button>
 
-        <div className="profile-body">
-          <div className="top-section">
-            <div className="left-info">
-              <div className="avatar">
-                <HiveAvatar username={user} size={null} alt="avatar" badgeSize={16} />
-              </div>
-
-              <div className="user-meta">
-                <h2>{user}</h2>
-
-                <div className="user-badges">
-                  <span className="status-dot">
-                    <span className="dot" /> Verified creator
-                  </span>
-                  <SocialLinks
-                    hiveUsername={user}
-                    refreshKey={socialLinksRefreshKey}
-                    canDelete
-                    onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
-                  />
-                  <button
-                    type="button"
-                    className="add-social-link-btn"
-                    onClick={() => setShowSocialLinkModal(true)}
-                    title="Link an external profile"
-                  >
-                    <FaPlus /> Add profile
-                  </button>
-                </div>
-              </div>
-
-            </div>
-
-            <div className="button-group">
-              <button
-                className="btn btn-primary"
-                onClick={() => setShow("follower")}
-              >
-                Followers{" "}
-                {follower?.follower_count ?? (
-                  <Quantum size="15" speed="1.75" color="red" />
-                )}
-              </button>
-
-              <button
-                className="btn btn-secondary"
-                onClick={async () => {
-                  const profileUrl = `${window.location.origin}/@${user}`;
-                  const shareData = { title: `${user} on 3Speak`, url: profileUrl };
-                  try {
-                    if (navigator.share && navigator.canShare?.(shareData)) {
-                      await navigator.share(shareData);
-                    } else {
-                      await navigator.clipboard.writeText(profileUrl);
-                      toast.success('Profile link copied to clipboard!');
-                    }
-                  } catch (err) {
-                    if (err.name !== 'AbortError') {
-                      await navigator.clipboard.writeText(profileUrl);
-                      toast.success('Profile link copied to clipboard!');
-                    }
+            <button
+              className="btn btn-secondary"
+              onClick={async () => {
+                const profileUrl = `${window.location.origin}/@${user}`;
+                const shareData = { title: `${user} on 3Speak`, url: profileUrl };
+                try {
+                  if (navigator.share && navigator.canShare?.(shareData)) {
+                    await navigator.share(shareData);
+                  } else {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success('Profile link copied to clipboard!');
                   }
-                }}
-              >
-                <IoMdShare />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+                } catch (err) {
+                  if (err.name !== 'AbortError') {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success('Profile link copied to clipboard!');
+                  }
+                }
+              }}
+            >
+              <IoMdShare />
+            </button>
+          </>
+        }
+      />
 
       {/* ================= TOGGLE ================= */}
       <div className="toggle-wrap">

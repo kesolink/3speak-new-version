@@ -4,9 +4,6 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
-  server: {
-    allowedHosts: ['3speak.okinoko.io'],
-  },
   plugins: [
     react(),
     nodePolyfills({
@@ -210,7 +207,7 @@ export default defineConfig({
   },
 
   server: {
-    allowedHosts: ["3speak.okinoko.io"],
+    allowedHosts: ["3speak.okinoko.io", "preview.3speak.tv"],
     proxy: {
       // Proxy upload API calls to video.3speak.tv to avoid CORS issues in dev.
       // In production, VITE_UPLOAD_URL should point directly to video.3speak.tv.

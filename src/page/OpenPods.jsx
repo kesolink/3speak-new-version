@@ -3,6 +3,7 @@ import { HangoutsProvider, RoomLobby } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAioha } from '@aioha/react-ui';
+import { Providers } from '@aioha/aioha';
 import { useHangout } from '../context/HangoutContext';
 import { useAppStore } from '../lib/store';
 import { commentWithAioha } from '../hive-api/aioha';
@@ -24,17 +25,25 @@ const HANGOUT_BASE_URL = 'https://3speak.tv/openpods';
 export default function OpenPods() {
   const { openRoom, sessionToken, sessionLoading, hangoutsUser, retryLogin } = useHangout();
   const { authenticated, user } = useAppStore();
-  const { aioha } = useAioha();
+  const { aioha, provider, user: aiohaUser } = useAioha();
   const navigate = useNavigate();
   const { roomName: roomNameFromUrl } = useParams();
 
-  // Lazy login: HangoutContext doesn't auto-sign on auth change anymore — only
-  // when the user actively opens Hangouts. Landing on this page counts.
+  // A session we can actually hand over to OpenPods: the user is signed in on
+  // 3Speak with a wallet that can sign a challenge. HiveSigner can't sign
+  // messages, and a stale `authenticated` flag with no live provider can't
+  // either — neither counts.
+  const canHandover = !!provider && provider !== Providers.HiveSigner && !!aiohaUser;
+
+  // If they're genuinely signed in on 3Speak, hand that session over in the
+  // background so hosting/speaking lights up automatically. Otherwise do
+  // nothing — they browse as a guest and sign on demand (button below).
+  // Either way the lobby renders immediately and never blocks.
   useEffect(() => {
-    if (authenticated && user && !sessionToken && !sessionLoading) {
-      retryLogin(user);
+    if (canHandover && !sessionToken && !sessionLoading) {
+      retryLogin(aiohaUser || user);
     }
-  }, [authenticated, user, sessionToken, sessionLoading, retryLogin]);
+  }, [canHandover, aiohaUser, user, sessionToken, sessionLoading, retryLogin]);
 
   // Deep-link: /openpods/:roomName auto-opens the modal once. We track the
   // last-opened name so closing the modal doesn't immediately reopen on the
@@ -86,64 +95,45 @@ export default function OpenPods() {
     openRoom(roomName);
   };
 
-  // Unauthenticated visitors get a listen-only browse: they can see
-  // active OpenPods and drop into any room as a guest. The SDK's
-  // `guestFallback` on HangoutsRoom auto-calls /listen for them.
-  // Skip the wallet-sign wait below since they have no Hive account.
-  if (!authenticated) {
-    return (
-      <div className="openpods-page" data-hh-theme="dark">
-        <HangoutsProvider
-          apiBaseUrl={API_URL}
-          livekitServerUrl={LK_URL}
-          imageServerApiKey={IMAGE_KEY || undefined}
-        >
-          <RoomLobby
-            onJoinRoom={handleJoinRoom}
-            onRoomCreated={handleRoomCreated}
-            allowGuestBrowse
-          />
-        </HangoutsProvider>
-        <div className="openpods-guest-cta">
-          <button className="openpods-login-btn" onClick={() => navigate('/login')}>
-            Sign in with Hive to host or speak
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Wait for the Hangouts session token — without it HangoutsProvider would
-  // show its own internal login form (wrong UX) and any join call would 401.
-  if (sessionLoading || !sessionToken) {
-    // While the user's wallet is processing the signing request, surface
-    // *which* wallet to look at and *what* to do there. HiveAuth in
-    // particular silently waits on a phone push otherwise.
-    const provider = aioha?.getCurrentProvider?.() ?? null;
-    const prompt = providerSignPrompt(provider);
-    return (
-      <div className="openpods-page">
-        <div className="openpods-connecting">
-          <span className="openpods-connecting__action">{prompt}</span>
-        </div>
-      </div>
-    );
-  }
-
+  // Single guest-first path: the lobby always renders, so visitors can browse
+  // active OpenPods and drop into any room as listen-only guests (the SDK's
+  // `allowGuestBrowse` / `guestFallback` handle the /listen flow). A hangouts
+  // `sessionToken` — handed over from the user's 3Speak wallet session — simply
+  // unlocks hosting and speaking on top of that. We never block on it.
   return (
     <div className="openpods-page" data-hh-theme="dark">
       <HangoutsProvider
         apiBaseUrl={API_URL}
         livekitServerUrl={LK_URL}
         imageServerApiKey={IMAGE_KEY || undefined}
-        sessionToken={sessionToken}
+        sessionToken={sessionToken || undefined}
         username={hangoutsUser || undefined}
+        aioha={aioha}
       >
         <RoomLobby
           onJoinRoom={handleJoinRoom}
           onRoomCreated={handleRoomCreated}
+          allowGuestBrowse
         />
       </HangoutsProvider>
+
+      {/* No session yet → show the right call-to-action without blocking the
+          lobby. Signing in progress · can hand over on demand · not signed in. */}
+      {!sessionToken && (
+        <div className="openpods-guest-cta">
+          {sessionLoading ? (
+            <span className="openpods-connecting__action">{providerSignPrompt(provider)}</span>
+          ) : canHandover ? (
+            <button className="openpods-login-btn" onClick={() => retryLogin(aiohaUser || user)}>
+              Enable hosting &amp; speaking
+            </button>
+          ) : (
+            <button className="openpods-login-btn" onClick={() => navigate('/login')}>
+              Sign in with Hive to host or speak
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getHiveUrl } from '../utils/hiveNode';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
@@ -16,16 +16,50 @@ import { isLoggedIn } from '../hive-api/aioha';
 
 import './Audio.scss';
 
+// Horizontal tile rail whose height adapts to how many tiles there are:
+// - everything fits in one visible row  → 1 row
+// - more than two rows' worth of tiles  → 3 rows
+// - otherwise                           → 2 rows (the default)
+// Column count is measured from the actual rendered width so it stays correct
+// across breakpoints and window resizes.
+function AudioTileRow({ count, children }) {
+  const ref = useRef(null);
+  const [rows, setRows] = useState(2);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const compute = () => {
+      const first = el.firstElementChild;
+      if (!first) return;
+      const colW = first.getBoundingClientRect().width;
+      if (!colW) return;
+      const gap = parseFloat(getComputedStyle(el).columnGap) || 12;
+      const perRow = Math.max(1, Math.floor((el.clientWidth + gap) / (colW + gap)));
+      setRows(count <= perRow ? 1 : count > perRow * 2 ? 3 : 2);
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [count]);
+
+  return (
+    <div className="audio-tile-row" ref={ref} style={{ '--audio-rows': rows }}>
+      {children}
+    </div>
+  );
+}
+
 const SECTION_CONFIG = {
   popular:       { label: 'Popular',       icon: 'fa-solid fa-fire' },
   recent:        { label: 'New Releases',  icon: 'fa-solid fa-clock' },
   podcast:       { label: 'Podcasts',      icon: 'fa-solid fa-podcast' },
-  voice_message: { label: 'Voice Snaps',   icon: 'fa-solid fa-microphone' },
   song:          { label: 'Songs',         icon: 'fa-solid fa-music' },
   audiobook:     { label: 'Audiobooks',    icon: 'fa-solid fa-book-open' },
   interview:     { label: 'Interviews',    icon: 'fa-solid fa-comments' },
 };
-const SECTION_ORDER = ['popular', 'recent', 'podcast', 'voice_message', 'song', 'audiobook', 'interview'];
+const SECTION_ORDER = ['popular', 'recent', 'podcast', 'song', 'audiobook', 'interview'];
 
 const DATE_PRESETS = [
   { label: 'Today', days: 1 },
@@ -311,7 +345,7 @@ function Audio() {
     return (
       <section key={k} className="audio-section">
         <h2 className="audio-section-title"><i className={conf.icon} /> {conf.label}</h2>
-        <div className="audio-tile-row">{items.map((item, idx) => <AudioTile key={item._id || idx} {...tp(item, items)} />)}</div>
+        <AudioTileRow count={items.length}>{items.map((item, idx) => <AudioTile key={item._id || idx} {...tp(item, items)} />)}</AudioTileRow>
       </section>
     );
   };
@@ -447,9 +481,9 @@ function Audio() {
                   <i className="fa-solid fa-compact-disc" /> Albums &amp; Playlists
                   <span className="audio-section-count">{all.length}</span>
                 </h2>
-                <div className="audio-tile-row">
+                <AudioTileRow count={all.length}>
                   {all.map(p => <AudioPlaylistTile key={p.id} playlist={p} kind={p._kind} />)}
-                </div>
+                </AudioTileRow>
               </section>
             );
           })()}

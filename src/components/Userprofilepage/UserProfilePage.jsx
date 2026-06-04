@@ -31,7 +31,7 @@ import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
 import UserAudioList from './UserAudioList';
 import SocialLinks from './SocialLinks';
-import HiveAvatar from '../HiveAvatar/HiveAvatar';
+import ProfileHeader from '../ProfileHeader/ProfileHeader';
 
 
 
@@ -290,79 +290,69 @@ const {
 
   return (
     <div className="profile-page-container">
-      <div className="profile-card">
-        <div className="profile-header">
-          <img className="gradient-bg" src={`https://images.hive.blog/u/${user}/cover`} alt="" />
-        </div>
-      <div className="profile-body">
-          <div className="top-section">
-            <div className="left-info">
-              <div className="avatar">
-                <HiveAvatar username={user} size={null} alt="Profile avatar" badgeSize={16} />
-              </div>
-              <div className="user-meta">
-                <h2>{user}</h2>
-                <div className="user-badges">
-                  <span className="status-dot">
-                    <span className="dot"></span>Verified creator
-                  </span>
-                  <SocialLinks hiveUsername={user} />
-                </div>
-              </div>
-            </div>
-      
-            <div className="button-group">
-              <button className="btn btn-primary" onClick={() => setShow("follower")}>
-                Followers{" "}
-                  {follower?.follower_count !== undefined ? (
-                    follower.follower_count
-                  ) : (
-                    <Quantum size="15" speed="1.75" color="red" />
-                  )}
-              </button>
-              {authenticated && (
-                <button
-                  className={`btn ${isFollowing ? 'btn-following' : 'btn-follow'}`}
-                  onClick={handleFollowToggle}
-                  disabled={followLoading}
-                >
-                  {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
-                </button>
+      <ProfileHeader
+        username={user}
+        name={user}
+        fetchBio
+        badges={
+          <>
+            <span className="status-dot">
+              <span className="dot"></span>Verified creator
+            </span>
+            <SocialLinks hiveUsername={user} />
+          </>
+        }
+        actions={
+          <>
+            <button className="btn btn-primary" onClick={() => setShow("follower")}>
+              Followers{" "}
+              {follower?.follower_count !== undefined ? (
+                follower.follower_count
+              ) : (
+                <Quantum size="15" speed="1.75" color="red" />
               )}
-                    <button
-                      className="btn btn-secondary"
-                      onClick={async () => {
-                        const profileUrl = `${window.location.origin}/@${user}`;
-                        const shareData = { title: `${user} on 3Speak`, text: `Follow ${user} on 3Speak`, url: profileUrl };
-                        try {
-                          if (navigator.share && navigator.canShare?.(shareData)) {
-                            await navigator.share(shareData);
-                          } else {
-                            await navigator.clipboard.writeText(profileUrl);
-                            toast.success('Profile link copied to clipboard!');
-                          }
-                        } catch (err) {
-                          if (err.name !== 'AbortError') {
-                            await navigator.clipboard.writeText(profileUrl);
-                            toast.success('Profile link copied to clipboard!');
-                          }
-                        }
-                      }}
-                    >
-                      <IoMdShare />
-                    </button>
-                    <button
-                      className={`btn btn-secondary${isReported('user', user) ? ' reported' : ''}`}
-                      onClick={() => setIsReportOpen(true)}
-                      title="Report user"
-                    >
-                      <MdFlag />
-                    </button>
-
-            </div>
-          </div>
-        </div>
-        </div>
+            </button>
+            {authenticated && (
+              <button
+                className={`btn ${isFollowing ? 'btn-following' : 'btn-follow'}`}
+                onClick={handleFollowToggle}
+                disabled={followLoading}
+              >
+                {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
+              </button>
+            )}
+            <button
+              className="btn btn-secondary"
+              onClick={async () => {
+                const profileUrl = `${window.location.origin}/@${user}`;
+                const shareData = { title: `${user} on 3Speak`, text: `Follow ${user} on 3Speak`, url: profileUrl };
+                try {
+                  if (navigator.share && navigator.canShare?.(shareData)) {
+                    await navigator.share(shareData);
+                  } else {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success('Profile link copied to clipboard!');
+                  }
+                } catch (err) {
+                  if (err.name !== 'AbortError') {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success('Profile link copied to clipboard!');
+                  }
+                }
+              }}
+            >
+              <IoMdShare />
+            </button>
+            <button
+              className={`btn btn-secondary${isReported('user', user) ? ' reported' : ''}`}
+              onClick={() => setIsReportOpen(true)}
+              title="Report user"
+            >
+              <MdFlag />
+            </button>
+          </>
+        }
+      />
       <div className="toggle-wrap">
         <div className="wrap">
           <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>

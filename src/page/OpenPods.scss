@@ -52,6 +52,12 @@
   }
 }
 
+.openpods-guest-cta {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
 .openpods-login-btn {
   background: var(--accent-primary, #e53935);
   color: #fff;

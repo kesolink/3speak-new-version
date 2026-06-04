@@ -9,6 +9,8 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import Card3 from "../Cards/Card3";
 import CardSkeleton from "../Cards/CardSkeleton";
 import Com_PageSke_Loader from "./Com_PageSke_Loader";
+import ProfileHeader from "../ProfileHeader/ProfileHeader";
+import HiveMarkdown from "../HiveMarkdown/HiveMarkdown";
 import { useContentBatch } from "../../hooks/useContentBatch";
 import { useWatchHistory } from "../../hooks/useWatchHistory";
 import useViewCounts from "../../hooks/useViewCounts";
@@ -19,7 +21,7 @@ const client = getHiveClient();
 function CommunityPage() {
   const { communityName: id } = useParams();
   const [dataMain, setDataMain] = useState(null);
-  const [trend, setTrend] = useState(true); // true = trending, false = new
+  const [trend, setTrend] = useState(false); // false = new (default), true = trending
 
   // Fetch community info
   const fetchCommunityData = async (id) => {
@@ -108,18 +110,15 @@ function CommunityPage() {
 
   return (
     <div className="community-page-wrap">
-      <div className="com-profile-img-wrap">
-        <img src={`https://images.hive.blog/u/${id}/cover`} alt="" />
-        <div className="wrap">
-          <img src={`https://images.hive.blog/u/${id}/avatar`} alt="" />
-          <span>{dataMain?.title || id}</span>
-        </div>
-      </div>
+      <ProfileHeader
+        username={id}
+        name={dataMain?.title || id}
+        bio={dataMain?.about}
+      />
 
-      <div className="title-wrap">
-        <h3>{dataMain?.about}</h3>
-        <p>{dataMain?.description}</p>
-      </div>
+      {dataMain?.description ? (
+        <HiveMarkdown body={dataMain.description} className="community-description" collapsible />
+      ) : null}
 
       <hr />
 
@@ -130,16 +129,16 @@ function CommunityPage() {
         </div> */}
         <div className="trend-btn-wrap">
           <span
-            className={trend ? "active" : ""}
-            onClick={() => setTrend(true)}
-          >
-            Trend
-          </span>
-          <span
             className={!trend ? "active" : ""}
             onClick={() => setTrend(false)}
           >
             New
+          </span>
+          <span
+            className={trend ? "active" : ""}
+            onClick={() => setTrend(true)}
+          >
+            Trending
           </span>
         </div>
       </div>

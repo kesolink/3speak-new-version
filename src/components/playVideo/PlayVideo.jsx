@@ -49,7 +49,10 @@ import EditorModal from '../modal/EditorModal';
 import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
 import ReportModal, { isReported } from '../modal/ReportModal';
 import EditVideoModal from './EditVideoModal';
-import { MdFlag, MdEdit } from 'react-icons/md';
+import { MdFlag, MdEdit, MdAutoAwesome } from 'react-icons/md';
+import useTitleMeta from '../../hooks/useTitleMeta';
+import TitleTranslate from '../TitleTranslate/TitleTranslate';
+import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
@@ -62,6 +65,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
   // Mobile collapsible details
   const [mobileDetailsExpanded, setMobileDetailsExpanded] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const titleMeta = useTitleMeta(author, permlink);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   // State
@@ -745,7 +750,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
           <div className={`video-title-row${!mobileDetailsExpanded ? ' title-collapsed' : ''}`}>
             <div className="video-title-col">
-              <h3>{videoDetails?.title}</h3>
+              <div className="video-title-line">
+                <h3>{titleMeta.translatedTitle || videoDetails?.title}</h3>
+                <TitleTranslate
+                  languages={titleMeta.availableLangs}
+                  selectedLang={titleMeta.selectedLang}
+                  onSelect={titleMeta.selectLanguage}
+                />
+              </div>
               <div className="mobile-title-meta">
                 <AuthorBadge
                   author={videoDetails?.author?.id}
@@ -897,6 +909,17 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               )}
 
               <div className="info-buttons-right">
+                {titleMeta.hasSummary && (
+                  <button
+                    type="button"
+                    className="summary-btn"
+                    onClick={() => setSummaryOpen(true)}
+                    title="AI summary of this video"
+                  >
+                    <MdAutoAwesome size={15} />
+                    <span>Summary</span>
+                  </button>
+                )}
                 {authenticated && isLoggedIn() && !isVoted && (
                   // Sits to the left of the share button; opens the
                   // same vote tooltip the upvote count uses, so the
@@ -1134,6 +1157,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         onClose={() => setIsReportOpen(false)}
         type="video"
         target={{ author, permlink }}
+      />
+
+      <SummaryModal
+        isOpen={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        summary={titleMeta.summary}
+        title={titleMeta.translatedTitle || videoDetails?.title}
       />
 
       <EditVideoModal
