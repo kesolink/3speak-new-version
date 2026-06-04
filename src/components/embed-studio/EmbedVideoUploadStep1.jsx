@@ -61,6 +61,13 @@ function EmbedVideoUploadStep1() {
       return;
     }
 
+    // Embed uploads are capped at 5GB (enforced server-side too).
+    const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("Video is too large. Maximum allowed size is 5GB.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -139,6 +146,9 @@ function EmbedVideoUploadStep1() {
               {videoFile && (
                 <div className='isselected-wrap'>
                   <span>Video Selected. Proceed to upload thumbnail</span>
+                  <div className="upload-info-note">
+                    Info: Your video will get uploaded after finalizing the last step.
+                  </div>
                   <img className="arrow-in" src={Arrow} alt="" />
                 </div>
               )}

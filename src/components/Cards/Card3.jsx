@@ -139,13 +139,23 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                 noLink
                 compact
               />
-              {getViewCount && getViewCount(video.author?.username || video.author || video.owner, video.permlink) !== null && (
-                <ViewCount
-                  views={getViewCount(video.author?.username || video.author || video.owner, video.permlink)}
-                  watched={isWatched?.(video.author?.username || video.author || video.owner, video.permlink) === true}
-                  formatViews={formatViewCount}
-                />
-              )}
+              {(() => {
+                const vcAuthor = video.author?.username || video.author || video.owner;
+                // Prefer the count already in the feed payload (the only source that
+                // resolves embed videos — /views can't look them up by hive permlink).
+                // Fall back to the batched /views fetch for legacy videos.
+                const feedViews = video.views ?? video.stats?.num_views;
+                const fetchedViews = getViewCount?.(vcAuthor, video.permlink);
+                const resolvedViews = feedViews != null ? feedViews : fetchedViews;
+                if (resolvedViews == null) return null;
+                return (
+                  <ViewCount
+                    views={resolvedViews}
+                    watched={isWatched?.(vcAuthor, video.permlink) === true}
+                    formatViews={formatViewCount}
+                  />
+                );
+              })()}
             </div>
 
             {/* Bottom actions */}
