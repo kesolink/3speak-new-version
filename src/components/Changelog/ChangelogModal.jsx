@@ -3,6 +3,7 @@ import { IoClose } from 'react-icons/io5';
 import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { CHANGELOG, changelogSince } from '../../changelog';
+import { markVersionSeen } from '../../utils/appVersion';
 import logo from '../../assets/image/3S_logo.svg';
 import logoDark from '../../assets/image/3S_logodark.png';
 import './ChangelogModal.scss';
@@ -42,8 +43,15 @@ export default function ChangelogModal() {
       setOpen(true);
       return;
     }
-    if (appUpdatedFrom) setOpen(true);
-  }, [appUpdatedFrom]);
+    if (!appUpdatedFrom) return;
+    // Version bumped without a changelog entry for it — nothing to show, just advance.
+    if (changelogSince(appUpdatedFrom).length === 0) {
+      markVersionSeen();
+      setAppUpdatedFrom(null);
+      return;
+    }
+    setOpen(true);
+  }, [appUpdatedFrom, setAppUpdatedFrom]);
 
   // Lock the page behind the popup so the scroll wheel never scrolls the site.
   useEffect(() => {
@@ -83,7 +91,10 @@ export default function ChangelogModal() {
 
   const close = () => {
     setOpen(false);
-    if (!DUMMY_MODE) setAppUpdatedFrom(null);
+    if (!DUMMY_MODE) {
+      markVersionSeen(); // write the version only AFTER the popup has been shown
+      setAppUpdatedFrom(null);
+    }
   };
 
   return (
