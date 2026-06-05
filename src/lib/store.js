@@ -30,6 +30,11 @@ export const useAppStore = create(
       setSidebarHidden: (val) => a[0]({ sidebarHidden: typeof val === 'function' ? val(a[1]().sidebarHidden) : val }),
       showNsfw: false,
       setShowNsfw: (val) => a[0]({ showNsfw: typeof val === 'function' ? val(a[1]().showNsfw) : val }),
+      // Set on startup to the previous app version when the user upgraded (null = first
+      // visit or no change). A future changelog / "what's new" prompt reads this.
+      // Deliberately NOT persisted — recomputed each load by checkAppVersion().
+      appUpdatedFrom: null,
+      setAppUpdatedFrom: (v) => a[0]({ appUpdatedFrom: v }),
     }),
     {
       name: 'user-store', // The storage key for persisting user data

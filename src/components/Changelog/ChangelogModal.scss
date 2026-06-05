@@ -1,0 +1,212 @@
+@use "../../mixins.scss" as mix;
+
+.changelog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--overlay-bg, rgba(0, 0, 0, 0.7));
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: changelog-fade 0.18s ease;
+}
+
+.changelog-modal {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  background: var(--card-bg, #1a1a1a);
+  color: var(--text-primary, #fff);
+  border: 1px solid var(--border-color, #3d3d3d);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  padding: 28px 24px 22px;
+  overflow: hidden;
+  animation: changelog-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+
+  // Accent glow strip across the top
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent-primary, #e53935), var(--accent-hover, #ff1744));
+  }
+
+  @include mix.respond(phone) {
+    max-width: 100%;
+    align-self: flex-end;
+    border-radius: 18px 18px 0 0;
+    animation: changelog-slide-up 0.28s ease forwards;
+  }
+}
+
+.changelog-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #fff);
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover { background: var(--bg-tertiary, rgba(255, 255, 255, 0.16)); }
+}
+
+.changelog-header {
+  text-align: center;
+  margin-bottom: 18px;
+
+  .changelog-logo {
+    height: 34px;
+    width: auto;
+    max-width: 70%;
+    object-fit: contain;
+    margin-bottom: 14px;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 700;
+  }
+
+  .changelog-subtitle {
+    margin: 6px 0 0;
+    font-size: 13.5px;
+    color: var(--text-secondary, #aaa);
+  }
+}
+
+.changelog-scroller {
+  position: relative;
+  margin-bottom: 20px;
+
+  // Soft fade hints at each scrollable edge (sit above the cards, never block input).
+  .changelog-fade {
+    position: absolute;
+    top: 0;
+    bottom: 10px; // leave the thin scrollbar visible
+    width: 40px;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+
+    &.left {
+      left: 0;
+      background: linear-gradient(to right, var(--card-bg, #1a1a1a), transparent);
+    }
+    &.right {
+      right: 0;
+      background: linear-gradient(to left, var(--card-bg, #1a1a1a), transparent);
+    }
+  }
+
+  &.at-start .changelog-fade.left { opacity: 0; }
+  &.at-end .changelog-fade.right { opacity: 0; }
+}
+
+.changelog-body {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 10px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+
+  // thin themed scrollbar
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-primary, #ff5252) transparent;
+  &::-webkit-scrollbar { height: 6px; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--accent-primary, #ff5252);
+    border-radius: 10px;
+  }
+  &::-webkit-scrollbar-track { background: transparent; }
+}
+
+.changelog-entry {
+  flex: 0 0 230px;
+  min-width: 230px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+  padding: 13px 15px;
+
+  .changelog-entry-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .changelog-entry-version {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-primary, #ff5252);
+    background: var(--accent-light, rgba(255, 82, 82, 0.15));
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+
+  .changelog-entry-date {
+    font-size: 11.5px;
+    color: var(--text-secondary, #888);
+  }
+
+  .changelog-entry-summary {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary, #eee);
+  }
+}
+
+.changelog-cta {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--accent-primary, #e53935), var(--accent-hover, #ff1744));
+  transition: filter 0.15s ease, transform 0.05s ease;
+
+  &:hover { filter: brightness(1.08); }
+  &:active { transform: scale(0.99); }
+}
+
+@keyframes changelog-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes changelog-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes changelog-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
