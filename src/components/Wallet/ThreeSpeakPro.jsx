@@ -514,31 +514,29 @@ function ThreeSpeakPro() {
         {isActive && <span className="tsp-active-badge"><i className="fa-solid fa-check-circle" /> Active</span>}
       </div>
 
-      {/* Magi L2 Balance */}
-      {loggedIn && (
-        <div className="tsp-l2-balances">
-          <span className="tsp-l2-label">Your Magi Balance:</span>
-          <span className="tsp-l2-amount">{fmtAmount(vscBalances.hive)} HIVE</span>
-          <span className="tsp-l2-sep">·</span>
-          <span className="tsp-l2-amount">{fmtAmount(vscBalances.hbd)} HBD</span>
-        </div>
-      )}
+      {/* Magi L2 balance display removed (the vscBalances query is kept
+          intact above — still fetched/used by the purchase + top-up flow). */}
 
       {/* Active subscribers ticker → click for the full list */}
       <SubscriberTicker />
 
-      {/* Benefits — always visible so visitors can see what 3Speak Pro
-          unlocks even before the on-chain offers are live. */}
-      <ul className="tsp-benefits">
+      {/* Perks (left) + Try / Plans / Subscribe (right) — two columns on
+          desktop, stacked on mobile. */}
+      <div className="tsp-main-grid">
+        <div className="tsp-perks-col">
+          {/* Benefits — always visible even before the on-chain offers are live. */}
+          <ul className="tsp-benefits">
         {BENEFITS.map((benefit) => (
           <li key={benefit} className="tsp-benefits-item">
             <i className="fa-solid fa-check" />
             <span>{benefit}</span>
           </li>
         ))}
-      </ul>
+          </ul>
+        </div>
 
-      {/* Trial state — three mutually exclusive views:
+        <div className="tsp-plans-col">
+          {/* Trial state — three mutually exclusive views:
           - Active trial: live countdown banner ("X hours remaining")
           - Trial available: the start-trial CTA button
           - Otherwise: nothing (paid sub, never eligible, env disabled, …) */}
@@ -734,6 +732,8 @@ function ThreeSpeakPro() {
           )}
         </>
       )}
+        </div>
+      </div>
     </div>
   );
 }

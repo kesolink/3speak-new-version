@@ -19,7 +19,7 @@ import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ProfileModal from "../modal/ProfileModal";
 
 
-function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false }) {
+function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
   const formatViewCount = (views) => {
@@ -61,7 +61,9 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                 src={video._processedThumbnail}
                 alt="thumbnail"
                 onError={(e) => (e.currentTarget.src = img)}
-                loading="lazy"
+                loading={priority && index < 6 ? "eager" : "lazy"}
+                fetchpriority={priority && index < 6 ? "high" : "auto"}
+                decoding="async"
               />
               {!shortsGrid && (
                 <div className="wrap">

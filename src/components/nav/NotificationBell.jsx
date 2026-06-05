@@ -136,7 +136,7 @@ function NotificationBell() {
       >
         <IoIosNotifications size={22} />
         {unreadCount > 0 && (
-          <span className="notif-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+          <span className="notif-bell-dot" aria-hidden="true" />
         )}
       </button>
 

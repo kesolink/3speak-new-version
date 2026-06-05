@@ -921,3 +921,9 @@
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
 }
+
+// Dark mode: brighten search control icons so they're visible on the dark button bg.
+[data-theme="dark"] {
+  .discover-search-clear { color: var(--text-primary); }
+  .discover-search-icon { color: var(--text-secondary); }
+}

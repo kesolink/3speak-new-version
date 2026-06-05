@@ -5,6 +5,7 @@
   border: 1px solid var(--border-light);
   border-radius: 14px;
   padding: 24px;
+  margin-top: 16px;
   margin-bottom: 20px;
 
   @include mix.respond(phone) {
@@ -138,7 +139,6 @@
   border-radius: 8px;
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
-  margin-bottom: 16px;
   font-size: 12px;
   color: var(--text-secondary);
   font-style: italic;
@@ -391,13 +391,12 @@
   gap: 4px;
 
   &:hover {
-    border-color: var(--accent-primary, #e53935);
+    border-color: var(--text-muted, #888);
     transform: scale(1.02);
   }
 
   &.selected {
-    border-color: var(--accent-primary, #e53935);
-    background: color-mix(in srgb, var(--accent-primary, #e53935) 8%, transparent);
+    border-color: var(--text-primary);
   }
 }
 
@@ -408,8 +407,8 @@
   letter-spacing: 0.5px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--accent-primary, #e53935);
-  color: #fff;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .tsp-plan-onetime.selected {
@@ -426,7 +425,7 @@
 .tsp-plan-price {
   font-size: 20px;
   font-weight: 700;
-  color: var(--accent-primary, #e53935);
+  color: var(--text-primary);
 }
 
 .tsp-plan-duration {
@@ -448,14 +447,14 @@
   gap: 8px;
   padding: 12px 24px;
   border-radius: 10px;
-  border: none;
-  background: var(--accent-primary, #e53935);
-  color: #fff;
+  border: 1px solid var(--accent-primary, #e53935);
+  background: var(--card-bg);
+  color: var(--text-primary);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s ease;
-  align-self: flex-start;
+  align-self: center;
 
   i { font-size: 14px; }
 
@@ -518,27 +517,25 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.8rem 1rem;
-  margin: 0.75rem 0 1rem;
+  margin: 0;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(229, 57, 53, 0.12), rgba(229, 57, 53, 0.02));
-  border: 1px dashed rgba(229, 57, 53, 0.45);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
 }
 
 .tsp-trial-btn {
   padding: 0.55rem 1.4rem;
   border-radius: 999px;
-  border: none;
-  background: var(--accent-primary, #e53935);
-  color: #fff;
+  border: 1px solid var(--accent-primary, #e53935);
+  background: var(--card-bg);
+  color: var(--text-primary);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(229, 57, 53, 0.35);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 
   &:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 8px 18px rgba(229, 57, 53, 0.4);
   }
   &:disabled {
     opacity: 0.6;
@@ -582,4 +579,25 @@
 
 .tsp-trial-active-text {
   line-height: 1.35;
+}
+
+// Perks (left) + Try / Plans / Subscribe (right): two columns on desktop, stacked on mobile.
+.tsp-main-grid {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-top: 16px;
+}
+.tsp-perks-col,
+.tsp-plans-col {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.tsp-plans-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+@media (max-width: 768px) {
+  .tsp-main-grid { flex-direction: column; gap: 16px; }
 }

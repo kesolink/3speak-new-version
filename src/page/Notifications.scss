@@ -16,6 +16,12 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+
+  // Mobile: give the title its own row; the action buttons drop below it.
+  @include mix.respond(phone) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .notifications-title {
@@ -26,6 +32,13 @@
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+
+  // Mobile: break after the title so the "X new" chip drops to its own line.
+  @include mix.respond(phone) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
 }
 
 .notifications-unread-chip {
@@ -576,4 +589,24 @@
   font-size: 12px;
   color: var(--text-secondary);
   opacity: 0.7;
+}
+
+// Dark mode: outlined style — card-bg bg, red (--accent-primary) outline + text.
+[data-theme="dark"] {
+  .notifications-filter-btn.active,
+  .notif-summary-tab.active {
+    background: var(--card-bg) !important;
+    color: var(--accent-primary) !important;
+    border: 1px solid var(--accent-primary) !important;
+  }
+}
+
+// Dark mode: count badge — card-bg bg, foreground text, no red border.
+[data-theme="dark"] {
+  .notifications-unread-chip,
+  .notifications-filter-count {
+    background: var(--card-bg) !important;
+    color: var(--text-primary) !important;
+    border: none !important;
+  }
 }

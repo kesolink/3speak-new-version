@@ -450,3 +450,12 @@
     transform: translateY(0) scale(1);
   }
 }
+
+// Dark mode: outlined style — card-bg bg, red (--accent-primary) outline + text.
+[data-theme="dark"] {
+  .create-playlist-btn {
+    background: var(--card-bg) !important;
+    color: var(--accent-primary) !important;
+    border: 1px solid var(--accent-primary) !important;
+  }
+}

@@ -268,9 +268,10 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             ? parseFloat(data.pending_payout_value)
             : parseFloat(data.total_payout_value) + parseFloat(data.curator_payout_value);
 
+        // Keep ALL voters (sorted by weight). The tooltip shows the top 10 on
+        // hover and the full list when pinned (click).
         const topVotes = data.active_votes
           .sort((a, b) => parseInt(b.rshares) - parseInt(a.rshares))
-          .slice(0, 10)
           .map(vote => {
             const reward =
               totalRshares > 0

@@ -7,6 +7,36 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.9.6',
+    date: '2026-06-05',
+    summary:
+      "On mobile, tap your avatar in the bottom bar to see the app version and which Hive node you're connected to. The “what's new” popup is also easier to browse — arrow buttons on desktop and swipe-to-snap on mobile.",
+  },
+  {
+    version: '1.9.5',
+    date: '2026-06-05',
+    summary:
+      "Settings now shows the app version and which Hive node you're connected to. The main page also loads thumbnails a little faster.",
+  },
+  {
+    version: '1.9.4',
+    date: '2026-06-05',
+    summary:
+      'On a video page you can now click the vote count to pin the list of voters — it shows everyone who voted and scrolls. The payout popover also shows an estimated HIVE/HP split.',
+  },
+  {
+    version: '1.9.3',
+    date: '2026-06-05',
+    summary:
+      'The 3Speak Pro section on your Wallet page has a cleaner two-column layout with calmer colours.',
+  },
+  {
+    version: '1.9.2',
+    date: '2026-06-05',
+    summary:
+      'A visual refresh for dark mode — calmer colours with less red and outlined buttons. The notifications bell now shows a small dot instead of a number.',
+  },
+  {
     version: '1.9.1',
     date: '2026-06-04',
     summary:

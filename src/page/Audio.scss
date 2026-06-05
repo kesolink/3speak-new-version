@@ -1410,3 +1410,23 @@
   color: var(--text-primary);
   line-height: 1.4;
 }
+
+// Dark mode: outlined style — card-bg bg, red (--accent-primary) outline + text.
+[data-theme="dark"] {
+  .audio-type-chip.active,
+  .audio-date-btn.active,
+  .audio-topic-chip.active {
+    background: var(--card-bg) !important;
+    color: var(--accent-primary) !important;
+    border: 1px solid var(--accent-primary) !important;
+  }
+}
+
+// Dark mode: count badge — card-bg bg, foreground text, no red border.
+[data-theme="dark"] {
+  .audio-np-queue-badge {
+    background: var(--card-bg) !important;
+    color: var(--text-primary) !important;
+    border: none !important;
+  }
+}
