@@ -11,6 +11,8 @@ import LabeledToggle from "../LabeledToggle/LabeledToggle";
 import ShortsIcon from "../icons/ShortsIcon";
 import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { FEATURE_EDITOR } from "../../utils/config";
+import { APP_VERSION } from "../../version";
+import { getHiveUrl } from "../../utils/hiveNode";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import PremiumBadge from "../PremiumBadge/PremiumBadge";
@@ -282,6 +284,10 @@ const BottomNav = ({ openLoginModal }) => {
           <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
             <IoPower className="bottom-nav-menu-icon" /> Change account
           </a>
+          <div className="bottom-nav-menu-footer">
+            <span>App version: v{APP_VERSION}</span>
+            <span>Hive node: {getHiveUrl()}</span>
+          </div>
         </div>
       )}
 

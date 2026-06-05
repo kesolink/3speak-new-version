@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { IoClose } from 'react-icons/io5';
+import { IoClose, IoChevronBack, IoChevronForward } from 'react-icons/io5';
 import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { CHANGELOG, changelogSince } from '../../changelog';
@@ -69,6 +69,25 @@ export default function ChangelogModal() {
     setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
   }, []);
 
+  // Desktop arrow nav — centre the next/previous card in the viewport.
+  const scrollByCard = useCallback((dir) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const cards = el.querySelectorAll('.changelog-entry');
+    if (!cards.length) return;
+    const mid = el.getBoundingClientRect().left + el.clientWidth / 2;
+    // Find the card nearest the centre now, then centre the next/prev one.
+    let curr = 0, best = Infinity;
+    cards.forEach((c, i) => {
+      const r = c.getBoundingClientRect();
+      const d = Math.abs(r.left + r.width / 2 - mid);
+      if (d < best) { best = d; curr = i; }
+    });
+    const target = cards[Math.max(0, Math.min(cards.length - 1, curr + dir))];
+    const tr = target.getBoundingClientRect();
+    el.scrollBy({ left: tr.left + tr.width / 2 - mid, behavior: 'smooth' });
+  }, []);
+
   // Translate vertical mouse-wheel into horizontal scrolling of the entries row.
   // Native non-passive listener so we can preventDefault (background stays put).
   useEffect(() => {
@@ -124,6 +143,16 @@ export default function ChangelogModal() {
           </div>
           <span className="changelog-fade left" aria-hidden="true" />
           <span className="changelog-fade right" aria-hidden="true" />
+          {entries.length > 1 && (
+            <>
+              <button className="changelog-arrow left" onClick={() => scrollByCard(-1)} disabled={atStart} aria-label="Previous updates">
+                <IoChevronBack />
+              </button>
+              <button className="changelog-arrow right" onClick={() => scrollByCard(1)} disabled={atEnd} aria-label="Newer updates">
+                <IoChevronForward />
+              </button>
+            </>
+          )}
         </div>
 
         <button className="changelog-cta" onClick={close}>Got it</button>

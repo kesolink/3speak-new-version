@@ -247,6 +247,17 @@
   margin: 4px 0;
 }
 
+.bottom-nav-menu-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
 .bottom-nav-menu-item {
   display: flex;
   align-items: center;

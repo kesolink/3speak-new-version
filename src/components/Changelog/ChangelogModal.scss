@@ -112,10 +112,41 @@
       right: 0;
       background: linear-gradient(to left, var(--card-bg, #1a1a1a), transparent);
     }
+
+    // Narrower fades on mobile — the 40px ones cover too much of the card.
+    @include mix.respond(phone) { width: 18px; }
   }
 
   &.at-start .changelog-fade.left { opacity: 0; }
   &.at-end .changelog-fade.right { opacity: 0; }
+
+  // Desktop arrow nav — jump one entry at a time. Hidden on mobile.
+  .changelog-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
+    border-radius: 50%;
+    background: var(--card-bg, #1a1a1a);
+    color: var(--text-primary, #fff);
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: background 0.15s ease, opacity 0.15s ease;
+
+    &:hover:not(:disabled) { background: var(--bg-tertiary, rgba(255, 255, 255, 0.14)); }
+    &:disabled { opacity: 0; pointer-events: none; } // hide at the matching edge
+
+    &.left { left: -2px; }
+    &.right { right: -2px; }
+
+    @include mix.respond(phone) { display: none; }
+  }
 }
 
 .changelog-body {
@@ -138,12 +169,15 @@
     border-radius: 10px;
   }
   &::-webkit-scrollbar-track { background: transparent; }
+
+  // Mobile: lock a card to the centre when the drag/swipe is released.
+  @include mix.respond(phone) { scroll-snap-type: x mandatory; }
 }
 
 .changelog-entry {
   flex: 0 0 230px;
   min-width: 230px;
-  scroll-snap-align: start;
+  scroll-snap-align: center;
   display: flex;
   flex-direction: column;
   background: var(--bg-tertiary, rgba(255, 255, 255, 0.04));
