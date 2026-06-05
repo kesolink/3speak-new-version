@@ -64,8 +64,7 @@ $indigo-500: #6366f1;
           text-align: left;
           font-size: 0.75rem;
           font-weight: 500;
-          // color: $gray-500;
-          color: red;
+          color: var(--text-primary);
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }

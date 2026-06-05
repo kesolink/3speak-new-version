@@ -28,3 +28,13 @@
     line-height: 1;
   }
 }
+
+// Dark mode: outlined style — card-bg bg, red (--accent-primary) outline + rocket.
+[data-theme="dark"] {
+  .hive-avatar__badge {
+    background: var(--card-bg) !important;
+    color: var(--accent-primary) !important;
+    border: 1px solid var(--accent-primary) !important;
+  }
+  .hive-avatar__badge .hh-premium-badge { color: var(--accent-primary) !important; }
+}

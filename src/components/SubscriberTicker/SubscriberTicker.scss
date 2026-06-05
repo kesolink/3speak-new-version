@@ -9,8 +9,6 @@
   background: var(--bg-secondary, rgba(255, 255, 255, 0.03));
   cursor: pointer;
   overflow: hidden;
-
-  &:hover { border-color: var(--accent-primary, #e0594b); }
 }
 
 .sub-ticker-label {

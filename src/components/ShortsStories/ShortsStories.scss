@@ -318,3 +318,32 @@
     border-radius: 4px;
   }
 }
+
+// Dark mode: count badge — card-bg bg, foreground text, no red border.
+[data-theme="dark"] {
+  .count-badge,
+  .add-badge {
+    background: var(--card-bg) !important;
+    color: var(--text-primary) !important;
+    border: none !important;
+  }
+}
+
+// Dark mode: shrink the stories 3Speak-Pro rocket chip — the detailed rocket
+// glyph reads larger than a flat count number, so keep the chip smaller.
+[data-theme="dark"] {
+  .story-avatar-wrap .hive-avatar__badge {
+    box-sizing: border-box;
+    width: 15px;
+    height: 15px;
+    padding: 1px;
+    box-shadow: none;
+
+    svg { width: 100%; height: 100%; }
+
+    @include respond(phone) {
+      width: 13px;
+      height: 13px;
+    }
+  }
+}

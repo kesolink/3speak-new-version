@@ -44,6 +44,18 @@
   pointer-events: none;
 }
 
+// Unread indicator — a small red dot (replaces the numeric count badge).
+.notif-bell-dot {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e53935; // brand red — matches the Upload button (--accent-primary is pinker in dark)
+  pointer-events: none;
+}
+
 .notif-dropdown {
   position: absolute;
   top: calc(100% + 6px);
@@ -321,4 +333,13 @@
 @keyframes notif-tooltip-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+// Dark mode: count badge — card-bg bg, foreground text, no red border.
+[data-theme="dark"] {
+  .notif-badge {
+    background: var(--card-bg) !important;
+    color: var(--text-primary) !important;
+    border: none !important;
+  }
 }

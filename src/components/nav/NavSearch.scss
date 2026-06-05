@@ -906,3 +906,10 @@
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
 }
+
+// Dark mode: brighten search control icons so they're visible on the dark button bg.
+[data-theme="dark"] {
+  .navsearch-clear { color: var(--text-primary); }
+  .navsearch-icon { color: var(--text-secondary); }
+  .navsearch-hotkey-hint { color: var(--text-secondary); opacity: 0.85; }
+}

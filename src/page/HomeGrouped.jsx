@@ -54,7 +54,7 @@ const deduplicateVideos = (videos) => {
 };
 
 // Horizontal scrollable video row component
-const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatched, getViewCount }) => {
+const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatched, getViewCount, priority = false }) => {
   const scrollContainerRef = useRef(null);
   const [showLeftBtn, setShowLeftBtn] = useState(false);
   const [showRightBtn, setShowRightBtn] = useState(true);
@@ -155,7 +155,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
             </div>
           ) : (
             <div className="card-container-horizontal" style={{ "--vr-rows": rowCount }}>
-              <Card3 videos={videos.slice(0, 36)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+              <Card3 videos={videos.slice(0, 36)} loading={false} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} priority={priority} />
             </div>
           )}
         </div>
@@ -235,6 +235,7 @@ const HomeGrouped = () => {
         getContentForVideo={getContentForVideo}
         isWatched={isWatched}
         getViewCount={getViewCount}
+        priority
       />
 
       <VideoRow

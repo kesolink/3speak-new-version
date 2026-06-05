@@ -369,3 +369,12 @@
   }
 
 }
+
+// Dark mode: outlined style — card-bg bg, red (--accent-primary) outline + text.
+[data-theme="dark"] {
+  .row-header .view-all {
+    background: var(--card-bg) !important;
+    color: var(--accent-primary) !important;
+    border: 1px solid var(--accent-primary) !important;
+  }
+}
