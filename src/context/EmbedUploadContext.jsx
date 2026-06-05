@@ -5,7 +5,7 @@ import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
-import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, KeyTypes } from '../hive-api/aioha';
+import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn, KeyTypes } from '../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
@@ -190,6 +190,15 @@ export function EmbedUploadProvider({ children }) {
   const publishToEmbed = async () => {
     if (!user) {
       toast.error('User not logged in');
+      return;
+    }
+    // Fail fast on a stale/expired wallet session (e.g. an expired HiveSigner
+    // token): `user` can be a leftover localStorage value while aioha has no
+    // live session. Without this, the whole video + thumbnail upload runs and
+    // only the final Hive broadcast fails with "Not logged in". isLoggedIn()
+    // is true for an aioha session OR a ManteAuth/ButrAuth login.
+    if (!isLoggedIn()) {
+      toast.error('Your session expired — please log in again before uploading');
       return;
     }
     // For non-prefilled flows we need a local file. Prefilled flows already

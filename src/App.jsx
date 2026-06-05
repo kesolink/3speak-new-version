@@ -155,6 +155,8 @@ const LoginRedirect = ({ openLoginModal }) => {
 function App() {
   const location = useLocation();
   const { initializeAuth, authenticated, LogOut, switchAccount, setUser, user: appUser } = useAppStore();
+  const sessionExpired = useAppStore((s) => s.sessionExpired);
+  const clearSessionExpired = useAppStore((s) => s.clearSessionExpired);
   const { aioha, user: aiohaUser } = useAioha();
   const sidebar = useAppStore((s) => s.sidebarOpen);
   const setSideBar = useAppStore((s) => s.setSidebarOpen);
@@ -174,6 +176,7 @@ function App() {
   const [pendingAudioTrack, setPendingAudioTrack] = useState(null);
   const loginInProgress = useRef(false); // Track if login is being processed
   const aiohaUserSeen = useRef(false); // Track if aiohaUser has ever been populated
+  const sessionExpiredHandled = useRef(false); // Guard so the expiry prompt shows once (StrictMode-safe)
 
   // Hide nav on /shorts route on mobile
   const isShorts = location.pathname.startsWith('/shorts');
@@ -218,8 +221,20 @@ function App() {
   useEffect(() => {
     initializeAuth();
     tokenVaildation()
-
   }, []);
+
+  // When initializeAuth clears a stale/expired wallet session (e.g. an expired
+  // HiveSigner token with a lingering user_id), it sets `sessionExpired` in the
+  // store. Prompt a re-login. Driven by the store flag (not read-before-clear)
+  // and ref-guarded so it fires exactly once under React StrictMode.
+  useEffect(() => {
+    if (sessionExpired && !sessionExpiredHandled.current) {
+      sessionExpiredHandled.current = true;
+      toast.error("Your session expired — please log in again");
+      setLoginModalOpen(true);
+      clearSessionExpired();
+    }
+  }, [sessionExpired]);
 
   // On load, decide whether to show the "what's new" popup. For an upgrade we expose
   // the previous version via the store; the stored version is advanced only after the

@@ -3,7 +3,7 @@ import { api } from "../../utils/api";
 import { API_URL_FROM_WEST } from "../../utils/config";
 import {persist} from "zustand/middleware"
 
-import aioha from "../../hive-api/aioha";
+import aioha, { isLoggedIn as hasLiveSession } from "../../hive-api/aioha";
 
 import {  toast } from 'sonner'
 
@@ -17,6 +17,11 @@ export const createAuthUserSlice = (set) => ({
   listAccounts: [],
   allowAccess: null,
   userDetails: null,
+  // Set true by initializeAuth when it finds a persisted user_id with no live
+  // wallet session (expired HiveSigner token etc.). The UI watches this to
+  // prompt a re-login. Kept in the store (not component state) so it survives
+  // React StrictMode's mount/unmount/remount in dev.
+  sessionExpired: false,
 
 
 
@@ -26,6 +31,22 @@ export const createAuthUserSlice = (set) => ({
       const aiohaUser = aioha.getCurrentUser();
       const userId = aiohaUser || window.localStorage.getItem(LOCAL_STORAGE_USER_ID_KEY);
 
+      // A persisted user_id with NO live wallet session means the session
+      // expired while the app was closed. This is the classic HiveSigner case:
+      // aioha.loadAuth() silently drops the OAuth token once expired, but the
+      // stale user_id stays in localStorage. Trusting it here is what makes the
+      // app look logged-in while every broadcast fails with "Not logged in"
+      // (e.g. after a full video upload). Treat it as logged-out instead so the
+      // user is prompted to re-authenticate before doing any work.
+      // hasLiveSession() is true for an aioha session OR a ManteAuth/ButrAuth
+      // login (cookie-based, no aioha state), so those stay logged in.
+      if (userId && !hasLiveSession()) {
+        window.localStorage.removeItem(LOCAL_STORAGE_USER_ID_KEY);
+        window.localStorage.removeItem("access_token");
+        set({ authenticated: false, user: null, sessionExpired: true });
+        return;
+      }
+
       if (userId) {
         window.localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, userId);
         set({ authenticated: true, user: userId });
@@ -34,6 +55,9 @@ export const createAuthUserSlice = (set) => ({
       }
     }
   },
+
+  // Cleared by the UI once it has shown the "session expired" prompt.
+  clearSessionExpired: () => set({ sessionExpired: false }),
   
 
   switchAccount: (username) => {
