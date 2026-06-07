@@ -1,6 +1,6 @@
 import { Aioha, Asset, KeyTypes, Providers } from '@aioha/aioha'
 import { IS_VSC_TESTNET, VSC_NET_ID } from '../utils/vscContract.js'
-import { ENABLE_METAMASK_SNAP } from '../utils/config.js'
+import { ENABLE_METAMASK_SNAP, EMBED_API_KEY } from '../utils/config.js'
 import { getHiveUrl, ensureHealthyNode } from '../utils/hiveNode.js'
 
 const HIVE_API = IS_VSC_TESTNET ? 'https://testnet.techcoderx.com' : getHiveUrl()
@@ -61,6 +61,18 @@ const requestButrauthActiveSign = async (operations) => {
   return activeAuthHandler(operations)
 }
 
+// Aioha logins (Keychain/HiveAuth/PeakVault/Ledger/HiveSigner) broadcast
+// posting-level ops via @threespeak (the user granted it posting authority), the
+// same way ButrAuth uses its cookie path. ButrAuth itself is handled by
+// isManteAuthLogin(); a logged-out state returns false. Active-key ops never use
+// this — @threespeak only holds posting authority.
+const usesThreespeakProxy = () => !!aioha.getCurrentProvider();
+
+// True when a @threespeak broadcast bounced because the user hasn't granted
+// @threespeak posting authority yet — the one case where we fall back to letting
+// them sign client-side (rather than surfacing a hard error).
+const isNotGrantedError = (e) => /Authorization required/i.test(e?.message || '');
+
 // Check if current provider is HiveAuth
 export const isHiveAuthProvider = () => {
   return aioha.getCurrentProvider() === Providers.HiveAuth;
@@ -89,6 +101,13 @@ export const voteWithAioha = async (author, permlink, weight = 10000) => {
   if (isManteAuthLogin()) {
     const voter = localStorage.getItem('user_id')
     return broadcastViaManteAuth([['vote', { voter, author, permlink, weight }]])
+  }
+  if (usesThreespeakProxy()) {
+    try {
+      return await broadcastViaThreespeak([['vote', { voter: aioha.getCurrentUser(), author, permlink, weight }]])
+    } catch (e) {
+      if (!isNotGrantedError(e)) throw e // not granted → sign it client-side below
+    }
   }
   return withHiveAuthWaiting(async () => {
     try {
@@ -147,6 +166,17 @@ export const followWithAioha = async (target, follow = true) => {
       json
     }]])
   }
+  if (usesThreespeakProxy()) {
+    const follower = aioha.getCurrentUser()
+    const json = JSON.stringify(['follow', { follower, following: target, what: follow ? ['blog'] : [] }])
+    try {
+      return await broadcastViaThreespeak([['custom_json', {
+        required_auths: [], required_posting_auths: [follower], id: 'follow', json,
+      }]])
+    } catch (e) {
+      if (!isNotGrantedError(e)) throw e // not granted → sign it client-side below
+    }
+  }
   return withHiveAuthWaiting(async () => {
     try {
       let result;
@@ -184,6 +214,16 @@ export const customJsonWithAioha = async (keyType, id, json, displayTitle = '') 
       json
     }]])
   }
+  if (usesThreespeakProxy() && keyType === KeyTypes.Posting) {
+    const u = aioha.getCurrentUser()
+    try {
+      return await broadcastViaThreespeak([['custom_json', {
+        required_auths: [], required_posting_auths: [u], id, json,
+      }]])
+    } catch (e) {
+      if (!isNotGrantedError(e)) throw e // not granted → sign it client-side below
+    }
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.customJSON(keyType, id, json, displayTitle);
@@ -217,6 +257,19 @@ export const commentWithAioha = async (parentAuthor, parentPermlink, permlink, t
     }
     return broadcastViaManteAuth(ops)
   }
+  if (usesThreespeakProxy()) {
+    const author = aioha.getCurrentUser()
+    const ops = [['comment', {
+      parent_author: parentAuthor, parent_permlink: parentPermlink, author, permlink,
+      title, body, json_metadata: JSON.stringify(jsonMetadata),
+    }]]
+    if (options) ops.push(['comment_options', { author, permlink, ...options }])
+    try {
+      return await broadcastViaThreespeak(ops)
+    } catch (e) {
+      if (!isNotGrantedError(e)) throw e // not granted → sign it client-side below
+    }
+  }
   return withHiveAuthWaiting(async () => {
     try {
       const result = await aioha.comment(parentAuthor, parentPermlink, permlink, title, body, JSON.stringify(jsonMetadata), options);
@@ -242,6 +295,13 @@ export const broadcastWithAioha = async (operations, keyType = KeyTypes.Active) 
     // Posting-only Butter Auth session — let the user sign this active op
     // with their own wallet / active key via the modal handler.
     return requestButrauthActiveSign(operations)
+  }
+  if (usesThreespeakProxy() && keyType === KeyTypes.Posting) {
+    try {
+      return await broadcastViaThreespeak(operations)
+    } catch (e) {
+      if (!isNotGrantedError(e)) throw e // not granted → sign it client-side below
+    }
   }
   return withHiveAuthWaiting(async () => {
     try {
@@ -300,6 +360,42 @@ export const broadcastViaManteAuth = async (operations) => {
   return { success: true, result: data.result }
 }
 
+// @threespeak proxy broadcast — embed-route video posts are broadcast server-side
+// as @threespeak (the user granted @threespeak posting authority via the upload
+// gate), not signed client-side. The server (/api/broadcast) needs to know which
+// user the post is for; how we authenticate that depends on the provider:
+//   • HiveSigner → Authorization: Bearer <token> (verified against hivesigner.com;
+//     HiveSigner can't sign comments client-side anyway).
+//   • Keychain/HiveAuth/PeakVault/Ledger → the app key (X-API-Key), the same trust
+//     the embed TUS upload already uses, plus the username in the body. The server
+//     still enforces that the user granted @threespeak posting auth, the comment
+//     author matches that username, and only post ops are allowed on this path.
+export const broadcastViaThreespeak = async (operations) => {
+  const provider = aioha.getCurrentProvider()
+  const headers = { 'Content-Type': 'application/json' }
+  const body = { operations }
+  if (provider === Providers.HiveSigner) {
+    const token = localStorage.getItem('hivesignerToken')
+    if (!token) {
+      throw new Error('HiveSigner session expired — please reconnect HiveSigner and try again')
+    }
+    headers.Authorization = `Bearer ${token}`
+  } else {
+    headers['X-API-Key'] = EMBED_API_KEY
+    body.username = aioha.getCurrentUser()
+  }
+  const res = await fetch(`${THREESPEAK_API}/broadcast`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body)
+  })
+  const data = await res.json()
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || data.message || 'Broadcast via @threespeak failed')
+  }
+  return { success: true, result: data.result }
+}
+
 // Check if user is logged in (aioha or ManteAuth)
 export const isLoggedIn = () => {
   return aioha.isLoggedIn() || isManteAuthLogin();
@@ -315,5 +411,5 @@ export const getCurrentProvider = () => {
   return aioha.getCurrentProvider();
 };
 
-export { Asset, KeyTypes };
+export { Asset, KeyTypes, Providers };
 export default aioha;

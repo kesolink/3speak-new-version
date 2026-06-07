@@ -5,7 +5,7 @@ import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
-import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn, KeyTypes } from '../hive-api/aioha';
+import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn, getCurrentProvider, Providers, broadcastViaThreespeak, KeyTypes } from '../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
@@ -342,7 +342,9 @@ export function EmbedUploadProvider({ children }) {
         try {
           setStatusText('Uploading thumbnail...');
           addMessage('Uploading thumbnail...');
-          thumbnailUrl = await uploadThumbnail(thumbnailFile, user);
+          // Embed posts are broadcast by @threespeak, so the thumbnail goes
+          // straight to the 3Speak image server (static key) — no user signature.
+          thumbnailUrl = await uploadThumbnail(thumbnailFile, user, { preferStatic: true });
           addMessage('Thumbnail uploaded');
         } catch (thumbErr) {
           console.warn('Thumbnail upload failed:', thumbErr);
@@ -559,6 +561,17 @@ export function EmbedUploadProvider({ children }) {
         }
       }
 
+      // Policy: video posts in the embed route are broadcast by @threespeak, not
+      // signed by the user. Every aioha login (Keychain/HiveAuth/PeakVault/Ledger
+      // /HiveSigner) routes its post through our server, which signs+broadcasts as
+      // @threespeak on the user's behalf (they granted @threespeak posting
+      // authority via the pre-upload gate). ButrAuth (getCurrentProvider() ===
+      // null) keeps its own cookie-authenticated server path via commentWithAioha.
+      const useThreespeakProxy = !!getCurrentProvider();
+      if (useThreespeakProxy) {
+        addMessage('Posting via @threespeak (delegated posting authority)');
+      }
+
       let result;
 
       if (originalAuthor && originalPermlink && !fromStories) {
@@ -589,21 +602,39 @@ export function EmbedUploadProvider({ children }) {
           json_metadata: JSON.stringify({ app: '3speak/embed', tags: ['3speak'] }),
         }];
 
-        result = await broadcastWithAioha(
-          [mainPostOp, commentOptionsOp, replyOp],
-          KeyTypes.Posting
-        );
+        const remixOps = [mainPostOp, commentOptionsOp, replyOp];
+        result = useThreespeakProxy
+          ? await broadcastViaThreespeak(remixOps)
+          : await broadcastWithAioha(remixOps, KeyTypes.Posting);
       } else {
         // Single post: shorts (including short remixes) and regular uploads
-        result = await commentWithAioha(
-          parentAuthor,
-          parentPermlink,
-          hivePermlink,
-          fromStories ? '' : title,
-          postBody,
-          jsonMetadata,
-          commentOptions
-        );
+        if (useThreespeakProxy) {
+          // Build the raw ops commentWithAioha would have built, and post them
+          // server-side as @threespeak.
+          const ops = [
+            ['comment', {
+              parent_author: parentAuthor,
+              parent_permlink: parentPermlink,
+              author: user,
+              permlink: hivePermlink,
+              title: fromStories ? '' : title,
+              body: postBody,
+              json_metadata: JSON.stringify(jsonMetadata),
+            }],
+            ['comment_options', commentOptions],
+          ];
+          result = await broadcastViaThreespeak(ops);
+        } else {
+          result = await commentWithAioha(
+            parentAuthor,
+            parentPermlink,
+            hivePermlink,
+            fromStories ? '' : title,
+            postBody,
+            jsonMetadata,
+            commentOptions
+          );
+        }
       }
 
       if (!result.success) {

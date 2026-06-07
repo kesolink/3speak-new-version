@@ -134,10 +134,6 @@ function EmbedStudioPage() {
     fetchCommunities();
   }, []);
 
-  useEffect(() => {
-    checkPostAuth(user);
-  }, []);
-
   const handleAuthSuccess = () => {
     setIsOpenAuth(false);
   };
@@ -171,7 +167,6 @@ function EmbedStudioPage() {
           <EmbedVideoUploadStep1 />
         </div>
       </div>
-      {isOpenAuth && <Auth_modal isOpenAuth={isOpenAuth} closeAuth={toggleUploadModalAuth} onSuccess={handleAuthSuccess} />}
       <VerifyAuthModal isOpen={isVerifying} />
     </>
   );

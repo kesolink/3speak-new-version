@@ -42,6 +42,8 @@ import TestingLogin3 from "./page/Login/TestingLogin3";
 // import TestingLogin from "./page/Login/TestingLogin";
 import AboutPage from "./components/LandingPage/AboutPage";
 import { toast, Toaster } from 'sonner'
+import { CircleCheck, CircleX, TriangleAlert, Info } from 'lucide-react'
+import './toast.css'
 // Retired alongside the legacy /studio flow — kept here as comments for ease of
 // roll-back; the embed-studio equivalents at /embed-studio/{thumbnail,details,preview}
 // are what users hit now.
@@ -355,7 +357,29 @@ function App() {
     <LegacyUploadProvider>
     <EmbedUploadProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
-      <Toaster richColors position="top-right" />
+      <Toaster
+        position="top-right"
+        expand
+        visibleToasts={6}
+        gap={12}
+        closeButton
+        swipeDirections={['right']}
+        icons={{
+          success: <CircleCheck size={22} strokeWidth={2.25} />,
+          error: <CircleX size={22} strokeWidth={2.25} />,
+          warning: <TriangleAlert size={22} strokeWidth={2.25} />,
+          info: <Info size={22} strokeWidth={2.25} />,
+        }}
+        toastOptions={{
+          classNames: {
+            toast: 'ts-toast',
+            title: 'ts-toast-title',
+            description: 'ts-toast-desc',
+            icon: 'ts-toast-icon',
+            closeButton: 'ts-toast-close',
+          },
+        }}
+      />
       <ChangelogModal />
       <ShortsPreloader />
       {!hideNavOnMobile && (

@@ -7,6 +7,24 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.9.9',
+    date: '2026-06-07',
+    summary:
+      'Notifications have a new look that matches 3Speak — they stack in a list, have a close (×) button, and you can swipe them away to the right.',
+  },
+  {
+    version: '1.9.8',
+    date: '2026-06-07',
+    summary:
+      'Image uploads for thumbnails and covers are fixed — including the cover picker when you create a playlist in the audio uploader.',
+  },
+  {
+    version: '1.9.7',
+    date: '2026-06-07',
+    summary:
+      'Publishing is more reliable across all logins. The first time you upload you may be asked to authorize @threespeak to post on your behalf — then videos, shorts, audio, and video reactions all publish smoothly.',
+  },
+  {
     version: '1.9.6',
     date: '2026-06-05',
     summary:

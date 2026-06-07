@@ -6,7 +6,7 @@ const cookieParser = require('cookie-parser')
 const rateLimit = require('express-rate-limit')
 const helmet = require('helmet')
 const crypto = require('crypto')
-const { Client, PrivateKey } = require('@hiveio/dhive')
+const { Client, PrivateKey, cryptoUtils } = require('@hiveio/dhive')
 
 // ButrAuth SDK is ESM-only — load via dynamic import at startup.
 let butr = null
@@ -25,6 +25,11 @@ const PORT = process.env.SERVER_PORT || 4020
 
 const POSTING_WIF = process.env.THREESPEAK_POSTING_WIF
 const HIVE_ACCOUNT = process.env.THREESPEAK_HIVE_ACCOUNT || 'badadib'
+// Shared app key (same one the embed TUS upload uses) — authenticates wallet
+// logins (Keychain/HiveAuth/PeakVault/Ledger) on the post-creation path, which
+// can't present a token/cookie. Same trust level the upload pipeline already
+// relies on; the path is narrowed to post ops only (see /api/broadcast).
+const EMBED_API_KEY = process.env.EMBED_API_KEY || ''
 const MANTEAUTH_CLIENT_ID = process.env.MANTEAUTH_CLIENT_ID || 'threespeak'
 const MANTEAUTH_CLIENT_SECRET = process.env.MANTEAUTH_CLIENT_SECRET
 const MANTEAUTH_URL = process.env.MANTEAUTH_URL || 'https://auth.okinoko.io'
@@ -260,66 +265,170 @@ app.post('/api/manteauth/logout', baseLimiter, (req, res) => {
 // POST /api/broadcast — broadcast posting-level operations
 // Auth via the httpOnly session cookie (no Bearer token, no localStorage)
 // =====================================================================
+// Verify a HiveSigner access token by asking hivesigner.com who it belongs to.
+// Returns the Hive username on success, or null on any failure/expiry.
+async function verifyHiveSignerToken(token) {
+  if (!token) return null
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 4000)
+  try {
+    const resp = await fetch('https://hivesigner.com/api/me', {
+      method: 'POST',
+      headers: { Authorization: token, 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+    })
+    if (!resp.ok) return null
+    const data = await resp.json()
+    return data && data.name ? data.name : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+// Shared broadcast flow — given a username resolved from EITHER the ButrAuth
+// session cookie OR a verified HiveSigner token, validate the ops and broadcast
+// them signed with @threespeak's posting key (accepted because the user granted
+// @threespeak posting authority). Sends the HTTP response.
+async function broadcastAsThreespeak(hiveUsername, operations, res) {
+  if (!operations || !operations.length) {
+    return res.status(400).json({ error: 'No operations provided' })
+  }
+  if (operations.length > 20) {
+    return res.status(400).json({ error: 'Too many operations' })
+  }
+  if (!POSTING_WIF) {
+    return res.status(500).json({ error: 'Server is not configured' })
+  }
+
+  // Verify user granted posting authority to our service account
+  const [account] = await client.database.getAccounts([hiveUsername])
+  if (!account) return res.status(403).json({ error: 'Authorization required' })
+  const grant = account.posting.account_auths.find(([acc]) => acc === HIVE_ACCOUNT)
+  if (!grant || grant[1] < account.posting.weight_threshold) {
+    return res.status(403).json({ error: 'Authorization required' })
+  }
+
+  // Validate every operation
+  for (const [opType, opData] of operations) {
+    if (!ALLOWED_OPS.includes(opType)) {
+      return res.status(400).json({ error: 'Operation not allowed' })
+    }
+    if (opType === 'custom_json') {
+      const auths = opData.required_posting_auths || []
+      if (!auths.includes(hiveUsername)) {
+        return res.status(403).json({ error: 'Operation not allowed' })
+      }
+      if (!ALLOWED_CUSTOM_JSON_IDS.has(opData.id)) {
+        return res.status(403).json({ error: 'custom_json id not allowed for this app' })
+      }
+    } else {
+      const field = OP_USER_FIELD[opType]
+      if (field && opData[field] !== hiveUsername) {
+        return res.status(403).json({ error: 'Operation not allowed' })
+      }
+    }
+  }
+
+  const key = PrivateKey.fromString(POSTING_WIF)
+  const result = await client.broadcast.sendOperations(operations, key)
+  return res.json({ success: true, result })
+}
+
 app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
   try {
-    const token = req.cookies?.[SESSION_COOKIE_NAME]
-    if (!token) return res.status(401).json({ error: 'Unauthorized' })
+    let hiveUsername = null
 
-    const tokenData = await verifyManteAuthToken(token)
-    if (!tokenData?.hiveUsername) {
-      clearSessionCookie(res)
-      return res.status(401).json({ error: 'Unauthorized' })
+    // 1) ButrAuth httpOnly session cookie
+    const cookieToken = req.cookies?.[SESSION_COOKIE_NAME]
+    if (cookieToken) {
+      const tokenData = await verifyManteAuthToken(cookieToken)
+      if (tokenData?.hiveUsername) hiveUsername = tokenData.hiveUsername
+      else clearSessionCookie(res)
     }
 
-    const hiveUsername = tokenData.hiveUsername
-    const { operations } = req.body
-
-    if (!operations || !operations.length) {
-      return res.status(400).json({ error: 'No operations provided' })
-    }
-    if (operations.length > 20) {
-      return res.status(400).json({ error: 'Too many operations' })
+    // 2) HiveSigner access token via Authorization: Bearer (HiveSigner users
+    //    can't sign client-side; verify the token and post on their behalf).
+    if (!hiveUsername) {
+      const authHeader = req.headers.authorization || ''
+      const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+      if (bearer) hiveUsername = await verifyHiveSignerToken(bearer)
     }
 
-    if (!POSTING_WIF) {
-      return res.status(500).json({ error: 'Server is not configured' })
-    }
-
-    // Verify user granted posting authority to our service account
-    const [account] = await client.database.getAccounts([hiveUsername])
-    if (!account) return res.status(403).json({ error: 'Authorization required' })
-    const grant = account.posting.account_auths.find(([acc]) => acc === HIVE_ACCOUNT)
-    if (!grant || grant[1] < account.posting.weight_threshold) {
-      return res.status(403).json({ error: 'Authorization required' })
-    }
-
-    // Validate every operation
-    for (const [opType, opData] of operations) {
-      if (!ALLOWED_OPS.includes(opType)) {
-        return res.status(400).json({ error: 'Operation not allowed' })
-      }
-      if (opType === 'custom_json') {
-        const auths = opData.required_posting_auths || []
-        if (!auths.includes(hiveUsername)) {
-          return res.status(403).json({ error: 'Operation not allowed' })
+    // 3) App-key path (wallet logins: Keychain/HiveAuth/PeakVault/Ledger). They
+    //    can't present a token/cookie, so — per policy that @threespeak (not the
+    //    user) broadcasts embed posts — we trust the frontend app key (the same
+    //    one the embed TUS upload uses) and take the claimed username from the
+    //    body. This path is narrowed to posting-level ops only (comment /
+    //    comment_options / custom_json / vote); broadcastAsThreespeak still
+    //    enforces the @threespeak posting-auth grant + author/voter/
+    //    required_posting_auths match, so the worst case is "act as a user who
+    //    opted into @threespeak" (and only posting-level, never active-key).
+    if (!hiveUsername) {
+      const apiKey = req.headers['x-api-key'] || ''
+      if (EMBED_API_KEY && apiKey === EMBED_API_KEY) {
+        const claimed = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : ''
+        const ops = Array.isArray(req.body?.operations) ? req.body.operations : []
+        const postingOpsOnly = ops.length > 0 && ops.every(
+          ([t]) => t === 'comment' || t === 'comment_options' || t === 'custom_json' || t === 'vote'
+        )
+        if (claimed && !postingOpsOnly) {
+          return res.status(403).json({ error: 'Operation not allowed for app-key auth' })
         }
-        if (!ALLOWED_CUSTOM_JSON_IDS.has(opData.id)) {
-          return res.status(403).json({ error: 'custom_json id not allowed for this app' })
-        }
-      } else {
-        const field = OP_USER_FIELD[opType]
-        if (field && opData[field] !== hiveUsername) {
-          return res.status(403).json({ error: 'Operation not allowed' })
-        }
+        if (claimed) hiveUsername = claimed
       }
     }
 
-    const key = PrivateKey.fromString(POSTING_WIF)
-    const result = await client.broadcast.sendOperations(operations, key)
-    res.json({ success: true, result })
+    if (!hiveUsername) return res.status(401).json({ error: 'Unauthorized' })
+
+    return await broadcastAsThreespeak(hiveUsername, req.body.operations, res)
   } catch (err) {
     console.error('Broadcast error:', err.message)
     res.status(500).json({ error: 'Broadcast failed' })
+  }
+})
+
+// Image upload — sign the standard images.hive.blog "ImageSigningChallenge" with
+// @threespeak's posting key and upload on the user's behalf. Lets every login
+// (incl. HiveSigner, which can't sign client-side) attach covers/thumbnails with
+// no wallet signature. Gated by the shared app key (same trust as the embed
+// upload); the image is hosted under @threespeak and needs no user authority.
+const imageUploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false })
+app.post('/api/upload-image', imageUploadLimiter, express.raw({ type: () => true, limit: '15mb' }), async (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'] || ''
+    if (!EMBED_API_KEY || apiKey !== EMBED_API_KEY) return res.status(401).json({ error: 'Unauthorized' })
+    if (!POSTING_WIF) return res.status(500).json({ error: 'Server is not configured' })
+    const img = req.body
+    if (!Buffer.isBuffer(img) || img.length === 0) return res.status(400).json({ error: 'No image data' })
+
+    // Standard hive.blog image auth: sign sha256("ImageSigningChallenge" + bytes).
+    const hash = cryptoUtils.sha256(Buffer.concat([Buffer.from('ImageSigningChallenge'), img]))
+    const signature = PrivateKey.fromString(POSTING_WIF).sign(hash).toString()
+
+    const contentType = req.headers['content-type'] || 'image/png'
+    const form = new FormData()
+    form.append('file', new Blob([img], { type: contentType }), 'image')
+
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 20000)
+    let hostResp
+    try {
+      hostResp = await fetch(`https://images.hive.blog/${HIVE_ACCOUNT}/${signature}`, {
+        method: 'POST', body: form, signal: ctrl.signal,
+      })
+    } finally { clearTimeout(t) }
+
+    const data = await hostResp.json().catch(() => ({}))
+    if (!hostResp.ok || !data.url) {
+      console.error('Image host rejected:', hostResp.status, JSON.stringify(data).slice(0, 200))
+      return res.status(502).json({ error: 'Image host rejected the upload' })
+    }
+    return res.json({ success: true, url: data.url })
+  } catch (e) {
+    console.error('Image upload error:', e.message)
+    return res.status(500).json({ error: 'Image upload failed' })
   }
 })
 

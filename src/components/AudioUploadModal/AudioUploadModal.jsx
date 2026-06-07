@@ -11,7 +11,8 @@ import { KeyTypes } from '@aioha/aioha';
 import { useMyPlaylists } from '../../hooks/useMyPlaylists';
 import { uploadAudioTo3Speak, getSnapsContainer } from '../../utils/audioUpload';
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
-import { broadcastWithAioha } from '../../hive-api/aioha';
+import { broadcastWithAioha, broadcastViaThreespeak, getCurrentProvider, Providers } from '../../hive-api/aioha';
+import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
 import CommunityModal from '../modal/Community_modal';
 import Beneficiary_modal from '../modal/Beneficiary_modal';
 import { useAppStore } from '../../lib/store';
@@ -68,6 +69,19 @@ const AUDIO_EXT_RE = /\.(mp3|wav|ogg|webm|m4a|flac|aac)$/i;
 // don't see a burst from a single user (avoids rate-limit / dupe-window issues).
 const PUBLISH_DELAY_MS = 3500;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// All audio broadcasts (playlist create/update, posts, comments) go out as
+// @threespeak for every aioha login — the user granted @threespeak posting
+// authority via the gate, so nothing is signed client-side. ButrAuth
+// (getCurrentProvider() === null) keeps its own cookie path through
+// broadcastWithAioha → broadcastViaManteAuth. All these ops are posting-level
+// (comment / comment_options / 3speak_playlist_* custom_json), which the server
+// allows on the app-key path.
+function broadcastAudioOps(ops) {
+  return getCurrentProvider()
+    ? broadcastViaThreespeak(ops)
+    : broadcastWithAioha(ops, KeyTypes.Posting);
+}
 
 // Content type per track (matches the existing 3speak audio categories)
 const TRACK_TYPES = [
@@ -166,6 +180,12 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
   // publishStatus: { [trackId]: { state: 'pending'|'uploading'|'posting'|'success'|'error', message?: string, playUrl?: string } }
   const [publishStatus, setPublishStatus] = useState({});
   const [isPublishing, setIsPublishing] = useState(false);
+  // @threespeak posting gate — audio is broadcast by @threespeak, so the user
+  // must have granted @threespeak posting authority first (every aioha login;
+  // ButrAuth → getCurrentProvider() null → keeps its cookie path, no gate).
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authorizing, setAuthorizing] = useState(false);
   // 'post'  → keep the normal one-time Hive author payout.
   // 'ppl'   → assign 100% beneficiaries to @threespeak-audio; a separate
   //           program pays the author per listen for the track's lifetime.
@@ -482,7 +502,7 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
         }]);
       }
 
-      await broadcastWithAioha(ops, KeyTypes.Posting);
+      await broadcastAudioOps(ops);
       toast.success('Playlist created');
       setPlaylistChoice(playlistId);
       setPendingPlaylist({ id: playlistId, name: trimmed, access });
@@ -518,6 +538,46 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, attemptClose, showCloseConfirm]);
+
+  // Check the @threespeak posting-auth grant when the modal opens (aioha logins
+  // only; ButrAuth → getCurrentProvider() null → keeps its own cookie path).
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    let cancelled = false;
+    setAuthChecking(true);
+    (async () => {
+      if (!getCurrentProvider() || !user) {
+        if (!cancelled) { setNeedsAuth(false); setAuthChecking(false); }
+        return;
+      }
+      try {
+        const ok = await hasThreespeakPostingAuth(user);
+        if (!cancelled) setNeedsAuth(!ok);
+      } catch {
+        if (!cancelled) setNeedsAuth(true); // fail closed — require authorization
+      } finally {
+        if (!cancelled) setAuthChecking(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, user]);
+
+  const handleAuthorize = useCallback(async () => {
+    setAuthorizing(true);
+    // Open the popup synchronously within the click so it isn't blocked; for
+    // HiveSigner the account_update2 is signed in this window.
+    const signWindow = getCurrentProvider() === Providers.HiveSigner ? window.open('', '_blank') : null;
+    try {
+      await addThreespeakToPostingAuth(user, { signWindow });
+      setNeedsAuth(false);
+      toast.success('@threespeak authorized — you can now publish');
+    } catch (e) {
+      try { signWindow?.close(); } catch { /* ignore */ }
+      toast.error(e?.message || 'Authorization failed. Please try again.');
+    } finally {
+      setAuthorizing(false);
+    }
+  }, [user]);
 
   // ─── Publish helpers (must run on every render — keep above the early return) ───
   // setTrackStatus is referentially stable via setState; we keep it as a plain
@@ -604,7 +664,7 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     if (co) ops.push(co);
     if (playlistChoice) ops.push(playlistAddOp(hivePermlink));
 
-    await broadcastWithAioha(ops, KeyTypes.Posting);
+    await broadcastAudioOps(ops);
     await pushAudioThumb(audioPermlink, postThumb);
     setTrackStatus(track.id, { state: 'success', stage: undefined });
   }, [user, mainTitle, community, postDescription, postTagsInput, postThumb, postPayout, postBeneStr, isPremium, rewardMode, playlistChoice, pushAudioThumb]);
@@ -638,7 +698,7 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     });
     if (co) ops.push(co);
     if (playlistChoice) ops.push(playlistAddOp(hivePermlink));
-    await broadcastWithAioha(ops, KeyTypes.Posting);
+    await broadcastAudioOps(ops);
     albumMainRef.current = { author: user, permlink: hivePermlink };
     return albumMainRef.current;
   }, [user, mainTitle, community, postDescription, postTagsInput, postThumb, postPayout, postBeneStr, isPremium, playlistChoice]);
@@ -680,7 +740,7 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     if (co) ops.push(co);
     if (playlistChoice) ops.push(playlistAddOp(hivePermlink));
 
-    await broadcastWithAioha(ops, KeyTypes.Posting);
+    await broadcastAudioOps(ops);
     await pushAudioThumb(audioPermlink, tThumb);
     setTrackStatus(track.id, { state: 'success', stage: undefined });
   }, [user, mode, isPremium, rewardMode, playlistChoice, pushAudioThumb]);
@@ -802,6 +862,22 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
           <button className="audio-upload-close" onClick={attemptClose} aria-label="Close"><MdClose size={20} /></button>
         </div>
 
+        {(authChecking || needsAuth) ? (
+          <div className="audio-upload-body">
+            <div className="audio-upload-auth-gate">
+              {authChecking ? (
+                <p>Checking authorization…</p>
+              ) : (
+                <>
+                  <p>To publish audio, allow <strong>@threespeak</strong> to post on your behalf.</p>
+                  <button className="audio-upload-btn-primary" onClick={handleAuthorize} disabled={authorizing}>
+                    {authorizing ? 'Authorizing…' : 'Authorize @threespeak'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (<>
         <ol className="audio-upload-steps">
           {flow.map((key, i) => (
             <li
@@ -962,6 +1038,7 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
             </button>
           )}
         </div>
+        </>)}
 
         {showCloseConfirm && (
           <div className="audio-upload-confirm" onClick={(e) => e.stopPropagation()}>
