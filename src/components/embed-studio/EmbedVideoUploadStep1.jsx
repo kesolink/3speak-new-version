@@ -8,6 +8,8 @@ import { useEmbedUpload } from '../../context/EmbedUploadContext';
 import { useNavigate } from 'react-router-dom';
 import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
+import { getCurrentProvider, Providers } from '../../hive-api/aioha';
+import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
 
 function EmbedVideoUploadStep1() {
   const {
@@ -17,10 +19,17 @@ function EmbedVideoUploadStep1() {
     setPrevVideoFile,
     setGeneratedThumbnail,
     fromStories,
+    user,
   } = useEmbedUpload()
 
   const [loading, setLoading] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  // @threespeak posting gate: embed posts are broadcast by @threespeak, which
+  // requires the user to have granted @threespeak posting authority before they
+  // can pick a file (applies to every aioha login).
+  const [needsAuth, setNeedsAuth] = useState(false)
+  const [authChecking, setAuthChecking] = useState(true)
+  const [authorizing, setAuthorizing] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -29,6 +38,46 @@ function EmbedVideoUploadStep1() {
     mql.addEventListener('change', onChange);
     return () => mql.removeEventListener('change', onChange);
   }, []);
+
+  // Every aioha login (Keychain/HiveAuth/PeakVault/Ledger/HiveSigner) posts via
+  // @threespeak now, so they all need the @threespeak posting-authority grant
+  // before picking a file. ButrAuth (getCurrentProvider() === null) keeps its own
+  // cookie-authenticated path → no gate.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!getCurrentProvider() || !user) {
+        if (!cancelled) { setNeedsAuth(false); setAuthChecking(false); }
+        return;
+      }
+      try {
+        const ok = await hasThreespeakPostingAuth(user);
+        if (!cancelled) setNeedsAuth(!ok);
+      } catch {
+        if (!cancelled) setNeedsAuth(true); // fail closed — require authorization
+      } finally {
+        if (!cancelled) setAuthChecking(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const handleAuthorize = async () => {
+    setAuthorizing(true);
+    // Open the popup synchronously within the click so it isn't blocked; for
+    // HiveSigner the account_update2 is signed in this window.
+    const signWindow = getCurrentProvider() === Providers.HiveSigner ? window.open('', '_blank') : null;
+    try {
+      await addThreespeakToPostingAuth(user, { signWindow }); // HiveSigner signs in the popup; others sign with the active key
+      setNeedsAuth(false);
+      toast.success('@threespeak authorized — you can now select a video');
+    } catch (e) {
+      try { signWindow?.close(); } catch { /* ignore */ }
+      toast.error(e?.message || 'Authorization failed. Please try again.');
+    } finally {
+      setAuthorizing(false);
+    }
+  };
 
   const videoInputRef = useRef(null);
   const videoPreviewUrl = useMemo(() => videoFile ? URL.createObjectURL(videoFile) : null, [videoFile]);
@@ -122,14 +171,14 @@ function EmbedVideoUploadStep1() {
             <div className="content">
               <div
                 className="icon"
-                onClick={() => videoInputRef.current?.click()}
-                style={{ cursor: 'pointer' }}
-                title="Click to select a video file"
+                onClick={() => { if (!needsAuth) videoInputRef.current?.click(); }}
+                style={{ cursor: needsAuth ? 'not-allowed' : 'pointer' }}
+                title={needsAuth ? 'Authorize @threespeak first' : 'Click to select a video file'}
               >
                 <Upload className="w-8 h-8" />
               </div>
 
-              {!videoFile && (
+              {!videoFile && !needsAuth && (
                 <div className="text">
                   <h3 className="title">{isMobile ? "Pick or Record a Video" : "Choose a video file"}</h3>
                   <p className="formats">
@@ -160,9 +209,21 @@ function EmbedVideoUploadStep1() {
                 onChange={handleVideoSelect}
                 className="input"
                 id="embed-video-upload"
+                disabled={needsAuth}
               />
 
-              {loading ? (
+              {authChecking ? (
+                <TailChase size="30" speed="1.75" color="red" />
+              ) : needsAuth ? (
+                <div className="threespeak-auth-gate">
+                  <p className="formats">
+                    To upload, allow <strong>@threespeak</strong> to post on your behalf.
+                  </p>
+                  <button type="button" className="button" onClick={handleAuthorize} disabled={authorizing}>
+                    {authorizing ? 'Authorizing…' : 'Authorize @threespeak'}
+                  </button>
+                </div>
+              ) : loading ? (
                 <TailChase size="30" speed="1.75" color="red" />
               ) : !videoFile ? (
                 <label htmlFor="embed-video-upload" className="button">

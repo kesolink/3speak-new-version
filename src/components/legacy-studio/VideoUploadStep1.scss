@@ -276,3 +276,18 @@
     font-weight: bold;
   }
 }
+
+// HiveSigner @threespeak inline gate — centered prompt + button.
+.threespeak-auth-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: center;
+
+  .button {
+    align-self: center;
+    margin: 0 auto;
+  }
+}

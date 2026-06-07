@@ -1,9 +1,30 @@
-import { IMAGE_UPLOAD_URL, IMAGE_UPLOAD_KEY } from './config';
+import { IMAGE_UPLOAD_URL, IMAGE_UPLOAD_KEY, EMBED_API_KEY } from './config';
 import { signMessageWithAioha, isLoggedIn } from '../hive-api/aioha';
 import { KeyTypes } from '@aioha/aioha';
 
+// Our backend (:4021) signs the hive.blog image challenge as @threespeak.
+const THREESPEAK_API = import.meta.env.VITE_THREESPEAK_API || '/api';
 // 3Speak image server (fallback). In dev use the Vite proxy to avoid CORS.
 const THREESPEAK_BASE = import.meta.env.DEV ? '/image-api' : IMAGE_UPLOAD_URL;
+
+// Primary: @threespeak backend signs the images.hive.blog "ImageSigningChallenge"
+// and uploads on our behalf. Works for every login (no client-side signing), and
+// is how covers/thumbnails go up now that posts are broadcast by @threespeak.
+async function uploadViaThreespeak(file) {
+  const res = await fetch(`${THREESPEAK_API}/upload-image`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+      'X-API-Key': EMBED_API_KEY,
+    },
+    body: file,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.url) {
+    throw new Error(data.error || `@threespeak image upload failed (${res.status})`);
+  }
+  return data.url;
+}
 // images.hive.blog (primary) goes through a same-origin nginx proxy so the
 // browser never makes a cross-origin request (mirrors how snapie-io proxies it
 // server-side). nginx /hive-image-api/ → https://images.hive.blog/.
@@ -65,19 +86,32 @@ async function uploadTo3Speak(file) {
 }
 
 /**
- * Upload a thumbnail image. Tries images.hive.blog first (signed with the user's
- * posting key), then falls back to the 3Speak image server.
+ * Upload a thumbnail/cover image. Primary path is the @threespeak backend (signs
+ * the hive.blog challenge server-side — works for every login). Falls back to the
+ * user-signed hive.blog path (when a username is given and not preferStatic) and
+ * finally the 3Speak image server, so an upload never hard-fails on one outage.
  * @param {Blob|File} file - The image file to upload
- * @param {string} [username] - Hive username; required for the hive.blog path
+ * @param {string} [username] - Hive username; enables the user-signed fallback
+ * @param {object} [opts]
+ * @param {boolean} [opts.preferStatic] - Skip the user-signed hive.blog fallback
+ *   (it can't run for HiveSigner anyway). The @threespeak path is tried regardless.
  * @returns {Promise<string>} The public URL of the uploaded image
  */
-export async function uploadThumbnail(file, username) {
-  if (username && isLoggedIn()) {
+export async function uploadThumbnail(file, username, { preferStatic = false } = {}) {
+  // Primary: @threespeak signs + uploads on our behalf.
+  try {
+    return await uploadViaThreespeak(file);
+  } catch (e) {
+    console.warn('@threespeak image upload failed, falling back:', e?.message);
+  }
+  // Fallback 1: user-signed hive.blog (needs a username + a wallet that can sign).
+  if (!preferStatic && username && isLoggedIn()) {
     try {
       return await uploadToHive(file, username);
     } catch (e) {
-      console.warn('hive.blog thumbnail upload failed, falling back to 3Speak:', e);
+      console.warn('hive.blog (user-signed) upload failed, falling back to 3Speak:', e?.message);
     }
   }
+  // Fallback 2: 3Speak image server (static key).
   return await uploadTo3Speak(file);
 }

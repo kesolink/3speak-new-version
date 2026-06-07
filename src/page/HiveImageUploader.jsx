@@ -1,56 +1,28 @@
-// HiveImageUploader.jsx
+// HiveImageUploader.jsx — standalone image uploader (/image).
+// Uploads through the shared image pipeline: the @threespeak backend signs the
+// hive.blog challenge server-side (works for every login, no pasted keys), with
+// fallbacks to user-signed hive.blog / the 3Speak image server.
 import React, { useState, useRef } from 'react';
-import { PrivateKey } from '@hiveio/dhive';
 import './HiveImageUploader.scss';
-import { Buffer } from "buffer";
+import { uploadThumbnail } from '../utils/uploadThumbnail';
+
 const HiveImageUploader = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState('');
   const [error, setError] = useState('');
-  const [username, setUsername] = useState('');
-  const [postingKey, setPostingKey] = useState('');
   const fileInputRef = useRef(null);
-
-  // Sign image data
-  const signImage = async (imageData) => {
-    try {
-      const key = PrivateKey.fromString(postingKey);
-      
-      // Create hash - using Web Crypto API for browser
-      const encoder = new TextEncoder();
-      const challengeBuffer = encoder.encode('ImageSigningChallenge');
-      
-      // Combine challenge and image data
-      const combined = new Uint8Array(challengeBuffer.length + imageData.length);
-      combined.set(challengeBuffer);
-      combined.set(imageData, challengeBuffer.length);
-      
-      // Hash with SHA-256
-      const hashBuffer = await crypto.subtle.digest('SHA-256', combined);
-      const hashArray = new Uint8Array(hashBuffer);
-      
-      // Sign the hash
-      const signature = key.sign(Buffer.from(hashArray)).toString();
-      return signature;
-    } catch (err) {
-      throw new Error('Failed to sign image: ' + err.message);
-    }
-  };
 
   // Handle file selection
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       setError('Please select a valid image file');
       return;
     }
-
-    // Validate file size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
       setError('Image size must be less than 10MB');
       return;
@@ -60,23 +32,15 @@ const HiveImageUploader = () => {
     setError('');
     setUploadedUrl('');
 
-    // Create preview
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result);
-    };
+    reader.onloadend = () => setPreview(reader.result);
     reader.readAsDataURL(file);
   };
 
-  // Upload image to Hive ImageHoster
+  // Upload via the @threespeak-backed image pipeline
   const handleUpload = async () => {
     if (!selectedImage) {
       setError('Please select an image first');
-      return;
-    }
-
-    if (!username || !postingKey) {
-      setError('Please enter your Hive username and posting key');
       return;
     }
 
@@ -84,87 +48,33 @@ const HiveImageUploader = () => {
     setError('');
 
     try {
-      // Read file as ArrayBuffer
-      const arrayBuffer = await selectedImage.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-
-      // Sign the image
-      const signature = await signImage(uint8Array);
-
-      // Create FormData
-      const formData = new FormData();
-      formData.append('image', selectedImage);
-
-      // Upload to ImageHoster
-      const imageHosterUrl = 'https://images.hive.blog';
-      const response = await fetch(`${imageHosterUrl}/${username}/${signature}`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      setUploadedUrl(result.url);
+      const url = await uploadThumbnail(selectedImage);
+      setUploadedUrl(url);
       setError('');
-      
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
   };
 
-  // Copy URL to clipboard
   const copyToClipboard = () => {
     navigator.clipboard.writeText(uploadedUrl);
     alert('URL copied to clipboard!');
   };
 
-  // Reset form
   const handleReset = () => {
     setSelectedImage(null);
     setPreview(null);
     setUploadedUrl('');
     setError('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
     <div className="hive-image-uploader">
       <div className="uploader-container">
         <h2>Hive Image Uploader</h2>
-        
-        {/* Credentials Section */}
-        <div className="credentials-section">
-          <div className="input-group">
-            <label htmlFor="username">Hive Username</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your Hive username"
-            />
-          </div>
-          
-          <div className="input-group">
-            <label htmlFor="postingKey">Posting Key</label>
-            <input
-              type="password"
-              id="postingKey"
-              value={postingKey}
-              onChange={(e) => setPostingKey(e.target.value)}
-              placeholder="Enter your posting private key"
-            />
-            <small className="warning">⚠️ Never share your private key!</small>
-          </div>
-        </div>
 
         {/* File Upload Section */}
         <div className="upload-section">
@@ -215,7 +125,7 @@ const HiveImageUploader = () => {
           <button
             className="btn btn-primary"
             onClick={handleUpload}
-            disabled={!selectedImage || uploading || !username || !postingKey}
+            disabled={!selectedImage || uploading}
           >
             {uploading ? (
               <>
