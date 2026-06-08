@@ -515,7 +515,12 @@ function Watch() {
 
         if (!cancelled) setCommentMarkers(markers);
       } catch (err) {
-        console.error('Failed to fetch comments for markers:', err);
+        // "Invalid parameters" → post doesn't exist on Hive (social-only, deleted,
+        // or bad permlink). Markers are non-essential, so log quietly.
+        const benign = err?.name === 'RPCError';
+        (benign ? console.warn : console.error)(
+          `[markers] ${author}/${permlink}:`, err?.jse_shortmsg || err?.message || err,
+        );
       }
     })();
 
@@ -781,7 +786,10 @@ function Watch() {
           _hiveFallback: true,
         });
       } catch (err) {
-        console.error('Hive fallback failed:', err);
+        const benign = err?.name === 'RPCError';
+        (benign ? console.warn : console.error)(
+          `[hive-fallback] ${author}/${permlink}:`, err?.jse_shortmsg || err?.message || err,
+        );
       } finally {
         if (!cancelled) { setHiveFallbackLoading(false); setHiveFallbackDone(true); }
       }

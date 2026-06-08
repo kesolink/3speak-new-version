@@ -132,6 +132,11 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
 
            </div>
            <hr className="profile-divider" />
+           <div className="rpc-node-line" title={rpcNode}>
+             <span className="rpc-node-dot" aria-hidden="true" />
+             <span className="rpc-node-label">RPC:</span>
+             <span className="rpc-node-host">{rpcNode.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
+           </div>
            <div className="logo-wrap">
           {theme === "light" ? <img className="logo" src={logo} alt="3Speak Logo" /> :
             <img className="logo" src={logoDark} alt="3Speak Logo" />}

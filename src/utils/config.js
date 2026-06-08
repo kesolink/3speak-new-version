@@ -88,6 +88,18 @@ const HIVE_API_NODES = [
   'https://api.openhive.network',
   'https://techcoderx.com',
 ];
+const parseList = (s) => (s || '')
+  .split(/[\s,]+/)
+  .map((x) => x.trim())
+  .filter(Boolean);
+
+const HIVE_API_NODES = (() => {
+  const primary = import.meta.env.VITE_HIVE_API_URL || DEFAULT_HIVE_PRIMARY;
+  const fallbacks = import.meta.env.VITE_HIVE_API_FALLBACKS
+    ? parseList(import.meta.env.VITE_HIVE_API_FALLBACKS)
+    : DEFAULT_HIVE_FALLBACKS;
+  return [...new Set([primary, ...fallbacks])];
+})();
 
 /**
  * Append nsfw=true to a URL when NSFW content is enabled.

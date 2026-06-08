@@ -86,7 +86,7 @@ async function uploadTo3Speak(file) {
 }
 
 /**
- * Upload a thumbnail/cover image. Primary path is the @threespeak backend (signs
+rebase  * Upload a thumbnail/cover image. Primary path is the @threespeak backend (signs
  * the hive.blog challenge server-side — works for every login). Falls back to the
  * user-signed hive.blog path (when a username is given and not preferStatic) and
  * finally the 3Speak image server, so an upload never hard-fails on one outage.

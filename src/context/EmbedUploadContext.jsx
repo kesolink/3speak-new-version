@@ -404,17 +404,22 @@ export function EmbedUploadProvider({ children }) {
         },
       };
 
-      // Build comment_options with beneficiaries (threespeakfund + original author + user-added)
-      let parsedBeneficiaries = beneficiaries;
-      if (typeof parsedBeneficiaries === 'string') {
-        try { parsedBeneficiaries = JSON.parse(parsedBeneficiaries); } catch { parsedBeneficiaries = []; }
-      }
+      // Build comment_options. When the author is declining payout, skip
+      // beneficiaries entirely — declaring beneficiaries against a 0 HBD
+      // payout reads weird on-chain and an empty beneficiaries extension
+      // would be rejected by Hive.
+      let allBeneficiaries = [];
+      if (!declineRewards) {
+        let parsedBeneficiaries = beneficiaries;
+        if (typeof parsedBeneficiaries === 'string') {
+          try { parsedBeneficiaries = JSON.parse(parsedBeneficiaries); } catch { parsedBeneficiaries = []; }
+        }
 
-      // Start with user-set beneficiaries (from the UI list, includes locked items)
-      const beneMap = new Map();
-      for (const b of (Array.isArray(parsedBeneficiaries) ? parsedBeneficiaries : [])) {
-        beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
-      }
+        // Start with user-set beneficiaries (from the UI list, includes locked items)
+        const beneMap = new Map();
+        for (const b of (Array.isArray(parsedBeneficiaries) ? parsedBeneficiaries : [])) {
+          beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
+        }
 
       // Apply locked beneficiaries: 10% threespeakfund for non-Pro users
       // (skipped for Pro subscribers) + 5% to the original creator on
@@ -424,10 +429,11 @@ export function EmbedUploadProvider({ children }) {
         originalAuthor: originalAuthor && originalPermlink ? originalAuthor : null,
       });
 
-      // Convert map to sorted array (sorted by account name — required by Hive protocol)
-      const allBeneficiaries = [...beneMap.entries()]
-        .map(([account, weight]) => ({ account, weight }))
-        .sort((a, b) => a.account.localeCompare(b.account));
+        // Convert map to sorted array (sorted by account name — required by Hive protocol)
+        allBeneficiaries = [...beneMap.entries()]
+          .map(([account, weight]) => ({ account, weight }))
+          .sort((a, b) => a.account.localeCompare(b.account));
+      }
 
       const commentOptions = {
         author: user,
