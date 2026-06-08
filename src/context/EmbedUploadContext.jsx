@@ -436,7 +436,11 @@ export function EmbedUploadProvider({ children }) {
         percent_hbd: rewardPowerup ? 0 : 10000,
         allow_votes: true,
         allow_curation_rewards: true,
-        extensions: [[0, { beneficiaries: allBeneficiaries }]],
+        // Hive rejects an empty beneficiaries extension ("Must specify at least one
+        // beneficiary") — Premium users with no beneficiaries have an empty list —
+        // but the broadcaster's serializer needs `extensions` to be an array. So use
+        // an empty array (not a missing field, and not an empty-beneficiaries entry).
+        extensions: allBeneficiaries.length > 0 ? [[0, { beneficiaries: allBeneficiaries }]] : [],
       };
 
       // Determine parent:
