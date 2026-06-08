@@ -4,6 +4,9 @@
 
 /* Light Mode (Default) */
 :root {
+  /* Layout */
+  --bottom-nav-height: 56px; /* mobile BottomNav height; offsets fixed bottom bars */
+
   /* Backgrounds */
   --bg-primary: #f9f9f9;
   --bg-secondary: #ffffff;

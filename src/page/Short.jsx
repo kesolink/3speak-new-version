@@ -151,6 +151,33 @@ function renderCaption(text) {
   return elements.length > 0 ? elements : null;
 }
 
+// Register a view on the player backend once a short actually starts playing.
+// The backend (/api/view) resolves the video with findEmbedVideo(owner, permlink),
+// which matches the embed *asset* permlink — the SAME id the player uses to load
+// and play the short — NOT the Hive permlink. So we must send `video.permlink`
+// (the asset id); sending `hivePermlink` makes the lookup 404 and the view is
+// never counted. A video lives in exactly one collection, so we try 'embed' then
+// 'legacy' and stop once one counts it. `seen` dedupes per session so
+// replays/loops/seeks never double-count.
+async function recordShortView(video, seen) {
+  const permlink = video?.permlink || video?.hivePermlink;
+  if (!video?.author || video.author === 'unknown' || !permlink) return;
+  const key = `${video.author}/${permlink}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  for (const type of ['embed', 'legacy']) {
+    try {
+      const res = await fetch(`${PLAYER_URL}/api/view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner: video.author, permlink, type }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.counted) break;
+    } catch { /* try next type */ }
+  }
+}
+
 /* ================= COMPONENT ================= */
 const VideoShort = () => {
   const { user, authenticated, watchHistoryEnabled } = useAppStore();
@@ -283,6 +310,7 @@ const VideoShort = () => {
   const progressBarRef = useRef(null);
   const playPauseTimeoutRef = useRef(null);
   const commentsFetchedRef = useRef(new Set());
+  const recordedShortsViewsRef = useRef(new Set()); // author/permlink already view-counted
   const videoContainerRef = useRef(null);
   const playerRef = useRef(null); // Single persistent SDK Player instance
   const videoElRef = useRef(null); // Single persistent <video> element ref
@@ -461,6 +489,10 @@ const VideoShort = () => {
   const quickUpvote = useCallback(() => {
     const video = videos[currentIndex];
     if (!video) return;
+    if (video.hivePostMissing) {
+      toast.error("Voting isn't available for this post");
+      return;
+    }
     // Open the vote tooltip (same as clicking the heart in the sidebar)
     if (!authenticated) {
       toast.error('Login to vote');
@@ -745,6 +777,7 @@ const VideoShort = () => {
             reactionChain: enriched.reactionChain || null,
             childReactions: enriched.childReactions || null,
             reusable: enriched.reusable,
+            hivePostMissing: enriched.hivePostMissing,
             _enriched: true,
           };
         }));
@@ -869,8 +902,11 @@ const VideoShort = () => {
       const sharedVideo = getSharedVideoFromUrl();
 
       if (sharedVideo) {
+        // The URL `permlink` may be the embed asset id OR the Hive permlink
+        // (shares / chain links use the Hive permlink). Match either.
         const sharedIndex = formattedVideos.findIndex(
-          v => v.author === sharedVideo.author && v.permlink === sharedVideo.permlink
+          v => v.author === sharedVideo.author &&
+            (v.permlink === sharedVideo.permlink || v.hivePermlink === sharedVideo.permlink)
         );
 
         if (sharedIndex !== -1) {
@@ -878,7 +914,14 @@ const VideoShort = () => {
           setCurrentIndex(sharedIndex);
         } else {
           try {
-            const actualShort = await hiveApi.findShortByPermlink(sharedVideo.permlink);
+            // Resolve by asset permlink first; if the URL carried the Hive permlink
+            // (wave-/snap-/3speak-… shares), resolve via embed_url instead. Either
+            // way `actualShort.permlink` is the embed asset id — what the player and
+            // the /api/view endpoint need (sending the Hive permlink 404s both).
+            let actualShort = await hiveApi.findShortByPermlink(sharedVideo.permlink);
+            if (!actualShort) {
+              actualShort = await hiveApi.findShortByEmbedUrl(sharedVideo.author, sharedVideo.permlink);
+            }
             const shortItem = actualShort || {
               owner: sharedVideo.author,
               permlink: sharedVideo.permlink,
@@ -895,6 +938,8 @@ const VideoShort = () => {
               author: sharedVideoData.author,
               permlink: sharedVideoData.permlink,
               hivePermlink: sharedVideoData.hivePermlink,
+              hivePostMissing: sharedVideoData.hivePostMissing,
+              embedUrl: sharedVideoData.embedUrl,
               user: sharedVideoData.user,
               caption: sharedVideoData.caption || sharedVideoData.title || '',
               audio: `${sharedVideoData.user.username} - Original Audio`,
@@ -1347,6 +1392,11 @@ const VideoShort = () => {
       return;
     }
 
+    if (!parentAuthor || !parentPermlink) {
+      toast.error("Comments aren't available for this post");
+      return;
+    }
+
     if (!user || !isLoggedIn()) {
       toast.error('Please login to comment');
       return;
@@ -1528,6 +1578,10 @@ const VideoShort = () => {
   const handleReshare = async () => {
     if (!currentVideo || !user) {
       toast.error('Log in to reshare');
+      return;
+    }
+    if (currentVideo.hivePostMissing) {
+      toast.error("Reshare isn't available for this post");
       return;
     }
     if (hasReshared) return;
@@ -1965,6 +2019,8 @@ const VideoShort = () => {
     player.on('play', () => {
       setIsPlaying(true);
       setAutoplayBlocked(false);
+      // Count a view the moment the active short actually starts playing.
+      recordShortView(videosRef.current[currentIndexRef.current], recordedShortsViewsRef.current);
     });
 
     player.on('pause', () => {
@@ -2668,7 +2724,7 @@ const VideoShort = () => {
 
         {/* SIDEBAR */}
         <div className="actionSidebar" onClick={(e) => e.stopPropagation()}>
-          <div className="actionItem" onClick={(e) => { e.stopPropagation(); toggleVoteTooltip(currentVideo.author, currentVideo.hivePermlink); }}>
+          <div className="actionItem" onClick={(e) => { e.stopPropagation(); if (currentVideo.hivePostMissing) { toast.error("Voting isn't available for this post"); return; } toggleVoteTooltip(currentVideo.author, currentVideo.hivePermlink); }}>
             <div className={`actionButton ${currentVideo.isLiked ? 'liked' : ''}`}>
               <Heart size={24} fill={currentVideo.isLiked ? '#ff2d55' : 'none'} />
             </div>
@@ -2842,7 +2898,7 @@ const VideoShort = () => {
               e.target.style.height = 'auto';
               e.target.style.height = e.target.scrollHeight + 'px';
             }}
-            disabled={!user || postingComment}
+            disabled={!user || postingComment || currentVideo.hivePostMissing}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && !postingComment) {
                 e.preventDefault();
@@ -2853,7 +2909,7 @@ const VideoShort = () => {
           <button
             className="sendCommentBtn"
             onClick={() => handlePostComment(currentVideo.author, currentVideo.hivePermlink, newComment, false)}
-            disabled={!user || !newComment.trim() || postingComment}
+            disabled={!user || !newComment.trim() || postingComment || currentVideo.hivePostMissing}
           >
             {postingComment ? <Loader2 size={18} className="spinner" /> : <Send size={18} />}
           </button>

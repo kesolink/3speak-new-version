@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAppStore } from '../lib/store';
 import { CHECKER_URL, HIVE_API_URL } from '../utils/config';
+import { AUDIO_CATEGORY_ICONS } from '../utils/audioCategoryIcons';
 import { MdClose, MdArrowBack } from 'react-icons/md';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import AudioAuthorBadge from './AudioAuthorBadge';
@@ -15,6 +16,11 @@ import AudioPlaylistTile from '../components/AudioPlaylistTile/AudioPlaylistTile
 import { isLoggedIn } from '../hive-api/aioha';
 
 import './Audio.scss';
+
+// Service/system accounts whose audio + albums are hidden from the audio page.
+// Frontend-only filter applied to every audio/album query result below.
+const HIDDEN_AUDIO_OWNERS = new Set(['badadib']);
+const isHiddenOwner = (owner) => HIDDEN_AUDIO_OWNERS.has(owner);
 
 // Horizontal tile rail whose height adapts to how many tiles there are:
 // - everything fits in one visible row  → 1 row
@@ -76,11 +82,11 @@ const DURATION_STOPS = [0, 5, 10, 15, 30, 45, 60, 120, 180, 300, 600, 900, 1800,
 // Available content types for the type filter (matches the existing
 // 3speak audio categories on the embed-audio docs).
 const TYPE_FILTERS = [
-  { value: 'song',          label: 'Music' },
-  { value: 'podcast',       label: 'Podcasts' },
-  { value: 'voice_message', label: 'Voice' },
-  { value: 'audiobook',     label: 'Audiobooks' },
-  { value: 'interview',     label: 'Interviews' },
+  { value: 'song',          label: 'Music',      icon: AUDIO_CATEGORY_ICONS.song },
+  { value: 'podcast',       label: 'Podcasts',   icon: AUDIO_CATEGORY_ICONS.podcast },
+  { value: 'voice_message', label: 'Voice',      icon: AUDIO_CATEGORY_ICONS.voice_message },
+  { value: 'audiobook',     label: 'Audiobooks', icon: AUDIO_CATEGORY_ICONS.audiobook },
+  { value: 'interview',     label: 'Interviews', icon: AUDIO_CATEGORY_ICONS.interview },
 ];
 
 // Music genres for the dropdown when type filter = music. Same list the
@@ -216,7 +222,12 @@ function Audio() {
     queryKey: ['audio-grouped', groupedParams],
     queryFn: async () => {
       const { data } = await axios.get(`${CHECKER_URL}/audio/grouped?${groupedParams}`);
-      return data.groups || {};
+      const groups = data.groups || {};
+      // Hide service-account audio frontend-side (every grouped section).
+      for (const k of Object.keys(groups)) {
+        if (Array.isArray(groups[k])) groups[k] = groups[k].filter((it) => !isHiddenOwner(it.owner));
+      }
+      return groups;
     },
     enabled: !isFiltered && !selectedCreator,
   });
@@ -230,7 +241,12 @@ function Audio() {
       if (typeFilter) p.set('category', typeFilter);
       if (typeFilter === 'song' && genreFilter) p.set('genre', genreFilter);
       const { data } = await axios.get(`${CHECKER_URL}/audio/playlists?${p}`);
-      return data || { by_artist: [], by_listeners: [] };
+      const pg = data || { by_artist: [], by_listeners: [] };
+      // Hide albums/playlists owned by a service account.
+      return {
+        by_artist: (pg.by_artist || []).filter((a) => !isHiddenOwner(a.owner)),
+        by_listeners: (pg.by_listeners || []).filter((a) => !isHiddenOwner(a.owner)),
+      };
     },
     // Show albums even while filtering — the endpoint applies the same
     // category/genre filter, so a "Music" filter keeps music albums.
@@ -242,7 +258,7 @@ function Audio() {
     queryKey: ['audio-filtered', filterParams],
     queryFn: async () => {
       const { data } = await axios.get(`${CHECKER_URL}/audio?${filterParams}`);
-      return data.audio || [];
+      return (data.audio || []).filter((it) => !isHiddenOwner(it.owner));
     },
     enabled: isFiltered && !selectedCreator,
   });
@@ -264,7 +280,7 @@ function Audio() {
     queryKey: ['audio-creators', creatorsParams],
     queryFn: async () => {
       const { data } = await axios.get(`${CHECKER_URL}/audio/creators?${creatorsParams}`);
-      return data.creators || [];
+      return (data.creators || []).filter((c) => !isHiddenOwner(c.owner));
     },
   });
 
@@ -299,7 +315,7 @@ function Audio() {
 
   const { data: creatorAudio, isLoading: creatorLoading } = useQuery({
     queryKey: ['audio-by-creator', selectedCreator],
-    queryFn: async () => { const { data } = await axios.get(`${CHECKER_URL}/audio?owner=${encodeURIComponent(selectedCreator)}&limit=50&sort=popular`); return data.audio || []; },
+    queryFn: async () => { const { data } = await axios.get(`${CHECKER_URL}/audio?owner=${encodeURIComponent(selectedCreator)}&limit=50&sort=popular`); return (data.audio || []).filter((it) => !isHiddenOwner(it.owner)); },
     enabled: !!selectedCreator,
   });
 
@@ -319,7 +335,7 @@ function Audio() {
       try {
         const { data } = await axios.get(`${CHECKER_URL}/audio?owner=${encodeURIComponent(o)}&q=${encodeURIComponent(pl)}&limit=1`);
         const item = data?.audio?.find(a => a.permlink === pl);
-        if (item) audioPlay(item, [item]);
+        if (item && !isHiddenOwner(item.owner)) audioPlay(item, [item]);
       } catch {}
       setDeepLinkHandled(true);
     })();
@@ -384,7 +400,7 @@ function Audio() {
                   setTypeFilter(opt.value);
                   if (opt.value !== 'song') setGenreFilter('');
                 }}
-              >{opt.label}</button>
+              ><i className={`audio-type-chip-icon ${opt.icon}`} /> {opt.label}</button>
             ))}
           </div>
           {typeFilter === 'song' && (

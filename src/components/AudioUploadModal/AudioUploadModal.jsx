@@ -714,7 +714,9 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     const hivePermlink = generatePermlink(track.title) || audioPermlink;
     const tags = Array.from(new Set(HIVE_DEFAULT_TAGS));
     const desc = (track.desc || '').trim() || (track.title || '').trim();
-    const tThumb = track.thumb || '';
+    // Fall back to the main composer cover so a thumbnail set in the main step
+    // also lands on snap/voice track comments (json_metadata.image + body + Mongo).
+    const tThumb = track.thumb || postThumb || '';
     const cover = tThumb ? `![${(track.title || 'cover').replace(/[[\]]/g, '')}](${tThumb})\n\n` : '';
     const body = `${cover}${playUrl}\n\n${desc}`.trim();
     const metaObj = { app: HIVE_APP_NAME, tags, audio: audioMetaFor(track) };
@@ -743,7 +745,7 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     await broadcastAudioOps(ops);
     await pushAudioThumb(audioPermlink, tThumb);
     setTrackStatus(track.id, { state: 'success', stage: undefined });
-  }, [user, mode, isPremium, rewardMode, playlistChoice, pushAudioThumb]);
+  }, [user, mode, isPremium, rewardMode, playlistChoice, postThumb, pushAudioThumb]);
 
   // Resolve the parent a track comment hangs off, per mode.
   const resolveParent = useCallback(async () => {

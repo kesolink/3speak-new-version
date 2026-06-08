@@ -1,9 +1,11 @@
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MdPlayArrow, MdPlaylistPlay, MdShare, MdAdd } from 'react-icons/md';
 import { useAppStore } from '../../lib/store';
 import PayoutAmount from '../PayoutAmount/PayoutAmount';
 import PremiumBadge from '../PremiumBadge/PremiumBadge';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
+import { audioCategoryIcon } from '../../utils/audioCategoryIcons';
 // Reuse the existing tile styles defined in Audio.scss so this component is the
 // single source of truth and stays visually identical across pages.
 import '../../page/Audio.scss';
@@ -94,7 +96,63 @@ function AudioTile({
   const isCurrent = audioCurrent?._id === item._id;
   const isPlaying = isCurrent && audioIsPlaying;
 
+  // Hover-only action buttons can't be reached on touch devices, so a long-press
+  // on the cover reveals them (and suppresses the play that the tap would fire).
+  const tileRef = useRef(null);
+  const [revealed, setRevealed] = useState(false);
+  const longPressTimer = useRef(null);
+  const suppressClickRef = useRef(false);
+  const wasTouchRef = useRef(false); // distinguishes touch-tap from desktop click
+  const LONG_PRESS_MS = 450;
+
+  const startLongPress = () => {
+    clearTimeout(longPressTimer.current);
+    suppressClickRef.current = false;
+    wasTouchRef.current = true;
+    longPressTimer.current = setTimeout(() => {
+      suppressClickRef.current = true; // swallow the click that ends this press
+      setRevealed(true);
+      if (navigator.vibrate) navigator.vibrate(10);
+    }, LONG_PRESS_MS);
+  };
+  const cancelLongPress = () => clearTimeout(longPressTimer.current);
+
+  // Clean up a pending timer if the tile unmounts mid-press.
+  useEffect(() => () => clearTimeout(longPressTimer.current), []);
+
+  // Once revealed, a tap anywhere outside this tile collapses the actions.
+  useEffect(() => {
+    if (!revealed) return;
+    const onOutside = (e) => {
+      if (tileRef.current && !tileRef.current.contains(e.target)) setRevealed(false);
+    };
+    document.addEventListener('touchstart', onOutside, true);
+    document.addEventListener('mousedown', onOutside, true);
+    return () => {
+      document.removeEventListener('touchstart', onOutside, true);
+      document.removeEventListener('mousedown', onOutside, true);
+    };
+  }, [revealed]);
+
   const handlePlay = () => {
+    const wasTouch = wasTouchRef.current;
+    wasTouchRef.current = false;
+    // The long-press that revealed the actions must not also start playback.
+    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+    setRevealed(false);
+
+    // Mobile default: a short tap enqueues the track as the last item. It only
+    // becomes the currently-playing item when the queue was empty (it's now the
+    // first item) or nothing is currently playing — otherwise it just lines up.
+    if (wasTouch) {
+      const { audioQueue, audioIsPlaying } = useAppStore.getState();
+      const makeCurrent = audioQueue.length === 0 || !audioIsPlaying;
+      audioAddToQueue(item); // no-op if already queued; appends as last otherwise
+      if (makeCurrent) audioPlay(item);
+      return;
+    }
+
+    // Desktop (mouse click): keep the original play-now behavior.
     if (onPlay) return onPlay();
     audioPlay(item, contextItems || [item]);
   };
@@ -125,7 +183,14 @@ function AudioTile({
   );
 
   const cover = (
-    <div className="audio-tile-cover" onClick={handlePlay}>
+    <div
+      className="audio-tile-cover"
+      onClick={handlePlay}
+      onTouchStart={startLongPress}
+      onTouchEnd={cancelLongPress}
+      onTouchMove={cancelLongPress}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <img src={thumb} alt="" onError={(e) => { e.currentTarget.src = fallbackImg; }} />
       <div className="audio-tile-overlay">
         {isPlaying ? <div className="audio-tile-eq"><span /><span /><span /></div> : <MdPlayArrow size={28} />}
@@ -139,7 +204,7 @@ function AudioTile({
     <div className="audio-tile-body">
       <span className="audio-tile-title" onClick={handlePlay}>{item.title || 'Untitled'}</span>
       <span className="audio-tile-author" onClick={handleAuthor}>@{item.owner}<PremiumBadge username={item.owner} size={11} /></span>
-      {metaLine && <span className="audio-tile-meta">{metaLine}</span>}
+      {metaLine && <span className="audio-tile-meta"><i className={`audio-tile-meta-icon ${audioCategoryIcon(item.category)}`} /> {metaLine}</span>}
       <div className="audio-tile-footer">
         {item.plays > 0 && <span>{item.plays} plays</span>}
         {item.stats?.total_hive_reward > 0 && <PayoutAmount amount={item.stats.total_hive_reward} size={10} />}
@@ -149,7 +214,7 @@ function AudioTile({
   );
 
   return (
-    <div className={`audio-tile${isCurrent ? ' audio-tile-active' : ''}`}>
+    <div ref={tileRef} className={`audio-tile${isCurrent ? ' audio-tile-active' : ''}${revealed ? ' audio-tile-revealed' : ''}`}>
       {cover}
       {body}
     </div>
