@@ -3,7 +3,8 @@ import { MdUploadFile, MdVideocam, MdStop, MdFiberManualRecord } from 'react-ico
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY } from '../../utils/config';
-import { commentWithAioha } from '../../hive-api/aioha';
+import { commentWithAioha, broadcastViaThreespeak, getCurrentProvider, Providers } from '../../hive-api/aioha';
+import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
 import { useAppStore } from '../../lib/store';
 import './ReactVideoModal.scss';
 
@@ -36,6 +37,12 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
   const [uploading, setUploading] = useState(false);
   const [statusText, setStatusText] = useState('');
 
+  // @threespeak posting gate — reactions are broadcast by @threespeak, so the
+  // user must have granted @threespeak posting authority (every aioha login;
+  // ButrAuth → getCurrentProvider() null → keeps its own cookie path, no gate).
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const [authorizing, setAuthorizing] = useState(false);
+
   const fileInputRef = useRef(null);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
@@ -64,6 +71,39 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
       webcamRef.current.srcObject = stream;
     }
   }, [stream]);
+
+  // Check the @threespeak posting-auth grant for aioha logins (eagerly, so the
+  // gate is resolved by the time a video is ready to post).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!getCurrentProvider() || !user) { if (!cancelled) setNeedsAuth(false); return; }
+      try {
+        const ok = await hasThreespeakPostingAuth(user);
+        if (!cancelled) setNeedsAuth(!ok);
+      } catch {
+        if (!cancelled) setNeedsAuth(true); // fail closed — require authorization
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const handleAuthorize = useCallback(async () => {
+    setAuthorizing(true);
+    // Open the popup synchronously within the click so it isn't blocked; for
+    // HiveSigner the account_update2 is signed in this window.
+    const signWindow = getCurrentProvider() === Providers.HiveSigner ? window.open('', '_blank') : null;
+    try {
+      await addThreespeakToPostingAuth(user, { signWindow });
+      setNeedsAuth(false);
+      toast.success('@threespeak authorized — you can now post your reaction');
+    } catch (e) {
+      try { signWindow?.close(); } catch { /* ignore */ }
+      toast.error(e?.message || 'Authorization failed. Please try again.');
+    } finally {
+      setAuthorizing(false);
+    }
+  }, [user]);
 
   // Calculate video duration from file
   const calcDuration = useCallback((file) => {
@@ -260,14 +300,22 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
         },
       };
 
-      const result = await commentWithAioha(
-        author,
-        permlink,
-        newPermlink,
-        '',
-        commentBody,
-        metadata
-      );
+      // Broadcast the reaction. Every aioha login posts via @threespeak (the
+      // server signs on the user's behalf); ButrAuth keeps its own cookie path
+      // through commentWithAioha.
+      const result = getCurrentProvider()
+        ? await broadcastViaThreespeak([
+            ['comment', {
+              parent_author: author,
+              parent_permlink: permlink,
+              author: user,
+              permlink: newPermlink,
+              title: '',
+              body: commentBody,
+              json_metadata: JSON.stringify(metadata),
+            }],
+          ])
+        : await commentWithAioha(author, permlink, newPermlink, '', commentBody, metadata);
 
       if (result.success) {
         // Link the embed video to the Hive post
@@ -422,11 +470,22 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
         </div>
       )}
 
-      {/* Submit */}
+      {/* Submit / @threespeak authorization gate */}
       {hasVideo && (
-        <button className="rvt-submit" onClick={handleSubmit} disabled={!canSubmit}>
-          {uploading ? 'Uploading...' : 'Post Reaction'}
-        </button>
+        needsAuth ? (
+          <div className="rvt-auth-gate">
+            <p className="rvt-auth-note">
+              Allow <strong>@threespeak</strong> to post your reaction on your behalf.
+            </p>
+            <button className="rvt-submit" onClick={handleAuthorize} disabled={authorizing}>
+              {authorizing ? 'Authorizing…' : 'Authorize @threespeak'}
+            </button>
+          </div>
+        ) : (
+          <button className="rvt-submit" onClick={handleSubmit} disabled={!canSubmit}>
+            {uploading ? 'Uploading...' : 'Post Reaction'}
+          </button>
+        )
       )}
     </div>
   );

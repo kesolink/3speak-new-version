@@ -12,7 +12,7 @@ import { useEmbedUpload } from "../../context/EmbedUploadContext";
 import { HIVE_API_URL } from "../../utils/config";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { generateVideoThumbnails } from "@rajesh896/video-thumbnails-generator";
+import { generateVideoThumbnails } from "../../utils/videoThumbnails";
 
 function EmbedStudioPage() {
   const navigate = useNavigate();
@@ -31,6 +31,7 @@ function EmbedStudioPage() {
     setPrevVideoFile,
     setVideoDuration,
     setGeneratedThumbnail,
+    setPrefilledFromQuery,
   } = useEmbedUpload();
 
   // Detect stories origin from URL param
@@ -39,6 +40,20 @@ function EmbedStudioPage() {
     const from = params.get("from");
     setFromStories(from === "stories" || from === "shorts");
   }, [location.search, setFromStories]);
+
+  // Prefilled flow: an external uploader (e.g. Hangouts server-side recording)
+  // has already pushed a video to the embed service. Skip Step 1 and land the
+  // user on the thumbnail step so they can finish title/description/tags.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("prefilled") !== "true") return;
+    const permlink = params.get("permlink");
+    const owner = params.get("owner");
+    const embedUrl = params.get("embedUrl");
+    if (!permlink || !embedUrl) return;
+    setPrefilledFromQuery({ permlink, owner: owner || "", embedUrl });
+    navigate("/embed-studio/thumbnail", { replace: true });
+  }, [location.search, setPrefilledFromQuery, navigate]);
 
   const checkPostAuth = async (username) => {
     if (!username) return;
@@ -119,10 +134,6 @@ function EmbedStudioPage() {
     fetchCommunities();
   }, []);
 
-  useEffect(() => {
-    checkPostAuth(user);
-  }, []);
-
   const handleAuthSuccess = () => {
     setIsOpenAuth(false);
   };
@@ -156,7 +167,6 @@ function EmbedStudioPage() {
           <EmbedVideoUploadStep1 />
         </div>
       </div>
-      {isOpenAuth && <Auth_modal isOpenAuth={isOpenAuth} closeAuth={toggleUploadModalAuth} onSuccess={handleAuthSuccess} />}
       <VerifyAuthModal isOpen={isVerifying} />
     </>
   );

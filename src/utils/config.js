@@ -8,7 +8,7 @@ const PLAYER_URL = import.meta.env.VITE_PLAYER_URL;
 const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://api.hive.blog';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
 const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://3speak-checker.okinoko.io';
-const TAG_FEED_URL = import.meta.env.VITE_THREESPEAK_TAG_FEED_URL || 'https://legacy.3speak.tv';
+const TAG_FEED_URL = CHECKER_URL;
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 
 // All derived from CHECKER_URL
@@ -57,6 +57,15 @@ const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed
 const EMBED_API_URL = import.meta.env.VITE_EMBED_API_URL || 'https://embed.3speak.tv';
 const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
 const EMBED_DEBUG = import.meta.env.VITE_EMBED_DEBUG === 'true';
+const THREESPEAK_AUDIO_API_URL = import.meta.env.VITE_3SPEAK_AUDIO_API_URL || 'https://audio.3speak.tv';
+const THREESPEAK_API_KEY = import.meta.env.VITE_3SPEAK_API_KEY || '';
+// Account that receives 100% beneficiaries when an audio post is published in
+// "pay-per-listen" mode. Temporary value until the per-listen payout program
+// ships — override with VITE_PPL_BENEFICIARY.
+const PPL_BENEFICIARY = import.meta.env.VITE_PPL_BENEFICIARY || 'tibfox';
+// Optional shared key to obfuscate audio listen heartbeats. Must equal the
+// checker's LISTEN_BEAT_KEY. Empty → plaintext beats (still server-measured).
+const LISTEN_BEAT_KEY = import.meta.env.VITE_LISTEN_BEAT_KEY || '';
 
 // 3Speak Image Upload Service (thumbnail uploads)
 const IMAGE_UPLOAD_URL = import.meta.env.VITE_IMAGE_UPLOAD_URL || 'https://images.3speak.tv';
@@ -65,14 +74,16 @@ const IMAGE_UPLOAD_KEY = import.meta.env.VITE_IMAGE_UPLOAD_KEY || '';
 // Translation API (LibreTranslate)
 const TRANSLATE_API_URL = import.meta.env.VITE_TRANSLATE_API_URL || 'https://3speak-translator.okinoko.io';
 
+// Social verifier (mantequilla-social-verifier) — md5-hash ownership proof for web2 socials
+// Social-link verifier was merged into the checker — it now serves /verify
+// at the checker host. (Env still overrides for local/testnet.)
+const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https://3speak-checker.okinoko.io').replace(/\/$/, '');
+
 // Watch history threshold - number of days to show unwatched indicator
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);
 
-// Hive RPC candidate pool — primary first, then fallbacks. Both env vars are
-// optional; leave them unset to use these defaults. VITE_HIVE_API_FALLBACKS is
-// comma- or whitespace-separated.
-const DEFAULT_HIVE_PRIMARY = 'https://api.hive.blog';
-const DEFAULT_HIVE_FALLBACKS = [
+const HIVE_API_NODES = [
+  import.meta.env.VITE_HIVE_API_URL || 'https://api.hive.blog',
   'https://api.deathwing.me',
   'https://api.openhive.network',
   'https://techcoderx.com',
@@ -100,6 +111,23 @@ function appendNsfw(url, showNsfw) {
   const sep = url.includes('?') ? '&' : '?';
   return `${url}${sep}nsfw=true`;
 }
+
+const REPORT_API_URL = import.meta.env.VITE_REPORT_API_URL;
+const REPORT_API_SECRET = import.meta.env.VITE_REPORT_API_SECRET;
+// Bearer key for the checker's protected PUT /video/thumbnail (Pancreas
+// API). Empty → the immediate-Mongo-update is skipped (Hive→Mongo sync
+// still reconciles it). Must equal the checker's API_SECRET_KEY.
+const CHECKER_API_KEY = import.meta.env.VITE_CHECKER_API_KEY || '';
+
+// Feature flags for MetaMask Snap login and 3Speak Pro subscriptions
+const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true';
+// Default-on: only disabled when explicitly set to "false".
+const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false';
+const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
+// Pay-per-listen reward controls in the audio uploader. Enabled by
+// default; set VITE_ENABLE_PPL=false to hide the earn-mode chooser and
+// never attach the PPL beneficiary op.
+const ENABLE_PPL = import.meta.env.VITE_ENABLE_PPL !== 'false';
 
 export {
   appendNsfw,
@@ -136,4 +164,16 @@ export {
   EMBED_DEBUG,
   IMAGE_UPLOAD_URL,
   IMAGE_UPLOAD_KEY,
+  REPORT_API_URL,
+  REPORT_API_SECRET,
+  CHECKER_API_KEY,
+  PPL_BENEFICIARY,
+  LISTEN_BEAT_KEY,
+  ENABLE_METAMASK_SNAP,
+  ENABLE_BUTRAUTH,
+  ENABLE_SUBS,
+  ENABLE_PPL,
+  THREESPEAK_AUDIO_API_URL,
+  THREESPEAK_API_KEY,
+  SOCIAL_VERIFIER_URL,
 };

@@ -29,6 +29,7 @@ import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
+import mantequillaLogo from "../../assets/mantequilla-logo.png";
 import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
@@ -46,10 +47,16 @@ import { Repeat2, Scissors, Tornado, Film, Music } from 'lucide-react';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
 import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
+import ReportModal, { isReported } from '../modal/ReportModal';
+import EditVideoModal from './EditVideoModal';
+import { MdFlag, MdEdit, MdAutoAwesome } from 'react-icons/md';
+import useTitleMeta from '../../hooks/useTitleMeta';
+import TitleTranslate from '../TitleTranslate/TitleTranslate';
+import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -58,6 +65,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
   // Mobile collapsible details
   const [mobileDetailsExpanded, setMobileDetailsExpanded] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const titleMeta = useTitleMeta(author, permlink);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   // State
@@ -84,6 +93,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [view, setView] = useState(0);
   const [speakData, setSpeakData] = useState(null);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
   const [communityData, setCommunityData] = useState(null);
   const [authorReputation, setAuthorReputation] = useState(null);
@@ -197,6 +208,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const spkvideo = videoData?.socialPost?.spkvideo || videoDetails?.spkvideo;
   const profile = getUserProfile.data?.profile;
   
+  // Fetch extended video details (mantecurated etc.) from checker API
+  const [extendedDetails, setExtendedDetails] = useState({});
+  useEffect(() => {
+    if (!author || !permlink) return;
+    const url = `${import.meta.env.VITE_CHECKER_URL}/videodetails/${author}/${permlink}`;
+    fetch(url).then(r => r.json()).then(setExtendedDetails).catch(() => {});
+  }, [author, permlink]);
+
   // Memoized values
   const tags = useMemo(() => videoDetails?.tags?.slice(0, 7) || [], [videoDetails?.tags]);
   const comunity_name = useMemo(() => videoDetails?.community?.title, [videoDetails?.community?.title]);
@@ -249,9 +268,10 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             ? parseFloat(data.pending_payout_value)
             : parseFloat(data.total_payout_value) + parseFloat(data.curator_payout_value);
 
+        // Keep ALL voters (sorted by weight). The tooltip shows the top 10 on
+        // hover and the full list when pinned (click).
         const topVotes = data.active_votes
           .sort((a, b) => parseInt(b.rshares) - parseInt(a.rshares))
-          .slice(0, 10)
           .map(vote => {
             const reward =
               totalRshares > 0
@@ -603,8 +623,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               )}
               {tipNudgeVisible && !isTipModalOpen && authenticated && isLoggedIn() && user !== author && (
                 <div className="tip-nudge">
-                  <FaHeart className="tip-nudge-emoji" style={{ color: '#e53935' }} />
-                  <span className="tip-nudge-text">Enjoyed this? Send <strong>@{author}</strong> a tip!</span>
+                  <FaHeart className="tip-nudge-emoji hide-mobile" style={{ color: '#e53935' }} />
+                  <span className="tip-nudge-text">Enjoyed this?<span className="hide-mobile"> Send <strong>@{author}</strong> a tip!</span></span>
                   <button type="button" className="tip-nudge-btn" onClick={() => { setTipNudgeVisible(false); setIsTipModalOpen(true); }}>
                     Tip
                   </button>
@@ -613,34 +633,47 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   </button>
                 </div>
               )}
-              {videoControls?.videoEnded && (
-                <div className="video-ended-overlay">
-                  <button type="button" className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
-                    <MdReplay size={48} />
-                  </button>
-                  {!videoControls.autoplayNext && videoControls.endSuggestions?.length > 0 && (
-                    <div className="video-ended-suggestions">
-                      {videoControls.endSuggestions.map((v, i) => {
-                        const vAuthor = v?.author?.username || v?.author?.id || v?.author || v?.owner;
-                        return (
-                          <a
-                            key={`${vAuthor}-${v.permlink}-${i}`}
-                            className="video-ended-card"
-                            href={`/watch?v=${vAuthor}/${v.permlink}`}
-                            onClick={(e) => { e.preventDefault(); navigate(`/watch?v=${vAuthor}/${v.permlink}`); }}
-                          >
-                            <img src={fixVideoThumbnail(v)} alt={v.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
-                            <div className="video-ended-card-info">
-                              <span className="video-ended-card-title">{v.title?.length > 40 ? v.title.slice(0, 40) + '...' : v.title}</span>
-                              <span className="video-ended-card-author">@{vAuthor}</span>
-                            </div>
-                          </a>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+              {videoControls?.videoEnded && (() => {
+                const suggestions = (!videoControls.autoplayNext && videoControls.endSuggestions?.length > 0) ? videoControls.endSuggestions : [];
+                const renderCard = (v, i) => {
+                  const vAuthor = v?.author?.username || v?.author?.id || v?.author || v?.owner;
+                  return (
+                    <a
+                      key={`${vAuthor}-${v.permlink}-${i}`}
+                      className="video-ended-card"
+                      href={`/watch?v=${vAuthor}/${v.permlink}`}
+                      onClick={(e) => { e.preventDefault(); navigate(`/watch?v=${vAuthor}/${v.permlink}`); }}
+                    >
+                      <img src={fixVideoThumbnail(v)} alt={v.title} onError={(e) => (e.currentTarget.src = fallbackImg)} />
+                      <div className="video-ended-card-info">
+                        <span className="video-ended-card-title">{v.title?.length > 40 ? v.title.slice(0, 40) + '...' : v.title}</span>
+                        <span className="video-ended-card-author">@{vAuthor}</span>
+                      </div>
+                    </a>
+                  );
+                };
+                return (
+                  <div className="video-ended-overlay">
+                    {/* Mobile: 1 card left of replay */}
+                    {suggestions.length > 0 && (
+                      <div className="video-ended-mobile-card">{renderCard(suggestions[0], 0)}</div>
+                    )}
+                    <button type="button" className="video-replay-btn" onClick={videoControls.onReplay} title="Replay">
+                      <MdReplay size={48} />
+                    </button>
+                    {/* Mobile: 1 card right of replay */}
+                    {suggestions.length > 1 && (
+                      <div className="video-ended-mobile-card">{renderCard(suggestions[1], 1)}</div>
+                    )}
+                    {/* Desktop: all cards below replay */}
+                    {suggestions.length > 0 && (
+                      <div className="video-ended-suggestions">
+                        {suggestions.map((v, i) => renderCard(v, i))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {videoControls?.autoplayBlocked && !videoControls?.videoEnded && (
                 <div className="video-replay-overlay" onClick={videoControls.onAutoplayTap}>
                   <button type="button" className="video-replay-btn" title="Play">
@@ -716,9 +749,16 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             </div>
           )}
 
-          <div className="video-title-row">
+          <div className={`video-title-row${!mobileDetailsExpanded ? ' title-collapsed' : ''}`}>
             <div className="video-title-col">
-              <h3>{videoDetails?.title}</h3>
+              <div className="video-title-line">
+                <h3>{titleMeta.translatedTitle || videoDetails?.title}</h3>
+                <TitleTranslate
+                  languages={titleMeta.availableLangs}
+                  selectedLang={titleMeta.selectedLang}
+                  onSelect={titleMeta.selectLanguage}
+                />
+              </div>
               <div className="mobile-title-meta">
                 <AuthorBadge
                   author={videoDetails?.author?.id}
@@ -767,6 +807,12 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
           <div className="community-tags-row">
             <div className="tag-wrapper">
+              {extendedDetails?.mantecurated && (
+                <span className="curated-tag" onClick={() => handleSelectTag('mantecurated')}>
+                  <img src={mantequillaLogo} alt="" className="curated-tag-icon" />
+                  Curated
+                </span>
+              )}
               {tags.map((tag, index) => (
                 <span key={index} onClick={() => handleSelectTag(tag)}>{tag}</span>
               ))}
@@ -864,6 +910,33 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               )}
 
               <div className="info-buttons-right">
+                {titleMeta.hasSummary && (
+                  <button
+                    type="button"
+                    className="summary-btn"
+                    onClick={() => setSummaryOpen(true)}
+                    title="AI summary of this video"
+                  >
+                    <MdAutoAwesome size={15} />
+                    <span>Summary</span>
+                  </button>
+                )}
+                {authenticated && isLoggedIn() && !isVoted && (
+                  // Sits to the left of the share button; opens the
+                  // same vote tooltip the upvote count uses, so the
+                  // existing weight-picker / submit flow still drives
+                  // the actual broadcast. Hidden once the user has
+                  // already voted to avoid showing a stale CTA.
+                  <button
+                    type="button"
+                    className="vote-btn"
+                    onClick={toggleTooltip}
+                    title="Vote on this video"
+                  >
+                    <FaHeart size={14} />
+                    <span>Vote</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="share-btn"
@@ -882,6 +955,29 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 >
                   <Repeat2 size={16} />
                   {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
+                </button>
+
+                {authenticated && user === author && (
+                  <button
+                    type="button"
+                    className="edit-video-btn"
+                    onClick={() => {
+                      videoControls?.onPause?.();
+                      setIsEditOpen(true);
+                    }}
+                    title="Edit video details"
+                  >
+                    <MdEdit size={16} />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className={`report-btn${isReported('post', `${author}/${permlink}`) ? ' reported' : ''}`}
+                  onClick={() => setIsReportOpen(true)}
+                  title="Report video"
+                >
+                  <MdFlag size={16} />
                 </button>
 
                 {isInWatchLater && (
@@ -988,7 +1084,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         <div className="description-wrap">
           <div className={`description-collapsible${descriptionExpanded ? '' : ' collapsed'}`}>
             <div className="blog-content">
-              <BlogContent author={author} permlink={permlink} />
+              <BlogContent author={author} permlink={permlink} description={overrideBody} />
             </div>
           </div>
           <button
@@ -1055,6 +1151,28 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         clipEnd={editorClipEnd}
         originalAuthor={author}
         originalPermlink={permlink}
+      />
+
+      <ReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        type="video"
+        target={{ author, permlink }}
+      />
+
+      <SummaryModal
+        isOpen={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        summary={titleMeta.summary}
+        title={titleMeta.translatedTitle || videoDetails?.title}
+      />
+
+      <EditVideoModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        author={author}
+        permlink={permlink}
+        onSaved={(changes) => onVideoEdited?.(changes)}
       />
 
       {/* Mobile FAB — speed-dial for quick actions */}

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
 import { HIVE_API_NODES } from '../../utils/config';
+import HiveAvatar from '../HiveAvatar/HiveAvatar';
 
 const client = getHiveClient();
 
@@ -187,7 +188,7 @@ function SearchList({searchTerm, setSearchTerm, setIsDropdownOpen, isDropdownOpe
                     <div className='wrap'
                       onClick={()=>{handleNavigate(username)}}
                     >
-                       <img src={`https://images.hive.blog/u/${username}/avatar`} alt="" /><span>{username}</span>
+                       <HiveAvatar username={username} size={null} alt="" badgeSize={10} /><span>{username}</span>
                     </div>
                   </li>
                 ))}

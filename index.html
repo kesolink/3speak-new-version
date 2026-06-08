@@ -12,7 +12,25 @@
     <meta name="keywords" content="3speak, decentralized video, blockchain video, crypto video platform, web3 video, hive blockchain, video sharing, cryptocurrency" />
     <meta name="author" content="3Speak" />
     <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://3speak.tv/" />
+    <!--
+      No static canonical here on purpose. This shell is shared by every SPA
+      route, so a hardcoded canonical would make every page declare the
+      homepage as its canonical. Search crawlers receive a correct per-page
+      canonical from the Edge Middleware (middleware.js). For the SPA itself,
+      per-route canonical/meta should be set client-side via react-helmet-async
+      (already a dependency) — tracked as a follow-up.
+    -->
+    <link rel="canonical" href="https://3speak.tv/" data-route="home" />
+    <script>
+      // Drop the homepage canonical on any non-home route so we don't tell
+      // crawlers that render JS (or non-listed bots) that every video page
+      // canonicalizes to the homepage. Removing it lets Google self-select
+      // until react-helmet sets the real per-route canonical.
+      if (location.pathname !== '/' || location.search) {
+        var c = document.querySelector('link[rel="canonical"][data-route="home"]');
+        if (c) c.parentNode.removeChild(c);
+      }
+    </script>
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />

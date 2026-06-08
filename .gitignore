@@ -35,4 +35,5 @@ INTERNAL_*.md
 TUS_SERVER_OPTIMIZATION.md
 docs/BACKEND_SCHEDULING_REQUIREMENTS.md
 docs/SCHEDULING_SPEC.md
-internal-docs/
+internal-docs/server/.env
+.claude/

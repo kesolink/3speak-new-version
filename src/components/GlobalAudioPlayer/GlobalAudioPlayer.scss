@@ -1,0 +1,150 @@
+@use "../../mixins.scss" as mix;
+
+// Global player additions / overrides over Audio.scss
+
+// Desktop: narrow card pinned to bottom-right.
+// Mobile/tablet: full-width bar pinned above the BottomNav. The BottomNav is
+// visible on phone AND tablet (≤1024px), so we must reset our desktop
+// `bottom: 16px` to sit above the nav on BOTH — otherwise the bar stays 16px
+// up and hides behind the nav.
+.audio-now-playing {
+  left: auto;
+  right: 16px;
+  bottom: 16px;
+  width: 33vw;
+  min-width: 360px;
+  max-width: 560px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+
+  @include mix.respond(phone) {
+    left: 0;
+    right: 0;
+    bottom: var(--bottom-nav-height, 56px);
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.12);
+  }
+
+  @include mix.respond(tab) {
+    left: 0;
+    right: 0;
+    bottom: var(--bottom-nav-height, 56px);
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.12);
+  }
+}
+
+// In the narrow desktop player, hide the inline desktop meta/extras (payout,
+// vote count, playlist/share/subs/time). Users can still reach all of these by
+// expanding the player — the existing mobile-extras row is reused.
+@media (min-width: 769px) {
+  .audio-now-playing {
+    .audio-np-desktop-meta,
+    .audio-np-extras { display: none; }
+
+    // Show the expand toggle on desktop too (it's phone-only by default)
+    .audio-np-expand-btn { display: inline-flex; }
+
+    // Show the same extras row inside the expanded area on desktop
+    .audio-np-expanded-area .audio-np-mobile-extras {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      .upvote-count-wrap { display: inline-flex; align-items: center; cursor: pointer; }
+    }
+  }
+}
+
+.audio-np-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  border-radius: 4px;
+  &:hover { color: var(--accent-primary); }
+}
+
+// Title link affordance — small icon when the track has a Hive post.
+// The title becomes a flex row so the text truncates with ellipsis while the
+// icon stays anchored at the end on the same line.
+.audio-now-playing .audio-np-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.audio-np-title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-np-title.has-post {
+  cursor: pointer;
+  &:hover { color: var(--accent-primary); }
+}
+
+.audio-np-title-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.audio-np-title.has-post:hover .audio-np-title-icon {
+  color: var(--accent-primary);
+}
+
+// When the expanded post body is long, allow the expansion to grow taller —
+// up to 66vh — and let the inner body element size naturally so the parent
+// owns the scroll instead of nesting two scrollable regions.
+.audio-now-playing .audio-np-expanded-area {
+  max-height: 66vh;
+}
+
+.audio-now-playing .audio-np-body {
+  max-height: none;
+  overflow: visible;
+
+  // The post body embeds an inline OpenPod player for the same audio the
+  // GlobalAudioPlayer is already playing — hide the duplicate here only
+  // (it still shows on the standalone post page).
+  .audio-player-slot { display: none; }
+}
+
+.audio-np-waveform {
+  height: 56px;
+  margin: 8px 0 4px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// When expanded, the waveform IS the timeline — hide the slim progress bar
+// at the top of the card so we don't draw two playheads.
+.audio-now-playing.audio-np-expanded .audio-np-progress {
+  display: none;
+}

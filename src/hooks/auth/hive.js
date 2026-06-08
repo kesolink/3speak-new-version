@@ -1,19 +1,29 @@
-import { Aioha, initAioha, KeyTypes, Providers } from "@aioha/aioha";
+import { Aioha, KeyTypes, Providers } from "@aioha/aioha";
+import { ENABLE_METAMASK_SNAP } from "../../utils/config";
 
-const aioha =
-  typeof window === "undefined"
-    ? new Aioha()
-    : initAioha({
-        hiveauth: {
-          name: "3Speak",
-          // description: "Aioha test app",
-        },
-        hivesigner: {
-          app: "3speak.tv",
-          callbackURL: window.location.origin + "/hivesigner.html", // TODO set properly
-          scope: ["login", "vote"],
-        },
-      });
+// Manual Aioha setup — MetaMask Snap only registered when env var is set,
+// because it probes window.ethereum which triggers the Phantom wallet
+// "Which extension do you want to connect with?" popup.
+const buildAioha = () => {
+  const a = new Aioha();
+  if (typeof window === "undefined") return a;
+  a.registerKeychain();
+  a.registerLedger();
+  a.registerPeakVault();
+  if (ENABLE_METAMASK_SNAP) {
+    a.registerMetaMaskSnap();
+  }
+  a.registerHiveAuth({ name: "3Speak" });
+  a.registerHiveSigner({
+    app: "3speak.tv",
+    callbackURL: window.location.origin + "/hivesigner.html",
+    scope: ["login", "vote"],
+  });
+  a.loadAuth();
+  return a;
+};
+
+const aioha = buildAioha();
 
 function generatePayload(account) {
   const payload = {

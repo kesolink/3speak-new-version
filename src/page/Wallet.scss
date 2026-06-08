@@ -123,7 +123,8 @@ $indigo-500: #6366f1;
             border-radius: 0.375rem;
             font-size: 0.875rem;
             font-weight: 500;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, transform 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
 
             color: red;
             border-radius: 12px;
@@ -141,9 +142,14 @@ $indigo-500: #6366f1;
               font-size: 0.675rem;
             }
 
-            // &:hover {
-            //   background: $indigo-700;
-            // }
+            &:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+            }
+            &:active {
+              transform: translateY(0);
+              box-shadow: none;
+            }
           }
         }
 

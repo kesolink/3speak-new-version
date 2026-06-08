@@ -1,0 +1,87 @@
+.openpod-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: openpod-fade-in 0.15s ease;
+}
+
+@keyframes openpod-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.openpod-modal {
+  position: relative;
+  background: var(--bg-primary, #0d0d0d);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  width: min(96vw, 1280px);
+  aspect-ratio: 16 / 9;
+  max-height: 92vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  animation: openpod-slide-up 0.2s ease;
+
+  // Make every wrapper between the modal and .hh-room fill the modal —
+  // <LiveKitRoom> renders a plain <div class="lk-room"> that would
+  // otherwise collapse to its content height and leave a big white gap
+  // below the room. Forcing flex propagation lets .hh-room--embedded's
+  // `flex: 1` actually stretch.
+  > * {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  // Map SDK CSS variables onto 3speak TV theme tokens (theme-aware)
+  --hh-bg:               var(--bg-primary);
+  --hh-bg-secondary:     var(--card-bg);
+  --hh-bg-hover:         var(--bg-hover);
+  --hh-text:             var(--text-primary);
+  --hh-text-secondary:   var(--text-secondary);
+  --hh-text-muted:       var(--text-muted, var(--text-secondary));
+  --hh-border:           var(--border-color);
+  --hh-border-light:     var(--border-light);
+  --hh-input-border:     var(--border-color);
+  --hh-primary:          var(--accent-primary, #e53935);
+  --hh-primary-hover:    #c62828;
+  --hh-danger:           #e53935;
+  --hh-success:          #43a047;
+  --hh-btn-secondary-bg: var(--bg-tertiary);
+  --hh-btn-secondary-text: var(--text-primary);
+  --hh-btn-secondary-hover: var(--bg-hover);
+  --hh-shadow:           var(--card-shadow, 0 4px 16px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes openpod-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.openpod-connecting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  color: var(--text-secondary, rgba(255,255,255,0.5));
+  font-size: 14px;
+}
+

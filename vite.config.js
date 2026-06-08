@@ -40,7 +40,7 @@ export default defineConfig({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.js",
-      devOptions: { enabled: true },
+      devOptions: { enabled: false },
       manifest: {
         name: "3Speak",
         short_name: "3Speak",
@@ -165,6 +165,11 @@ export default defineConfig({
       url: "url",
       'source-map-js': 'source-map-js',
     },
+    // Enforce a single React instance across the whole graph. Without this,
+    // dynamic imports + lazy chunks can resolve through a different React
+    // instance than the renderer, causing "Invalid hook call: dispatcher is
+    // null" errors when a lazy-loaded component first mounts.
+    dedupe: ['react', 'react-dom', '@livekit/components-react', 'livekit-client'],
   },
 
   optimizeDeps: {
@@ -202,7 +207,7 @@ export default defineConfig({
   },
 
   server: {
-    allowedHosts: ["3speak.okinoko.io"],
+    allowedHosts: ["3speak.okinoko.io", "preview.3speak.tv"],
     proxy: {
       // Proxy upload API calls to video.3speak.tv to avoid CORS issues in dev.
       // In production, VITE_UPLOAD_URL should point directly to video.3speak.tv.

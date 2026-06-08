@@ -5,9 +5,11 @@ import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
-import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, KeyTypes } from '../hive-api/aioha';
+import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn, getCurrentProvider, Providers, broadcastViaThreespeak, KeyTypes } from '../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
+import { usePremiumStatus } from '../hooks/usePremiumStatus';
+import { enforceLockedBeneficiaries, LOCKED_FUND_ACCOUNT } from '../utils/beneficiaries';
 import axios from 'axios';
 
 const EmbedUploadContext = createContext(null);
@@ -21,6 +23,11 @@ export function useEmbedUpload() {
 export function EmbedUploadProvider({ children }) {
   const { user } = useAppStore();
   const navigate = useNavigate();
+  // Pro subscribers skip the threespeakfund 10% — their sub fee
+  // covers what that split normally funds. Remix attribution to the
+  // original creator stays for both tiers (handled in the publish path).
+  const premiumStatus = usePremiumStatus(user);
+  const isPremium = !!premiumStatus?.premium;
 
   // Step tracking
   const [step, setStep] = useState(1);
@@ -55,10 +62,27 @@ export function EmbedUploadProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [benficaryOpen, setBeneficiaryOpen] = useState(false);
   const [BeneficiaryList, setBeneficiaryList] = useState([]);
+  // Initial UI list — show the locked threespeakfund only for non-premium
+  // users. Premium users (or remix flows) get an updated list pushed in
+  // by the relevant pre-fill code paths.
   const [list, setList] = useState([
-    { account: 'threespeakfund', percent: 10, locked: true, minPercent: 10 },
+    { account: LOCKED_FUND_ACCOUNT, percent: 10, locked: true, minPercent: 10 },
   ]);
   const [remaingPercent, setRemaingPercent] = useState(90);
+
+  // Premium status lands asynchronously (1 network call). When it flips
+  // to true we drop the locked threespeakfund row from the UI so the
+  // user doesn't see "10% to threespeakfund (locked)" while the publish
+  // path silently omits it. Non-Pro stays as-is.
+  useEffect(() => {
+    if (!isPremium) return;
+    setList((prev) => {
+      const next = prev.filter((b) => b.account !== LOCKED_FUND_ACCOUNT);
+      if (next.length === prev.length) return prev; // no change
+      return next;
+    });
+    setRemaingPercent((prev) => Math.min(100, prev + 10));
+  }, [isPremium]);
 
   // Entry origin (stories → "Share a Short", default → "Share a Video")
   const [fromStories, setFromStories] = useState(false);
@@ -78,6 +102,23 @@ export function EmbedUploadProvider({ children }) {
   const [statusText, setStatusText] = useState('');
   const [statusMessages, setStatusMessages] = useState([]);
   const [embedUrl, setEmbedUrl] = useState('');
+
+  // Prefilled state — set when arriving from an external upload (e.g. Hangouts
+  // server-side recording) that already pushed a video to the embed service.
+  // When prefilled, the publish flow skips the TUS upload and goes straight to
+  // thumbnail + Hive post + link, using the captured embed URL.
+  const [prefilled, setPrefilled] = useState(false);
+  const [prefilledPermlink, setPrefilledPermlink] = useState('');
+  const [prefilledOwner, setPrefilledOwner] = useState('');
+  const [prefilledEmbedUrl, setPrefilledEmbedUrl] = useState('');
+
+  const setPrefilledFromQuery = ({ permlink, owner, embedUrl: url }) => {
+    setPrefilled(true);
+    setPrefilledPermlink(permlink || '');
+    setPrefilledOwner(owner || '');
+    setPrefilledEmbedUrl(url || '');
+    setEmbedUrl(url || '');
+  };
 
   const tusUploadRef = useRef(null);
 
@@ -134,6 +175,10 @@ export function EmbedUploadProvider({ children }) {
     setBeneficiaryList([]);
     setList([]);
     setRemaingPercent(100);
+    setPrefilled(false);
+    setPrefilledPermlink('');
+    setPrefilledOwner('');
+    setPrefilledEmbedUrl('');
   };
 
   /**
@@ -143,8 +188,23 @@ export function EmbedUploadProvider({ children }) {
    * 3. Link embed video to Hive post
    */
   const publishToEmbed = async () => {
-    if (!videoFile || !user) {
-      toast.error('No video file or user not logged in');
+    if (!user) {
+      toast.error('User not logged in');
+      return;
+    }
+    // Fail fast on a stale/expired wallet session (e.g. an expired HiveSigner
+    // token): `user` can be a leftover localStorage value while aioha has no
+    // live session. Without this, the whole video + thumbnail upload runs and
+    // only the final Hive broadcast fails with "Not logged in". isLoggedIn()
+    // is true for an aioha session OR a ManteAuth/ButrAuth login.
+    if (!isLoggedIn()) {
+      toast.error('Your session expired — please log in again before uploading');
+      return;
+    }
+    // For non-prefilled flows we need a local file. Prefilled flows already
+    // have the embed URL handed over from an external uploader.
+    if (!prefilled && !videoFile) {
+      toast.error('No video file');
       return;
     }
     if (!fromStories && !title?.trim()) {
@@ -162,14 +222,31 @@ export function EmbedUploadProvider({ children }) {
 
     setUploading(true);
     setUploadProgress(0);
-    setStatusText('Uploading video...');
-    addMessage('Starting video upload...');
+    setStatusText(prefilled ? 'Preparing publish...' : 'Uploading video...');
+    addMessage(prefilled ? 'Using pre-uploaded video' : 'Starting video upload...');
 
     try {
-      // ─── Step 1: TUS upload to embed service ───
-      let capturedEmbedUrl = '';
+      // For prefilled flows, the permlink was decided by whoever uploaded the
+      // file (e.g. the Hangouts server). Reuse it so the Hive post permlink
+      // matches the embed permlink — that's what the existing /video/{p}/hive
+      // link endpoint expects.
+      const trimmedDesc = (description || '').trim();
+      const slug = trimmedDesc
+        ? trimmedDesc.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 27).replace(/-+$/, '')
+        : '';
+      const generatedPermlink = prefilled && prefilledPermlink
+        ? prefilledPermlink
+        : (slug ? `${slug}-${Date.now() % 1000}` : '');
 
-      if (EMBED_DEBUG) {
+      // ─── Step 1: TUS upload to embed service (skipped when prefilled) ───
+      let capturedEmbedUrl = prefilled ? prefilledEmbedUrl : '';
+
+      if (prefilled) {
+        // Nothing to upload — the file was already pushed to embed.3speak.tv
+        // by an external uploader. Skip straight to thumbnail + Hive linking.
+        setUploadProgress(100);
+        addMessage('Pre-uploaded video ready');
+      } else if (EMBED_DEBUG) {
         // Debug mode: simulate upload progress without actually uploading
         addMessage('[DEBUG] Simulating upload...');
         for (let pct = 0; pct <= 100; pct += 5) {
@@ -223,6 +300,7 @@ export function EmbedUploadProvider({ children }) {
               owner: user,
               short: fromStories ? 'true' : 'false',
               duration: String(Math.round(videoDuration)),
+              ...(generatedPermlink ? { permlink: generatedPermlink } : {}),
             },
             onError: (err) => {
               console.error('TUS upload error:', err);
@@ -264,7 +342,9 @@ export function EmbedUploadProvider({ children }) {
         try {
           setStatusText('Uploading thumbnail...');
           addMessage('Uploading thumbnail...');
-          thumbnailUrl = await uploadThumbnail(thumbnailFile, user);
+          // Embed posts are broadcast by @threespeak, so the thumbnail goes
+          // straight to the 3Speak image server (static key) — no user signature.
+          thumbnailUrl = await uploadThumbnail(thumbnailFile, user, { preferStatic: true });
           addMessage('Thumbnail uploaded');
         } catch (thumbErr) {
           console.warn('Thumbnail upload failed:', thumbErr);
@@ -284,7 +364,7 @@ export function EmbedUploadProvider({ children }) {
       addMessage('Publishing to Hive blockchain...');
 
       // ─── Step 2: Post to Hive via aioha ───
-      const hivePermlink = `3speak-${Date.now()}`;
+      const hivePermlink = generatedPermlink;
       const communityTag = typeof community === 'string' ? community : community?.name || 'hive-181335';
 
       // Build body: embed URL (video first) + description + credit to original author
@@ -341,13 +421,13 @@ export function EmbedUploadProvider({ children }) {
           beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
         }
 
-        // Ensure threespeakfund at minimum 10% (1000 weight)
-        beneMap.set('threespeakfund', Math.max(beneMap.get('threespeakfund') || 0, 1000));
-
-        // Ensure 5% for original author when this is a remix/clip
-        if (originalAuthor && originalPermlink) {
-          beneMap.set(originalAuthor, Math.max(beneMap.get(originalAuthor) || 0, 500));
-        }
+      // Apply locked beneficiaries: 10% threespeakfund for non-Pro users
+      // (skipped for Pro subscribers) + 5% to the original creator on
+      // remix/clip (kept for both tiers).
+      enforceLockedBeneficiaries(beneMap, {
+        isPremium,
+        originalAuthor: originalAuthor && originalPermlink ? originalAuthor : null,
+      });
 
         // Convert map to sorted array (sorted by account name — required by Hive protocol)
         allBeneficiaries = [...beneMap.entries()]
@@ -362,7 +442,11 @@ export function EmbedUploadProvider({ children }) {
         percent_hbd: rewardPowerup ? 0 : 10000,
         allow_votes: true,
         allow_curation_rewards: true,
-        extensions: declineRewards ? [] : [[0, { beneficiaries: allBeneficiaries }]],
+        // Hive rejects an empty beneficiaries extension ("Must specify at least one
+        // beneficiary") — Premium users with no beneficiaries have an empty list —
+        // but the broadcaster's serializer needs `extensions` to be an array. So use
+        // an empty array (not a missing field, and not an empty-beneficiaries entry).
+        extensions: allBeneficiaries.length > 0 ? [[0, { beneficiaries: allBeneficiaries }]] : [],
       };
 
       // Determine parent:
@@ -487,6 +571,17 @@ export function EmbedUploadProvider({ children }) {
         }
       }
 
+      // Policy: video posts in the embed route are broadcast by @threespeak, not
+      // signed by the user. Every aioha login (Keychain/HiveAuth/PeakVault/Ledger
+      // /HiveSigner) routes its post through our server, which signs+broadcasts as
+      // @threespeak on the user's behalf (they granted @threespeak posting
+      // authority via the pre-upload gate). ButrAuth (getCurrentProvider() ===
+      // null) keeps its own cookie-authenticated server path via commentWithAioha.
+      const useThreespeakProxy = !!getCurrentProvider();
+      if (useThreespeakProxy) {
+        addMessage('Posting via @threespeak (delegated posting authority)');
+      }
+
       let result;
 
       if (originalAuthor && originalPermlink && !fromStories) {
@@ -517,21 +612,39 @@ export function EmbedUploadProvider({ children }) {
           json_metadata: JSON.stringify({ app: '3speak/embed', tags: ['3speak'] }),
         }];
 
-        result = await broadcastWithAioha(
-          [mainPostOp, commentOptionsOp, replyOp],
-          KeyTypes.Posting
-        );
+        const remixOps = [mainPostOp, commentOptionsOp, replyOp];
+        result = useThreespeakProxy
+          ? await broadcastViaThreespeak(remixOps)
+          : await broadcastWithAioha(remixOps, KeyTypes.Posting);
       } else {
         // Single post: shorts (including short remixes) and regular uploads
-        result = await commentWithAioha(
-          parentAuthor,
-          parentPermlink,
-          hivePermlink,
-          fromStories ? '' : title,
-          postBody,
-          jsonMetadata,
-          commentOptions
-        );
+        if (useThreespeakProxy) {
+          // Build the raw ops commentWithAioha would have built, and post them
+          // server-side as @threespeak.
+          const ops = [
+            ['comment', {
+              parent_author: parentAuthor,
+              parent_permlink: parentPermlink,
+              author: user,
+              permlink: hivePermlink,
+              title: fromStories ? '' : title,
+              body: postBody,
+              json_metadata: JSON.stringify(jsonMetadata),
+            }],
+            ['comment_options', commentOptions],
+          ];
+          result = await broadcastViaThreespeak(ops);
+        } else {
+          result = await commentWithAioha(
+            parentAuthor,
+            parentPermlink,
+            hivePermlink,
+            fromStories ? '' : title,
+            postBody,
+            jsonMetadata,
+            commentOptions
+          );
+        }
       }
 
       if (!result.success) {
@@ -640,6 +753,12 @@ export function EmbedUploadProvider({ children }) {
     statusText, setStatusText,
     statusMessages, setStatusMessages,
     embedUrl, setEmbedUrl,
+    // Prefilled flow (e.g. Hangouts server-side recording)
+    prefilled,
+    prefilledPermlink,
+    prefilledOwner,
+    prefilledEmbedUrl,
+    setPrefilledFromQuery,
     // Entry origin
     fromStories, setFromStories,
     // Original video attribution

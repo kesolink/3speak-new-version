@@ -530,6 +530,17 @@
   margin: 0 0 10px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border-light, #e5e5e5);
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    color: var(--accent-color, #1a73e8);
+  }
+
+  .discover-group-toggle {
+    margin-left: auto;
+    color: var(--text-muted, #999);
+  }
 
   svg {
     color: var(--text-secondary);
@@ -795,6 +806,67 @@
   overflow: hidden;
 }
 
+/* ── Playlist results ── */
+.discover-playlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.discover-playlist-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary, #f5f5f5);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--bg-tertiary, #e5e5e5);
+  }
+}
+
+.discover-playlist-icon-wrap {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--bg-tertiary, #e5e5e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, #666);
+}
+
+.discover-playlist-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.discover-playlist-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.discover-playlist-meta {
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+}
+
+.discover-suggest-count {
+  font-size: 11px;
+  color: var(--text-muted, #999);
+  margin-left: 2px;
+}
+
 /* ── Search result skeleton ── */
 .discover-skeleton {
   display: flex;
@@ -848,4 +920,10 @@
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
+}
+
+// Dark mode: brighten search control icons so they're visible on the dark button bg.
+[data-theme="dark"] {
+  .discover-search-clear { color: var(--text-primary); }
+  .discover-search-icon { color: var(--text-secondary); }
 }

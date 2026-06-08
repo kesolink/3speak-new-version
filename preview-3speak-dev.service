@@ -1,0 +1,16 @@
+[Unit]
+Description=preview.3speak.tv Vite dev server (HMR, proxied by nginx)
+After=network.target
+
+[Service]
+Type=simple
+User=prodops
+Group=prodops
+WorkingDirectory=/mnt/HC_Volume_103240961/prodops/services/preview-3speak
+Environment=PATH=/mnt/HC_Volume_103240961/prodops/.nvm/versions/node/v22.22.3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/mnt/HC_Volume_103240961/prodops/.nvm/versions/node/v22.22.3/bin/node /mnt/HC_Volume_103240961/prodops/services/preview-3speak/node_modules/vite/bin/vite.js --host 0.0.0.0
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

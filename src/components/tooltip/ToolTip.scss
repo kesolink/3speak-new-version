@@ -100,3 +100,9 @@ a.votes-tooltip-user {
   color: var(--text-secondary, #888);
   text-align: center;
 }
+
+// Pinned (clicked) tooltip shows ALL voters — cap height and scroll the list.
+.votes-tooltip.pinned .votes-tooltip-list {
+  max-height: 280px;
+  overflow-y: auto;
+}

@@ -3,7 +3,7 @@ import "./ProfileNav.scss"
 import '../../page/Login/KeyChainLogin.scss';
 import { useAppStore } from '../../lib/store';
 import { useGetMyQuery } from '../../hooks/getUserDetails';
-import { MdCloudUpload, MdKeyboardArrowDown, MdOutlineKeyboardArrowUp } from "react-icons/md";
+import { MdCloudUpload, MdKeyboardArrowDown, MdOutlineKeyboardArrowUp, MdSettings } from "react-icons/md";
 import { ImPower } from "react-icons/im";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaDiscord, FaLanguage } from 'react-icons/fa';
@@ -11,6 +11,7 @@ import { IoPower } from 'react-icons/io5';
 import { FaCheckToSlot, FaJxl, FaSquareXTwitter } from 'react-icons/fa6';
 import { TiThList } from "react-icons/ti";
 import { IoMdPerson } from 'react-icons/io';
+import { HiInformationCircle } from 'react-icons/hi';
 import { RiWallet3Fill } from 'react-icons/ri';
 import logo from "../../assets/image/3S_logo.svg";
 import logoDark from '../../assets/image/3S_logodark.png';
@@ -18,7 +19,8 @@ import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
 import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
 import UploadLinks from '../UploadLinks';
-import { getHiveUrl, ensureHealthyNode } from '../../utils/hiveNode';
+import LabeledToggle from '../LabeledToggle/LabeledToggle';
+import SettingsModal from '../SettingsModal/SettingsModal';
 
 
 
@@ -26,17 +28,12 @@ import { getHiveUrl, ensureHealthyNode } from '../../utils/hiveNode';
 function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const location = useLocation();
   const navigate = useNavigate()
-  const { user, theme, showNsfw, setShowNsfw } = useAppStore();
+  const { user, theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, LogOut } = useAppStore();
+  const isManteAuth = localStorage.getItem("manteauth_login") === "true";
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
-  // Currently chosen Hive RPC node (auto-picked by the session probe).
-  const [rpcNode, setRpcNode] = useState(getHiveUrl());
-  useEffect(() => {
-    let cancelled = false;
-    ensureHealthyNode().then((u) => { if (!cancelled) setRpcNode(u || getHiveUrl()); });
-    return () => { cancelled = true; };
-  }, []);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handlewallletNavigation = () => {
     navigate(`/wallet/${user}`)
@@ -117,15 +114,21 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           {/* <Link className="wrap">
             <FaLanguage className="icon" /> <span>Language Settings</span>
           </Link> */}
-          <button type="button" className="wrap nsfw-toggle-wrap" role="switch" aria-checked={showNsfw} onClick={() => setShowNsfw(prev => !prev)}>
-            <span>Show NSFW</span>
-            <div className={`nsfw-toggle ${showNsfw ? 'on' : ''}`}>
-              <div className="nsfw-toggle-thumb" />
-            </div>
-          </button>
-          <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
-            <IoPower className="icon" /> <span>Change account</span>
+          <a className="wrap" onClick={() => { setSettingsOpen(true); onclose(); }}>
+            <MdSettings className="icon" /> <span>Settings</span>
           </a>
+          <Link to="/about" className="wrap" onClick={onclose}>
+            <HiInformationCircle className="icon" /> <span>About 3Speak</span>
+          </Link>
+          {isManteAuth ? (
+            <a className="wrap" onClick={() => { LogOut(user); onclose(); navigate('/'); }}>
+              <IoPower className="icon" /> <span>Logout</span>
+            </a>
+          ) : (
+            <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
+              <IoPower className="icon" /> <span>Change account</span>
+            </a>
+          )}
 
            </div>
            <hr className="profile-divider" />
@@ -152,6 +155,8 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
         </div>
            
            <span className='close-btn' onClick={onclose}>X</span>
+
+           <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
         
       </div>

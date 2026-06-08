@@ -1,0 +1,263 @@
+@use "../../mixins.scss" as mix;
+
+// Canonical banner header shared by the user-profile and community pages.
+// (Lifted from the old per-page profile-card styles; the outlined
+// -webkit-text-stroke name treatment is replaced with the default 3Speak font,
+// just larger, and the banner now always has a faded bottom.)
+.profile-card {
+  border: 1px solid #0f172a;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.8);
+
+  .profile-header {
+    position: relative;
+    width: 100%;
+    height: 10rem;
+
+    @include mix.respond(phone) {
+      height: 6rem;
+    }
+
+    // Faded bottom: the banner fades into the card so the avatar and name
+    // sit cleanly on top of it.
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.6) 40%, transparent 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .gradient-bg {
+      position: absolute;
+      inset: 0;
+      opacity: 0.9;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      @include mix.respond(phone) {
+        height: 100%;
+      }
+    }
+  }
+
+  .profile-body {
+    padding: 0 1rem 1.5rem;
+    position: relative;
+    z-index: 2;
+
+    @media (min-width: 640px) {
+      padding: 0 2rem 2rem;
+    }
+
+    .top-section {
+      margin-top: -2.5rem;
+      display: flex;
+      gap: 1rem;
+      flex-direction: column;
+
+      @media (min-width: 640px) {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-top: -3rem;
+      }
+
+      .left-info {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+
+        .avatar {
+          height: 5rem;
+          width: 5rem;
+          border-radius: 999px;
+          border: 4px solid #020617;
+          background: #0f172a;
+          // overflow stays VISIBLE so the premium badge isn't clipped.
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+          flex-shrink: 0;
+
+          @media (min-width: 640px) {
+            height: 6rem;
+            width: 6rem;
+          }
+
+          .hive-avatar {
+            width: 100%;
+            height: 100%;
+          }
+
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+          }
+        }
+
+        .user-meta {
+          margin-top: 40px;
+          min-width: 0;
+          @include mix.respond(phone) {
+            margin-top: 20px;
+          }
+
+          // Name — default 3Speak font (Roboto), just bigger. Replaces the old
+          // outlined / uppercase text-stroke treatment.
+          h2 {
+            margin-top: 10px;
+            font-size: 34px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1.15;
+            word-break: break-word;
+            @include mix.respond(phone) {
+              font-size: 24px;
+              margin-top: 12px;
+            }
+          }
+
+          // Bio / about, directly under the name.
+          .profile-bio {
+            margin-top: 0.35rem;
+            color: #cbd5e1;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            max-width: 60ch;
+          }
+
+          .user-badges {
+            margin-top: 0.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem;
+            color: #94a3b8;
+            font-size: 0.75rem;
+
+            .status-dot {
+              display: inline-flex;
+              align-items: center;
+              border: 1px solid #1e293b;
+              background: rgba(15, 23, 42, 0.8);
+              border-radius: 9999px;
+              padding: 0.25rem 0.6rem;
+
+              .dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 999px;
+                background: #34d399;
+                margin-right: 6px;
+              }
+            }
+
+            .divider {
+              margin: 0 4px;
+            }
+          }
+        }
+      }
+
+      .button-group {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        @include mix.respond(phone) {
+          justify-content: center;
+        }
+
+        .btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          padding: 0.35rem 0.75rem;
+          font-size: 0.75rem;
+          border: 1px solid #334155;
+          background: rgba(2, 6, 23, 0.9);
+          cursor: pointer;
+          transition: all 0.2s ease;
+          color: #f1f5f9;
+          white-space: nowrap;
+
+          &:hover {
+            border-color: #64748b;
+            background: #0f172a;
+          }
+
+          .icon {
+            width: 14px;
+            height: 14px;
+            margin-right: 6px;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+          }
+        }
+
+        .btn.reported {
+          color: #e31337;
+          border-color: rgba(227, 19, 55, 0.4);
+          background: rgba(227, 19, 55, 0.1);
+
+          &:hover {
+            background: rgba(227, 19, 55, 0.2);
+            border-color: #e31337;
+          }
+        }
+
+        .btn-follow {
+          background: linear-gradient(135deg, var(--accent-primary, #e53935), #c62828);
+          border-color: transparent;
+          color: #fff;
+          font-weight: 600;
+
+          &:hover {
+            background: linear-gradient(135deg, #c62828, #b71c1c);
+            border-color: transparent;
+          }
+
+          &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
+        }
+
+        .btn-following {
+          background: rgba(15, 23, 42, 0.9);
+          border-color: #34d399;
+          color: #34d399;
+
+          &:hover {
+            border-color: #ef4444;
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+          }
+
+          &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Dark mode: outlined style — card-bg bg, red (--accent-primary) outline + text.
+[data-theme="dark"] {
+  .btn-follow {
+    background: var(--card-bg) !important;
+    color: var(--accent-primary) !important;
+    border: 1px solid var(--accent-primary) !important;
+  }
+}

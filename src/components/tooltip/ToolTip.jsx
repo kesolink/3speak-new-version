@@ -2,6 +2,7 @@ import React, { useRef, useLayoutEffect, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { IoClose } from 'react-icons/io5'
+import HiveAvatar from '../HiveAvatar/HiveAvatar'
 
 import "./ToolTip.scss"
 
@@ -28,7 +29,8 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
     setPos({ top: top + window.scrollY, left });
   }, [anchorRef, tooltipVoters, pinned]);
 
-  // Close on click outside or scroll when pinned
+  // Close on click outside when pinned. Scrolling keeps it open — the tooltip
+  // is absolutely positioned at page coordinates, so it scrolls with the page.
   useEffect(() => {
     if (!pinned) return;
     const handleClick = (e) => {
@@ -36,12 +38,9 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
       if (anchorRef?.current?.contains(e.target)) return;
       onClose?.();
     };
-    const handleScroll = () => onClose?.();
     document.addEventListener('mousedown', handleClick);
-    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       document.removeEventListener('mousedown', handleClick);
-      window.removeEventListener('scroll', handleScroll);
     };
   }, [pinned, onClose, anchorRef]);
 
@@ -52,7 +51,7 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
       style={pos ? { top: pos.top, left: pos.left, opacity: 1 } : { opacity: 0 }}
     >
       <div className="votes-tooltip-header">
-        <span>Top Voters</span>
+        <span>{pinned ? `Voters (${tooltipVoters.length})` : 'Top Voters'}</span>
         {pinned && (
           <button className="votes-tooltip-close" onClick={onClose}>
             <IoClose size={14} />
@@ -60,13 +59,14 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
         )}
       </div>
       <div className="votes-tooltip-list">
-        {tooltipVoters.map((voter, index) => (
+        {(pinned ? tooltipVoters : tooltipVoters.slice(0, 10)).map((voter, index) => (
           <div key={index} className="votes-tooltip-row">
-            <img
-              className="votes-tooltip-avatar"
-              src={`https://images.hive.blog/u/${voter.username}/avatar/small`}
+            <HiveAvatar
+              username={voter.username}
+              size="small"
+              imgClassName="votes-tooltip-avatar"
               alt=""
-              loading="lazy"
+              badgeSize={10}
             />
             <a
               className="votes-tooltip-user"

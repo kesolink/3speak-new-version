@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { AiohaModal, useAioha } from "@aioha/react-ui";
+import { Providers, KeyTypes } from "@aioha/aioha";
 import { MdEmail } from "react-icons/md";
 import { createPortal } from "react-dom";
+import { ENABLE_METAMASK_SNAP, ENABLE_BUTRAUTH } from "../../utils/config";
 import "./LoginModal.scss";
 
 /**
- * Custom login modal wrapper that adds an email login option to AiohaModal
+ * Custom login modal wrapper that adds email + MetaMask Snap login options to AiohaModal
  */
 function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
   const [buttonContainer, setButtonContainer] = useState(null);
@@ -24,7 +26,86 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
       return;
     }
 
+    const replaceHiveAuthQRText = () => {
+      const modal = document.querySelector('#aioha-modal');
+      if (!modal) return;
+      const originalText = 'Scan the QR code using a HiveAuth-compatible mobile app.';
+      const newText = 'Scan the QR code using a hiveauth compatible mobile app. If you have the app on this phone then just tap the qr code.';
+      modal.querySelectorAll('p').forEach((p) => {
+        if (p.textContent.trim() === originalText) {
+          p.textContent = newText;
+        }
+      });
+    };
+
+    const styleHiveAuthQR = () => {
+      const modal = document.querySelector('#aioha-modal');
+      if (!modal) return;
+      // The QR is inside a class-less <a> wrapping a div with w-64/aspect-square
+      modal.querySelectorAll('a:not([class])').forEach((a) => {
+        const inner = a.querySelector('div.aspect-square');
+        if (!inner) return;
+        a.style.display = 'block';
+        a.style.textAlign = 'center';
+        inner.style.width = '256px';
+        inner.style.maxWidth = '100%';
+        inner.style.marginLeft = 'auto';
+        inner.style.marginRight = 'auto';
+      });
+    };
+
+    const injectMetaMaskButton = () => {
+      const modal = document.querySelector('#aioha-modal');
+      if (!modal) return;
+      const providerList = modal.querySelector('ul');
+      if (!providerList) return;
+      // Don't add if already injected
+      if (providerList.querySelector('.metamask-snap-item')) return;
+
+      // Clone style from existing provider items
+      const existingItem = providerList.querySelector('li > a');
+      if (!existingItem) return;
+
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.className = existingItem.className;
+      a.style.cursor = 'pointer';
+      a.innerHTML = `
+        <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg"
+             alt="MetaMask" style="width:32px;height:32px;" />
+        <span class="flex-1 ms-3 whitespace-nowrap" style="font-size:14px;font-weight:500;">MetaMask Snap</span>
+      `;
+      a.classList.add('metamask-snap-item');
+      a.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Prompt for username then trigger MetaMask Snap login
+        const username = prompt('Enter your Hive username:');
+        if (!username) return;
+        try {
+          // MetaMask Snap must login with Active key — contract calls require
+          // Active authority and the snap derives different keys per role.
+          const result = await aioha.login(Providers.MetaMaskSnap, username.trim(), {
+            msg: loginOptions?.msg || 'Login',
+            keyType: KeyTypes.Active,
+          });
+          if (result.success) {
+            onLogin?.(result);
+          } else {
+            alert(result.error || 'MetaMask Snap login failed');
+          }
+        } catch (err) {
+          alert(err.message || 'MetaMask Snap login failed');
+        }
+      });
+      li.appendChild(a);
+      providerList.appendChild(li);
+    };
+
     const injectButton = () => {
+      replaceHiveAuthQRText();
+      styleHiveAuthQR();
+      if (ENABLE_METAMASK_SNAP) injectMetaMaskButton();
       const modalContent = document.querySelector('#aioha-modal > div > div');
       if (modalContent) {
         // Only show on provider selection page (check for provider list)
@@ -89,14 +170,46 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
         loginOptions={loginOptions}
       />
       {showEmailButton && buttonContainer && createPortal(
-        <button
-          className="email-login-btn"
-          onClick={handleEmailLogin}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <MdEmail size={20} />
-          <span>Login with E-Mail</span>
-        </button>,
+        <>
+          {ENABLE_BUTRAUTH && (
+          <button
+            className="butrauth-login-btn"
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                // Ask our backend to start an auth flow. The server generates the
+                // PKCE verifier and stores it in an httpOnly cookie — never exposed to JS.
+                const res = await fetch('/api/manteauth/start', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    redirect_uri: window.location.origin + '/callback',
+                    state: window.location.pathname
+                  })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.url) throw new Error(data.error || 'Failed to start ButrAuth login');
+                window.location.href = data.url;
+              } catch (err) {
+                console.error('ButrAuth start error:', err);
+              }
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <img src="/butrauth-logo.png" alt="" width={32} height={32} />
+            <span>Butter Auth</span>
+          </button>
+          )}
+          <button
+            className="email-login-btn"
+            onClick={handleEmailLogin}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <MdEmail size={32} />
+            <span>E-Mail</span>
+          </button>
+        </>,
         buttonContainer
       )}
     </>

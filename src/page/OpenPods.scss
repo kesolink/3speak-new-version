@@ -1,0 +1,73 @@
+.openpods-page {
+  padding: 24px;
+  min-height: calc(100vh - 80px);
+
+  // Map SDK CSS vars to 3speak TV theme (theme-aware — works in light and dark)
+  --hh-bg:               var(--bg-primary);
+  --hh-bg-secondary:     var(--card-bg);
+  --hh-bg-hover:         var(--bg-hover);
+  --hh-text:             var(--text-primary);
+  --hh-text-secondary:   var(--text-secondary);
+  --hh-text-muted:       var(--text-muted, var(--text-secondary));
+  --hh-border:           var(--border-color);
+  --hh-border-light:     var(--border-light);
+  --hh-input-border:     var(--border-color);
+  --hh-primary:          var(--accent-primary, #e53935);
+  --hh-primary-hover:    #c62828;
+  --hh-danger:           #e53935;
+  --hh-success:          #43a047;
+  --hh-btn-secondary-bg: var(--bg-tertiary);
+  --hh-btn-secondary-text: var(--text-primary);
+  --hh-btn-secondary-hover: var(--bg-hover);
+  --hh-shadow:           var(--card-shadow, 0 4px 16px rgba(0, 0, 0, 0.2));
+}
+
+.openpods-connecting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  color: var(--text-secondary, rgba(255,255,255,0.5));
+  font-size: 15px;
+}
+
+.openpods-login-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  gap: 16px;
+  text-align: center;
+
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  p {
+    color: var(--text-secondary, rgba(255,255,255,0.6));
+    font-size: 15px;
+  }
+}
+
+.openpods-guest-cta {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.openpods-login-btn {
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover { background: #c62828; }
+}

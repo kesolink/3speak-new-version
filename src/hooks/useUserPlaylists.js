@@ -61,9 +61,13 @@ export function useUserPlaylists(owner, options = {}) {
       // Filter to only return public playlists
       const publicPlaylists = playlists.filter(playlist => playlist.access === 'public');
 
-      // Fetch thumbnails for the first video in each playlist
+      // Prefer the playlist's own album cover (set via _update on the indexer).
+      // Fall back to fetching the first video's thumbnail otherwise.
       const playlistsWithThumbnails = await Promise.all(
         publicPlaylists.map(async (playlist) => {
+          if (playlist.thumbnail) return playlist;
+          const albumThumb = playlist.metadata?.album?.thumbnail;
+          if (albumThumb) return { ...playlist, thumbnail: albumThumb };
           if (playlist.items?.length > 0) {
             const firstItem = playlist.items[0];
             const thumbnail = await fetchVideoThumbnail(firstItem.author, firstItem.permlink);

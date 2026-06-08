@@ -21,6 +21,7 @@ function EmbedThumbnail() {
     selectedIndex,
     setSelectedIndex,
     fromStories,
+    prefilled,
   } = useEmbedUpload();
 
   const [customfile, setCustomFile] = useState([]);
@@ -68,7 +69,7 @@ function EmbedThumbnail() {
     }
   }, [customfile]);
 
-  if (!videoFile) {
+  if (!videoFile && !prefilled) {
     return <Navigate to="/embed-studio" replace />;
   }
 

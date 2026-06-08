@@ -54,7 +54,7 @@ function PlaylistCard({ playlists = [], loading = false, error = null, showPriva
               <span className="owner">@{playlist.owner}</span>
               <span className="separator">•</span>
               <span className="item-count">
-                {itemCount} {itemCount === 1 ? 'video' : 'videos'}
+                {itemCount} {itemCount === 1 ? 'item' : 'items'}
               </span>
             </div>
 

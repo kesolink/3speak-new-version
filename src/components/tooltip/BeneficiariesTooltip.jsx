@@ -2,13 +2,41 @@ import React, { useRef, useLayoutEffect, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { IoClose } from 'react-icons/io5'
+import HiveAvatar from '../HiveAvatar/HiveAvatar'
 
 import "./BeneficiariesTooltip.scss"
+import { getHiveUrl } from '../../utils/hiveNode'
+
+// Median HIVE price (HBD per 1 HIVE), fetched once per session.
+let cachedHivePrice = null;
+async function fetchHivePrice() {
+  if (cachedHivePrice != null) return cachedHivePrice;
+  try {
+    const res = await fetch(getHiveUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'condenser_api.get_current_median_history_price', params: [], id: 1 }),
+    });
+    const j = await res.json();
+    const base = parseFloat(j?.result?.base);    // e.g. "0.240 HBD"
+    const quote = parseFloat(j?.result?.quote);  // e.g. "1.000 HIVE"
+    if (base > 0 && quote > 0) cachedHivePrice = base / quote;
+  } catch { /* ignore — HIVE/HP rows just won't render */ }
+  return cachedHivePrice;
+}
 
 function BeneficiariesTooltip({ beneficiaries, payoutInfo, displayTotal, anchorRef, pinned, onClose }) {
   const tipRef = useRef(null);
   const navigate = useNavigate();
   const [pos, setPos] = useState(null);
+  const [hivePrice, setHivePrice] = useState(cachedHivePrice);
+
+  useEffect(() => {
+    if (hivePrice != null) return;
+    let alive = true;
+    fetchHivePrice().then((p) => { if (alive && p != null) setHivePrice(p); });
+    return () => { alive = false; };
+  }, [hivePrice]);
 
   useLayoutEffect(() => {
     if (!anchorRef?.current || !tipRef.current) return;
@@ -59,6 +87,13 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, displayTotal, anchorR
   const authorNet = authorPayout - beneShare;
   const showBreakdown = totalPayout > 0;
 
+  // Estimated token split — ONLY while the post is pending. Take the pending
+  // payout in HBD, convert to HIVE via the median price, split in half → HIVE
+  // (liquid) + HP (powered up). Once paid out the exact HIVE/HP isn't available
+  // from the post, so these rows are skipped.
+  const pendingHBD = !payoutInfo?.isPaidOut ? (payoutInfo?.pendingPayout || 0) : 0;
+  const halfHive = hivePrice && pendingHBD > 0 ? (pendingHBD / hivePrice) / 2 : null;
+
   const content = (
     <div
       ref={tipRef}
@@ -95,17 +130,31 @@ function BeneficiariesTooltip({ beneficiaries, payoutInfo, displayTotal, anchorR
         </div>
       )}
 
+      {halfHive != null && (
+        <div className="beneficiaries-tooltip-breakdown beneficiaries-tooltip-tokens">
+          <div className="beneficiaries-tooltip-breakdown-row">
+            <span className="beneficiaries-tooltip-breakdown-label">HIVE</span>
+            <span className="beneficiaries-tooltip-breakdown-value">~{halfHive.toFixed(3)}</span>
+          </div>
+          <div className="beneficiaries-tooltip-breakdown-row">
+            <span className="beneficiaries-tooltip-breakdown-label">HP</span>
+            <span className="beneficiaries-tooltip-breakdown-value">~{halfHive.toFixed(3)}</span>
+          </div>
+        </div>
+      )}
+
       <div className="beneficiaries-tooltip-list">
         {showBreakdown && beneficiaries.length > 0 && (
           <div className="beneficiaries-tooltip-section-label">Beneficiaries</div>
         )}
         {beneficiaries.map((b, index) => (
           <div key={index} className="beneficiaries-tooltip-row">
-            <img
-              className="beneficiaries-tooltip-avatar"
-              src={`https://images.hive.blog/u/${b.account}/avatar/small`}
+            <HiveAvatar
+              username={b.account}
+              size="small"
+              imgClassName="beneficiaries-tooltip-avatar"
               alt=""
-              loading="lazy"
+              badgeSize={10}
             />
             <a
               className="beneficiaries-tooltip-user"

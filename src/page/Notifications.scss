@@ -1,0 +1,612 @@
+@use "../mixins.scss" as mix;
+
+.notifications-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+
+  @include mix.respond(phone) {
+    padding: 16px 12px 80px;
+  }
+}
+
+.notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  // Mobile: give the title its own row; the action buttons drop below it.
+  @include mix.respond(phone) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.notifications-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+
+  // Mobile: break after the title so the "X new" chip drops to its own line.
+  @include mix.respond(phone) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+.notifications-unread-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+}
+
+.notifications-refresh {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--bg-hover, var(--sidebar-hover-bg));
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.notifications-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.notifications-filter-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--bg-hover, var(--sidebar-hover-bg));
+    color: var(--text-primary);
+  }
+
+  &.active {
+    background: var(--accent-primary, #e53935);
+    border-color: var(--accent-primary, #e53935);
+    color: #fff;
+  }
+}
+
+// ─── Summary sections (week + month) ─
+.notif-summary-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.notif-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.notif-summary-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.notif-summary-tab {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  &:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover, var(--sidebar-hover-bg));
+  }
+
+  &.active {
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+  }
+}
+
+.notif-summary-tab-spin {
+  font-size: 10px;
+}
+
+.notif-summary-loading-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 6px 0 0;
+  opacity: 0.7;
+}
+
+.notif-summary-loading {
+  display: flex;
+  gap: 10px;
+}
+
+.notif-summary-skeleton {
+  flex: 1;
+  min-width: 90px;
+  max-width: 160px;
+  height: 80px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  animation: notif-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes notif-skeleton-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.2; }
+}
+
+.notif-summary-empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+
+.notif-summary-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  i { font-size: 13px; }
+}
+
+.notif-summary-cards {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px;
+
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+
+  @include mix.respond(phone) {
+    gap: 8px;
+  }
+}
+
+.notif-summary-card {
+  flex: 1;
+  min-width: 110px;
+  max-width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 12px 10px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+
+  &:hover {
+    transform: scale(1.04);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  @include mix.respond(phone) {
+    min-width: 90px;
+    padding: 10px 8px 8px;
+  }
+}
+
+.notif-summary-card-icon {
+  font-size: 18px;
+  margin-bottom: 2px;
+  color: var(--text-secondary);
+}
+
+.notif-summary-card-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.notif-summary-card-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.2;
+}
+
+.notif-summary-card-sub {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-primary, #e53935);
+  line-height: 1;
+}
+
+.notif-summary-card-detail {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+.notifications-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notifications-mark-all {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+
+  i { font-size: 11px; }
+
+  &:hover {
+    background: var(--accent-primary, #e53935);
+    border-color: var(--accent-primary, #e53935);
+    color: #fff;
+  }
+}
+
+.notifications-mark-read-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  transition: all 0.15s ease;
+  font-size: 10px;
+
+  &:hover {
+    background: var(--accent-primary, #e53935);
+    border-color: var(--accent-primary, #e53935);
+    color: #fff;
+  }
+}
+
+.notifications-filter-unread {
+  i {
+    font-size: 6px;
+    color: var(--accent-primary, #e53935);
+    vertical-align: middle;
+  }
+
+  &.active i {
+    color: #fff;
+  }
+}
+
+.notifications-filter-count {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  margin-left: 2px;
+  line-height: 1.2;
+}
+
+.notifications-empty,
+.notifications-error {
+  padding: 48px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.notifications-error button {
+  margin-left: 8px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+// ─── Time-grouped sections ──────────
+.notifications-section {
+  margin-bottom: 8px;
+}
+
+.notifications-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  padding: 10px 12px 6px;
+  margin: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-primary);
+}
+
+// ─── Notification rows ──────────────
+.notifications-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notifications-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-light);
+  transition: background-color 0.15s ease;
+  position: relative;
+
+  &:hover {
+    background: var(--bg-hover, var(--sidebar-hover-bg));
+  }
+
+  &.unread {
+    background: color-mix(in srgb, var(--accent-primary, #e53935) 6%, transparent);
+    &:hover {
+      background: color-mix(in srgb, var(--accent-primary, #e53935) 10%, transparent);
+    }
+  }
+
+  // Whale / orca highlights
+  &.notif-page-whale {
+    border-left: 3px solid #1e90ff;
+    padding-left: 9px;
+  }
+
+  &.notif-page-orca {
+    border-left: 3px solid #20b2aa;
+    padding-left: 9px;
+  }
+}
+
+// Nested rows (expanded group items)
+.notifications-row-nested {
+  padding-left: 56px;
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  font-size: 13px;
+
+  .notifications-avatar {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+// Group row
+.notifications-row-group {
+  .notifications-msg {
+    font-weight: 500;
+  }
+}
+
+// ─── Avatar ─────────────────────────
+.notifications-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.notifications-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-tertiary);
+}
+
+.notifications-tier-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -4px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+// ─── Stacked avatars ────────────────
+.notifications-avatar-stack {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 40px;
+}
+
+.notifications-stacked-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--bg-primary, #fff);
+  background: var(--bg-tertiary);
+}
+
+.notifications-avatar-more {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+// ─── Body & meta ────────────────────
+.notifications-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notifications-msg {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.notifications-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.notifications-type { text-transform: capitalize; }
+.notifications-dot { opacity: 0.6; }
+
+.notifications-meta-tier {
+  font-size: 13px;
+  margin-left: 2px;
+}
+
+.notifications-expand-hint {
+  font-size: 11px;
+  color: var(--accent-primary, #e53935);
+  margin-left: 4px;
+  font-weight: 500;
+}
+
+.notifications-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-primary, #e53935);
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.notifications-3speak-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  margin-top: 4px;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+// ─── Load more & end ────────────────
+.notifications-load-more-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 20px 12px;
+}
+
+.notifications-load-more {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #fff;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.notifications-end {
+  text-align: center;
+  padding: 24px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+// Dark mode: outlined style — card-bg bg, red (--accent-primary) outline + text.
+[data-theme="dark"] {
+  .notifications-filter-btn.active,
+  .notif-summary-tab.active {
+    background: var(--card-bg) !important;
+    color: var(--accent-primary) !important;
+    border: 1px solid var(--accent-primary) !important;
+  }
+}
+
+// Dark mode: count badge — card-bg bg, foreground text, no red border.
+[data-theme="dark"] {
+  .notifications-unread-chip,
+  .notifications-filter-count {
+    background: var(--card-bg) !important;
+    color: var(--text-primary) !important;
+    border: none !important;
+  }
+}

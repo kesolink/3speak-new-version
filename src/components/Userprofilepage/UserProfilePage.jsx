@@ -13,7 +13,8 @@ import axios from 'axios';
 import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
-import { MdAdd, MdClose, MdPlayArrow } from 'react-icons/md';
+import { MdAdd, MdClose, MdPlayArrow, MdFlag } from 'react-icons/md';
+import ReportModal, { isReported } from '../modal/ReportModal';
 import { RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
 import { BiDollar } from 'react-icons/bi';
 import Follower from './Follower';
@@ -28,6 +29,9 @@ import useViewCounts from '../../hooks/useViewCounts';
 import { fetchUserShortsWithDetails } from '../../hive-api/hiveApi';
 import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
+import UserAudioList from './UserAudioList';
+import SocialLinks from './SocialLinks';
+import ProfileHeader from '../ProfileHeader/ProfileHeader';
 
 
 
@@ -44,12 +48,14 @@ function UserProfilePage() {
       const tab = searchParams.get('tab');
       if (tab === 'playlists') return 'playlists';
       if (tab === 'shorts') return 'shorts';
+      if (tab === 'audio') return 'audio';
       return 'video';
     });
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [newPlaylistAccess, setNewPlaylistAccess] = useState('public');
     const [isCreating, setIsCreating] = useState(false);
+    const [isReportOpen, setIsReportOpen] = useState(false);
     const [fabOpen, setFabOpen] = useState(false);
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
 
@@ -284,78 +290,74 @@ const {
 
   return (
     <div className="profile-page-container">
-      <div className="profile-card">
-        <div className="profile-header">
-          <img className="gradient-bg" src={`https://images.hive.blog/u/${user}/cover`} alt="" />
-        </div>
-      <div className="profile-body">
-          <div className="top-section">
-            <div className="left-info">
-              <div className="avatar">
-                <img
-                  src={`https://images.hive.blog/u/${user}/avatar`}
-                  alt="Profile avatar"
-                />
-              </div>
-              <div className="user-meta">
-                <h2>{user}</h2>
-                <div className="user-badges">
-                  <span className="status-dot">
-                    <span className="dot"></span>Verified creator
-                  </span>
-                </div>
-              </div>
-            </div>
-      
-            <div className="button-group">
-              <button className="btn btn-primary" onClick={() => setShow("follower")}>
-                Followers{" "}
-                  {follower?.follower_count !== undefined ? (
-                    follower.follower_count
-                  ) : (
-                    <Quantum size="15" speed="1.75" color="red" />
-                  )}
-              </button>
-              {authenticated && (
-                <button
-                  className={`btn ${isFollowing ? 'btn-following' : 'btn-follow'}`}
-                  onClick={handleFollowToggle}
-                  disabled={followLoading}
-                >
-                  {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
-                </button>
+      <ProfileHeader
+        username={user}
+        name={user}
+        fetchBio
+        badges={
+          <>
+            <span className="status-dot">
+              <span className="dot"></span>Verified creator
+            </span>
+            <SocialLinks hiveUsername={user} />
+          </>
+        }
+        actions={
+          <>
+            <button className="btn btn-primary" onClick={() => setShow("follower")}>
+              Followers{" "}
+              {follower?.follower_count !== undefined ? (
+                follower.follower_count
+              ) : (
+                <Quantum size="15" speed="1.75" color="red" />
               )}
-                    <button
-                      className="btn btn-secondary"
-                      onClick={async () => {
-                        const profileUrl = `${window.location.origin}/@${user}`;
-                        const shareData = { title: `${user} on 3Speak`, text: `Follow ${user} on 3Speak`, url: profileUrl };
-                        try {
-                          if (navigator.share && navigator.canShare?.(shareData)) {
-                            await navigator.share(shareData);
-                          } else {
-                            await navigator.clipboard.writeText(profileUrl);
-                            toast.success('Profile link copied to clipboard!');
-                          }
-                        } catch (err) {
-                          if (err.name !== 'AbortError') {
-                            await navigator.clipboard.writeText(profileUrl);
-                            toast.success('Profile link copied to clipboard!');
-                          }
-                        }
-                      }}
-                    >
-                      <IoMdShare />
-                    </button>
-      
-            </div>
-          </div>
-        </div>
-        </div>
+            </button>
+            {authenticated && (
+              <button
+                className={`btn ${isFollowing ? 'btn-following' : 'btn-follow'}`}
+                onClick={handleFollowToggle}
+                disabled={followLoading}
+              >
+                {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
+              </button>
+            )}
+            <button
+              className="btn btn-secondary"
+              onClick={async () => {
+                const profileUrl = `${window.location.origin}/@${user}`;
+                const shareData = { title: `${user} on 3Speak`, text: `Follow ${user} on 3Speak`, url: profileUrl };
+                try {
+                  if (navigator.share && navigator.canShare?.(shareData)) {
+                    await navigator.share(shareData);
+                  } else {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success('Profile link copied to clipboard!');
+                  }
+                } catch (err) {
+                  if (err.name !== 'AbortError') {
+                    await navigator.clipboard.writeText(profileUrl);
+                    toast.success('Profile link copied to clipboard!');
+                  }
+                }
+              }}
+            >
+              <IoMdShare />
+            </button>
+            <button
+              className={`btn btn-secondary${isReported('user', user) ? ' reported' : ''}`}
+              onClick={() => setIsReportOpen(true)}
+              title="Report user"
+            >
+              <MdFlag />
+            </button>
+          </>
+        }
+      />
       <div className="toggle-wrap">
         <div className="wrap">
           <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => setShow("shorts")}>Shorts</span>
+          <span className={show === "audio" ? "active" : ""} onClick={() => setShow("audio")}>Audio</span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
@@ -385,6 +387,8 @@ const {
     ) : (
       <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
     )
+  ) : show === "audio" ? (
+    <UserAudioList user={user} />
   ) : show === "playlists" ? (
     <>
       {isOwnProfile && (
@@ -542,6 +546,12 @@ const {
         </>,
         document.body
       )}
+    <ReportModal
+      isOpen={isReportOpen}
+      onClose={() => setIsReportOpen(false)}
+      type="user"
+      target={{ author: user }}
+    />
     </div>
   )
 }
