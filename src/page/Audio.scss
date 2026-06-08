@@ -73,6 +73,11 @@
     color: var(--text-primary);
     background: var(--bg-hover);
   }
+
+  .audio-type-chip-icon {
+    margin-right: 5px;
+    font-size: 11px;
+  }
 }
 
 .audio-genre-select {
@@ -559,6 +564,11 @@
   aspect-ratio: 1;
   background: var(--bg-tertiary);
   cursor: pointer;
+  // Long-press to reveal actions on touch: don't trigger the OS callout /
+  // image-save menu or select text while holding.
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 
   img { width: 100%; height: 100%; object-fit: cover; display: block; }
 }
@@ -575,7 +585,8 @@
   transition: opacity 0.15s ease;
 
   .audio-tile:hover &,
-  .audio-tile-active & { opacity: 1; }
+  .audio-tile-active &,
+  .audio-tile-revealed & { opacity: 1; }
 }
 
 .audio-tile-eq {
@@ -658,6 +669,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  .audio-tile-meta-icon {
+    margin-right: 4px;
+    opacity: 0.8;
+  }
 }
 
 .audio-tile-title {
@@ -703,7 +719,8 @@
   flex-direction: column;
   gap: 4px;
   z-index: 2;
-  .audio-tile:hover & { display: flex; }
+  .audio-tile:hover &,
+  .audio-tile-revealed & { display: flex; }
 }
 
 .audio-tile-action-btn {
@@ -757,6 +774,11 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
+
+  // The sheet is bottom-anchored; lift it above the BottomNav (visible on
+  // phone + tablet) so its lower rows aren't cropped behind the nav.
+  @include mix.respond(phone) { padding-bottom: var(--bottom-nav-height, 56px); }
+  @include mix.respond(tab)   { padding-bottom: var(--bottom-nav-height, 56px); }
 }
 
 .audio-queue-panel {
@@ -906,7 +928,11 @@
   border-top: 1px solid var(--border-light);
   box-shadow: 0 -2px 20px rgba(0,0,0,0.12);
   z-index: 90;
-  @include mix.respond(phone) { bottom: calc(var(--bottom-nav-height, 56px)); }
+  // Sit above the BottomNav whenever it's visible. The nav shows on phone AND
+  // tablet (≤1024px), but this bar previously only offset on phone — so in the
+  // tablet range it stayed at bottom:0 and was hidden behind the nav.
+  @include mix.respond(phone) { bottom: var(--bottom-nav-height, 56px); }
+  @include mix.respond(tab)   { bottom: var(--bottom-nav-height, 56px); }
 }
 
 .audio-np-progress {
@@ -932,7 +958,7 @@
   padding: 12px 20px;
 
   @include mix.respond(phone) {
-    gap: 8px;
+    gap: 5px;
     padding: 10px 12px;
     flex-wrap: wrap;
   }
@@ -1148,6 +1174,8 @@
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+
+  @include mix.respond(phone) { gap: 0; }
 }
 
 .audio-np-btn {
@@ -1162,6 +1190,12 @@
   color: var(--text-primary);
   cursor: pointer;
   &:hover { background: var(--bg-hover); }
+
+  @include mix.respond(phone) {
+    width: 32px;
+    height: 32px;
+    svg { width: 20px; height: 20px; }
+  }
 }
 
 .audio-np-play-btn {
@@ -1176,6 +1210,12 @@
   color: #fff;
   cursor: pointer;
   &:hover { opacity: 0.9; }
+
+  @include mix.respond(phone) {
+    width: 34px;
+    height: 34px;
+    svg { width: 20px; height: 20px; }
+  }
 }
 
 .audio-np-volume {

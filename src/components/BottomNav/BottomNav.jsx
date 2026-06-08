@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq, MdMic } from "react-icons/md";
 import { IoAddCircleOutline, IoPower, IoCloudUploadSharp, IoShareOutline } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
@@ -13,18 +13,14 @@ import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { FEATURE_EDITOR } from "../../utils/config";
 import { APP_VERSION } from "../../version";
 import { getHiveUrl } from "../../utils/hiveNode";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import PremiumBadge from "../PremiumBadge/PremiumBadge";
 import { toast } from "sonner";
 import "./BottomNav.scss";
 
-// Swipeable tab routes in order
-const SWIPE_TABS = ["/", "/shorts", "/discover", "/audio"];
-
 const BottomNav = ({ openLoginModal }) => {
   const location = useLocation();
-  const navigate = useNavigate();
   const { authenticated, user, showNsfw, setShowNsfw, theme, toggleTheme, sidebarHidden, setSidebarHidden } = useAppStore();
   const livePodsCount = useOpenPodsCount();
   const path = location.pathname;
@@ -83,55 +79,6 @@ const BottomNav = ({ openLoginModal }) => {
     setMenuOpen(false);
     setUploadOpen(false);
   }, [path]);
-
-  // Swipe between main tabs (mobile)
-  const touchStartRef = useRef(null);
-  const touchStartYRef = useRef(null);
-
-  const handleSwipeNav = useCallback((direction) => {
-    const currentIdx = SWIPE_TABS.indexOf(path);
-    if (currentIdx === -1) return; // not on a swipeable tab
-
-    if (direction === 'left' && currentIdx < SWIPE_TABS.length - 1) {
-      navigate(SWIPE_TABS[currentIdx + 1]);
-    } else if (direction === 'right' && currentIdx > 0) {
-      navigate(SWIPE_TABS[currentIdx - 1]);
-    }
-  }, [path, navigate]);
-
-  useEffect(() => {
-    const isMobile = window.matchMedia('(max-width: 1024px)').matches;
-    if (!isMobile) return;
-
-    const onTouchStart = (e) => {
-      // Don't capture swipes inside horizontal scroll containers or the bottom nav
-      if (e.target.closest('.bottom-nav, .video-scroll-container-horizontal, .stories-scroll-container, .short-main')) return;
-      touchStartRef.current = e.touches[0].clientX;
-      touchStartYRef.current = e.touches[0].clientY;
-    };
-
-    const onTouchEnd = (e) => {
-      if (touchStartRef.current == null) return;
-      const dx = e.changedTouches[0].clientX - touchStartRef.current;
-      const dy = e.changedTouches[0].clientY - touchStartYRef.current;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
-
-      // Only treat as horizontal swipe if X distance > 80px and dominant
-      if (absDx > 80 && absDx > absDy * 1.8) {
-        handleSwipeNav(dx > 0 ? 'right' : 'left');
-      }
-      touchStartRef.current = null;
-      touchStartYRef.current = null;
-    };
-
-    document.addEventListener('touchstart', onTouchStart, { passive: true });
-    document.addEventListener('touchend', onTouchEnd, { passive: true });
-    return () => {
-      document.removeEventListener('touchstart', onTouchStart);
-      document.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [handleSwipeNav]);
 
   const handleUploadClick = (e) => {
     e.preventDefault();

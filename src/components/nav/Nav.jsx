@@ -97,7 +97,6 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
    const sideNavRef = useRef(null); // Ref for the side nav container
   const menuIconRef = useRef(null); // Ref for the menu toggle button
   const [navHidden, setNavHidden] = useState(false);
-  const lastScrollY = useRef(0);
   const navContainerRef = useRef(null);
 
   // Measure nav height and set CSS variables globally
@@ -119,51 +118,15 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
     document.documentElement.style.setProperty('--nav-top-offset', navHidden ? '0px' : 'var(--nav-height, 50px)');
   }, [navHidden]);
 
-  // Auto-hide top nav on scroll (mobile)
-  // In landscape on watch page: hidden by default, show on scroll down
-  // Normal mobile: hide on scroll down, show on scroll up
+  // The top nav stays locked/visible — no scroll-based auto-hide (it flickered).
+  // The only time it hides is immersive landscape video on /watch, which is
+  // orientation-driven (not scroll-driven), so there's nothing to flicker.
   useEffect(() => {
     const landscapeQuery = window.matchMedia('(orientation: landscape) and (max-height: 500px)');
-    const isLandscapeWatch = () => location.pathname === '/watch' && landscapeQuery.matches;
-
-    // Set initial state for landscape watch
-    if (isLandscapeWatch()) setNavHidden(true);
-
-    const onScroll = () => {
-      const currentY = window.scrollY;
-      if (isLandscapeWatch()) {
-        // Landscape watch: show when scrolling down (past video), hide when scrolling up
-        if (currentY > lastScrollY.current && currentY > 80) {
-          setNavHidden(false);
-        } else {
-          setNavHidden(true);
-        }
-      } else {
-        // Normal: hide on scroll down, show on scroll up
-        if (currentY > lastScrollY.current && currentY > 80) {
-          setNavHidden(true);
-        } else {
-          setNavHidden(false);
-        }
-      }
-      lastScrollY.current = currentY;
-    };
-
-    // Re-evaluate when orientation changes
-    const onOrientationChange = () => {
-      if (isLandscapeWatch()) {
-        setNavHidden(true);
-      } else {
-        setNavHidden(false);
-      }
-    };
-    landscapeQuery.addEventListener('change', onOrientationChange);
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      landscapeQuery.removeEventListener('change', onOrientationChange);
-    };
+    const apply = () => setNavHidden(location.pathname === '/watch' && landscapeQuery.matches);
+    apply();
+    landscapeQuery.addEventListener('change', apply);
+    return () => landscapeQuery.removeEventListener('change', apply);
   }, [location.pathname]);
 
 
