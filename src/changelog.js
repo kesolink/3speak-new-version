@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.9.12',
+    date: '2026-06-08',
+    summary:
+      'The cover you choose now sticks to voice memos and snap audio — it’s saved with the post and shows on the Audio page (/audio). Before, a recording could end up with no cover.',
+  },
+  {
     version: '1.9.11',
     date: '2026-06-08',
     summary:
