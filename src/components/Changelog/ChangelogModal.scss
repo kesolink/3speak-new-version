@@ -97,7 +97,7 @@
   .changelog-fade {
     position: absolute;
     top: 0;
-    bottom: 10px; // leave the thin scrollbar visible
+    bottom: 20px; // clear the custom 12px scrollbar (+8px margin) below
     width: 40px;
     pointer-events: none;
     z-index: 2;
@@ -123,7 +123,7 @@
   // Desktop arrow nav — jump one entry at a time. Hidden on mobile.
   .changelog-arrow {
     position: absolute;
-    top: 50%;
+    top: calc(50% - 10px); // re-center on the cards, not the scrollbar zone below
     transform: translateY(-50%);
     z-index: 3;
     display: grid;
@@ -160,18 +160,40 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 
-  // thin themed scrollbar
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent-primary, #ff5252) transparent;
-  &::-webkit-scrollbar { height: 6px; }
-  &::-webkit-scrollbar-thumb {
-    background: var(--accent-primary, #ff5252);
-    border-radius: 10px;
-  }
-  &::-webkit-scrollbar-track { background: transparent; }
+  // Hide the native scrollbar — we render our own (.changelog-scrollbar) so the
+  // thickness is a real, fixed 24px in every browser (Firefox can't size a
+  // native scrollbar via CSS).
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
 
   // Mobile: lock a card to the centre when the drag/swipe is released.
   @include mix.respond(phone) { scroll-snap-type: x mandatory; }
+}
+
+// Custom horizontal scrollbar, foreground-colored and 12px thick.
+.changelog-scrollbar {
+  position: relative;
+  height: 12px;
+  margin-top: 8px;
+  border-radius: 6px;
+  background: var(--bg-tertiary, rgba(127, 127, 127, 0.15));
+  cursor: pointer;
+  touch-action: none;
+
+  .changelog-scrollbar-thumb {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    min-width: 12px;
+    border-radius: 6px;
+    background: var(--text-primary);
+    cursor: grab;
+    transition: background 0.15s ease;
+
+    &:hover { background: var(--text-primary); opacity: 0.85; }
+    &:active { cursor: grabbing; }
+  }
 }
 
 .changelog-entry {
@@ -214,9 +236,18 @@
   }
 }
 
+.changelog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
 .changelog-cta {
-  width: 100%;
-  padding: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 20px;
   border: none;
   border-radius: 12px;
   font-size: 15px;
@@ -226,8 +257,25 @@
   background: linear-gradient(135deg, var(--accent-primary, #e53935), var(--accent-hover, #ff1744));
   transition: filter 0.15s ease, transform 0.05s ease;
 
+  svg { font-size: 18px; }
+
   &:hover { filter: brightness(1.08); }
   &:active { transform: scale(0.99); }
+}
+
+.changelog-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #888);
+  text-decoration: none;
+  transition: color 0.15s ease;
+
+  svg { font-size: 16px; }
+
+  &:hover { color: var(--text-primary, #eee); }
 }
 
 @keyframes changelog-fade {

@@ -243,6 +243,9 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
     author,
     permlink: playerPermlink,
     hivePermlink: hivePermlink,
+    // True when there is no resolvable Hive post to interact with (no hive permlink,
+    // or the post was never created / was deleted). Disables vote/comment/reshare.
+    hivePostMissing: !hivePermlink,
     embedUrl: embed_url,
     thumbnailUrl: thumbnail_url,
     views: views || 0,
@@ -274,8 +277,11 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
       // Run vote check and post details in parallel
       const [votes, post] = await Promise.all([
         loggedInUser ? getActiveVotes(author, hivePermlink).catch(() => null) : Promise.resolve(null),
-        getPostDetails(author, hivePermlink),
+        getPostDetails(author, hivePermlink).catch(() => null),
       ]);
+
+      // No resolvable Hive post (deleted / never created) — interactions disabled.
+      if (!post) base.hivePostMissing = true;
 
       // Lightweight vote status from get_active_votes
       if (votes && loggedInUser) {

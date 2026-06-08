@@ -15,6 +15,7 @@ import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
+import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
@@ -194,6 +195,7 @@ function Watch() {
   // whichever owns it counts, and we stop. Deduped per author/permlink so
   // seeking/pausing never double-counts.
   const recordedViewsRef = useRef(new Set());
+  const sdkApiRef = useRef(new ThreeSpeakApi(PLAYER_URL));
   useEffect(() => {
     if (!author || author === 'unknown' || !permlink) return;
     if (playerState?.paused !== false) return; // only once it's really playing
@@ -201,12 +203,22 @@ function Watch() {
     if (recordedViewsRef.current.has(key)) return;
     recordedViewsRef.current.add(key);
     (async () => {
+      // Resolve the embed ASSET id (+ owner) the same way the player does. The URL
+      // permlink is often the Hive permlink, but /api/view matches the embed *asset*
+      // permlink — sending the Hive permlink would 404 and never count the view.
+      let owner = author;
+      let viewPermlink = permlink;
+      try {
+        const meta = await sdkApiRef.current.fetchVideoMetadata(author, permlink);
+        if (meta?.owner) owner = meta.owner;
+        if (meta?.permlink) viewPermlink = meta.permlink;
+      } catch { /* fall back to the URL author/permlink */ }
       for (const type of ['embed', 'legacy']) {
         try {
           const res = await fetch(`${PLAYER_URL}/api/view`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ owner: author, permlink, type }),
+            body: JSON.stringify({ owner, permlink: viewPermlink, type }),
           });
           const data = await res.json().catch(() => ({}));
           if (data?.counted) break;

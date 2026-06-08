@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { IoClose, IoChevronBack, IoChevronForward } from 'react-icons/io5';
+import { IoClose, IoChevronBack, IoChevronForward, IoLogoGithub, IoCheckmarkCircle } from 'react-icons/io5';
 import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { CHANGELOG, changelogSince } from '../../changelog';
@@ -36,7 +36,11 @@ export default function ChangelogModal() {
   const [open, setOpen] = useState(false);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(true);
+  // Custom scrollbar geometry (percent-based) so we get a real, themed, fixed
+  // thickness in every browser — Firefox can't size a native scrollbar.
+  const [thumb, setThumb] = useState({ width: 100, left: 0, visible: false });
   const scrollRef = useRef(null);
+  const trackRef = useRef(null);
 
   useEffect(() => {
     if (DUMMY_MODE) {
@@ -61,12 +65,55 @@ export default function ChangelogModal() {
     return () => { document.body.style.overflow = previous; };
   }, [open]);
 
-  // Recompute which edge fades should show.
+  // Recompute edge fades + the custom scrollbar thumb size/position.
   const updateFades = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     setAtStart(el.scrollLeft <= 1);
     setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
+
+    const ratio = el.scrollWidth > 0 ? el.clientWidth / el.scrollWidth : 1;
+    const visible = ratio < 0.999;
+    const width = Math.max(ratio * 100, 8); // percent, min 8% so it stays grabbable
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const left = maxScroll > 0 ? (el.scrollLeft / maxScroll) * (100 - width) : 0;
+    setThumb({ width, left, visible });
+  }, []);
+
+  // Drag the custom thumb to scroll the entries row.
+  const onThumbDown = useCallback((e) => {
+    e.preventDefault();
+    const el = scrollRef.current;
+    const track = trackRef.current;
+    if (!el || !track) return;
+    const startX = e.clientX;
+    const startScroll = el.scrollLeft;
+    const trackW = track.clientWidth;
+    const thumbW = (thumb.width / 100) * trackW;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const movableTrack = trackW - thumbW;
+    const onMove = (ev) => {
+      if (movableTrack <= 0) return;
+      const delta = ev.clientX - startX;
+      el.scrollLeft = startScroll + (delta / movableTrack) * maxScroll;
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [thumb.width]);
+
+  // Click on the empty track to page toward the click point.
+  const onTrackDown = useCallback((e) => {
+    if (e.target !== trackRef.current) return; // ignore clicks on the thumb
+    const el = scrollRef.current;
+    const track = trackRef.current;
+    if (!el || !track) return;
+    const rect = track.getBoundingClientRect();
+    const frac = (e.clientX - rect.left) / rect.width;
+    el.scrollTo({ left: frac * (el.scrollWidth - el.clientWidth), behavior: 'smooth' });
   }, []);
 
   // Desktop arrow nav — centre the next/previous card in the viewport.
@@ -100,7 +147,11 @@ export default function ChangelogModal() {
       el.scrollLeft += e.deltaY;
     };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    window.addEventListener('resize', updateFades);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      window.removeEventListener('resize', updateFades);
+    };
   }, [open, updateFades]);
 
   if (!open) return null;
@@ -117,8 +168,8 @@ export default function ChangelogModal() {
   };
 
   return (
-    <div className="changelog-overlay" onClick={close}>
-      <div className="changelog-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <div className="changelog-overlay">
+      <div className="changelog-modal" role="dialog" aria-modal="true">
         <button className="changelog-close" onClick={close} aria-label="Close">
           <IoClose />
         </button>
@@ -143,6 +194,15 @@ export default function ChangelogModal() {
           </div>
           <span className="changelog-fade left" aria-hidden="true" />
           <span className="changelog-fade right" aria-hidden="true" />
+          {thumb.visible && (
+            <div className="changelog-scrollbar" ref={trackRef} onPointerDown={onTrackDown}>
+              <div
+                className="changelog-scrollbar-thumb"
+                style={{ width: `${thumb.width}%`, left: `${thumb.left}%` }}
+                onPointerDown={onThumbDown}
+              />
+            </div>
+          )}
           {entries.length > 1 && (
             <>
               <button className="changelog-arrow left" onClick={() => scrollByCard(-1)} disabled={atStart} aria-label="Previous updates">
@@ -155,7 +215,21 @@ export default function ChangelogModal() {
           )}
         </div>
 
-        <button className="changelog-cta" onClick={close}>Got it</button>
+        <div className="changelog-footer">
+          <a
+            className="changelog-repo"
+            href="https://github.com/Mantequilla-Soft/new-3speak-tv/tree/production"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <IoLogoGithub />
+            <span>Read the code</span>
+          </a>
+          <button className="changelog-cta" onClick={close}>
+            <IoCheckmarkCircle />
+            <span>Got it</span>
+          </button>
+        </div>
       </div>
     </div>
   );
