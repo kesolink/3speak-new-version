@@ -4,7 +4,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { MdPeopleAlt } from 'react-icons/md';
 import { useAppStore } from '../lib/store';
-import { signMessageWithAioha, KeyTypes } from '../hive-api/aioha';
+import { CHECKER_API_KEY } from '../utils/config';
 import { getMinMaxDates, formatDateTimeLocal } from '../utils/schedulingHelpers';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
 import MarkdownComposer from '../components/studio/MarkdownComposer';
@@ -168,13 +168,6 @@ export default function EditScheduledPost() {
         throw new Error(`Beneficiaries total ${totalWeight / 100}% exceeds 100%`);
       }
       const scheduledOnIso = new Date(scheduleDateTime).toISOString();
-      const timestamp = Date.now();
-      const message = ['scheduled-post', 'update', user, permlink, String(timestamp)].join('|');
-      const { result: signature } = await signMessageWithAioha(
-        message,
-        KeyTypes.Posting,
-        'Sign to save changes to this scheduled post',
-      );
       const url = `${CHECKER_BASE.replace(/\/$/, '')}/scheduled-posts/update`;
       const resp = await axios.post(url, {
         owner: user,
@@ -188,8 +181,8 @@ export default function EditScheduledPost() {
           payoutOptions,
           beneficiaries: cleanedBenes,
         },
-        timestamp,
-        signature,
+      }, {
+        headers: CHECKER_API_KEY ? { Authorization: `Bearer ${CHECKER_API_KEY}` } : {},
       });
       if (!resp.data?.success) throw new Error(resp.data?.error || 'Update failed');
       toast.success('Scheduled post updated');
@@ -207,15 +200,10 @@ export default function EditScheduledPost() {
     if (!window.confirm('Cancel this scheduled post? It will not be broadcast.')) return;
     setSaving(true);
     try {
-      const timestamp = Date.now();
-      const message = ['scheduled-post', 'cancel', user, permlink, String(timestamp)].join('|');
-      const { result: signature } = await signMessageWithAioha(
-        message,
-        KeyTypes.Posting,
-        'Sign to cancel this scheduled post',
-      );
       const url = `${CHECKER_BASE.replace(/\/$/, '')}/scheduled-posts/cancel`;
-      await axios.post(url, { owner: user, permlink, timestamp, signature });
+      await axios.post(url, { owner: user, permlink }, {
+        headers: CHECKER_API_KEY ? { Authorization: `Bearer ${CHECKER_API_KEY}` } : {},
+      });
       toast.success('Scheduled post cancelled');
       navigate('/draft');
     } catch (err) {
