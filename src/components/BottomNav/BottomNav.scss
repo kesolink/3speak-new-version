@@ -188,7 +188,9 @@
   position: absolute;
   bottom: calc(100% + 8px);
   right: 8px;
-  min-width: 200px;
+  min-width: 220px;
+  max-height: calc(100vh - var(--bottom-nav-height, 56px) - 24px);
+  overflow-y: auto;
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: 12px;
@@ -197,6 +199,49 @@
   z-index: 200;
   // Entrance animation
   animation: bottomNavMenuIn 0.2s ease forwards;
+}
+
+// Upload collapsible (mirrors the desktop profile sidebar)
+.bottom-nav-menu-chevron {
+  margin-left: auto;
+  font-size: 18px;
+  color: var(--text-secondary);
+}
+
+.bottom-nav-menu-subitems {
+  padding-left: 18px;
+
+  .bottom-nav-menu-subitem {
+    font-size: 13px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}
+
+// Logo + social row at the foot of the menu (mirrors desktop sidebar)
+.bottom-nav-menu-logo {
+  display: flex;
+  justify-content: center;
+  padding: 12px 14px 6px;
+
+  img {
+    width: 55%;
+    max-width: 130px;
+  }
+}
+
+.bottom-nav-menu-social {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 4px 14px 12px;
+
+  a {
+    color: var(--text-secondary);
+    transition: color 0.15s ease;
+    &:hover { color: var(--text-primary); }
+  }
 }
 
 @keyframes bottomNavMenuIn {

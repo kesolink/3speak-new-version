@@ -16,12 +16,23 @@
   border-radius: 50%;
   border: none;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary); // match the settings (cogs) icon
+  opacity: 0.8;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+
+  svg {
+    transition: transform 0.2s ease;
+  }
 
   &:hover {
     background: var(--bg-hover, var(--sidebar-hover-bg));
+    color: var(--text-primary);
+    opacity: 1;
+
+    svg {
+      transform: rotate(-15deg); // little tilt, mirroring the settings cog
+    }
   }
 }
 

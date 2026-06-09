@@ -41,6 +41,9 @@ export default function SettingsModal({ isOpen, onClose }) {
   const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden } = useAppStore();
   if (!isOpen) return null;
 
+  // The left sidebar only exists on desktop, so its toggle is irrelevant on mobile/tablet.
+  const isDesktop = window.matchMedia('(min-width: 1025px)').matches;
+
   return createPortal(
     <div className="settings-modal-overlay" onClick={onClose}>
       <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
@@ -69,12 +72,14 @@ export default function SettingsModal({ isOpen, onClose }) {
             checked={theme === 'dark'}
             onChange={(wantDark) => { if ((theme === 'dark') !== wantDark) toggleTheme(); }}
           />
-          <Row
-            title="Hide sidebar"
-            desc="Collapse the left navigation sidebar for a wider content area."
-            checked={!!sidebarHidden}
-            onChange={(hide) => setSidebarHidden(hide)}
-          />
+          {isDesktop && (
+            <Row
+              title="Hide sidebar"
+              desc="Collapse the left navigation sidebar for a wider content area."
+              checked={!!sidebarHidden}
+              onChange={(hide) => setSidebarHidden(hide)}
+            />
+          )}
         </div>
 
         <div className="settings-section">

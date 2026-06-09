@@ -189,7 +189,9 @@ const VideoShort = () => {
   const [videos, setVideos] = useState([]);
   const videosRef = useRef([]);
   videosRef.current = videos;
-  const [showComments, setShowComments] = useState(false);
+  // Desktop opens the comments side-panel by default; mobile keeps it closed
+  // (it's a full-screen bottom sheet there).
+  const [showComments, setShowComments] = useState(() => typeof window !== 'undefined' && window.innerWidth > 768);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1727,7 +1729,9 @@ const VideoShort = () => {
       const tag = active?.tagName;
       const isEditable = active?.isContentEditable;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || isEditable) return;
-      if (showComments || isTransitioning) return;
+      // Desktop keeps the comments open as a side panel — keyboard nav still works;
+      // only block while the full-screen comments overlay is up (mobile).
+      if ((showComments && window.innerWidth <= 768) || isTransitioning) return;
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
