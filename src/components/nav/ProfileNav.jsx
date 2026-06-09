@@ -17,6 +17,7 @@ import logo from "../../assets/image/3S_logo.svg";
 import logoDark from '../../assets/image/3S_logodark.png';
 import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
+import { getHiveUrl, ensureHealthyNode } from '../../utils/hiveNode';
 import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
 import UploadLinks from '../UploadLinks';
 import LabeledToggle from '../LabeledToggle/LabeledToggle';
@@ -34,6 +35,13 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const [rc, setRc] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Currently chosen Hive RPC node (auto-picked by the session probe).
+  const [rpcNode, setRpcNode] = useState(getHiveUrl());
+  useEffect(() => {
+    let cancelled = false;
+    ensureHealthyNode().then((u) => { if (!cancelled) setRpcNode(u || getHiveUrl()); });
+    return () => { cancelled = true; };
+  }, []);
 
   const handlewallletNavigation = () => {
     navigate(`/wallet/${user}`)
