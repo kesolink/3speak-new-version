@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.10.2',
+    date: '2026-06-09',
+    summary:
+      'Scheduling a video now works no matter how you’re logged in. Before, scheduling (and editing or cancelling a scheduled post on the Edit scheduled post page) asked you to sign a message, which failed for HiveSigner and ManteAuth logins — that signature step is gone, so it just works.',
+  },
+  {
     version: '1.10.1',
     date: '2026-06-09',
     summary:
