@@ -363,7 +363,8 @@
   min-height: 120px;
   transition: border-color 0.15s ease, background 0.15s ease;
 
-  &:hover { border-color: var(--accent-primary); }
+  &:hover, &.dragging { border-color: var(--accent-primary); }
+  &.dragging { background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-tertiary)); }
 
   svg { color: var(--accent-primary); }
 

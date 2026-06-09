@@ -1,14 +1,19 @@
-import { Link, useLocation } from "react-router-dom";
-import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq, MdMic } from "react-icons/md";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq, MdMic, MdSettings, MdCloudUpload } from "react-icons/md";
 import { IoAddCircleOutline, IoPower, IoCloudUploadSharp, IoShareOutline } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
 import { HiInformationCircle } from "react-icons/hi";
 import { GiAstronautHelmet } from "react-icons/gi";
 import { RiWallet3Fill } from "react-icons/ri";
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import { FaDiscord } from "react-icons/fa";
+import { FaSquareXTwitter } from "react-icons/fa6";
+import { SiTelegram } from "react-icons/si";
 import { Clapperboard } from "lucide-react";
 import { useAppStore } from "../../lib/store";
-import LabeledToggle from "../LabeledToggle/LabeledToggle";
 import ShortsIcon from "../icons/ShortsIcon";
+import UploadLinks from "../UploadLinks";
+import SettingsModal from "../SettingsModal/SettingsModal";
 import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { FEATURE_EDITOR } from "../../utils/config";
 import { APP_VERSION } from "../../version";
@@ -17,15 +22,21 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import PremiumBadge from "../PremiumBadge/PremiumBadge";
 import { toast } from "sonner";
+import logo from "../../assets/image/3S_logo.svg";
+import logoDark from "../../assets/image/3S_logodark.png";
 import "./BottomNav.scss";
 
 const BottomNav = ({ openLoginModal }) => {
   const location = useLocation();
-  const { authenticated, user, showNsfw, setShowNsfw, theme, toggleTheme, sidebarHidden, setSidebarHidden } = useAppStore();
+  const navigate = useNavigate();
+  const { authenticated, user, theme, LogOut } = useAppStore();
+  const isManteAuth = localStorage.getItem("manteauth_login") === "true";
   const livePodsCount = useOpenPodsCount();
   const path = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [menuUploadOpen, setMenuUploadOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const menuRef = useRef(null);
   const uploadRef = useRef(null);
 
@@ -78,6 +89,7 @@ const BottomNav = ({ openLoginModal }) => {
   useEffect(() => {
     setMenuOpen(false);
     setUploadOpen(false);
+    setMenuUploadOpen(false);
   }, [path]);
 
   const handleUploadClick = (e) => {
@@ -101,13 +113,8 @@ const BottomNav = ({ openLoginModal }) => {
   const handleProfileClick = (e) => {
     e.preventDefault();
     if (!authenticated) {
-      // If install is available, show a mini menu; otherwise just open login
-      if (showInstallOption) {
-        setMenuOpen((prev) => !prev);
-        setUploadOpen(false);
-      } else {
-        openLoginModal();
-      }
+      // Logged out: the bottom-right "Login" button opens the login modal directly.
+      openLoginModal();
     } else {
       setMenuOpen((prev) => !prev);
       setUploadOpen(false);
@@ -115,6 +122,7 @@ const BottomNav = ({ openLoginModal }) => {
   };
 
   return createPortal(
+    <>
     <nav className={`bottom-nav${path === '/watch' ? ' bottom-nav--watch' : ''}`} ref={menuRef}>
       <Link to="/" className={`bottom-nav-item ${isActive("/") ? "active" : ""}`}>
         <MdOutlineHome className="bottom-nav-icon" />
@@ -172,45 +180,41 @@ const BottomNav = ({ openLoginModal }) => {
             </span>
           </div>
           <div className="bottom-nav-menu-divider" />
-          <Link to={`/p/${user}`} className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
+          <Link to="/profile" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <IoMdPerson className="bottom-nav-menu-icon" /> My Channel
           </Link>
+
+          <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuUploadOpen((v) => !v); }}>
+            <MdCloudUpload className="bottom-nav-menu-icon" /> Upload
+            {menuUploadOpen
+              ? <BiChevronUp className="bottom-nav-menu-chevron" />
+              : <BiChevronDown className="bottom-nav-menu-chevron" />}
+          </a>
+          {menuUploadOpen && (
+            <div className="bottom-nav-menu-subitems">
+              <UploadLinks linkClass="bottom-nav-menu-item bottom-nav-menu-subitem" iconClass="bottom-nav-menu-icon" onClick={() => setMenuOpen(false)} />
+            </div>
+          )}
+
           <Link to={`/wallet/${user}`} className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <RiWallet3Fill className="bottom-nav-menu-icon" /> Wallet
           </Link>
-          <div className="bottom-nav-menu-item bottom-nav-menu-toggle">
-            <LabeledToggle
-              leftLabel="Hide NSFW"
-              rightLabel="Show NSFW"
-              value={showNsfw}
-              onChange={(v) => setShowNsfw(v)}
-              ariaLabel="Toggle NSFW content"
-            />
-          </div>
-          <div className="bottom-nav-menu-item bottom-nav-menu-toggle">
-            <LabeledToggle
-              leftLabel="Light mode"
-              rightLabel="Dark mode"
-              value={theme === 'dark'}
-              onChange={(wantDark) => {
-                if ((theme === 'dark') !== wantDark) toggleTheme();
-              }}
-              ariaLabel="Toggle theme"
-            />
-          </div>
-          <div className="bottom-nav-menu-item bottom-nav-menu-toggle">
-            <LabeledToggle
-              leftLabel="Show sidebar"
-              rightLabel="Hide sidebar"
-              value={!!sidebarHidden}
-              onChange={(hide) => setSidebarHidden(hide)}
-              ariaLabel="Toggle sidebar visibility"
-            />
-          </div>
-          <div className="bottom-nav-menu-divider" />
+          <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setSettingsOpen(true); setMenuOpen(false); }}>
+            <MdSettings className="bottom-nav-menu-icon" /> Settings
+          </a>
           <Link to="/about" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <HiInformationCircle className="bottom-nav-menu-icon" /> About 3Speak
           </Link>
+          {isManteAuth ? (
+            <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); LogOut(user); navigate('/'); }}>
+              <IoPower className="bottom-nav-menu-icon" /> Logout
+            </a>
+          ) : (
+            <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
+              <IoPower className="bottom-nav-menu-icon" /> Change account
+            </a>
+          )}
+
           {!isStandalone && (installPrompt || isIOS) && (
             <>
               <div className="bottom-nav-menu-divider" />
@@ -227,13 +231,15 @@ const BottomNav = ({ openLoginModal }) => {
               ) : null}
             </>
           )}
+
           <div className="bottom-nav-menu-divider" />
-          <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
-            <IoPower className="bottom-nav-menu-icon" /> Change account
-          </a>
-          <div className="bottom-nav-menu-footer">
-            <span>App version: v{APP_VERSION}</span>
-            <span>Hive node: {getHiveUrl()}</span>
+          <div className="bottom-nav-menu-logo">
+            <img src={theme === 'light' ? logo : logoDark} alt="3Speak" />
+          </div>
+          <div className="bottom-nav-menu-social">
+            <a href="https://discord.com/invite/NSFS2VGj83" target="_blank" rel="noopener noreferrer" aria-label="Discord"><FaDiscord size={24} /></a>
+            <a href="https://x.com/3speaktv?utm_source=3speak.tv" target="_blank" rel="noopener noreferrer" aria-label="X"><FaSquareXTwitter size={24} /></a>
+            <a href="https://t.me/threespeak?utm_source=3speak.tv" target="_blank" rel="noopener noreferrer" aria-label="Telegram"><SiTelegram size={24} /></a>
           </div>
         </div>
       )}
@@ -256,7 +262,9 @@ const BottomNav = ({ openLoginModal }) => {
           </a>
         </div>
       )}
-    </nav>,
+    </nav>
+    <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </>,
     document.body
   );
 };

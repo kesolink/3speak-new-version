@@ -18,11 +18,13 @@ function EmbedVideoUploadStep1() {
     setVideoFile,
     setPrevVideoFile,
     setGeneratedThumbnail,
+    setVideoMode,
     fromStories,
     user,
   } = useEmbedUpload()
 
   const [loading, setLoading] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   // @threespeak posting gate: embed posts are broadcast by @threespeak, which
   // requires the user to have granted @threespeak posting authority before they
@@ -101,8 +103,11 @@ function EmbedVideoUploadStep1() {
     });
   };
 
-  const handleVideoSelect = async (e) => {
-    const file = e.target.files[0];
+  const handleVideoSelect = (e) => {
+    processVideoFile(e.target.files[0]);
+  };
+
+  const processVideoFile = async (file) => {
     if (!file) return;
 
     if (!file.type.startsWith("video/")) {
@@ -144,6 +149,7 @@ function EmbedVideoUploadStep1() {
       setVideoFile(file);
       setPrevVideoFile(file);
       setVideoDuration(duration);
+      setVideoMode(fromStories ? 'shorts' : 'longform');
 
     } catch (err) {
       console.error(err);
@@ -162,12 +168,35 @@ function EmbedVideoUploadStep1() {
     navigate("/embed-studio/thumbnail");
   };
 
+  // Drag & drop onto the upload box (gated behind the same @threespeak auth check)
+  const handleDragOver = (e) => {
+    if (needsAuth || loading) return;
+    e.preventDefault();
+    setDragging(true);
+  };
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragging(false);
+  };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    if (needsAuth || loading) return;
+    const file = e.dataTransfer?.files?.[0];
+    if (file) processVideoFile(file);
+  };
+
   return (
     <div>
       <div className="upload-step">
 
         <div className="content">
-          <div className="file-upload">
+          <div
+            className={`file-upload${dragging ? ' is-dragging' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <div className="content">
               <div
                 className="icon"
@@ -181,6 +210,9 @@ function EmbedVideoUploadStep1() {
               {!videoFile && !needsAuth && (
                 <div className="text">
                   <h3 className="title">{isMobile ? "Pick or Record a Video" : "Choose a video file"}</h3>
+                  {!isMobile && (
+                    <p className="formats drag-hint">Click to browse, or drag &amp; drop your video here</p>
+                  )}
                   <p className="formats">
                     Supports: MP4, AVI, MOV, WMV (Max size: 5GB)
                   </p>

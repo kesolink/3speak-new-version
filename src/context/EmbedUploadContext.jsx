@@ -36,6 +36,9 @@ export function EmbedUploadProvider({ children }) {
   const [videoFile, setVideoFile] = useState(null);
   const [prevVideoFile, setPrevVideoFile] = useState(null);
   const [videoDuration, setVideoDuration] = useState(0);
+  // Which studio mode the currently-selected video was picked under: 'shorts' | 'longform' | null.
+  // Used to clear a stale selection when the studio is reopened in the other mode.
+  const [videoMode, setVideoMode] = useState(null);
 
   // Thumbnail state
   const [generatedThumbnail, setGeneratedThumbnail] = useState([]);
@@ -130,6 +133,19 @@ export function EmbedUploadProvider({ children }) {
     }]);
   };
 
+  // Clear only the selected video + its derived thumbnails (not the whole form).
+  // Used when the studio is reopened in a different mode than the video was picked in.
+  const clearVideoSelection = () => {
+    setVideoFile(null);
+    setPrevVideoFile(null);
+    setVideoDuration(0);
+    setGeneratedThumbnail([]);
+    setSelectedThumbnail(null);
+    setThumbnailFile(null);
+    setSelectedIndex(null);
+    setVideoMode(null);
+  };
+
   const resetUploadState = () => {
     // Abort any in-progress TUS upload and clear cached fingerprints
     if (tusUploadRef.current) {
@@ -151,6 +167,7 @@ export function EmbedUploadProvider({ children }) {
     setSelectedThumbnail(null);
     setThumbnailFile(null);
     setSelectedIndex(null);
+    setVideoMode(null);
     setTitle('');
     setDescription('');
     setTagsInputValue('');
@@ -716,6 +733,8 @@ export function EmbedUploadProvider({ children }) {
     videoFile, setVideoFile,
     prevVideoFile, setPrevVideoFile,
     videoDuration, setVideoDuration,
+    videoMode, setVideoMode,
+    clearVideoSelection,
     // Thumbnail
     generatedThumbnail, setGeneratedThumbnail,
     selectedThumbnail, setSelectedThumbnail,

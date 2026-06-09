@@ -38,8 +38,9 @@
 
   .row-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
+    gap: 12px;
     margin-bottom: 6px;
     padding: 0 10px;
 
@@ -73,16 +74,15 @@
 
     .view-all {
       font-size: 12px;
-      color: #fff;
+      color: var(--text-primary);
       text-decoration: none;
       font-weight: 500;
-      padding: 4px 12px;
-      background: var(--accent-primary);
-      border-radius: 14px;
+      padding: 2px 4px;
       transition: opacity 0.2s ease;
 
       &:hover {
-        opacity: 0.85;
+        opacity: 0.7;
+        text-decoration: underline;
       }
 
       @include respond(phone) {
@@ -370,11 +370,11 @@
 
 }
 
-// Dark mode: outlined style — card-bg bg, red (--accent-primary) outline + text.
+// View All reads as a plain foreground-colored link in both themes (no red pill).
 [data-theme="dark"] {
   .row-header .view-all {
-    background: var(--card-bg) !important;
-    color: var(--accent-primary) !important;
-    border: 1px solid var(--accent-primary) !important;
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    border: none !important;
   }
 }

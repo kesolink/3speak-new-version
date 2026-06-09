@@ -65,7 +65,13 @@
   }
 
   &:hover {
-    border-color: red; 
+    border-color: red;
+  }
+
+  // Drag & drop hover state
+  &.is-dragging {
+    border-color: red;
+    background: color-mix(in srgb, red 6%, transparent);
   }
 
   .content {
@@ -109,6 +115,12 @@
       .formats {
         font-size: 0.75rem;
         color: var(--text-secondary);
+      }
+
+      .drag-hint {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-primary);
       }
 
       .short-hint {

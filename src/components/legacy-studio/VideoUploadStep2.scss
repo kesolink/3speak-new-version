@@ -273,6 +273,11 @@
       border-color: rgba(229, 57, 53, 0.5);
     }
 
+    &.is-dragging {
+      border-color: var(--accent-primary, #e53935);
+      background: rgba(229, 57, 53, 0.06);
+    }
+
     .thumbnail-upload__content {
       display: flex;
       flex-direction: column;
@@ -297,6 +302,13 @@
         font-size: 0.75rem;
         color: var(--text-secondary, #888);
         text-align: center;
+      }
+
+      .thumbnail-upload__hint {
+        font-size: 0.65rem;
+        color: var(--text-secondary, #999);
+        text-align: center;
+        opacity: 0.8;
       }
     }
 

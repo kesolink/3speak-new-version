@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.10.0',
+    date: '2026-06-09',
+    summary:
+      'Navigation refresh: a Settings (cog) button in the top bar opens settings directly, and logged-out visitors get a clearer red “Log in” button. On mobile, the profile menu in the bottom bar now matches the desktop menu — My Channel, Upload, Wallet, Settings, About and social links. You can now drag & drop files into the video uploader, the thumbnail picker, and the audio uploader’s cover-art spots (each spot says so). The home page “View All” links are now plain text beside each section title. Also fixed: starting a Short no longer inherits a video you’d picked for a regular upload (and vice-versa).',
+  },
+  {
     version: '1.9.13',
     date: '2026-06-08',
     summary:

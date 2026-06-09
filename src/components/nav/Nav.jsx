@@ -16,6 +16,8 @@ import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
 import NotificationBell from "./NotificationBell";
 import PremiumBadge from "../PremiumBadge/PremiumBadge";
+import { FiSettings, FiLogIn } from "react-icons/fi";
+import SettingsModal from "../SettingsModal/SettingsModal";
 
 function NavPlaylistsDropdown({ user }) {
   const [open, setOpen] = useState(false);
@@ -97,6 +99,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
    const sideNavRef = useRef(null); // Ref for the side nav container
   const menuIconRef = useRef(null); // Ref for the menu toggle button
   const [navHidden, setNavHidden] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const navContainerRef = useRef(null);
 
   // Measure nav height and set CSS variables globally
@@ -201,30 +204,33 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
       <Sidebar sidebar={true} onNavigate={handleNav} />
       </div>
 
+      {/* Search sits next to the nav tabs on desktop (after the logo on tablet) */}
+      <NavSearch />
+
       {authenticated ? (
         <div className="nav-right flex-div">
-          <NavSearch />
-          <Link to="/discover" className="nav-mobile-discover" title="Discover">
-            <MdOutlineSearch size={18} />
-            <span className="nav-mobile-discover-label">Discover</span>
-          </Link>
           <NavUploadDropdown />
+          <Link to="/discover" className="nav-mobile-discover" title="Discover">
+            <MdOutlineSearch size={19} />
+          </Link>
           <NotificationBell />
           <span className="nav-avatar-wrap" onClick={toggleProfileNav}>
             <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" />
             <PremiumBadge username={user} size={10} className="nav-avatar-premium" />
           </span>
+          <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
         </div>
       ) : (
         <div className="nav-right flex-div">
-          <NavSearch />
           <Link to="/discover" className="nav-mobile-discover" title="Discover">
-            <MdOutlineSearch size={18} />
-            <span className="nav-mobile-discover-label">Discover</span>
+            <MdOutlineSearch size={19} />
           </Link>
-          <button onClick={openLoginModal}>LOG IN</button>
+          <button className="nav-guest-login" onClick={openLoginModal}><FiLogIn /> LOG IN</button>
+          <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
         </div>
       )}
+
+      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </nav>
   );
 }

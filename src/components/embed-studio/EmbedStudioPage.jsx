@@ -27,19 +27,29 @@ function EmbedStudioPage() {
     fromStories, setFromStories,
     completed,
     resetUploadState,
+    videoFile,
     setVideoFile,
     setPrevVideoFile,
     setVideoDuration,
     setGeneratedThumbnail,
     setPrefilledFromQuery,
+    videoMode, setVideoMode,
+    clearVideoSelection,
   } = useEmbedUpload();
 
-  // Detect stories origin from URL param
+  // Detect stories origin from URL param. If a video that was picked in the OTHER
+  // mode (e.g. a longform video) is still selected from a previous session, clear it
+  // so reopening the studio as a Short doesn't inherit the wrong file.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const from = params.get("from");
-    setFromStories(from === "stories" || from === "shorts");
-  }, [location.search, setFromStories]);
+    const isShorts = from === "stories" || from === "shorts";
+    const enteringMode = isShorts ? "shorts" : "longform";
+    if (videoFile && videoMode && videoMode !== enteringMode) {
+      clearVideoSelection();
+    }
+    setFromStories(isShorts);
+  }, [location.search]);
 
   // Prefilled flow: an external uploader (e.g. Hangouts server-side recording)
   // has already pushed a video to the embed service. Skip Step 1 and land the
@@ -96,6 +106,7 @@ function EmbedStudioPage() {
       setVideoFile(file);
       setPrevVideoFile(file);
       setVideoDuration(duration);
+      setVideoMode(fromStories ? 'shorts' : 'longform');
     };
 
     // Check for file passed from StudioPage redirect (vertical short)
