@@ -27,6 +27,7 @@ function EmbedThumbnail() {
   const [customfile, setCustomFile] = useState([]);
   const [customFiles, setCustomFiles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [thumbDragging, setThumbDragging] = useState(false);
 
   const thumbnailInputRef = useRef(null);
   const navigate = useNavigate();
@@ -73,17 +74,33 @@ function EmbedThumbnail() {
     return <Navigate to="/embed-studio" replace />;
   }
 
-  const handleThumbnailUpload = (event) => {
-    const file = event.target.files[0];
-    if (file && file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target?.result;
-        setCustomFile((prev) => [...prev, base64]);
-        setCustomFiles((prev) => [...prev, file]);
-      };
-      reader.readAsDataURL(file);
+  const processThumbnailFile = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file");
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result;
+      setCustomFile((prev) => [...prev, base64]);
+      setCustomFiles((prev) => [...prev, file]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleThumbnailUpload = (event) => {
+    processThumbnailFile(event.target.files[0]);
+  };
+
+  // Drag & drop onto the "Upload Custom" thumbnail card
+  const handleThumbDragOver = (e) => { e.preventDefault(); setThumbDragging(true); };
+  const handleThumbDragLeave = (e) => { e.preventDefault(); setThumbDragging(false); };
+  const handleThumbDrop = (e) => {
+    e.preventDefault();
+    setThumbDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) processThumbnailFile(file);
   };
 
   const allThumbnails = [...generatedThumbnail, ...customfile];
@@ -175,7 +192,12 @@ function EmbedThumbnail() {
                   </div>
                 ))}
 
-                <div className="thumbnail-upload">
+                <div
+                  className={`thumbnail-upload${thumbDragging ? ' is-dragging' : ''}`}
+                  onDragOver={handleThumbDragOver}
+                  onDragLeave={handleThumbDragLeave}
+                  onDrop={handleThumbDrop}
+                >
                   <div className="thumbnail-upload__content">
                     <input
                       type="file"
@@ -194,6 +216,9 @@ function EmbedThumbnail() {
                       </div>
                       <span className="thumbnail-upload__label">
                         Upload Custom
+                      </span>
+                      <span className="thumbnail-upload__hint">
+                        or drag &amp; drop
                       </span>
                     </label>
                   </div>

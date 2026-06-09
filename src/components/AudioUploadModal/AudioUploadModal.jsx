@@ -1216,6 +1216,7 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
   const [newDescription, setNewDescription] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [thumbnailUploading, setThumbnailUploading] = useState(false);
+  const [thumbDragging, setThumbDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const thumbInputRef = useRef(null);
 
@@ -1233,8 +1234,7 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
     setThumbnailUrl('');
   };
 
-  const onThumbnailFile = async (e) => {
-    const file = e.target.files?.[0];
+  const processThumbnailFile = async (file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       toast.error('Pick an image file');
@@ -1250,6 +1250,14 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
       setThumbnailUploading(false);
       if (thumbInputRef.current) thumbInputRef.current.value = '';
     }
+  };
+  const onThumbnailFile = (e) => processThumbnailFile(e.target.files?.[0]);
+
+  const onThumbnailDrop = (e) => {
+    e.preventDefault();
+    setThumbDragging(false);
+    if (thumbnailUploading) return;
+    processThumbnailFile(e.dataTransfer?.files?.[0]);
   };
 
   const submit = async () => {
@@ -1416,8 +1424,11 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
           />
 
           <div
-            className={`audio-upload-album-thumb${thumbnailUrl ? ' has-image' : ''}`}
+            className={`audio-upload-album-thumb${thumbnailUrl ? ' has-image' : ''}${thumbDragging ? ' dragging' : ''}`}
             onClick={() => !thumbnailUploading && thumbInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); if (!thumbnailUploading) setThumbDragging(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setThumbDragging(false); }}
+            onDrop={onThumbnailDrop}
           >
             {thumbnailUrl ? (
               <>
@@ -1433,7 +1444,7 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
               <>
                 <MdCloudUpload size={28} />
                 <span>{thumbnailUploading ? 'Uploading…' : 'Add cover image'}</span>
-                <small>Click to pick — JPG / PNG / WebP</small>
+                <small>Click or drag &amp; drop — JPG / PNG / WebP</small>
               </>
             )}
             <input
@@ -1473,10 +1484,21 @@ function PlaylistStep({ playlists, loading, choice, onChoose, pendingPlaylist, o
 // Reusable cover picker — owns its own file input so many can coexist.
 function ThumbPicker({ value, uploading, onPick, onClear, label = 'Add cover image' }) {
   const ref = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    if (uploading) return;
+    const f = e.dataTransfer?.files?.[0];
+    if (f && f.type.startsWith('image/')) onPick(f);
+  };
   return (
     <div
-      className={`audio-upload-album-thumb${value ? ' has-image' : ''}`}
+      className={`audio-upload-album-thumb${value ? ' has-image' : ''}${dragging ? ' dragging' : ''}`}
       onClick={() => !uploading && ref.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragging(true); }}
+      onDragLeave={(e) => { e.preventDefault(); setDragging(false); }}
+      onDrop={handleDrop}
     >
       {value ? (
         <>
@@ -1492,7 +1514,7 @@ function ThumbPicker({ value, uploading, onPick, onClear, label = 'Add cover ima
         <>
           <MdCloudUpload size={26} />
           <span>{uploading ? 'Uploading…' : label}</span>
-          <small>JPG / PNG / WebP</small>
+          <small>Click or drag &amp; drop — JPG / PNG / WebP</small>
         </>
       )}
       <input

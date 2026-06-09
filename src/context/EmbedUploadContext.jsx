@@ -3,7 +3,7 @@ import { getHiveUrl } from '../utils/hiveNode';
 import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
-import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG } from '../utils/config';
+import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG, CHECKER_API_KEY } from '../utils/config';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
 import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn, getCurrentProvider, Providers, broadcastViaThreespeak, KeyTypes } from '../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
@@ -36,6 +36,9 @@ export function EmbedUploadProvider({ children }) {
   const [videoFile, setVideoFile] = useState(null);
   const [prevVideoFile, setPrevVideoFile] = useState(null);
   const [videoDuration, setVideoDuration] = useState(0);
+  // Which studio mode the currently-selected video was picked under: 'shorts' | 'longform' | null.
+  // Used to clear a stale selection when the studio is reopened in the other mode.
+  const [videoMode, setVideoMode] = useState(null);
 
   // Thumbnail state
   const [generatedThumbnail, setGeneratedThumbnail] = useState([]);
@@ -130,6 +133,19 @@ export function EmbedUploadProvider({ children }) {
     }]);
   };
 
+  // Clear only the selected video + its derived thumbnails (not the whole form).
+  // Used when the studio is reopened in a different mode than the video was picked in.
+  const clearVideoSelection = () => {
+    setVideoFile(null);
+    setPrevVideoFile(null);
+    setVideoDuration(0);
+    setGeneratedThumbnail([]);
+    setSelectedThumbnail(null);
+    setThumbnailFile(null);
+    setSelectedIndex(null);
+    setVideoMode(null);
+  };
+
   const resetUploadState = () => {
     // Abort any in-progress TUS upload and clear cached fingerprints
     if (tusUploadRef.current) {
@@ -151,6 +167,7 @@ export function EmbedUploadProvider({ children }) {
     setSelectedThumbnail(null);
     setThumbnailFile(null);
     setSelectedIndex(null);
+    setVideoMode(null);
     setTitle('');
     setDescription('');
     setTagsInputValue('');
@@ -504,16 +521,12 @@ export function EmbedUploadProvider({ children }) {
 
           // The HTML datetime-local string is local-tz; convert to a real ISO UTC.
           const scheduledOnIso = new Date(scheduleDateTime).toISOString();
-          const timestamp = Date.now();
-          const message = ['scheduled-post', 'create', user, hivePermlink, scheduledOnIso, String(timestamp)].join('|');
 
-          setStatusText('Signing schedule request...');
-          const { result: signature } = await signMessageWithAioha(
-            message,
-            KeyTypes.Posting,
-            'Sign to queue this post for scheduled publishing',
-          );
-
+          // Auth: the checker create endpoint uses the app-key method (same as the
+          // embed /video/* writes), not a client Hive signature — because HiveSigner
+          // and ManteAuth can't sign arbitrary messages client-side. The checker
+          // trusts the app key + verifies on-chain that the user granted @threespeak
+          // posting authority (which we just ensured above and the cron relies on).
           const payoutOptions = declineRewards ? 'decline' : (rewardPowerup ? 'powerup' : 'default');
           const checkerBase =
             import.meta.env.VITE_SCHEDULED_POSTS_API_URL || 'https://prod-checker.okinoko.io';
@@ -545,8 +558,8 @@ export function EmbedUploadProvider({ children }) {
             parentAuthor,
             parentPermlink,
             embedPermlink,
-            timestamp,
-            signature,
+          }, {
+            headers: CHECKER_API_KEY ? { Authorization: `Bearer ${CHECKER_API_KEY}` } : {},
           });
 
           if (resp.status !== 201 || !resp.data?.success) {
@@ -722,6 +735,8 @@ export function EmbedUploadProvider({ children }) {
     videoFile, setVideoFile,
     prevVideoFile, setPrevVideoFile,
     videoDuration, setVideoDuration,
+    videoMode, setVideoMode,
+    clearVideoSelection,
     // Thumbnail
     generatedThumbnail, setGeneratedThumbnail,
     selectedThumbnail, setSelectedThumbnail,

@@ -14,6 +14,11 @@
   > .nav-right {
     margin-left: auto;
   }
+
+  // Search bar sits next to the nav tabs (desktop) / after the logo (tablet)
+  > .navsearch-wrap {
+    margin-left: 16px;
+  }
   transition: background-color 0.3s ease, box-shadow 0.3s ease;
 
   // Auto-hide on mobile scroll — margin-bottom collapses the sticky space
@@ -85,13 +90,16 @@
     padding: 0 12px;
     border: 1px solid var(--border-light, #444);
     border-radius: 17px;
-    color: var(--text-primary);
+    color: var(--text-secondary); // dim, matching the desktop settings icon
+    opacity: 0.8;
     text-decoration: none;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 
     &:hover {
       background: var(--bg-hover);
       border-color: var(--text-secondary);
+      color: var(--text-primary);
+      opacity: 1;
     }
 
     .nav-mobile-discover-label {
@@ -99,9 +107,23 @@
       font-weight: 500;
     }
 
-    @include mix.respond(phone) { display: inline-flex; }
-    @include mix.respond(tab)   { display: inline-flex; }
+    // Borderless icon on mobile (matches the bare search/settings icons)
+    @include mix.respond(phone) { display: inline-flex; border: none; padding: 0 6px; }
+    @include mix.respond(tab)   { display: inline-flex; border: none; padding: 0 6px; }
   }
+
+  // Settings (cogs) on the right — shown on all sizes; opens the settings modal directly
+  .nav-settings-btn {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    opacity: 0.8;
+    margin-left: 8px;
+    transition: color 0.15s ease, opacity 0.15s ease, transform 0.2s ease;
+    &:hover { color: var(--text-primary); opacity: 1; transform: rotate(25deg); }
+  }
+
 
   .nav-tab {
     display: inline-flex;
@@ -426,6 +448,38 @@
     &:hover {
       border: 1px solid #1e293b;
     }
+  }
+
+  // Login button (desktop only): pill shape, transparent bg, door/login icon in front.
+  // Placed after the generic button rule so it wins on equal specificity.
+  > .nav-right button.nav-guest-login {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 18px;
+    border-radius: 20px;
+    background: transparent;
+    border: 1px solid var(--accent-primary);
+    box-shadow: none;
+    color: var(--accent-primary);
+    font-weight: 600;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    svg { font-size: 17px; } // inherits the red via currentColor
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+      border: 1px solid var(--accent-primary);
+    }
+
+    [data-theme="dark"] & {
+      background: transparent;
+      border: 1px solid var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    @include mix.respond(phone) { display: none; }
+    @include mix.respond(tab)   { display: none; }
   }
 
   > .nav-right button.manteauth-btn {

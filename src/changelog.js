@@ -7,6 +7,30 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.10.3',
+    date: '2026-06-09',
+    summary:
+      'On desktop, the Shorts page (/shorts) now opens the comments panel by default so you can read along while watching. On mobile it stays closed (tap the comment icon to open).',
+  },
+  {
+    version: '1.10.2',
+    date: '2026-06-09',
+    summary:
+      'Scheduling a video now works no matter how you’re logged in. Before, scheduling (and editing or cancelling a scheduled post on the Edit scheduled post page) asked you to sign a message, which failed for HiveSigner and ManteAuth logins — that signature step is gone, so it just works.',
+  },
+  {
+    version: '1.10.1',
+    date: '2026-06-09',
+    summary:
+      'Uploading a video your browser can’t read or preview — such as iPhone HEVC/H.265 .MOV files — now works smoothly: it no longer fails on the thumbnail step, and the upload and preview steps show a clear note instead of a broken player. The file still uploads and is converted for playback.',
+  },
+  {
+    version: '1.10.0',
+    date: '2026-06-09',
+    summary:
+      'Navigation refresh: a Settings (cog) button in the top bar opens settings directly, and logged-out visitors get a clearer red “Log in” button. On mobile, the profile menu in the bottom bar now matches the desktop menu — My Channel, Upload, Wallet, Settings, About and social links. You can now drag & drop files into the video uploader, the thumbnail picker, and the audio uploader’s cover-art spots (each spot says so). The home page “View All” links are now plain text beside each section title. Also fixed: starting a Short no longer inherits a video you’d picked for a regular upload (and vice-versa).',
+  },
+  {
     version: '1.9.13',
     date: '2026-06-08',
     summary:
