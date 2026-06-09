@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.10.1',
+    date: '2026-06-09',
+    summary:
+      'Uploading a video your browser can’t read or preview — such as iPhone HEVC/H.265 .MOV files — now works smoothly: it no longer fails on the thumbnail step, and the upload and preview steps show a clear note instead of a broken player. The file still uploads and is converted for playback.',
+  },
+  {
     version: '1.10.0',
     date: '2026-06-09',
     summary:

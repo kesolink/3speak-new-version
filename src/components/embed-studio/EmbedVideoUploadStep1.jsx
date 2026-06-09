@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react'
-import { Upload } from "lucide-react";
+import { Upload, FileVideo } from "lucide-react";
 import "../legacy-studio/VideoUploadStep1.scss"
 import { generateVideoThumbnails } from "../../utils/videoThumbnails";
 import { toast } from 'sonner'
@@ -25,6 +25,7 @@ function EmbedVideoUploadStep1() {
 
   const [loading, setLoading] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [previewError, setPreviewError] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   // @threespeak posting gate: embed posts are broadcast by @threespeak, which
   // requires the user to have granted @threespeak posting authority before they
@@ -84,21 +85,30 @@ function EmbedVideoUploadStep1() {
   const videoInputRef = useRef(null);
   const videoPreviewUrl = useMemo(() => videoFile ? URL.createObjectURL(videoFile) : null, [videoFile]);
 
+  // Reset the "can't preview" flag whenever a new file is chosen.
+  useEffect(() => { setPreviewError(false); }, [videoPreviewUrl]);
+
+  // Best-effort metadata read. Some files (e.g. a metadata-less .MOV) never fire
+  // loadedmetadata or error in some browsers, so we also time out — and we resolve
+  // (never reject) with NaN/0 so a failure here can't block the upload.
   const getVideoMetadata = (file) => {
     return new Promise((resolve) => {
       const video = document.createElement("video");
       video.preload = "metadata";
-
-      video.onloadedmetadata = () => {
-        const meta = {
-          duration: video.duration,
-          width: video.videoWidth,
-          height: video.videoHeight,
-        };
-        window.URL.revokeObjectURL(video.src);
+      let settled = false;
+      const finish = (meta) => {
+        if (settled) return;
+        settled = true;
+        try { window.URL.revokeObjectURL(video.src); } catch { /* ignore */ }
         resolve(meta);
       };
-
+      video.onloadedmetadata = () => finish({
+        duration: video.duration,
+        width: video.videoWidth,
+        height: video.videoHeight,
+      });
+      video.onerror = () => finish({ duration: NaN, width: 0, height: 0 });
+      setTimeout(() => finish({ duration: NaN, width: 0, height: 0 }), 8000);
       video.src = URL.createObjectURL(file);
     });
   };
@@ -126,29 +136,38 @@ function EmbedVideoUploadStep1() {
 
     try {
       const { duration, width, height } = await getVideoMetadata(file);
+      const hasDuration = isFinite(duration) && duration > 0;
+      const hasDimensions = width > 0 && height > 0;
 
-      // Shorts: enforce max 60 seconds
-      if (fromStories && duration > 60) {
+      // Shorts checks only run when we could actually read the metadata — a
+      // metadata-less file shouldn't be blocked here (the server validates too).
+      if (fromStories && hasDuration && duration > 60) {
         toast.error("Shorts must be 60 seconds or less. Your video is " + Math.round(duration) + "s.");
         setLoading(false);
         return;
       }
-
-      // Shorts: reject horizontal video
-      if (fromStories && width > height) {
+      if (fromStories && hasDimensions && width > height) {
         toast.error("Shorts must be recorded in vertical (portrait) format. Your video appears to be horizontal.");
         setLoading(false);
         return;
       }
 
-      // Generate Thumbnails
-      const thumbs = await generateVideoThumbnails(file, 2, "url");
+      // Generate thumbnails — best effort. Some files (e.g. metadata-less .MOV)
+      // can't be decoded for frames in the browser; that must NOT block the
+      // upload — the user can add a custom thumbnail on the next step.
+      let thumbs = [];
+      try {
+        thumbs = await generateVideoThumbnails(file, 2, "url");
+      } catch (thumbErr) {
+        console.warn("Thumbnail generation failed; continuing without a preview", thumbErr);
+        toast("Couldn't auto-generate a thumbnail for this file — you can upload your own on the next step.");
+      }
       setGeneratedThumbnail(thumbs);
 
       // Store video for next step
       setVideoFile(file);
       setPrevVideoFile(file);
-      setVideoDuration(duration);
+      setVideoDuration(hasDuration ? duration : 0);
       setVideoMode(fromStories ? 'shorts' : 'longform');
 
     } catch (err) {
@@ -277,13 +296,26 @@ function EmbedVideoUploadStep1() {
 
         {videoFile && videoPreviewUrl && (
           <div className="video-preview-container">
-            <video
-              src={videoPreviewUrl}
-              controls
-              muted
-              playsInline
-              className="video-preview"
-            />
+            {previewError ? (
+              <div className="video-preview-fallback">
+                <FileVideo className="video-preview-fallback-icon" />
+                <p>
+                  Your browser can't preview this video — this is common for
+                  HEVC/H.265 clips (e.g. iPhone “High Efficiency” recordings).
+                  That's fine: it will still upload and be converted so it plays
+                  for everyone.
+                </p>
+              </div>
+            ) : (
+              <video
+                src={videoPreviewUrl}
+                controls
+                muted
+                playsInline
+                className="video-preview"
+                onError={() => setPreviewError(true)}
+              />
+            )}
             <p className="video-preview-name">{videoFile.name}</p>
           </div>
         )}
