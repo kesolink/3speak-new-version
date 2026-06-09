@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.10.3',
+    date: '2026-06-09',
+    summary:
+      'On desktop, the Shorts page (/shorts) now opens the comments panel by default so you can read along while watching. On mobile it stays closed (tap the comment icon to open).',
+  },
+  {
     version: '1.10.2',
     date: '2026-06-09',
     summary:
