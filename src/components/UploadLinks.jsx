@@ -1,9 +1,12 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { Clapperboard } from "lucide-react";
 import { MdGraphicEq } from "react-icons/md";
 import ShortsIcon from "./icons/ShortsIcon";
 import { FEATURE_EDITOR } from "../utils/config";
+import { getCreatorSettings, isUploadBlocked } from "../utils/creatorSettings";
+import { useSupportBlock } from "../lib/supportBlockStore";
+import { useAppStore } from "../lib/store";
 
 /**
  * Shared upload link pair used in Nav, Sidebar, and ProfileNav.
@@ -18,38 +21,36 @@ function pauseAllMedia() {
 }
 
 export default function UploadLinks({ linkClass, iconClass = "icon", onClick }) {
-  const handleClick = (e) => {
-    pauseAllMedia();
-    if (onClick) onClick(e);
-  };
+  const navigate = useNavigate();
 
-  const handleEditorClick = (e) => {
+  // Gate every upload entry at click: a creator with canUpload === false sees
+  // the "contact support" modal immediately instead of opening the studio /
+  // recorder. Fails open if the check errors (never blocks on a failed check).
+  const gatedGo = async (e, action) => {
     e.preventDefault();
     pauseAllMedia();
-    window.dispatchEvent(new CustomEvent('open-shorts-editor'));
-    if (onClick) onClick(e);
-  };
-
-  const handleAudioClick = (e) => {
-    e.preventDefault();
-    pauseAllMedia();
-    window.dispatchEvent(new CustomEvent('open-audio-upload'));
-    if (onClick) onClick(e);
+    if (onClick) onClick(e); // close the dropdown/menu either way
+    const settings = await getCreatorSettings(useAppStore.getState().user);
+    if (isUploadBlocked(settings)) {
+      useSupportBlock.getState().showSupportBlock('upload');
+      return;
+    }
+    action();
   };
 
   return (
     <>
-      <Link to="/studio" className={linkClass} title="Video" onClick={handleClick}>
+      <Link to="/studio" className={linkClass} title="Video" onClick={(e) => gatedGo(e, () => navigate('/studio'))}>
         <IoCloudUploadSharp className={iconClass} /> <span>Video</span>
       </Link>
-      <Link to="/embed-studio?from=shorts" className={linkClass} title="Short" onClick={handleClick}>
+      <Link to="/embed-studio?from=shorts" className={linkClass} title="Short" onClick={(e) => gatedGo(e, () => navigate('/embed-studio?from=shorts'))}>
         <ShortsIcon className={iconClass} outlineWidth={30} /> <span>Short</span>
       </Link>
-      <a href="#" className={linkClass} title="Audio" onClick={handleAudioClick}>
+      <a href="#" className={linkClass} title="Audio" onClick={(e) => gatedGo(e, () => window.dispatchEvent(new CustomEvent('open-audio-upload')))}>
         <MdGraphicEq className={iconClass} /> <span>Audio</span>
       </a>
       {FEATURE_EDITOR && (
-        <a href="#" className={linkClass} title="Shorts Editor" onClick={handleEditorClick}>
+        <a href="#" className={linkClass} title="Shorts Editor" onClick={(e) => gatedGo(e, () => window.dispatchEvent(new CustomEvent('open-shorts-editor')))}>
           <Clapperboard className={iconClass} size={18} /> <span>Shorts Editor</span>
         </a>
       )}

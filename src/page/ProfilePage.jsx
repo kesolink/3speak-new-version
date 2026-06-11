@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { toast } from "sonner";
 
@@ -21,6 +21,8 @@ import { IoMdShare, IoMdAdd } from "react-icons/io";
 import { MdLock, MdPublic, MdClose } from "react-icons/md";
 import SocialLinks from "../components/Userprofilepage/SocialLinks";
 import AddSocialLink_modal from "../components/modal/AddSocialLink_modal";
+import EditVideoHintModal from "../components/modal/EditVideoHintModal";
+import { fetchScheduledPosts, normalizeScheduledForCard } from "../utils/scheduledPosts";
 
 import { LineSpinner, Quantum } from "ldrs/react";
 import "ldrs/react/Quantum.css";
@@ -75,6 +77,7 @@ function ProfilePage() {
   const [tagInput, setTagInput] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [showSocialLinkModal, setShowSocialLinkModal] = useState(false);
+  const [showEditHint, setShowEditHint] = useState(false);
   const [socialLinksRefreshKey, setSocialLinksRefreshKey] = useState(0);
 
   // Fetch user's playlists (all - public and private)
@@ -264,7 +267,34 @@ function ProfilePage() {
     refetchRef.current = refetch;
   }, [refetch]);
 
-  const videos = data?.pages.flat() || [];
+  const videos = useMemo(() => data?.pages.flat() || [], [data]);
+
+  // ───── Scheduled posts (own profile only) ─────
+  // Scheduled videos aren't on Hive yet, so they come from the checker, not the
+  // my-videos API. We surface them in the Videos list at the position they will
+  // occupy once live — i.e. above the published posts (their publish date is in
+  // the future), newest scheduled first — each with a "Scheduled" badge. The
+  // card links to the watch page in scheduled mode (see Card3 + Watch).
+  const { data: scheduledData } = useQuery({
+    queryKey: ["profile-scheduled-posts", user],
+    queryFn: () => fetchScheduledPosts(user),
+    enabled: !!user,
+    staleTime: 30 * 1000,
+  });
+
+  const scheduledCards = useMemo(() => {
+    return (scheduledData || [])
+      .map(normalizeScheduledForCard)
+      .sort((a, b) => new Date(b.scheduledOn || 0) - new Date(a.scheduledOn || 0));
+  }, [scheduledData]);
+
+  // The Videos tab list: scheduled (future) on top, then the published feed.
+  // Kept separate from `videos` so the on-chain batch hooks below don't try to
+  // resolve content/views for posts that don't exist on Hive yet.
+  const videoListItems = useMemo(
+    () => [...scheduledCards, ...videos],
+    [scheduledCards, videos],
+  );
 
   // Batch fetch content data
   const { getContentForVideo } = useContentBatch(videos);
@@ -425,7 +455,7 @@ function ProfilePage() {
           <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
-          <Link to="/draft">Edit Video</Link>
+          <span role="button" tabIndex={0} onClick={() => setShowEditHint(true)}>Edit Video</span>
         </div>
 
         <div className="wrap-in">
@@ -507,13 +537,13 @@ function ProfilePage() {
         {show === "video" ? (
           isLoading ? (
             <BarLoader />
-          ) : videos.length === 0 ? (
+          ) : videoListItems.length === 0 ? (
             <div className="empty-wrap">
               <img src={icon} alt="empty" />
               <span>No Video Data Available</span>
             </div>
           ) : (
-            <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+            <Card3 videos={videoListItems} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
           )
         ) : show === "shorts" ? (
           isShortsLoading ? (
@@ -655,6 +685,11 @@ function ProfilePage() {
         onClose={() => setShowSocialLinkModal(false)}
         hiveUsername={user}
         onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
+      />
+
+      <EditVideoHintModal
+        isOpen={showEditHint}
+        onClose={() => setShowEditHint(false)}
       />
     </div>
   );

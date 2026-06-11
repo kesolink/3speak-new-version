@@ -18,6 +18,9 @@ import Login from "./page/Login/Login";
 // KeyChainLogin replaced by LoginRedirect (opens aioha modal)
 import LoginNew from "./page/Login/LoginNew";
 import { useAppStore } from "./lib/store";
+import { useSupportBlock } from "./lib/supportBlockStore";
+import { getCreatorSettings, isBanned } from "./utils/creatorSettings";
+import SupportModal from "./components/SupportModal/SupportModal";
 import { useEffect } from "react";
 import { readAppVersion } from "./utils/appVersion";
 import ChangelogModal from "./components/Changelog/ChangelogModal";
@@ -281,7 +284,52 @@ function App() {
     }
   }, [aiohaUser]);
 
+  // Finalize a Butter Auth popup login. The popup (ManteAuthCallback) does the
+  // token exchange, then writes `butrauth_login_result` to localStorage and
+  // closes — which fires a `storage` event here in the opener window.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== 'butrauth_login_result' || !e.newValue) return;
+      let payload;
+      try { payload = JSON.parse(e.newValue); } catch { return; }
+      localStorage.removeItem('butrauth_login_result');
+      // Close the login popup from the opener side — more reliable than the
+      // popup closing itself (browsers can block window.close() after the
+      // cross-origin auth hop, leaving it stuck on the callback page).
+      try { window.__butrauthLoginPopup?.close(); } catch { /* ignore */ }
+      window.__butrauthLoginPopup = null;
+      if (payload?.error) {
+        toast.error('Butter Auth login failed: ' + payload.error);
+        return;
+      }
+      if (payload?.username) {
+        useAppStore.getState().setUser(payload.username); // sets user + authenticated
+        setLoginModalOpen(false);
+        toast.success(`Logged in as @${payload.username} via Butter Auth`);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
+  // Banned-creator gate. Keyed on the persisted `appUser` (NOT `authenticated`)
+  // so it reliably fires on a page refresh too: `user` is restored synchronously
+  // from persistence, while `authenticated` only flips true later via
+  // initializeAuth. So if a logged-in creator gets banned, refreshing forces a
+  // logout + shows the "contact support" modal. Fails open if the check errors.
+  useEffect(() => {
+    if (!appUser) return;
+    let cancelled = false;
+    (async () => {
+      const settings = await getCreatorSettings(appUser);
+      if (cancelled) return;
+      if (isBanned(settings)) {
+        useSupportBlock.getState().showSupportBlock('banned');
+        try { await LogOut(appUser); } catch { /* ignore */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [appUser]);
 
   const tokenVaildation = ()=>{
     const token = window.localStorage.getItem("access_token")
@@ -381,6 +429,7 @@ function App() {
         }}
       />
       <ChangelogModal />
+      <SupportModal />
       <ShortsPreloader />
       {!hideNavOnMobile && (
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />

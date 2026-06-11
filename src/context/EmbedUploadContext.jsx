@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { getHiveUrl } from '../utils/hiveNode';
+import { getCreatorSettings, isUploadBlocked } from '../utils/creatorSettings';
+import { useSupportBlock } from '../lib/supportBlockStore';
 import { useNavigate } from 'react-router-dom';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
@@ -234,6 +236,14 @@ export function EmbedUploadProvider({ children }) {
     }
     if (!fromStories && (!tagsPreview || tagsPreview.length === 0)) {
       toast.error('Please add at least one tag');
+      return;
+    }
+
+    // Backstop upload gate: blocks "Post Video/Short" for creators with
+    // canUpload === false, even if they reached /embed-studio directly (bypassing
+    // the upload-button gate). Fails open if the check errors.
+    if (isUploadBlocked(await getCreatorSettings(user))) {
+      useSupportBlock.getState().showSupportBlock('upload');
       return;
     }
 

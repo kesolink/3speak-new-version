@@ -106,8 +106,12 @@
       background: transparent;
       border: 1px solid rgba(234, 56, 76, 0.5);
       color: #ea384c;
-      margin-left: auto;
       &:hover { background: #ea384c; color: #fff; }
+    }
+    // Primary "Save changes" — pushed to the right edge. Its accent fill comes
+    // from the studio's base `.submit-btn-wrap button` rule.
+    .es-btn-save {
+      margin-left: auto;
     }
   }
 }
