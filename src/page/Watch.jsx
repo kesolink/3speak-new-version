@@ -19,6 +19,31 @@ import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
+import { fetchScheduledPost, getScheduledEmbedRef } from '../utils/scheduledPosts';
+import EditScheduledModal from '../components/modal/EditScheduledModal';
+
+// Build the videoDetails shape PlayVideo expects from a checker scheduled-post
+// doc (the post isn't on Hive yet, so there are no stats/payout/votes).
+function buildScheduledVideoDetails(doc) {
+  if (!doc) return null;
+  return {
+    title: doc.title || '',
+    body: doc.body || doc.description || '',
+    author: {
+      id: doc.owner,
+      username: doc.owner,
+      profile: { name: doc.owner, images: { avatar: `https://images.hive.blog/u/${doc.owner}/avatar` } },
+    },
+    stats: { num_comments: 0, num_votes: 0, total_hive_reward: 0 },
+    community: doc.parentPermlink ? { _id: doc.parentPermlink, title: doc.parentPermlink } : null,
+    created_at: doc.createdAt,
+    tags: Array.isArray(doc.tags) ? doc.tags : (doc.jsonMetadata?.tags || []),
+    parent_permlink: doc.parentPermlink,
+    spkvideo: { play_url: null, thumbnail_url: doc.thumbnail || null, duration: 0 },
+    _scheduled: true,
+    scheduledOn: doc.scheduledOn,
+  };
+}
 
 const hiveClient = getHiveClient();
 
@@ -71,6 +96,40 @@ function Watch() {
   const playlistId = searchParams.get('playlist');
   const posParam = searchParams.get('pos');
   const [author, permlink] = (v ?? 'unknown/unknown').split('/');
+
+  // Scheduled mode: the post isn't on Hive yet, so we load it from the checker
+  // and play it via its embed asset instead of the Hive/GraphQL path. Set by the
+  // profile card link (`&scheduled=1`).
+  const scheduled = searchParams.get('scheduled') === '1';
+  const [scheduledDoc, setScheduledDoc] = useState(null);
+  const [scheduledLoading, setScheduledLoading] = useState(scheduled);
+  const [scheduledEditOpen, setScheduledEditOpen] = useState(false);
+  // Bumped after an in-place edit so the watch page re-fetches the updated doc.
+  const [scheduledRefreshKey, setScheduledRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (!scheduled || !author || !permlink || author === 'unknown') {
+      setScheduledLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setScheduledLoading(true);
+    fetchScheduledPost(author, permlink)
+      .then((doc) => { if (!cancelled) setScheduledDoc(doc); })
+      .catch(() => { if (!cancelled) setScheduledDoc(null); })
+      .finally(() => { if (!cancelled) setScheduledLoading(false); });
+    return () => { cancelled = true; };
+  }, [scheduled, author, permlink, scheduledRefreshKey]);
+
+  // The embed asset (owner/permlink) the player should load for a scheduled post.
+  const scheduledEmbedRef = useMemo(
+    () => (scheduledDoc ? getScheduledEmbedRef(scheduledDoc) : null),
+    [scheduledDoc],
+  );
+  const scheduledDetails = useMemo(
+    () => buildScheduledVideoDetails(scheduledDoc),
+    [scheduledDoc],
+  );
 
   // Track which videos we've recorded to avoid duplicate API calls
   const recordedWatchRef = useRef(new Set());
@@ -197,6 +256,7 @@ function Watch() {
   const recordedViewsRef = useRef(new Set());
   const sdkApiRef = useRef(new ThreeSpeakApi(PLAYER_URL));
   useEffect(() => {
+    if (scheduled) return; // unpublished post — no view to record
     if (!author || author === 'unknown' || !permlink) return;
     if (playerState?.paused !== false) return; // only once it's really playing
     const key = `${author}/${permlink}`;
@@ -225,7 +285,7 @@ function Watch() {
         } catch { /* try next type */ }
       }
     })();
-  }, [author, permlink, playerState?.paused]);
+  }, [scheduled, author, permlink, playerState?.paused]);
 
   // Wrap setMuted/setVolume to persist to localStorage
   const setMuted = useCallback((muted) => {
@@ -284,18 +344,26 @@ function Watch() {
   const navigateToNextVideoRef = useRef(navigateToNextVideo);
   navigateToNextVideoRef.current = navigateToNextVideo;
 
-  // Load video when author/permlink changes (wait for video element to be attached)
+  // What the SDK player should load. Normally the Hive author/permlink, but for a
+  // scheduled post the Hive post doesn't exist yet — its embed asset is keyed by
+  // its own (owner/embedPermlink), so we load that instead (resolved once the
+  // checker doc arrives).
+  const playerLoadId = scheduled
+    ? (scheduledEmbedRef ? `${scheduledEmbedRef.owner}/${scheduledEmbedRef.permlink}` : null)
+    : `${author}/${permlink}`;
+
+  // Load video when the target changes (wait for video element to be attached)
   useEffect(() => {
-    if (!author || !permlink || author === 'unknown' || !player || !videoAttached) return;
+    if (!playerLoadId || author === 'unknown' || !player || !videoAttached) return;
     setVideoEnded(false);
     // Record this video as played in the current session
     playedVideosRef.current.add(`${author}/${permlink}`);
     // Reset playhead to 0 immediately so the UI doesn't show the old video's position
     seek(0);
-    loadVideo(`${author}/${permlink}`).catch(err => {
+    loadVideo(playerLoadId).catch(err => {
       console.error('[Watch] Failed to load video:', err);
     });
-  }, [author, permlink, player, loadVideo, videoAttached, seek]);
+  }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek]);
 
   // Subscribe to player events (stable effect — uses refs for mutable values)
   useEffect(() => {
@@ -726,6 +794,7 @@ function Watch() {
 
   const { data: videoData, loading: videoLoading, error: videoError, refetch: refetchVideo } = useQuery(GET_VIDEO_DETAILS, {
     variables: { author, permlink },
+    skip: scheduled, // scheduled posts aren't on Hive/indexed yet
   });
 
   // Hive fallback: when GraphQL doesn't have the video, fetch directly from blockchain
@@ -734,7 +803,7 @@ function Watch() {
   const [hiveFallbackDone, setHiveFallbackDone] = useState(false);
 
   useEffect(() => {
-    if (videoLoading || videoData?.socialPost || !author || author === 'unknown') return;
+    if (scheduled || videoLoading || videoData?.socialPost || !author || author === 'unknown') return;
 
     let cancelled = false;
     setHiveFallbackLoading(true);
@@ -796,14 +865,14 @@ function Watch() {
     })();
 
     return () => { cancelled = true; };
-  }, [videoLoading, videoData, author, permlink]);
+  }, [scheduled, videoLoading, videoData, author, permlink]);
 
   // Optimistic override populated right after the author saves an edit.
   // The GraphQL indexer may lag a few minutes behind the Hive blockchain,
   // so we merge these values onto videoDetails immediately, then let a
   // scheduled refetch replace them with real server data.
   const [editOverride, setEditOverride] = useState(null);
-  const baseVideoDetails = videoData?.socialPost || hiveFallback;
+  const baseVideoDetails = scheduled ? scheduledDetails : (videoData?.socialPost || hiveFallback);
   const videoDetails = useMemo(() => {
     if (!baseVideoDetails || !editOverride) return baseVideoDetails;
     const merged = { ...baseVideoDetails, ...editOverride };
@@ -834,7 +903,7 @@ function Watch() {
 
   // Record watch history when video loads (if tracking is enabled)
   useEffect(() => {
-    if (!user || !author || !permlink || author === 'unknown' || watchHistoryEnabled === false) {
+    if (scheduled || !user || !author || !permlink || author === 'unknown' || watchHistoryEnabled === false) {
       return;
     }
 
@@ -846,7 +915,7 @@ function Watch() {
     // Mark as recorded and send to API
     recordedWatchRef.current.add(watchKey);
     recordWatch(user, author, permlink);
-  }, [user, author, permlink, watchHistoryEnabled]);
+  }, [scheduled, user, author, permlink, watchHistoryEnabled]);
 
   // Save mini player state on unmount or when switching videos
   const miniPlayerDataRef = useRef(null);
@@ -1048,7 +1117,9 @@ function Watch() {
   // Also wait while Hive fallback hasn't been attempted yet (covers the gap between
   // GraphQL completing and the fallback useEffect firing)
   const awaitingFallback = !videoLoading && !videoData?.socialPost && !hiveFallbackDone && author !== 'unknown';
-  const isLoading = videoLoading || hiveFallbackLoading || awaitingFallback || (suggestionsLoading && trendingLoading && authorVideosLoading);
+  const isLoading = scheduled
+    ? scheduledLoading
+    : (videoLoading || hiveFallbackLoading || awaitingFallback || (suggestionsLoading && trendingLoading && authorVideosLoading));
 
   if (isLoading) {
     return <BarLoader />;
@@ -1057,8 +1128,12 @@ function Watch() {
   if (!videoDetails) {
     return (
       <div className="watch-error">
-        <p>{isNetworkError ? 'Network error. Please check your connection.' : 'Video not found or failed to load.'}</p>
-        <button className="watch-error-retry" onClick={() => refetchVideo()}>Retry</button>
+        <p>{scheduled
+          ? 'Scheduled post not found — it may have already been published or cancelled.'
+          : (isNetworkError ? 'Network error. Please check your connection.' : 'Video not found or failed to load.')}</p>
+        {scheduled
+          ? <button className="watch-error-retry" onClick={() => navigate('/profile')}>Back to profile</button>
+          : <button className="watch-error-retry" onClick={() => refetchVideo()}>Retry</button>}
       </div>
     );
   }
@@ -1076,6 +1151,9 @@ function Watch() {
         onClosePlaylist={() => setShowPlaylist(false)}
         onVideoEdited={handleVideoEdited}
         overrideBody={editOverride?.body}
+        scheduled={scheduled}
+        scheduledOn={scheduledDoc?.scheduledOn}
+        onEditScheduled={() => { pause(); setScheduledEditOpen(true); }}
         videoControls={{
           currentTime: playerState.currentTime,
           duration: playerState.duration,
@@ -1241,6 +1319,16 @@ function Watch() {
           <Card3 videos={suggestedVideos.slice(0, 12)} loading={false} shortTimeAgo={false} />
         </div>
       )}
+
+      {/* Scheduled-post editor popup — opened by the pen on the watch page so the
+          author stays on the video instead of being sent to /draft. */}
+      <EditScheduledModal
+        isOpen={scheduled && scheduledEditOpen}
+        permlink={permlink}
+        onClose={() => setScheduledEditOpen(false)}
+        onSaved={() => { setScheduledEditOpen(false); setScheduledRefreshKey((k) => k + 1); }}
+        onCancelled={() => { setScheduledEditOpen(false); navigate('/profile'); }}
+      />
     </div>
   );
 }

@@ -82,6 +82,13 @@ const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https:
 // Watch history threshold - number of days to show unwatched indicator
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);
 
+// Optional manual override for the Resource Credit cost we require before letting
+// a user start an upload (in raw RC units). Leave unset to estimate it live from
+// the chain's rc_api params — see src/utils/rcCheck.js. Set a number to pin it.
+const POST_RC_COST = import.meta.env.VITE_POST_RC_COST
+  ? Number(import.meta.env.VITE_POST_RC_COST)
+  : null;
+
 // Hive RPC candidate pool — primary first, then fallbacks. Both env vars are
 // optional; leave them unset to use these defaults. VITE_HIVE_API_FALLBACKS is
 // comma- or whitespace-separated.
@@ -149,6 +156,7 @@ export {
   PLAYER_URL,
   PLAYLISTS_API_URL,
   WATCH_HISTORY_THRESHOLD_DAYS,
+  POST_RC_COST,
   EMBED_UPLOAD_URL,
   EMBED_API_URL,
   EMBED_API_KEY,

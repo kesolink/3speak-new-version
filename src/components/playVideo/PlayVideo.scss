@@ -1712,3 +1712,34 @@
     order: 0;
   }
 }
+/* Scheduled-post preview notice (shown on the watch page when viewing one of
+   your own not-yet-published scheduled videos). */
+.scheduled-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-primary, #111);
+  background: var(--bg-tertiary, #f3f3f3);
+  border: 1px solid var(--border-color, #e2e2e2);
+
+  svg { flex: 0 0 auto; color: var(--accent-primary, rgb(227, 19, 55)); }
+
+  strong { white-space: nowrap; }
+
+  .scheduled-notice-edit {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-weight: 600;
+    color: var(--accent-primary, rgb(227, 19, 55));
+    cursor: pointer;
+    text-decoration: underline;
+  }
+}

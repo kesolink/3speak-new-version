@@ -51,7 +51,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
           <Link
             to={`${linkPrefix}?v=${video.author?.username || video.author || video.owner}/${
               video.permlink
-            }${linkQuery}`}
+            }${linkQuery}${video._scheduled ? '&scheduled=1' : ''}`}
             className="card"
             key={postKey}
           >

@@ -10,6 +10,8 @@ import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
 import { getCurrentProvider, Providers } from '../../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
+import { checkPostingRc } from '../../utils/rcCheck';
+import RcInsufficientModal from './RcInsufficientModal';
 
 function EmbedVideoUploadStep1() {
   const {
@@ -33,7 +35,34 @@ function EmbedVideoUploadStep1() {
   const [needsAuth, setNeedsAuth] = useState(false)
   const [authChecking, setAuthChecking] = useState(true)
   const [authorizing, setAuthorizing] = useState(false)
+  // RC gate: a Hive post costs Resource Credits, which a low-Hive-Power account
+  // may not have. Check before any upload so the user doesn't upload a whole
+  // video only to fail at broadcast. (RC is charged to the post author — the
+  // user — even though @threespeak signs the broadcast.)
+  const [rcStatus, setRcStatus] = useState(null)
+  const [rcChecking, setRcChecking] = useState(false)
+  const [rcModalOpen, setRcModalOpen] = useState(false)
+  const rcInsufficient = rcStatus ? rcStatus.ok === false : false
   const navigate = useNavigate()
+
+  const runRcCheck = async ({ openModalIfLow = false } = {}) => {
+    if (!user) return null;
+    setRcChecking(true);
+    try {
+      const result = await checkPostingRc(user);
+      setRcStatus(result);
+      if (result.ok === false && openModalIfLow) setRcModalOpen(true);
+      if (result.ok === true) setRcModalOpen(false);
+      return result;
+    } catch {
+      // Fail open — never block the upload on our own check failing.
+      const open = { ok: true, unknown: true };
+      setRcStatus(open);
+      return open;
+    } finally {
+      setRcChecking(false);
+    }
+  };
 
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 767px)');
@@ -60,6 +89,26 @@ function EmbedVideoUploadStep1() {
         if (!cancelled) setNeedsAuth(true); // fail closed — require authorization
       } finally {
         if (!cancelled) setAuthChecking(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  // RC pre-flight — runs once we know the user. Pops the explainer modal if low.
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) { setRcStatus(null); return; }
+    (async () => {
+      setRcChecking(true);
+      try {
+        const result = await checkPostingRc(user);
+        if (cancelled) return;
+        setRcStatus(result);
+        if (result.ok === false) setRcModalOpen(true);
+      } catch {
+        if (!cancelled) setRcStatus({ ok: true, unknown: true }); // fail open
+      } finally {
+        if (!cancelled) setRcChecking(false);
       }
     })();
     return () => { cancelled = true; };
@@ -119,6 +168,12 @@ function EmbedVideoUploadStep1() {
 
   const processVideoFile = async (file) => {
     if (!file) return;
+
+    // Don't let a video be picked while RC is too low to ever publish it.
+    if (rcInsufficient) {
+      setRcModalOpen(true);
+      return;
+    }
 
     if (!file.type.startsWith("video/")) {
       toast.error("Please select a valid video file");
@@ -189,7 +244,7 @@ function EmbedVideoUploadStep1() {
 
   // Drag & drop onto the upload box (gated behind the same @threespeak auth check)
   const handleDragOver = (e) => {
-    if (needsAuth || loading) return;
+    if (needsAuth || rcInsufficient || loading) return;
     e.preventDefault();
     setDragging(true);
   };
@@ -200,7 +255,7 @@ function EmbedVideoUploadStep1() {
   const handleDrop = (e) => {
     e.preventDefault();
     setDragging(false);
-    if (needsAuth || loading) return;
+    if (needsAuth || rcInsufficient || loading) return;
     const file = e.dataTransfer?.files?.[0];
     if (file) processVideoFile(file);
   };
@@ -219,14 +274,23 @@ function EmbedVideoUploadStep1() {
             <div className="content">
               <div
                 className="icon"
-                onClick={() => { if (!needsAuth) videoInputRef.current?.click(); }}
-                style={{ cursor: needsAuth ? 'not-allowed' : 'pointer' }}
-                title={needsAuth ? 'Authorize @threespeak first' : 'Click to select a video file'}
+                onClick={() => {
+                  if (rcInsufficient) { setRcModalOpen(true); return; }
+                  if (!needsAuth) videoInputRef.current?.click();
+                }}
+                style={{ cursor: (needsAuth || rcInsufficient) ? 'not-allowed' : 'pointer' }}
+                title={
+                  rcInsufficient
+                    ? 'Not enough Resource Credits to post yet'
+                    : needsAuth
+                      ? 'Authorize @threespeak first'
+                      : 'Click to select a video file'
+                }
               >
                 <Upload className="w-8 h-8" />
               </div>
 
-              {!videoFile && !needsAuth && (
+              {!videoFile && !needsAuth && !rcInsufficient && (
                 <div className="text">
                   <h3 className="title">{isMobile ? "Pick or Record a Video" : "Choose a video file"}</h3>
                   {!isMobile && (
@@ -260,11 +324,21 @@ function EmbedVideoUploadStep1() {
                 onChange={handleVideoSelect}
                 className="input"
                 id="embed-video-upload"
-                disabled={needsAuth}
+                disabled={needsAuth || rcInsufficient}
               />
 
-              {authChecking ? (
+              {(authChecking || rcChecking) && !videoFile ? (
                 <TailChase size="30" speed="1.75" color="red" />
+              ) : rcInsufficient ? (
+                <div className="threespeak-auth-gate">
+                  <p className="formats">
+                    Your account doesn&apos;t have enough <strong>Resource Credits</strong> to
+                    publish a post right now.
+                  </p>
+                  <button type="button" className="button" onClick={() => setRcModalOpen(true)}>
+                    Why can&apos;t I upload?
+                  </button>
+                </div>
               ) : needsAuth ? (
                 <div className="threespeak-auth-gate">
                   <p className="formats">
@@ -321,6 +395,14 @@ function EmbedVideoUploadStep1() {
         )}
 
       </div>
+
+      <RcInsufficientModal
+        isOpen={rcModalOpen}
+        status={rcStatus}
+        rechecking={rcChecking}
+        onClose={() => setRcModalOpen(false)}
+        onRecheck={() => runRcCheck({ openModalIfLow: true })}
+      />
     </div>
   );
 }

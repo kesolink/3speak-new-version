@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { AiohaModal, useAioha } from "@aioha/react-ui";
 import { Providers, KeyTypes } from "@aioha/aioha";
 import { MdEmail } from "react-icons/md";
+import { IoPower } from "react-icons/io5";
 import { createPortal } from "react-dom";
 import { ENABLE_METAMASK_SNAP, ENABLE_BUTRAUTH } from "../../utils/config";
+import { useAppStore } from "../../lib/store";
 import "./LoginModal.scss";
 
 /**
@@ -11,18 +13,69 @@ import "./LoginModal.scss";
  */
 function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
   const [buttonContainer, setButtonContainer] = useState(null);
+  const [topContainer, setTopContainer] = useState(null);
+  // 'choose' = sign-up / log-in chooser screen; 'providers' = wallet/provider list.
+  const [step, setStep] = useState('choose');
   const { aioha } = useAioha();
+  const { user, LogOut } = useAppStore();
+
+  // Logged in via Butter Auth → the chooser offers logout instead of
+  // sign-up/login (matches the "Logout" item the nav shows for these users).
+  const isManteAuth = typeof window !== 'undefined' && localStorage.getItem("manteauth_login") === "true";
+
+  const handleLogout = async () => {
+    try { await LogOut(user); } catch { /* ignore */ }
+    onClose?.();
+  };
+
+  // When the modal opens: if the user is already logged in via an aioha wallet
+  // (i.e. "Change account"), skip the sign-up/login chooser and go straight to
+  // the aioha account modal (manage / switch / log out). Otherwise show the
+  // chooser. (ManteAuth users aren't aioha-logged-in, so they still get the
+  // chooser's logout screen.)
+  useEffect(() => {
+    if (!displayed) return;
+    setStep(aioha.isLoggedIn() ? 'providers' : 'choose');
+  }, [displayed, aioha]);
 
   const handleEmailLogin = (e) => {
     e.stopPropagation();
     window.location.href = "https://legacy.3speak.tv";
   };
 
+  // Start the Butter Auth flow in a popup (state='popup' → ManteAuthCallback
+  // signals back via a localStorage 'storage' event handled in App). Falls back
+  // to a full-page redirect if the popup is blocked.
+  const startButrauthFlow = async (signup = false) => {
+    try {
+      const res = await fetch('/api/manteauth/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        // signup:true → butrauth jumps straight to account creation (screen_hint=signup)
+        body: JSON.stringify({ redirect_uri: window.location.origin + '/callback', state: 'popup', signup }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || 'Failed to start Butter Auth login');
+      const w = 480, h = 720;
+      const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+      const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+      const popup = window.open(data.url, 'butrauth-login', `width=${w},height=${h},left=${left},top=${top}`);
+      if (!popup) { window.location.href = data.url; return; } // popup blocked → full-page redirect
+      // Keep a handle so the opener can close the popup once login completes —
+      // more reliable than the popup closing itself after the cross-origin hop.
+      window.__butrauthLoginPopup = popup;
+    } catch (err) {
+      console.error('Butter Auth start error:', err);
+    }
+  };
+
   // Inject email button container into aioha modal after it renders
   // Only show on provider selection page (has <ul> with wallet providers)
   useEffect(() => {
-    if (!displayed) {
+    if (!displayed || step !== 'providers') {
       setButtonContainer(null);
+      setTopContainer(null);
       return;
     }
 
@@ -111,12 +164,11 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
         // Only show on provider selection page (check for provider list)
         const providerList = modalContent.querySelector('ul');
         if (!providerList) {
-          // Not on provider selection page, remove container and class
+          // Not on provider selection page, remove containers and class
           modalContent.classList.remove('has-email-btn');
-          const existingContainer = modalContent.querySelector('.email-login-btn-container');
-          if (existingContainer) {
-            existingContainer.remove();
-          }
+          modalContent.querySelector('.login-top-section')?.remove();
+          modalContent.querySelector('.email-login-btn-container')?.remove();
+          setTopContainer(null);
           setButtonContainer(null);
           return;
         }
@@ -124,6 +176,22 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
         // Add class for padding
         modalContent.classList.add('has-email-btn');
 
+        // TOP section (Recommended + ButrAuth + "General Hive Logins" heading)
+        // goes ABOVE the wallet-provider list so ButrAuth is the prominent,
+        // first-seen option. Insert into the list's ACTUAL parent — the <ul> is
+        // a descendant of modalContent, not necessarily a direct child.
+        const listParent = providerList.parentNode;
+        let top = modalContent.querySelector('.login-top-section');
+        if (!top) {
+          top = document.createElement('div');
+          top.className = 'login-top-section';
+        }
+        if (listParent && (top.parentNode !== listParent || top.nextElementSibling !== providerList)) {
+          listParent.insertBefore(top, providerList);
+        }
+        setTopContainer(top);
+
+        // BOTTOM container (E-Mail) stays below the wallet-provider list.
         let container = modalContent.querySelector('.email-login-btn-container');
         if (!container) {
           container = document.createElement('div');
@@ -155,61 +223,85 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
       timeouts.forEach(clearTimeout);
       observer.disconnect();
     };
-  }, [displayed]);
+  }, [displayed, step]);
 
   // Only show email button when not logged in (showing login options)
-  const showEmailButton = displayed && !aioha.isLoggedIn();
+  const showEmailButton = displayed && step === 'providers' && !aioha.isLoggedIn();
 
   return (
     <>
+      {displayed && step === 'choose' && (
+        <div className="login-chooser-overlay" onMouseDown={onClose}>
+          <div className="login-chooser" onMouseDown={(e) => e.stopPropagation()}>
+            {isManteAuth ? (
+              <>
+                <h3 className="login-chooser-title">You're signed in</h3>
+                <p className="login-chooser-sub">
+                  Signed in{user ? <> as <strong>@{user}</strong></> : ''} via Butter Auth.
+                </p>
+                <button className="login-chooser-login" onClick={handleLogout}>
+                  <IoPower style={{ marginRight: 8, verticalAlign: 'middle' }} /> Log out
+                </button>
+                <button className="login-chooser-cancel" onClick={onClose}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <h3 className="login-chooser-title">Welcome to 3Speak</h3>
+                <p className="login-chooser-sub">Create a new account, or log in if you already have one.</p>
+
+                <button className="login-chooser-signup" onClick={() => startButrauthFlow(true)}>
+                  <span className="butrauth-text">
+                    <span className="butrauth-title">Sign up</span>
+                    <span className="butrauth-subtitle">New here? Use Google, email &amp; more</span>
+                  </span>
+                </button>
+
+                <button className="login-chooser-login" onClick={() => setStep('providers')}>
+                  <span style={{ display: 'block' }}>Log in</span>
+                  <span style={{ display: 'block', fontWeight: 400, fontSize: '12.5px', opacity: 0.7, marginTop: '2px' }}>
+                    Log in with Butter Auth or any Hive wallet
+                  </span>
+                </button>
+                <button className="login-chooser-cancel" onClick={onClose}>Cancel</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <AiohaModal
-        displayed={displayed}
+        displayed={displayed && step === 'providers'}
         onLogin={onLogin}
         onClose={onClose}
         loginTitle={loginTitle}
         loginOptions={loginOptions}
       />
-      {showEmailButton && buttonContainer && createPortal(
+      {showEmailButton && topContainer && createPortal(
         <>
           {ENABLE_BUTRAUTH && (
           <button
             className="butrauth-login-btn"
-            onClick={async (e) => {
-              e.stopPropagation();
-              try {
-                // Ask our backend to start an auth flow. The server generates the
-                // PKCE verifier and stores it in an httpOnly cookie — never exposed to JS.
-                const res = await fetch('/api/manteauth/start', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: 'include',
-                  body: JSON.stringify({
-                    redirect_uri: window.location.origin + '/callback',
-                    state: window.location.pathname
-                  })
-                });
-                const data = await res.json();
-                if (!res.ok || !data.url) throw new Error(data.error || 'Failed to start ButrAuth login');
-                window.location.href = data.url;
-              } catch (err) {
-                console.error('ButrAuth start error:', err);
-              }
-            }}
+            onClick={(e) => { e.stopPropagation(); startButrauthFlow(); }}
             onMouseDown={(e) => e.stopPropagation()}
           >
             <img src="/butrauth-logo.png" alt="" width={32} height={32} />
-            <span>Butter Auth</span>
+            <span className="butrauth-text">
+              <span className="butrauth-title">Butter Auth <span className="recommended-suffix">(Recommended)</span></span>
+              <span className="butrauth-subtitle">Sign in with Google, email &amp; more</span>
+            </span>
           </button>
           )}
-          <button
-            className="email-login-btn"
-            onClick={handleEmailLogin}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <MdEmail size={32} />
-            <span>E-Mail</span>
-          </button>
         </>,
+        topContainer
+      )}
+      {showEmailButton && buttonContainer && createPortal(
+        <button
+          className="email-login-btn"
+          onClick={handleEmailLogin}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <MdEmail size={32} />
+          <span>E-Mail</span>
+        </button>,
         buttonContainer
       )}
     </>

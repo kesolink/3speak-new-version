@@ -13,6 +13,8 @@ import { uploadAudioTo3Speak, getSnapsContainer } from '../../utils/audioUpload'
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
 import { broadcastWithAioha, broadcastViaThreespeak, getCurrentProvider, Providers } from '../../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
+import { checkPostingRc } from '../../utils/rcCheck';
+import RcInsufficientModal from '../embed-studio/RcInsufficientModal';
 import CommunityModal from '../modal/Community_modal';
 import Beneficiary_modal from '../modal/Beneficiary_modal';
 import { useAppStore } from '../../lib/store';
@@ -186,6 +188,13 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [authorizing, setAuthorizing] = useState(false);
+  // RC gate — a Hive post costs Resource Credits, which a low-Hive-Power account
+  // may not have. Audio is broadcast by @threespeak, but Hive charges RC to the
+  // post author (the user), so we check the user's RC before they do any work.
+  const [rcStatus, setRcStatus] = useState(null);
+  const [rcChecking, setRcChecking] = useState(true);
+  const [rcModalOpen, setRcModalOpen] = useState(false);
+  const rcInsufficient = rcStatus ? rcStatus.ok === false : false;
   // 'post'  → keep the normal one-time Hive author payout.
   // 'ppl'   → assign 100% beneficiaries to @threespeak-audio; a separate
   //           program pays the author per listen for the track's lifetime.
@@ -579,6 +588,47 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     }
   }, [user]);
 
+  // Check the user's Resource Credits when the modal opens. Runs for every login
+  // (including ButrAuth — they're the post author too). Fails OPEN: if RC can't
+  // be read we don't block. Auto-opens the explainer modal when too low.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    let cancelled = false;
+    setRcChecking(true);
+    (async () => {
+      if (!user) {
+        if (!cancelled) { setRcStatus({ ok: true, unknown: true }); setRcChecking(false); }
+        return;
+      }
+      try {
+        const result = await checkPostingRc(user);
+        if (cancelled) return;
+        setRcStatus(result);
+        if (result.ok === false) setRcModalOpen(true);
+      } catch {
+        if (!cancelled) setRcStatus({ ok: true, unknown: true }); // fail open
+      } finally {
+        if (!cancelled) setRcChecking(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, user]);
+
+  const recheckRc = useCallback(async () => {
+    if (!user) return;
+    setRcChecking(true);
+    try {
+      const result = await checkPostingRc(user);
+      setRcStatus(result);
+      if (result.ok === false) setRcModalOpen(true);
+      else setRcModalOpen(false);
+    } catch {
+      setRcStatus({ ok: true, unknown: true });
+    } finally {
+      setRcChecking(false);
+    }
+  }, [user]);
+
   // ─── Publish helpers (must run on every render — keep above the early return) ───
   // setTrackStatus is referentially stable via setState; we keep it as a plain
   // function (no hook) since it's only used inside other callbacks below.
@@ -864,16 +914,23 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
           <button className="audio-upload-close" onClick={attemptClose} aria-label="Close"><MdClose size={20} /></button>
         </div>
 
-        {(authChecking || needsAuth) ? (
+        {(authChecking || rcChecking || needsAuth || rcInsufficient) ? (
           <div className="audio-upload-body">
             <div className="audio-upload-auth-gate">
-              {authChecking ? (
-                <p>Checking authorization…</p>
-              ) : (
+              {(authChecking || rcChecking) ? (
+                <p>Checking…</p>
+              ) : needsAuth ? (
                 <>
                   <p>To publish audio, allow <strong>@threespeak</strong> to post on your behalf.</p>
                   <button className="audio-upload-btn-primary" onClick={handleAuthorize} disabled={authorizing}>
                     {authorizing ? 'Authorizing…' : 'Authorize @threespeak'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p>Your account doesn&apos;t have enough <strong>Resource Credits</strong> to publish a post right now.</p>
+                  <button className="audio-upload-btn-primary" onClick={() => setRcModalOpen(true)}>
+                    Why can&apos;t I upload?
                   </button>
                 </>
               )}
@@ -1069,6 +1126,14 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
           </div>
         )}
       </div>
+
+      <RcInsufficientModal
+        isOpen={rcModalOpen}
+        status={rcStatus}
+        rechecking={rcChecking}
+        onClose={() => setRcModalOpen(false)}
+        onRecheck={recheckRc}
+      />
     </div>
   );
 }
