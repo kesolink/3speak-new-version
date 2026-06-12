@@ -10,7 +10,7 @@ export const CHANGELOG = [
     version: '1.11.1',
     date: '2026-06-12',
     summary:
-      'Your video now starts uploading in the background as soon as you reach the “Add details” step, instead of waiting until the final step — so it’s usually ready by the time you press publish. A progress bar under the step header shows how the upload is going.',
+      'Your video now starts uploading in the background as soon as you reach the “Add details” step — usually ready by the time you press publish — with a progress bar under the steps showing how it’s going. Uploads are also spread across multiple servers now, keeping them fast even when lots of people upload at once.',
   },
   {
     version: '1.11.0',
