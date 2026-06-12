@@ -63,15 +63,21 @@ export async function pickEmbedEndpoint() {
     return { base: fallback.base, uploadUrl: uploadUrlFor(fallback.base) };
   }
 
+  // Pick the least-busy server, but SPREAD across ties. Under light load every
+  // host reports activeUploads: 0, so a deterministic tie-break (e.g. latency)
+  // would always land on the same (closest) host and never use the others.
+  // Instead: take the set of hosts with the fewest activeUploads and pick one at
+  // random — so equal-load uploads distribute, while a genuinely busier host is
+  // still avoided. (A host that doesn't report load counts as "busy" so we don't
+  // blindly favour an unknown one.)
   const reportsLoad = results.some((r) => r.activeUploads != null);
-  results.sort((a, b) => {
-    if (reportsLoad) {
-      const au = (a.activeUploads ?? Infinity) - (b.activeUploads ?? Infinity);
-      if (au !== 0) return au;
-    }
-    return (a.latency ?? Infinity) - (b.latency ?? Infinity);
-  });
+  let pool = results;
+  if (reportsLoad) {
+    const load = (r) => (r.activeUploads ?? Infinity);
+    const min = Math.min(...results.map(load));
+    pool = results.filter((r) => load(r) === min);
+  }
 
-  const chosen = results[0].base;
+  const chosen = pool[Math.floor(Math.random() * pool.length)].base;
   return { base: chosen, uploadUrl: uploadUrlFor(chosen) };
 }

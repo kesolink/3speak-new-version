@@ -135,6 +135,9 @@ export function EmbedUploadProvider({ children }) {
   // (and await) it without stale-closure issues.
   // videoUploadStatus: 'idle' | 'uploading' | 'done' | 'error'
   const [videoUploadStatus, setVideoUploadStatus] = useState('idle');
+  // The embed host chosen for the current upload (reactive copy of
+  // chosenEmbedBaseRef, for display under the progress bar).
+  const [selectedEndpoint, setSelectedEndpoint] = useState('');
   const earlyEmbedUrlRef = useRef('');
   const earlyUploadPromiseRef = useRef(null);
   const earlyUploadStartedRef = useRef(false);
@@ -230,6 +233,7 @@ export function EmbedUploadProvider({ children }) {
     earlyUploadStartedRef.current = false;
     earlyUploadedFileRef.current = null;
     chosenEmbedBaseRef.current = '';
+    setSelectedEndpoint('');
     setVideoUploadStatus('idle');
   }, []);
 
@@ -319,6 +323,7 @@ export function EmbedUploadProvider({ children }) {
         // Pick the least-busy embed server (sticky for the rest of this upload).
         const { base, uploadUrl } = await pickEmbedEndpoint();
         chosenEmbedBaseRef.current = base;
+        setSelectedEndpoint(base);
         const url = await runTusUpload('', uploadUrl);
         if (!url) throw new Error('No embed URL returned');
         earlyEmbedUrlRef.current = url;
@@ -442,6 +447,7 @@ export function EmbedUploadProvider({ children }) {
         // before "Add details" started one) → upload inline now, choosing a server.
         const { base, uploadUrl } = await pickEmbedEndpoint();
         chosenEmbedBaseRef.current = base;
+        setSelectedEndpoint(base);
         capturedEmbedUrl = await runTusUpload(generatedPermlink, uploadUrl);
       }
 
@@ -877,6 +883,7 @@ export function EmbedUploadProvider({ children }) {
     embedUrl, setEmbedUrl,
     // Background ('early') video upload that starts on the details step
     videoUploadStatus,
+    selectedEndpoint,
     startEarlyUpload,
     // Prefilled flow (e.g. Hangouts server-side recording)
     prefilled,

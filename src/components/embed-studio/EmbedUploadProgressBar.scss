@@ -2,8 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 10px 0 4px;
+  margin: 10px auto 4px; // centered; width is capped to the stepper via inline max-width
+  width: 100%;
   padding: 0 4px;
+  box-sizing: border-box;
 
   .embed-upload-progress-track {
     width: 100%;
@@ -23,6 +25,12 @@
   .embed-upload-progress-label {
     font-size: 12.5px;
     color: var(--text-secondary, #777);
+  }
+
+  .embed-upload-progress-endpoint {
+    font-size: 11.5px;
+    color: var(--text-muted, #999);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
   // While actively uploading, gently pulse the bar so it reads as "in progress".
