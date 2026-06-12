@@ -311,7 +311,7 @@ function EmbedVideoUploadStep1() {
                 <div className='isselected-wrap'>
                   <span>Video Selected. Proceed to upload thumbnail</span>
                   <div className="upload-info-note">
-                    Info: Your video will get uploaded after finalizing the last step.
+                    Info: Your video starts uploading in the background once you reach the details step.
                   </div>
                   <img className="arrow-in" src={Arrow} alt="" />
                 </div>

@@ -9,6 +9,7 @@ import { Navigate } from 'react-router-dom';
 import { useEmbedUpload } from '../../context/EmbedUploadContext';
 import MarkdownComposer from '../studio/MarkdownComposer';
 import { getMinMaxDates } from '../../utils/schedulingHelpers';
+import EmbedUploadProgressBar from './EmbedUploadProgressBar';
 
 function EmbedDetails() {
   const {
@@ -33,10 +34,18 @@ function EmbedDetails() {
     fromStories,
     reusable, setReusable,
     originalAuthor, originalPermlink,
+    startEarlyUpload,
   } = useEmbedUpload();
 
   const isRemix = !!(originalAuthor && originalPermlink);
   const descLimitToastRef = useRef(null);
+
+  // Start uploading the video in the background as soon as the user reaches this
+  // "Add details" step, so it's usually done by the time they hit publish.
+  // startEarlyUpload is idempotent (only runs once per selected video).
+  useEffect(() => {
+    startEarlyUpload();
+  }, [startEarlyUpload]);
 
   const handleDescriptionChange = (val) => {
     if (fromStories) {
@@ -135,6 +144,7 @@ function EmbedDetails() {
           <h1>{fromStories ? "Share a Short" : "Share a Video"}</h1>
         </div>
         <StepProgress step={step} />
+        <EmbedUploadProgressBar />
         <div className="studio-page-content">
 
           <div className="video-detail-wrap">

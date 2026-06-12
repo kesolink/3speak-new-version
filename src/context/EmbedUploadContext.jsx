@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { getHiveUrl } from '../utils/hiveNode';
 import { getCreatorSettings, isUploadBlocked } from '../utils/creatorSettings';
 import { useSupportBlock } from '../lib/supportBlockStore';
@@ -7,6 +7,7 @@ import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG, CHECKER_API_KEY } from '../utils/config';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
+import { pickEmbedEndpoint } from '../utils/embedEndpoints';
 import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn, getCurrentProvider, Providers, broadcastViaThreespeak, KeyTypes } from '../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
@@ -127,6 +128,22 @@ export function EmbedUploadProvider({ children }) {
 
   const tusUploadRef = useRef(null);
 
+  // Early/background video upload — the TUS upload starts while the user is still
+  // on the "Add details" step (instead of only at final publish), so by the time
+  // they finish the video is usually already up. State drives the progress bar;
+  // refs hold the captured URL + in-flight promise so publishToEmbed can reuse
+  // (and await) it without stale-closure issues.
+  // videoUploadStatus: 'idle' | 'uploading' | 'done' | 'error'
+  const [videoUploadStatus, setVideoUploadStatus] = useState('idle');
+  const earlyEmbedUrlRef = useRef('');
+  const earlyUploadPromiseRef = useRef(null);
+  const earlyUploadStartedRef = useRef(false);
+  const earlyUploadedFileRef = useRef(null); // which file the background upload used
+  // The embed server chosen for this upload. Sticky for the whole lifecycle so
+  // the post-upload /video/*/hive + /thumbnail writes hit the same host as the
+  // bytes (works whether or not the servers share a MongoDB).
+  const chosenEmbedBaseRef = useRef('');
+
   const addMessage = (msg, type = 'info') => {
     setStatusMessages(prev => [...prev, {
       time: new Date().toLocaleTimeString(),
@@ -146,6 +163,7 @@ export function EmbedUploadProvider({ children }) {
     setThumbnailFile(null);
     setSelectedIndex(null);
     setVideoMode(null);
+    resetEarlyUpload();
   };
 
   const resetUploadState = () => {
@@ -198,7 +216,128 @@ export function EmbedUploadProvider({ children }) {
     setPrefilledPermlink('');
     setPrefilledOwner('');
     setPrefilledEmbedUrl('');
+    resetEarlyUpload();
   };
+
+  // Forget any background upload so a newly-selected/replaced video re-uploads.
+  const resetEarlyUpload = useCallback(() => {
+    if (tusUploadRef.current) {
+      try { tusUploadRef.current.abort(); } catch { /* ignore */ }
+      tusUploadRef.current = null;
+    }
+    earlyEmbedUrlRef.current = '';
+    earlyUploadPromiseRef.current = null;
+    earlyUploadStartedRef.current = false;
+    earlyUploadedFileRef.current = null;
+    chosenEmbedBaseRef.current = '';
+    setVideoUploadStatus('idle');
+  }, []);
+
+  // The raw TUS upload of `videoFile` to the embed service. Shared by the
+  // background (early) upload and the publish fallback. `uploadEndpoint` is the
+  // chosen server's /uploads URL (defaults to the single configured host).
+  // Returns the embed URL.
+  const runTusUpload = useCallback(async (generatedPermlink, uploadEndpoint = EMBED_UPLOAD_URL) => {
+    // Clear stale TUS fingerprints — embed.3speak.tv can't resume, so a leftover
+    // fingerprint causes "invalid or missing length value" errors.
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('tus::') && key.includes('embed.3speak.tv')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch { /* ignore */ }
+
+    const MB = 1024 * 1024;
+    const sizeBytes = videoFile.size || 0;
+    let chunkSize, parallelUploads;
+    if (sizeBytes > 500 * MB) { chunkSize = 20 * MB; parallelUploads = 3; }
+    else if (sizeBytes > 50 * MB) { chunkSize = 10 * MB; parallelUploads = 3; }
+    else { chunkSize = 5 * MB; parallelUploads = 2; }
+
+    let capturedEmbedUrl = '';
+    await new Promise((resolve, reject) => {
+      const upload = new tus.Upload(videoFile, {
+        endpoint: uploadEndpoint,
+        chunkSize,
+        parallelUploads,
+        retryDelays: [0, 2000, 5000, 10000],
+        storeFingerprintForResuming: false,
+        removeFingerprintOnSuccess: true,
+        headers: {
+          ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
+        },
+        metadata: {
+          filename: videoFile.name,
+          filetype: videoFile.type,
+          frontend_app: '3speak-tv',
+          owner: user,
+          short: fromStories ? 'true' : 'false',
+          duration: String(Math.round(videoDuration)),
+          ...(generatedPermlink ? { permlink: generatedPermlink } : {}),
+        },
+        onError: (err) => {
+          console.error('TUS upload error:', err);
+          reject(err);
+        },
+        onProgress: (bytesUploaded, bytesTotal) => {
+          const pct = Math.round((bytesUploaded / bytesTotal) * 100);
+          setUploadProgress(pct);
+          setStatusText(`Uploading video... ${pct}%`);
+        },
+        onSuccess: () => resolve(),
+        onAfterResponse: (req, res) => {
+          const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
+          if (header) capturedEmbedUrl = header;
+        },
+      });
+      tusUploadRef.current = upload;
+      upload.start();
+    });
+    return capturedEmbedUrl;
+  }, [videoFile, user, fromStories, videoDuration]);
+
+  // Kick off the background upload (called when the user reaches "Add details").
+  // Idempotent: only starts once per selected video. The embed asset gets its own
+  // permlink here — the Hive post keeps its title-derived permlink and the two are
+  // bridged at publish by the /video/{embedPermlink}/hive link step.
+  const startEarlyUpload = useCallback(() => {
+    if (prefilled || EMBED_DEBUG) return;            // nothing to upload in these flows
+    if (!videoFile) return;
+    // A different file is now selected (e.g. "Replace Video") → start fresh.
+    if (earlyUploadStartedRef.current && earlyUploadedFileRef.current !== videoFile) {
+      resetEarlyUpload();
+    }
+    if (earlyUploadStartedRef.current) return;       // already started/done for this file
+    earlyUploadStartedRef.current = true;
+    earlyUploadedFileRef.current = videoFile;
+    setVideoUploadStatus('uploading');
+    setUploadProgress(0);
+    setStatusText('Uploading video in the background…');
+    const p = (async () => {
+      try {
+        // Pick the least-busy embed server (sticky for the rest of this upload).
+        const { base, uploadUrl } = await pickEmbedEndpoint();
+        chosenEmbedBaseRef.current = base;
+        const url = await runTusUpload('', uploadUrl);
+        if (!url) throw new Error('No embed URL returned');
+        earlyEmbedUrlRef.current = url;
+        setEmbedUrl(url);
+        setUploadProgress(100);
+        setVideoUploadStatus('done');
+        setStatusText('');
+        return url;
+      } catch (err) {
+        console.error('Background video upload failed:', err);
+        // Allow the publish step to retry the upload inline.
+        earlyUploadStartedRef.current = false;
+        earlyUploadPromiseRef.current = null;
+        setVideoUploadStatus('error');
+        return '';
+      }
+    })();
+    earlyUploadPromiseRef.current = p;
+  }, [prefilled, videoFile, runTusUpload, resetEarlyUpload]);
 
   /**
    * publishToEmbed — the 3-step publish:
@@ -247,10 +386,20 @@ export function EmbedUploadProvider({ children }) {
       return;
     }
 
+    // If the background upload (started on the "Add details" step) is running or
+    // done, reuse it instead of uploading again. Wait for an in-flight one.
+    let earlyUrl = earlyEmbedUrlRef.current;
+    if (!prefilled && !earlyUrl && earlyUploadPromiseRef.current) {
+      setUploading(true);
+      setStatusText('Finishing video upload…');
+      try { earlyUrl = await earlyUploadPromiseRef.current; } catch { earlyUrl = ''; }
+    }
+    const alreadyUploaded = !prefilled && !!earlyUrl;
+
     setUploading(true);
-    setUploadProgress(0);
-    setStatusText(prefilled ? 'Preparing publish...' : 'Uploading video...');
-    addMessage(prefilled ? 'Using pre-uploaded video' : 'Starting video upload...');
+    setUploadProgress(alreadyUploaded ? 100 : 0);
+    setStatusText(prefilled ? 'Preparing publish...' : (alreadyUploaded ? 'Finalizing…' : 'Uploading video...'));
+    addMessage(prefilled ? 'Using pre-uploaded video' : (alreadyUploaded ? 'Video already uploaded' : 'Starting video upload...'));
 
     try {
       // For prefilled flows, the permlink was decided by whoever uploaded the
@@ -265,14 +414,19 @@ export function EmbedUploadProvider({ children }) {
         ? prefilledPermlink
         : (slug ? `${slug}-${Date.now() % 1000}` : '');
 
-      // ─── Step 1: TUS upload to embed service (skipped when prefilled) ───
-      let capturedEmbedUrl = prefilled ? prefilledEmbedUrl : '';
+      // ─── Step 1: TUS upload to embed service ───
+      // Skipped when prefilled OR when the background upload already finished it.
+      let capturedEmbedUrl = prefilled ? prefilledEmbedUrl : (alreadyUploaded ? earlyUrl : '');
 
       if (prefilled) {
         // Nothing to upload — the file was already pushed to embed.3speak.tv
         // by an external uploader. Skip straight to thumbnail + Hive linking.
         setUploadProgress(100);
         addMessage('Pre-uploaded video ready');
+      } else if (alreadyUploaded) {
+        // Background upload (from the details step) already produced the embed URL.
+        setUploadProgress(100);
+        addMessage('Video uploaded in the background');
       } else if (EMBED_DEBUG) {
         // Debug mode: simulate upload progress without actually uploading
         addMessage('[DEBUG] Simulating upload...');
@@ -284,71 +438,11 @@ export function EmbedUploadProvider({ children }) {
         capturedEmbedUrl = `https://embed.okinoko.io/embed?v=debug/${Date.now()}`;
         addMessage('[DEBUG] Simulated upload complete');
       } else {
-        // Clear any stale TUS fingerprints for this endpoint before starting,
-        // to avoid "invalid or missing length value" errors from resumed uploads.
-        // The embed.3speak.tv server does not return Upload-Length on HEAD,
-        // so resuming always fails. We disable resume storage entirely.
-        try {
-          Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('tus::') && key.includes('embed.3speak.tv')) {
-              localStorage.removeItem(key);
-            }
-          });
-        } catch { }
-
-        // Adaptive chunk/parallel sizing (tusd Concatenation extension). Larger files
-        // get bigger chunks and 3 parallel slots for throughput; small files stay light.
-        const MB = 1024 * 1024;
-        const sizeBytes = videoFile.size || 0;
-        let chunkSize, parallelUploads;
-        if (sizeBytes > 500 * MB) {
-          chunkSize = 20 * MB; parallelUploads = 3;
-        } else if (sizeBytes > 50 * MB) {
-          chunkSize = 10 * MB; parallelUploads = 3;
-        } else {
-          chunkSize = 5 * MB; parallelUploads = 2;
-        }
-
-        await new Promise((resolve, reject) => {
-          const upload = new tus.Upload(videoFile, {
-            endpoint: EMBED_UPLOAD_URL,
-            chunkSize,
-            parallelUploads,
-            retryDelays: [0, 2000, 5000, 10000],
-            storeFingerprintForResuming: false,
-            removeFingerprintOnSuccess: true,
-            headers: {
-              ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
-            },
-            metadata: {
-              filename: videoFile.name,
-              filetype: videoFile.type,
-              frontend_app: '3speak-tv',
-              owner: user,
-              short: fromStories ? 'true' : 'false',
-              duration: String(Math.round(videoDuration)),
-              ...(generatedPermlink ? { permlink: generatedPermlink } : {}),
-            },
-            onError: (err) => {
-              console.error('TUS upload error:', err);
-              reject(err);
-            },
-            onProgress: (bytesUploaded, bytesTotal) => {
-              const pct = Math.round((bytesUploaded / bytesTotal) * 100);
-              setUploadProgress(pct);
-              setStatusText(`Uploading video... ${pct}%`);
-            },
-            onSuccess: () => {
-              resolve();
-            },
-            onAfterResponse: (req, res) => {
-              const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
-              if (header) capturedEmbedUrl = header;
-            },
-          });
-          tusUploadRef.current = upload;
-          upload.start();
-        });
+        // No background upload available (it failed, or the user reached publish
+        // before "Add details" started one) → upload inline now, choosing a server.
+        const { base, uploadUrl } = await pickEmbedEndpoint();
+        chosenEmbedBaseRef.current = base;
+        capturedEmbedUrl = await runTusUpload(generatedPermlink, uploadUrl);
       }
 
       // Fallback: if no X-Embed-URL header, warn but don't use the raw TUS URL
@@ -680,10 +774,13 @@ export function EmbedUploadProvider({ children }) {
       // ─── Step 3: Link embed video to Hive post ───
       const vParam = new URL(capturedEmbedUrl).searchParams.get('v');
       const embedPermlink = vParam ? vParam.split('/').pop() : null;
+      // Target the SAME server the bytes went to (the returned embed URL is the
+      // shared player host, not the upload server, so we can't derive it).
+      const embedApiBase = chosenEmbedBaseRef.current || EMBED_API_URL;
 
       try {
-        if (embedPermlink && EMBED_API_URL) {
-          await fetch(`${EMBED_API_URL}/video/${embedPermlink}/hive`, {
+        if (embedPermlink && embedApiBase) {
+          await fetch(`${embedApiBase}/video/${embedPermlink}/hive`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -705,9 +802,9 @@ export function EmbedUploadProvider({ children }) {
       }
 
       // ─── Step 4: Update thumbnail on embed service ───
-      if (thumbnailUrl && embedPermlink && EMBED_API_URL) {
+      if (thumbnailUrl && embedPermlink && embedApiBase) {
         try {
-          await fetch(`${EMBED_API_URL}/video/${embedPermlink}/thumbnail`, {
+          await fetch(`${embedApiBase}/video/${embedPermlink}/thumbnail`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -778,6 +875,9 @@ export function EmbedUploadProvider({ children }) {
     statusText, setStatusText,
     statusMessages, setStatusMessages,
     embedUrl, setEmbedUrl,
+    // Background ('early') video upload that starts on the details step
+    videoUploadStatus,
+    startEarlyUpload,
     // Prefilled flow (e.g. Hangouts server-side recording)
     prefilled,
     prefilledPermlink,
