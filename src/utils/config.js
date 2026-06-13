@@ -56,6 +56,17 @@ const COMPACT_SIDEBAR = import.meta.env.VITE_COMPACT_SIDEBAR === 'true';
 const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed.3speak.tv/uploads';
 const EMBED_API_URL = import.meta.env.VITE_EMBED_API_URL || 'https://embed.3speak.tv';
 const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
+
+// Pool of embed-upload server BASE hosts (no trailing /uploads), e.g.
+// "https://embed2.3speak.tv,https://embed3.3speak.tv". The uploader picks the
+// least-busy reachable one per upload (see utils/embedEndpoints.js). Leave unset
+// to use the single EMBED_API_URL host. Each host must share the same MongoDB +
+// EMBED_API_KEY so any can serve the post-upload /video/* writes.
+const EMBED_UPLOAD_HOSTS = (import.meta.env.VITE_EMBED_UPLOAD_URLS
+  ? import.meta.env.VITE_EMBED_UPLOAD_URLS.split(/[\s,]+/)
+  : [])
+  .map((h) => h.trim().replace(/\/+$/, '').replace(/\/uploads$/, ''))
+  .filter(Boolean);
 const EMBED_DEBUG = import.meta.env.VITE_EMBED_DEBUG === 'true';
 const THREESPEAK_AUDIO_API_URL = import.meta.env.VITE_3SPEAK_AUDIO_API_URL || 'https://audio.3speak.tv';
 const THREESPEAK_API_KEY = import.meta.env.VITE_3SPEAK_API_KEY || '';
@@ -81,6 +92,13 @@ const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https:
 
 // Watch history threshold - number of days to show unwatched indicator
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);
+
+// Optional manual override for the Resource Credit cost we require before letting
+// a user start an upload (in raw RC units). Leave unset to estimate it live from
+// the chain's rc_api params — see src/utils/rcCheck.js. Set a number to pin it.
+const POST_RC_COST = import.meta.env.VITE_POST_RC_COST
+  ? Number(import.meta.env.VITE_POST_RC_COST)
+  : null;
 
 // Hive RPC candidate pool — primary first, then fallbacks. Both env vars are
 // optional; leave them unset to use these defaults. VITE_HIVE_API_FALLBACKS is
@@ -149,8 +167,10 @@ export {
   PLAYER_URL,
   PLAYLISTS_API_URL,
   WATCH_HISTORY_THRESHOLD_DAYS,
+  POST_RC_COST,
   EMBED_UPLOAD_URL,
   EMBED_API_URL,
+  EMBED_UPLOAD_HOSTS,
   EMBED_API_KEY,
   TRANSLATE_API_URL,
   TRENDING_SORTED_URL,

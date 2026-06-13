@@ -7,6 +7,42 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.11.1',
+    date: '2026-06-12',
+    summary:
+      'Your video now starts uploading in the background as soon as you reach the “Add details” step — usually ready by the time you press publish — with a progress bar under the steps showing how it’s going. Uploads are also spread across multiple servers now, keeping them fast even when lots of people upload at once.',
+  },
+  {
+    version: '1.11.0',
+    date: '2026-06-11',
+    summary:
+      'Your scheduled videos now appear in your profile’s Videos list with a “Scheduled” date badge, in the spot they’ll publish. You can open one to watch it before it goes live, and use the pen (edit) button on its page to change the details, reschedule, or cancel it. The editor now opens as a popup right on the video, so you stay where you are.',
+  },
+  {
+    version: '1.10.7',
+    date: '2026-06-11',
+    summary:
+      'Before an upload starts, 3Speak now checks you have enough Hive Resource Credits (RC) to publish. If you’re too low it explains why and estimates when your RC will have refilled enough, instead of letting the whole upload run and then fail. This applies to both video and audio uploads.',
+  },
+  {
+    version: '1.10.6',
+    date: '2026-06-11',
+    summary:
+      'When you’re logged in with a Hive wallet and tap “Change account”, it now opens the account switcher directly instead of the sign-up / log-in screen.',
+  },
+  {
+    version: '1.10.5',
+    date: '2026-06-11',
+    summary:
+      'Tapping “Edit Video” on your profile now shows a short guide: you can edit any of your videos from its page using the pen button, which the guide highlights for you.',
+  },
+  {
+    version: '1.10.4',
+    date: '2026-06-11',
+    summary:
+      'Fixed the emoji picker in the video description box (the upload “Add details” step) being cut off — the full picker now shows instead of being clipped by the box.',
+  },
+  {
     version: '1.10.3',
     date: '2026-06-09',
     summary:
@@ -28,7 +64,7 @@ export const CHANGELOG = [
     version: '1.10.0',
     date: '2026-06-09',
     summary:
-      'Navigation refresh: a Settings (cog) button in the top bar opens settings directly, and logged-out visitors get a clearer red “Log in” button. On mobile, the profile menu in the bottom bar now matches the desktop menu — My Channel, Upload, Wallet, Settings, About and social links. You can now drag & drop files into the video uploader, the thumbnail picker, and the audio uploader’s cover-art spots (each spot says so). The home page “View All” links are now plain text beside each section title. Also fixed: starting a Short no longer inherits a video you’d picked for a regular upload (and vice-versa).',
+      'Navigation refresh: a Settings (cog) button in the top bar opens settings directly, and logged-out visitors get a clearer red “Log in” button. On mobile, the profile menu in the bottom bar now matches the desktop menu. You can also drag & drop files into the video uploader, the thumbnail picker, and the audio cover spots.',
   },
   {
     version: '1.9.13',

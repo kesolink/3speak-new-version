@@ -56,7 +56,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -820,6 +820,24 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           </div>
 
           <div className="play-video-info">
+            {scheduled && (
+              <div className="scheduled-notice">
+                <LuTimer />
+                <span>
+                  Scheduled for{' '}
+                  <strong>{scheduledOn ? new Date(scheduledOn).toLocaleString() : 'a future date'}</strong>
+                  {' '}— not published yet.
+                  {(authenticated && user === author) && onEditScheduled && (
+                    <>
+                      {' '}
+                      <button type="button" className="scheduled-notice-edit" onClick={() => onEditScheduled()}>
+                        Edit, reschedule or cancel
+                      </button>
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
             <div className="info-stats-row">
               <div className="wrap-left">
                 <ViewCount views={view} author={author} permlink={permlink} size={13} />
@@ -910,6 +928,22 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
               )}
 
               <div className="info-buttons-right">
+                {/* A scheduled post isn't public yet — vote/share/reshare/tip/etc.
+                    don't apply. Only the owner's edit (pen) control is shown,
+                    routed to the scheduled-post editor. */}
+                {scheduled ? (
+                  (authenticated && user === author) && (
+                    <button
+                      type="button"
+                      className="edit-video-btn"
+                      onClick={() => onEditScheduled?.()}
+                      title="Edit scheduled post (details, date, or cancel)"
+                    >
+                      <MdEdit size={16} />
+                    </button>
+                  )
+                ) : (
+                <>
                 {titleMeta.hasSummary && (
                   <button
                     type="button"
@@ -1022,6 +1056,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                       if (isNewVote) setOptimisticVoteCount(prev => prev + 1);
                     }}
                   />
+                )}
+                </>
                 )}
               </div>
             </div>

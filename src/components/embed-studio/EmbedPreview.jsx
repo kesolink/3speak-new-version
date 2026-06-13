@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { CheckCircle, Upload, FileText, Info } from "lucide-react";
 import VideoPreview from "../studio/VideoPreview";
 import { StepProgress } from "../legacy-studio/StepProgress";
+import EmbedUploadProgressBar from "./EmbedUploadProgressBar";
 import { useEmbedUpload } from "../../context/EmbedUploadContext";
 import "../legacy-studio/VideoUploadStatus.scss";
 import EditorPreview from "../Editor/EditorPreview";
@@ -49,6 +50,7 @@ function EmbedPreview() {
           </div>
 
           <StepProgress step={step} />
+          <EmbedUploadProgressBar />
 
           <div className="studio-page-content">
             <div className="preview-container">

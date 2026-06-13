@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { HangoutsProvider, HangoutsRoom } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import { useWakeLock } from '../../hooks/useWakeLock';
+import { getCreatorSettings, isUploadBlocked } from '../../utils/creatorSettings';
+import { useSupportBlock } from '../../lib/supportBlockStore';
 import './OpenPodModal.scss';
 
 const API_URL = import.meta.env.VITE_HANGOUTS_API_URL;
@@ -46,7 +48,12 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
   // Audio recordings: close the OpenPods modal and forward the blob to
   // the AudioUploadModal at App level, pre-typed as a podcast. App.jsx
   // listens for the custom event and seeds the modal's first track.
-  const handleAudioHandoff = (file) => {
+  const handleAudioHandoff = async (file) => {
+    if (isUploadBlocked(await getCreatorSettings(username))) {
+      onClose();
+      useSupportBlock.getState().showSupportBlock('upload');
+      return;
+    }
     onClose();
     window.dispatchEvent(new CustomEvent('open-audio-upload', {
       detail: {
@@ -62,6 +69,11 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
   // mechanic the SDK previously hardcoded — now provided by the
   // integrator so the SDK stays generic.
   const handleVideoHandoff = async (file) => {
+    if (isUploadBlocked(await getCreatorSettings(username))) {
+      onClose();
+      useSupportBlock.getState().showSupportBlock('upload');
+      return;
+    }
     try {
       const cache = await caches.open('share-target-cache');
       await cache.put('/shared-video', new Response(file.blob, {

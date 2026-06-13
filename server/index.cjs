@@ -129,12 +129,16 @@ function clearSessionCookie(res) {
 
 function setPkceCookie(res, verifier) {
   // httpOnly cookie carrying the PKCE verifier across the auth redirect.
-  // 30 min — long enough for email magic-link flows where the user may switch tabs.
+  // 2 hours — the verifier is set at the START of the flow, so it must outlive
+  // a full signup: reading key warnings, saving keys to a password manager,
+  // captcha, the on-chain account creation wait, then the redirect back. The
+  // verifier is single-use (cleared on exchange) and httpOnly, so a long TTL is
+  // low-risk; the authorization code it pairs with still expires in ~60s.
   res.cookie(PKCE_COOKIE_NAME, verifier, {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
-    maxAge: 30 * 60 * 1000,
+    maxAge: 2 * 60 * 60 * 1000,
     path: '/'
   })
 }
@@ -173,7 +177,7 @@ const OP_USER_FIELD = {
 // =====================================================================
 app.post('/api/manteauth/start', baseLimiter, (req, res) => {
   try {
-    const { redirect_uri, state } = req.body
+    const { redirect_uri, state, signup } = req.body
     if (!redirect_uri || typeof redirect_uri !== 'string') {
       return res.status(400).json({ error: 'Invalid request' })
     }
@@ -188,7 +192,10 @@ app.post('/api/manteauth/start', baseLimiter, (req, res) => {
     })
     setPkceCookie(res, codeVerifier)
 
-    res.json({ url })
+    // signup:true → tell ButrAuth to jump straight to account creation.
+    const finalUrl = signup ? url + (url.includes('?') ? '&' : '?') + 'screen_hint=signup' : url
+
+    res.json({ url: finalUrl })
   } catch (err) {
     console.error('Start error:', err.message)
     res.status(500).json({ error: 'Internal error' })
