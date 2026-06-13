@@ -78,6 +78,8 @@ import { LegacyUploadProvider } from "./context/LegacyUploadContext";
 import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
 import { HangoutContextProvider, useHangout } from "./context/HangoutContext";
+import { ChatProvider } from "./context/ChatContext";
+import ChatPage from "./components/Chat/ChatPage";
 import OpenPods from "./page/OpenPods";
 import OpenPodPublish from "./page/OpenPodPublish";
 
@@ -404,6 +406,7 @@ function App() {
     <HiveAuthProvider>
     <LegacyUploadProvider>
     <EmbedUploadProvider>
+    <ChatProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
       <Toaster
         position="top-right"
@@ -495,6 +498,7 @@ function App() {
             <Route path="/openpods" element={<OpenPods />} />
             <Route path="/openpods/publish" element={<OpenPodPublish />} />
             <Route path="/openpods/:roomName" element={<OpenPods />} />
+            <Route path="/chat" element={<ChatPage />} />
             <Route path="*" element={<HiveLinkRedirect />} />
           </Routes>
           <OpenPodModalMounter />
@@ -531,6 +535,7 @@ function App() {
       </div>
     </div>
 
+    </ChatProvider>
     </EmbedUploadProvider>
     </LegacyUploadProvider>
     </HiveAuthProvider>

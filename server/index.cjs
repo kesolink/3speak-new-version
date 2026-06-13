@@ -396,6 +396,109 @@ app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
   }
 })
 
+// ---------------------------------------------------------------------------
+// Delegated challenge signing for OpenPods (Hangouts) and Snapie chat.
+//
+// These endpoints sign a login *challenge* with @threespeak's posting key on the
+// user's behalf, so EVERY login type — including HiveSigner / ManteAuth that
+// can't sign client-side — authenticates without a wallet popup. The downstream
+// service (Hangouts /auth/verify, Snapie chat /auth/verify) accepts the
+// signature because the user granted @threespeak posting authority. This mirrors
+// how /api/broadcast already acts for users on 3speak.
+//
+// SECURITY — these are signing oracles for @threespeak's posting key, so:
+//   • username is resolved from a server-side credential where possible
+//     (ManteAuth cookie / verified HiveSigner token). Wallet logins
+//     (Keychain/HiveAuth/PeakVault/Ledger) have no server credential, so they
+//     use the public app key + claimed username — the SAME trust model as
+//     /api/broadcast (worst case: act as a user who opted into @threespeak).
+//   • each endpoint validates the challenge shape so the signed bytes can never
+//     be a serialized Hive transaction (no on-chain replay as @threespeak).
+//   • the user must currently grant @threespeak posting authority.
+// ---------------------------------------------------------------------------
+
+// Resolve the acting Hive user from cookie → HiveSigner token → app-key+username.
+async function resolveDelegatedSignUser(req, res) {
+  const cookieToken = req.cookies?.[SESSION_COOKIE_NAME]
+  if (cookieToken) {
+    const tokenData = await verifyManteAuthToken(cookieToken)
+    if (tokenData?.hiveUsername) return tokenData.hiveUsername.toLowerCase()
+    clearSessionCookie(res)
+  }
+  const authHeader = req.headers.authorization || ''
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+  if (bearer) {
+    const u = await verifyHiveSignerToken(bearer)
+    if (u) return u.toLowerCase()
+  }
+  // Wallet logins: trust the public app key + claimed username (same as broadcast).
+  const apiKey = req.headers['x-api-key'] || ''
+  if (EMBED_API_KEY && apiKey === EMBED_API_KEY) {
+    const claimed = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : ''
+    if (claimed) return claimed
+  }
+  return null
+}
+
+// True when `hiveUsername` granted @threespeak posting authority at/above threshold.
+async function hasThreespeakPostingGrant(hiveUsername) {
+  const [account] = await client.database.getAccounts([hiveUsername])
+  if (!account) return false
+  const grant = account.posting.account_auths.find(([acc]) => acc === HIVE_ACCOUNT)
+  return !!grant && grant[1] >= account.posting.weight_threshold
+}
+
+const signChallengeLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false })
+
+// POST /api/openpods/sign-challenge — challenge shape: `hivehangouts:<user>:<ts>:<hex>`
+app.post('/api/openpods/sign-challenge', signChallengeLimiter, async (req, res) => {
+  try {
+    if (!POSTING_WIF) return res.status(500).json({ error: 'Server is not configured' })
+    const hiveUsername = await resolveDelegatedSignUser(req, res)
+    if (!hiveUsername) return res.status(401).json({ error: 'Unauthorized' })
+
+    const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : ''
+    const escapedUser = hiveUsername.replace(/[.\-]/g, '\\$&')
+    if (!new RegExp(`^hivehangouts:${escapedUser}:\\d+:[0-9a-f]+$`).test(challenge)) {
+      return res.status(400).json({ error: 'Invalid challenge' })
+    }
+    if (!(await hasThreespeakPostingGrant(hiveUsername))) {
+      return res.status(403).json({ error: 'Authorization required' })
+    }
+
+    const signature = PrivateKey.fromString(POSTING_WIF).sign(cryptoUtils.sha256(challenge)).toString()
+    return res.json({ success: true, signature, username: hiveUsername })
+  } catch (err) {
+    console.error('OpenPods sign-challenge error:', err.message)
+    res.status(500).json({ error: 'Signing failed' })
+  }
+})
+
+// POST /api/snapie-chat/sign-challenge — Snapie chat challenges are bare UUIDv4s.
+// Validating the UUID shape keeps this from signing arbitrary bytes (no tx replay).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+app.post('/api/snapie-chat/sign-challenge', signChallengeLimiter, async (req, res) => {
+  try {
+    if (!POSTING_WIF) return res.status(500).json({ error: 'Server is not configured' })
+    const hiveUsername = await resolveDelegatedSignUser(req, res)
+    if (!hiveUsername) return res.status(401).json({ error: 'Unauthorized' })
+
+    const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge.trim() : ''
+    if (!UUID_RE.test(challenge)) {
+      return res.status(400).json({ error: 'Invalid challenge' })
+    }
+    if (!(await hasThreespeakPostingGrant(hiveUsername))) {
+      return res.status(403).json({ error: 'Authorization required' })
+    }
+
+    const signature = PrivateKey.fromString(POSTING_WIF).sign(cryptoUtils.sha256(challenge)).toString()
+    return res.json({ success: true, signature, username: hiveUsername })
+  } catch (err) {
+    console.error('Snapie-chat sign-challenge error:', err.message)
+    res.status(500).json({ error: 'Signing failed' })
+  }
+})
+
 // Image upload — sign the standard images.hive.blog "ImageSigningChallenge" with
 // @threespeak's posting key and upload on the user's behalf. Lets every login
 // (incl. HiveSigner, which can't sign client-side) attach covers/thumbnails with

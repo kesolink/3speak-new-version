@@ -15,6 +15,7 @@ import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
 import NotificationBell from "./NotificationBell";
+import ChatButton from "../Chat/ChatButton";
 import PremiumBadge from "../PremiumBadge/PremiumBadge";
 import { FiSettings, FiLogIn } from "react-icons/fi";
 import SettingsModal from "../SettingsModal/SettingsModal";
@@ -213,6 +214,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           <Link to="/discover" className="nav-mobile-discover" title="Discover">
             <MdOutlineSearch size={19} />
           </Link>
+          <ChatButton />
           <NotificationBell />
           <span className="nav-avatar-wrap" onClick={toggleProfileNav}>
             <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" />

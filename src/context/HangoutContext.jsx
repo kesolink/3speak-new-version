@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { HangoutsApiClient, loginWithAioha } from '@snapie/hangouts-core';
+import { HangoutsApiClient, loginWithAioha, loginWithSignFn } from '@snapie/hangouts-core';
 import { Providers } from '@aioha/aioha';
 import { useAppStore } from '../lib/store';
-import aioha from '../hive-api/aioha';
+import aioha, { isManteAuthLogin } from '../hive-api/aioha';
+import { EMBED_API_KEY } from '../utils/config';
 
 const HangoutContext = createContext(undefined);
 
@@ -56,6 +57,53 @@ function buildTokenStorage(mode) {
 
 const HANGOUTS_API_URL = import.meta.env.VITE_HANGOUTS_API_URL || '';
 const OPENPODS_ENABLED = !!HANGOUTS_API_URL;
+
+// preview-3speak's own backend (broadcast/manteauth). Same base aioha.js uses.
+const THREESPEAK_API = import.meta.env.VITE_THREESPEAK_API || '/api';
+
+// True when the current login can sign a challenge message client-side.
+// Wallet providers (Keychain/HiveAuth/PeakVault/Ledger) can; HiveSigner can't
+// sign arbitrary buffers, and ManteAuth/ButrAuth holds no client-side key.
+function canSignClientSide() {
+  if (isManteAuthLogin()) return false;
+  const provider = aioha.getCurrentProvider?.() ?? null;
+  return !!provider && provider !== Providers.HiveSigner;
+}
+
+// Sign a Hangouts challenge via @threespeak (delegated posting authority) so the
+// background service signs for the user — no wallet popup — for ALL login types.
+// Auth to the preview backend: HiveSigner → Bearer token; ManteAuth → httpOnly
+// cookie; wallet (Keychain/HiveAuth/PeakVault/Ledger) → public app key + claimed
+// username (same trust as /api/broadcast). The backend verifies the user granted
+// @threespeak posting auth before signing; the patched Hangouts /auth/verify
+// accepts the delegated signature. Throws on failure (e.g. authority not
+// granted) so the caller can fall back to a client-side signature.
+async function signOpenPodsChallengeViaThreespeak(challenge, username) {
+  const provider = aioha.getCurrentProvider?.() ?? null;
+  const headers = { 'Content-Type': 'application/json' };
+  const body = { challenge };
+  if (provider === Providers.HiveSigner) {
+    const token = localStorage.getItem('hivesignerToken');
+    if (!token) throw new Error('HiveSigner session expired — reconnect and try again');
+    headers.Authorization = `Bearer ${token}`;
+  } else if (!isManteAuthLogin()) {
+    // Wallet login: no server-side credential → app key + claimed username.
+    headers['X-API-Key'] = EMBED_API_KEY;
+    body.username = username;
+  }
+  // ManteAuth: httpOnly cookie travels via credentials:'include'.
+  const res = await fetch(`${THREESPEAK_API}/openpods/sign-challenge`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.signature) {
+    throw new Error(data.error || 'Could not sign the OpenPods challenge');
+  }
+  return data.signature;
+}
 // No-op stub when the OpenPods API URL isn't configured, so the rest of the
 // app can mount the provider without crashing. Anything that does network is
 // guarded by `OPENPODS_ENABLED` and never reaches the stub.
@@ -109,14 +157,11 @@ export function HangoutContextProvider({ children, tokenStorage = 'none' }) {
       return cached;
     }
 
-    // No cached token, so we'd have to sign a fresh challenge. That needs a
-    // wallet provider that can actually sign a message. The app's
-    // `authenticated` flag can be true without one (a restored/stale session,
-    // or a provider like HiveSigner that can't sign messages) — in that case
-    // don't start a signature that can never complete. Bail and let the caller
-    // stay in OpenPods guest mode instead of hanging on "Waiting for wallet…".
-    const provider = aioha.getCurrentProvider?.() ?? null;
-    if (!provider || provider === Providers.HiveSigner) return null;
+    // No cached token, so we sign a fresh challenge. Per 3speak policy, ALL
+    // logins go through the background @threespeak signer first (no wallet
+    // popup). Only if that fails — e.g. the user never granted @threespeak
+    // posting authority — do wallet providers fall back to a client-side
+    // Aioha signature (the actual fallback happens at the loginPromise below).
 
     // Deduplicate: if a login is already in-flight, await it
     if (pendingLogin?.user === requestedUser) {
@@ -140,10 +185,23 @@ export function HangoutContextProvider({ children, tokenStorage = 'none' }) {
 
     setSessionLoading(true);
 
-    // Hand the already-authenticated Aioha session to the hangouts server.
-    // loginWithAioha resolves the username, fetches a challenge, and signs it
-    // with the active provider's posting key (Keychain, HiveAuth, PeakVault, …).
-    const loginPromise = loginWithAioha(hangoutsClient, aioha, requestedUser)
+    // Background @threespeak signer for every login (no wallet popup). If it
+    // fails (e.g. the user hasn't granted @threespeak posting authority) and the
+    // provider CAN sign client-side, fall back to a client-side Aioha signature.
+    const loginPromise = (async () => {
+      try {
+        return await loginWithSignFn(
+          hangoutsClient,
+          requestedUser,
+          (challenge) => signOpenPodsChallengeViaThreespeak(challenge, requestedUser),
+        );
+      } catch (bgErr) {
+        if (canSignClientSide()) {
+          return loginWithAioha(hangoutsClient, aioha, requestedUser);
+        }
+        throw bgErr;
+      }
+    })()
       .then(session => {
         const tokenUser = session.username || requestedUser;
         sessionCache.set(tokenUser, session.token);
