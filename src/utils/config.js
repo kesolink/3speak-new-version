@@ -56,6 +56,17 @@ const COMPACT_SIDEBAR = import.meta.env.VITE_COMPACT_SIDEBAR === 'true';
 const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed.3speak.tv/uploads';
 const EMBED_API_URL = import.meta.env.VITE_EMBED_API_URL || 'https://embed.3speak.tv';
 const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
+
+// Pool of embed-upload server BASE hosts (no trailing /uploads), e.g.
+// "https://embed2.3speak.tv,https://embed3.3speak.tv". The uploader picks the
+// least-busy reachable one per upload (see utils/embedEndpoints.js). Leave unset
+// to use the single EMBED_API_URL host. Each host must share the same MongoDB +
+// EMBED_API_KEY so any can serve the post-upload /video/* writes.
+const EMBED_UPLOAD_HOSTS = (import.meta.env.VITE_EMBED_UPLOAD_URLS
+  ? import.meta.env.VITE_EMBED_UPLOAD_URLS.split(/[\s,]+/)
+  : [])
+  .map((h) => h.trim().replace(/\/+$/, '').replace(/\/uploads$/, ''))
+  .filter(Boolean);
 const EMBED_DEBUG = import.meta.env.VITE_EMBED_DEBUG === 'true';
 const THREESPEAK_AUDIO_API_URL = import.meta.env.VITE_3SPEAK_AUDIO_API_URL || 'https://audio.3speak.tv';
 const THREESPEAK_API_KEY = import.meta.env.VITE_3SPEAK_API_KEY || '';
@@ -159,6 +170,7 @@ export {
   POST_RC_COST,
   EMBED_UPLOAD_URL,
   EMBED_API_URL,
+  EMBED_UPLOAD_HOSTS,
   EMBED_API_KEY,
   TRANSLATE_API_URL,
   TRENDING_SORTED_URL,
