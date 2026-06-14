@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.13.0',
+    date: '2026-06-14',
+    summary:
+      'Big chat upgrade: send GIFs and emojis (with inline :shortcode: typing), paste images into a chat, and see rich cards for 3Speak/Hive links. Messages now do multiple lines, quoting, forwarding, timestamps and full-screen image view. Shorts show view counts, and creator profiles have a “Write message” button.',
+  },
+  {
     version: '1.12.1',
     date: '2026-06-13',
     summary:

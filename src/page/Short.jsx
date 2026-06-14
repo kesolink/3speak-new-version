@@ -35,12 +35,14 @@ import {
   Sun,
   Film,
   Music,
+  Eye,
 } from 'lucide-react';
 import { GiTwoCoins } from 'react-icons/gi';
 import { MdTranslate, MdClosedCaption, MdClosedCaptionOff, MdFlag } from 'react-icons/md';
 import mantequillaLogo from '../assets/mantequilla-logo.png';
 import ReportModal, { isReported } from '../components/modal/ReportModal';
 import { Flag } from 'lucide-react';
+import ShareChooserModal from '../components/Chat/ShareChooserModal';
 import useTranslation from '../hooks/useTranslation';
 import TranslateButton from '../components/TranslateButton/TranslateButton';
 import useSubtitles from '../hooks/useSubtitles';
@@ -193,6 +195,7 @@ const VideoShort = () => {
   // (it's a full-screen bottom sheet there).
   const [showComments, setShowComments] = useState(() => typeof window !== 'undefined' && window.innerWidth > 768);
   const [newComment, setNewComment] = useState('');
+  const [shareChooserOpen, setShareChooserOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
@@ -2767,7 +2770,15 @@ const VideoShort = () => {
             <span className="actionLabel">{formatPayout(currentVideo.stats.payout)}</span>
           </div>
 
-          <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleShare(); }}>
+          {/* View count */}
+          <div className="actionItem" onClick={(e) => e.stopPropagation()}>
+            <div className="actionButton">
+              <Eye size={24} />
+            </div>
+            <span className="actionLabel">{formatNumber(currentVideo.stats.views || 0)}</span>
+          </div>
+
+          <div className="actionItem" onClick={(e) => { e.stopPropagation(); setShareChooserOpen(true); }}>
             <div className="actionButton">
               <Share2 size={24} />
             </div>
@@ -2795,6 +2806,14 @@ const VideoShort = () => {
 
 
         </div>
+
+        <ShareChooserModal
+          open={shareChooserOpen}
+          url={`${window.location.origin}/shorts?v=${currentVideo.author}/${currentVideo.permlink}`}
+          title={currentVideo.title}
+          onClose={() => setShareChooserOpen(false)}
+          onGeneralShare={handleShare}
+        />
 
         {/* NAVIGATION */}
         <div className="navigationArrows">
@@ -2904,7 +2923,12 @@ const VideoShort = () => {
             }}
             disabled={!user || postingComment || currentVideo.hivePostMissing}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !postingComment) {
+              // Enter sends on devices with a physical keyboard (Shift+Enter =
+              // newline). On touch devices Enter inserts a newline instead — use
+              // the Send button to post — so comments can be multi-line on mobile.
+              const isTouch = typeof window !== 'undefined'
+                && window.matchMedia?.('(pointer: coarse)')?.matches;
+              if (e.key === 'Enter' && !e.shiftKey && !isTouch && !postingComment) {
                 e.preventDefault();
                 handlePostComment(currentVideo.author, currentVideo.hivePermlink, newComment, false);
               }

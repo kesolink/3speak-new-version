@@ -321,6 +321,15 @@ const {
                 {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
               </button>
             )}
+            {authenticated && !isOwnProfile && (
+              <button
+                className="btn btn-secondary"
+                title={`Message @${user}`}
+                onClick={() => navigate(`/chat?dm=${encodeURIComponent(user)}`)}
+              >
+                Write message
+              </button>
+            )}
             <button
               className="btn btn-secondary"
               onClick={async () => {
