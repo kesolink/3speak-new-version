@@ -5,6 +5,7 @@ import {
   useChatMessages,
   useTyping,
 } from '@snapie/chat-client/react'
+import { extractImageUrls } from '@snapie/chat-client'
 import { toast } from 'sonner'
 import { useChat } from '../../context/ChatContext'
 import { useAppStore } from '../../lib/store'
@@ -203,12 +204,32 @@ function Thread({ conv }) {
         )}
         {messages.map((m) => {
           const mine = m.sender === me
+          // Snapie embeds images as plain-text URLs in the content — pull them
+          // out to render inline, and drop them from the displayed text.
+          const images = extractImageUrls(m.content)
+          let text = m.content || ''
+          for (const url of images) text = text.split(url).join('')
+          text = text.trim()
+          const imageOnly = !text && images.length > 0
           return (
             <div key={m._id} className={`chat-msg${mine ? ' mine' : ''}`}>
               {!mine && conv.type !== 'dm' && (
                 <span className="chat-msg-sender">@{m.sender}</span>
               )}
-              <div className="chat-msg-bubble">{m.content}</div>
+              <div className={`chat-msg-bubble${imageOnly ? ' image-only' : ''}`}>
+                {text && <span className="chat-msg-text">{text}</span>}
+                {images.map((url) => (
+                  <a
+                    key={url}
+                    className="chat-msg-image-link"
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img className="chat-msg-image" src={url} alt="" loading="lazy" />
+                  </a>
+                ))}
+              </div>
             </div>
           )
         })}

@@ -255,8 +255,30 @@ $chat-z: 1200;
     line-height: 1.4;
     word-break: break-word;
     white-space: pre-wrap;
+
+    // Image-only messages: drop the bubble chrome so the image stands alone.
+    &.image-only { background: transparent; padding: 0; }
   }
-  &.mine .chat-msg-bubble { background: var(--accent-primary); color: #fff; }
+  // Own messages: a dim, readable grey (not the 3Speak red) — red stays for the
+  // rest of the chat UI. Translucent neutral works in both light & dark themes,
+  // and right-alignment still distinguishes them from received messages.
+  &.mine .chat-msg-bubble {
+    background: rgba(128, 128, 128, 0.2);
+    color: var(--text-primary);
+  }
+  &.mine .chat-msg-bubble.image-only { background: transparent; }
+
+  // Inline images embedded in a message.
+  .chat-msg-image-link { display: block; margin-top: 6px; &:first-child { margin-top: 0; } }
+  .chat-msg-image {
+    display: block;
+    max-width: 240px;
+    max-height: 280px;
+    width: auto;
+    height: auto;
+    border-radius: 12px;
+    object-fit: cover;
+  }
 }
 
 .chat-typing { font-size: 12px; color: var(--text-muted); font-style: italic; padding: 2px 4px; }
