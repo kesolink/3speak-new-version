@@ -363,62 +363,70 @@ $bg: #ffffff;
     .wrap {
       display: flex;
       align-items: center;
-      gap: 15px;
-      color: #000;
-      [data-theme="dark"] & {
-        color: var(--text-primary);
-      }
-      a {
-        color: #000;
-        padding: 5px 15px;
-        border-radius: 7px;
-        box-shadow: 0px 1px 7px 0px #00000040;
-        font-size: 13.5px;
-        @include mix.respond(phone) {
-          padding: 4px 4px;
-        }
-      }
-      .vn {
-        @include mix.respond(phone) {
-          // display: none;
-        }
-      }
+      gap: 22px;
+      flex-wrap: wrap;
       @include mix.respond(phone) {
-        padding-bottom: 0px;
-      }
-
-      span {
-        padding-bottom: 3px;
-        box-sizing: border-box;
-        padding: 5px 15px;
-        border-radius: 7px;
-        box-shadow: 0px 1px 7px 0px #00000040;
-        font-size: 13.5px;
-        cursor: pointer;
-        [data-theme="dark"] & {
-          color: var(--text-primary);
-          border: 1px solid #1e293b;
-        }
-        @include mix.respond(phone) {
-          padding-bottom: 0px;
-          padding: 4px 4px;
-        }
+        gap: 16px;
       }
     }
     .wrap-in {
       display: flex;
       align-items: center;
-      gap: 10px;
-      .wrap-upload-video {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        width: 30px;
-        height: 30px;
-        color: red;
-        border-radius: 50%;
-        background-color: rgb(252, 235, 235);
-        border: 1px solid rgb(247, 193, 189);
+      gap: 22px;
+      @include mix.respond(phone) {
+        gap: 16px;
+      }
+    }
+
+    // Tabs (Videos / Shorts / Audio / Playlists / Edit Video / Wallet)
+    .wrap span,
+    .wrap-in span {
+      position: relative;
+      box-sizing: border-box;
+      padding: 4px 2px;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.2;
+      cursor: pointer;
+      user-select: none;
+      background: none;
+      border: none;
+      box-shadow: none;
+      color: var(--text-secondary, #64748b);
+      transition: color 0.18s ease;
+
+      // red underline for the active tab
+      &::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -8px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--accent-primary, #e53935);
+        opacity: 0;
+        transition: opacity 0.18s ease;
+      }
+
+      &:hover {
+        color: var(--text-primary, #0f172a);
+      }
+
+      &.active {
+        color: var(--accent-primary, #e53935);
+        font-weight: 600;
+
+        &::after {
+          opacity: 1;
+        }
+      }
+
+      @include mix.respond(phone) {
+        font-size: 13px;
+        &::after {
+          bottom: -8px;
+        }
       }
     }
 

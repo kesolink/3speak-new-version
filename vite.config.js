@@ -242,11 +242,11 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/image-api/, ''),
       },
       // Snapie chat API (@snapie/chat-client). Same-origin proxy:
-      // /snapie-chat/api/chat/* -> https://prod-snapie.okinoko.io/api/chat/*.
-      // Points at LOCAL prod-snapie (which carries the delegated-verify patch so
-      // background @threespeak chat signing works); snapie.io doesn't have it yet.
+      // /snapie-chat/api/chat/* -> https://snapie.io/api/chat/*.
+      // snapie.io carries the delegated-verify patch (verified 2026-06-15), so
+      // background @threespeak chat signing works against the public service.
       '/snapie-chat': {
-        target: 'https://prod-snapie.okinoko.io',
+        target: 'https://snapie.io',
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/snapie-chat/, ''),

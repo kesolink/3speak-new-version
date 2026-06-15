@@ -33,9 +33,9 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
   const processedVideos = useMemo(() => {
     return videos.map(video => ({
       ...video,
-      _processedThumbnail: fixVideoThumbnail(video)
+      _processedThumbnail: fixVideoThumbnail(video, shortsGrid)
     }));
-  }, [videos]);
+  }, [videos, shortsGrid]);
 
   if (loading && videos.length === 0) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;

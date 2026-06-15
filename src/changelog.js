@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.14.0',
+    date: '2026-06-15',
+    summary:
+      'Cleaner profile page: the Videos/Shorts/Audio/Playlists tabs now look like proper tabs with a red underline, and opening a short or playlist then pressing the browser back button returns you to the same tab. Shorts thumbnails fit their cards instead of stretching.',
+  },
+  {
     version: '1.13.0',
     date: '2026-06-14',
     summary:

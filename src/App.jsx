@@ -161,7 +161,7 @@ const LoginRedirect = ({ openLoginModal }) => {
 
 function App() {
   const location = useLocation();
-  const { initializeAuth, authenticated, LogOut, switchAccount, setUser, user: appUser } = useAppStore();
+  const { initializeAuth, initializeTheme, authenticated, LogOut, switchAccount, setUser, user: appUser } = useAppStore();
   const sessionExpired = useAppStore((s) => s.sessionExpired);
   const clearSessionExpired = useAppStore((s) => s.clearSessionExpired);
   const { aioha, user: aiohaUser } = useAioha();
@@ -205,6 +205,11 @@ function App() {
     window.addEventListener('open-shorts-editor', handleOpenEditor);
     return () => window.removeEventListener('open-shorts-editor', handleOpenEditor);
   }, []);
+
+  // Apply the saved theme on every route — Nav (which also calls this) isn't
+  // rendered on the mobile shorts view, so a fresh /shorts deep link would
+  // otherwise load unthemed.
+  useEffect(() => { initializeTheme?.(); }, [initializeTheme]);
 
   // Listen for "open-audio-upload" custom event from UploadLinks. The
   // event may carry a payload with a pre-recorded blob (e.g. handed off
@@ -513,7 +518,7 @@ function App() {
           onClose={() => { setAudioUploadOpen(false); setPendingAudioTrack(null); }}
           initialTrack={pendingAudioTrack}
         />
-        <BottomNav openLoginModal={openLoginModal} />
+        {!hideNavOnMobile && <BottomNav openLoginModal={openLoginModal} />}
         {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} /> }
         <LoginModal
           displayed={loginModalOpen}
