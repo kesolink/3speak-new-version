@@ -16,6 +16,7 @@ import { parseChatLink, timeAgo } from './chatLinks'
 import { useChat } from '../../context/ChatContext'
 import { useAppStore } from '../../lib/store'
 import { EMBED_API_KEY } from '../../utils/config'
+import { getAccounts } from '../../hive-api/hiveApi'
 import './chat.scss'
 
 const avatar = (name) => `https://images.hive.blog/u/${name}/avatar/small`
@@ -157,10 +158,16 @@ function NewDmForm() {
 
   const submit = async (e) => {
     e.preventDefault()
-    const handle = value.trim().replace(/^@/, '')
+    const handle = value.trim().replace(/^@/, '').toLowerCase()
     if (!handle || busy) return
     setBusy(true)
     try {
+      // Only let users start a DM with a real Hive account.
+      const accounts = await getAccounts([handle])
+      if (!accounts || accounts.length === 0) {
+        toast.error(`@${handle} is not a Hive account.`)
+        return
+      }
       await openDmWith(handle)
       setValue('')
     } catch (err) {
@@ -250,7 +257,7 @@ function ConversationList() {
 function Thread({ conv }) {
   const me = useAppStore((s) => s.user)
   const { backToList, shareDraft, setShareDraft } = useChat()
-  const { messages, loading, error, sendMessage } = useChatMessages(
+  const { messages, loading, error, sendMessage, editMessage } = useChatMessages(
     conv._id,
     conv.type
   )
@@ -259,7 +266,9 @@ function Thread({ conv }) {
   // chats shows that chat's own unsent text and restores it on return.
   const [draft, setDraft] = useState(() => draftStore.get(conv._id) || '')
   const [menuFor, setMenuFor] = useState(null)
+  const [menuDir, setMenuDir] = useState('up')
   const [quoteTarget, setQuoteTarget] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
   const [lightboxUrl, setLightboxUrl] = useState(null)
   const [attachments, setAttachments] = useState([]) // {id, status, url, previewUrl}
 
@@ -309,6 +318,22 @@ function Thread({ conv }) {
   }, [messages.length, typingUsers.length])
 
   const send = async () => {
+    // Edit mode: save the new content over the existing message instead of
+    // sending a new one. The SDK has no real delete — "Delete" is a soft edit.
+    if (editTarget) {
+      const body = draft.trim()
+      if (!body) return
+      const target = editTarget
+      updateDraft('')
+      setEditTarget(null)
+      setTyping(false)
+      try {
+        await editMessage(target._id, body)
+      } catch (err) {
+        toast.error(err?.message || 'Could not edit the message.')
+      }
+      return
+    }
     const parts = []
     if (quoteTarget) {
       parts.push(String(quoteTarget.content || '').split('\n').map((l) => '> ' + l).join('\n'))
@@ -330,8 +355,29 @@ function Thread({ conv }) {
 
   // Quote a message — shown as a preview above the composer; prepended on send.
   const startQuote = (m) => {
+    setEditTarget(null)
     setQuoteTarget(m)
     requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  // Edit one of your own messages — load its raw content into the composer and
+  // switch the composer into "edit" mode (send saves over the original).
+  const startEdit = (m) => {
+    setQuoteTarget(null)
+    setEditTarget(m)
+    updateDraft(m.content || '')
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  // Soft delete — the SDK has no real delete, so replace the body with a marker.
+  const deleteMessage = async (m) => {
+    if (!window.confirm('Delete this message? It will be replaced with “[deleted]”.')) return
+    if (editTarget?._id === m._id) { setEditTarget(null); updateDraft('') }
+    try {
+      await editMessage(m._id, '[deleted]')
+    } catch (err) {
+      toast.error(err?.message || 'Could not delete the message.')
+    }
   }
 
   // Forward a message: queue it (quoted, with original sender + time) and go to
@@ -342,6 +388,18 @@ function Thread({ conv }) {
     const body = String(m.content || '').split('\n').map((l) => '> ' + l).join('\n')
     setShareDraft(`${header}\n${body}`)
     backToList()
+  }
+
+  // Toggle the per-message action menu, opening it toward whichever side has
+  // more room inside the (clipping) messages scroll area so it isn't cropped.
+  const toggleMenu = (e, id) => {
+    if (menuFor === id) { setMenuFor(null); return }
+    const btn = e.currentTarget.getBoundingClientRect()
+    const cont = scrollRef.current?.getBoundingClientRect()
+    const above = cont ? btn.top - cont.top : btn.top
+    const below = cont ? cont.bottom - btn.bottom : window.innerHeight - btn.bottom
+    setMenuDir(below >= above ? 'down' : 'up')
+    setMenuFor(id)
   }
 
   // Close the per-message action menu on any outside click.
@@ -389,6 +447,7 @@ function Thread({ conv }) {
           const postLink = parseChatLink(text)
           if (postLink) text = text.split(postLink.url).join('')
           text = text.trim()
+          const isDeleted = text === '[deleted]'
           const hasBubble = !!text || images.length > 0
           const imageOnly = !text && images.length > 0
           return (
@@ -399,7 +458,7 @@ function Thread({ conv }) {
               <div className="chat-msg-row">
                 <div className="chat-msg-content">
                   {hasBubble && (
-                    <div className={`chat-msg-bubble${imageOnly ? ' image-only' : ''}`}>
+                    <div className={`chat-msg-bubble${imageOnly ? ' image-only' : ''}${isDeleted ? ' chat-msg-deleted' : ''}`}>
                       {text && renderMessageText(text)}
                       {images.map((url) => (
                         <button
@@ -416,7 +475,7 @@ function Thread({ conv }) {
                   {postLink && <ChatLinkCard link={postLink} />}
                   {m.createdAt && (
                     <span className="chat-msg-time" title={new Date(m.createdAt).toLocaleString()}>
-                      {timeAgo(m.createdAt)}
+                      {timeAgo(m.createdAt)}{m.editedAt ? ' · edited' : ''}
                     </span>
                   )}
                 </div>
@@ -425,18 +484,28 @@ function Thread({ conv }) {
                     type="button"
                     className="chat-msg-menu-btn"
                     aria-label="Message actions"
-                    onClick={(e) => { e.stopPropagation(); setMenuFor((cur) => (cur === m._id ? null : m._id)) }}
+                    onClick={(e) => { e.stopPropagation(); toggleMenu(e, m._id) }}
                   >
                     <MoreHorizontal size={15} />
                   </button>
                   {menuFor === m._id && (
-                    <div className="chat-msg-menu">
+                    <div className={`chat-msg-menu chat-msg-menu--${menuDir}`}>
                       <button type="button" onClick={(e) => { e.stopPropagation(); startQuote(m); setMenuFor(null) }}>
                         Quote
                       </button>
                       <button type="button" onClick={(e) => { e.stopPropagation(); forwardMessage(m); setMenuFor(null) }}>
                         Forward
                       </button>
+                      {mine && (
+                        <>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); startEdit(m); setMenuFor(null) }}>
+                            Edit
+                          </button>
+                          <button type="button" className="chat-msg-menu-danger" onClick={(e) => { e.stopPropagation(); setMenuFor(null); deleteMessage(m) }}>
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -452,6 +521,17 @@ function Thread({ conv }) {
       </div>
 
       <form className="chat-composer" onSubmit={submit}>
+        {editTarget && (
+          <div className="chat-quote-preview chat-edit-preview">
+            <div className="chat-quote-preview-main">
+              <span className="chat-quote-preview-label">Editing message</span>
+              <blockquote className="chat-quote chat-quote-preview-text">{quoteSnippet(editTarget.content)}</blockquote>
+            </div>
+            <button type="button" className="chat-quote-preview-close" aria-label="Cancel edit" onClick={() => { setEditTarget(null); updateDraft('') }}>
+              <X size={16} />
+            </button>
+          </div>
+        )}
         {quoteTarget && (
           <div className="chat-quote-preview">
             <div className="chat-quote-preview-main">

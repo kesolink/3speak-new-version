@@ -643,10 +643,8 @@ $chat-z: 1200;
 
 .chat-msg-menu {
   position: absolute;
-  bottom: 100%;
   right: 0;
   z-index: 30;
-  margin-bottom: 4px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: 10px;
@@ -666,9 +664,21 @@ $chat-z: 1200;
     font-size: 13.5px;
     color: var(--text-primary);
     &:hover { background: var(--bg-hover); }
+    &.chat-msg-menu-danger { color: #e5484d; }
   }
 }
+.chat-msg-menu--up { bottom: 100%; margin-bottom: 4px; }
+.chat-msg-menu--down { top: 100%; margin-top: 4px; }
 .chat-msg:not(.mine) .chat-msg-menu { left: 0; right: auto; }
+
+/* Soft-deleted message ("[deleted]") — muted + italic */
+.chat-msg-bubble.chat-msg-deleted {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* Editing-a-message banner reuses the quote-preview chrome */
+.chat-edit-preview .chat-quote-preview-label { color: var(--accent-primary); }
 
 .chat-quote {
   margin: 2px 0;
