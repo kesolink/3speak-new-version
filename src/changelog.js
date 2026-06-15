@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.15.0',
+    date: '2026-06-15',
+    summary:
+      'You can now edit or delete your own chat messages from the ⋯ menu on a message (edited ones show an “edited” mark). Starting a new chat now only accepts real Hive usernames.',
+  },
+  {
     version: '1.14.0',
     date: '2026-06-15',
     summary:
