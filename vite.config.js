@@ -152,13 +152,6 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      // Use the local @snapie/chat-client SDK source (snapie-io repo) instead of
-      // the npm package (not yet published with the current SDK), so changes
-      // there are picked up live. The /react subpath must come first.
-      '@snapie/chat-client/react':
-        '/mnt/HC_Volume_103240961/prodops/services/snapie-io/packages/chat-client/src/react/index.tsx',
-      '@snapie/chat-client':
-        '/mnt/HC_Volume_103240961/prodops/services/snapie-io/packages/chat-client/src/index.ts',
       // Ensure browser-compatible versions of Node.js modules
       crypto: "crypto-browserify",
       stream: "stream-browserify",
@@ -215,11 +208,6 @@ export default defineConfig({
 
   server: {
     allowedHosts: ["3speak.okinoko.io", "preview.3speak.tv"],
-    // Let Vite serve the local @snapie/chat-client SDK source (sibling snapie-io
-    // repo, outside the project root). '.' keeps the project root served.
-    fs: {
-      allow: ['.', '/mnt/HC_Volume_103240961/prodops/services/snapie-io/packages/chat-client'],
-    },
     proxy: {
       // Proxy upload API calls to video.3speak.tv to avoid CORS issues in dev.
       // In production, VITE_UPLOAD_URL should point directly to video.3speak.tv.
@@ -254,11 +242,11 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/image-api/, ''),
       },
       // Snapie chat API (@snapie/chat-client). Same-origin proxy:
-      // /snapie-chat/api/chat/* -> https://prod-snapie.okinoko.io/api/chat/*.
-      // Points at LOCAL prod-snapie (which carries the delegated-verify patch so
-      // background @threespeak chat signing works); snapie.io doesn't have it yet.
+      // /snapie-chat/api/chat/* -> https://snapie.io/api/chat/*.
+      // snapie.io carries the delegated-verify patch (verified 2026-06-15), so
+      // background @threespeak chat signing works against the public service.
       '/snapie-chat': {
-        target: 'https://prod-snapie.okinoko.io',
+        target: 'https://snapie.io',
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/snapie-chat/, ''),

@@ -38,6 +38,11 @@ export function ChatProvider({ children }) {
   // The conversation currently open in the thread view (null = list view).
   const [activeConversation, setActiveConversation] = useState(null)
 
+  // A link queued to share into a chat (from the Share → "Send in chat" flow).
+  // The thread composer prefills with it when a conversation is opened, then
+  // clears it via setShareDraft(null).
+  const [shareDraft, setShareDraft] = useState(null)
+
   // Username we've already auto-attempted, so the silent background connect
   // fires once per login (not on every render).
   const autoTriedRef = useRef(null)
@@ -110,8 +115,17 @@ export function ChatProvider({ children }) {
       const handle = String(targetUser || '').trim().replace(/^@/, '').toLowerCase()
       if (!handle) return
       const conv = await client.openDm(handle)
-      setActiveConversation(conv)
-      return conv
+      // openDm returns a minimal conversation (often just `_id`) — without
+      // `type`/`peer` the thread loads the wrong endpoint and the header is
+      // blank. Normalize it so it behaves like a list conversation.
+      const full = {
+        ...conv,
+        type: conv?.type || 'dm',
+        peer: conv?.peer || handle,
+        name: conv?.name || handle,
+      }
+      setActiveConversation(full)
+      return full
     },
     [client]
   )
@@ -128,6 +142,8 @@ export function ChatProvider({ children }) {
       openConversation,
       backToList,
       openDmWith,
+      shareDraft,
+      setShareDraft,
     }),
     [
       client,
@@ -135,6 +151,7 @@ export function ChatProvider({ children }) {
       connecting,
       error,
       connect,
+      shareDraft,
       activeConversation,
       openConversation,
       backToList,

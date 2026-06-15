@@ -8,7 +8,13 @@ const FALLBACK_THUMBNAIL = "/images/speak.jpg"; // Local fallback image
 
 export { fallbackImg };
 
-export function fixVideoThumbnail(video) {
+// Hive image proxy dimensions: landscape 16:9 by default, portrait 9:16 for
+// shorts so the thumbnail is cropped to portrait at the source.
+const LANDSCAPE = { w: 340, h: 191 };
+const PORTRAIT = { w: 360, h: 640 };
+
+export function fixVideoThumbnail(video, portrait = false) {
+  const size = portrait ? PORTRAIT : LANDSCAPE;
   const thumbnail = video?.images?.thumbnail || video?.thumbUrl || video?.spkvideo?.thumbnail_url || video?.thumbnailUrl || video?.thumbnail_url || video?.thumbnail;
 
   // Validate thumbnail exists and is not just whitespace
@@ -46,6 +52,11 @@ export function fixVideoThumbnail(video) {
   // (Full-size CDN images on images.hive.blog / files.peakd.com / images.3speak.tv /
   // images.ecency.com fall through to the resize proxy below instead of loading full-res.)
   if (cleanThumbnail.includes("images.hive.blog/p/") || /images\.hive\.blog\/\d+x\d+\//.test(cleanThumbnail)) {
+    // For shorts, re-request the proxied image at portrait dimensions (the
+    // baked-in params are landscape). The /p/<hash> form re-proxies the original.
+    if (portrait && cleanThumbnail.includes("images.hive.blog/p/")) {
+      return `${cleanThumbnail.split('?')[0]}?format=jpeg&mode=cover&width=${size.w}&height=${size.h}`;
+    }
     return cleanThumbnail;
   }
 
@@ -57,7 +68,7 @@ export function fixVideoThumbnail(video) {
   // 🧠 Handle regular HTTP URLs with Hive proxy
   if (cleanThumbnail.startsWith("http")) {
     const encoded = bs58.encode(Buffer.from(cleanThumbnail));
-    return `https://images.hive.blog/p/${encoded}?format=jpeg&mode=cover&width=340&height=191`;
+    return `https://images.hive.blog/p/${encoded}?format=jpeg&mode=cover&width=${size.w}&height=${size.h}`;
   }
 
   // Return as-is for any other format

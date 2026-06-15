@@ -247,19 +247,27 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
             ) : (
               <>
                 <h3 className="login-chooser-title">Welcome to 3Speak</h3>
-                <p className="login-chooser-sub">Create a new account, or log in if you already have one.</p>
+                <p className="login-chooser-sub">
+                  {ENABLE_BUTRAUTH
+                    ? 'Create a new account, or log in if you already have one.'
+                    : 'Log in to your account.'}
+                </p>
 
-                <button className="login-chooser-signup" onClick={() => startButrauthFlow(true)}>
-                  <span className="butrauth-text">
-                    <span className="butrauth-title">Sign up</span>
-                    <span className="butrauth-subtitle">New here? Use Google, email &amp; more</span>
-                  </span>
-                </button>
+                {/* Sign up is a Butter Auth flow — hide it (and avoid leaking the
+                    not-yet-live feature) when Butter Auth is disabled. */}
+                {ENABLE_BUTRAUTH && (
+                  <button className="login-chooser-signup" onClick={() => startButrauthFlow(true)}>
+                    <span className="butrauth-text">
+                      <span className="butrauth-title">Sign up</span>
+                      <span className="butrauth-subtitle">New here? Use Google, email &amp; more</span>
+                    </span>
+                  </button>
+                )}
 
                 <button className="login-chooser-login" onClick={() => setStep('providers')}>
                   <span style={{ display: 'block' }}>Log in</span>
                   <span style={{ display: 'block', fontWeight: 400, fontSize: '12.5px', opacity: 0.7, marginTop: '2px' }}>
-                    Log in with Butter Auth or any Hive wallet
+                    {ENABLE_BUTRAUTH ? 'Log in with Butter Auth or any Hive wallet' : 'Log in with any Hive wallet'}
                   </span>
                 </button>
                 <button className="login-chooser-cancel" onClick={onClose}>Cancel</button>

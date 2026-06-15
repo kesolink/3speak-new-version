@@ -2387,3 +2387,40 @@
   height: 0;
   z-index: 250;
 }
+
+/* Mobile quick comment bar at the bottom of the shorts view (replaces the app
+   nav bar). Desktop keeps the in-panel input only. */
+.shortsBottomComment { display: none; }
+@media (max-width: 768px) {
+  .shortsBottomComment {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-secondary, #1a1a1a);
+    border-top: 1px solid var(--border-light, #2d2d2d);
+
+    textarea {
+      flex: 1;
+      min-width: 0;
+      background: var(--bg-tertiary, #242424);
+      border: 1px solid var(--border-light, #2d2d2d);
+      border-radius: 18px;
+      padding: 9px 14px;
+      color: var(--text-primary, #f1f1f1);
+      font-size: 14px;
+      font-family: inherit;
+      line-height: 1.4;
+      resize: none;
+      max-height: 120px;
+      overflow-y: auto;
+      outline: none;
+      &:focus { border-color: var(--accent-primary, #e53935); }
+    }
+  }
+}

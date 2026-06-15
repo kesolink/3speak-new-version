@@ -12,7 +12,7 @@ import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn,
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
-import { enforceLockedBeneficiaries, LOCKED_FUND_ACCOUNT } from '../utils/beneficiaries';
+import { enforceLockedBeneficiaries, chargesEncoder, LOCKED_FUND_ACCOUNT, LOCKED_ENCODER_ACCOUNT } from '../utils/beneficiaries';
 import axios from 'axios';
 
 const EmbedUploadContext = createContext(null);
@@ -68,27 +68,34 @@ export function EmbedUploadProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [benficaryOpen, setBeneficiaryOpen] = useState(false);
   const [BeneficiaryList, setBeneficiaryList] = useState([]);
-  // Initial UI list — show the locked threespeakfund only for non-premium
-  // users. Premium users (or remix flows) get an updated list pushed in
-  // by the relevant pre-fill code paths.
+  // Initial UI list — show the locked threespeakfund (10%) + encoder.pay (1%)
+  // splits only for non-premium users. Both are locked: the modal renders
+  // them without a delete control and won't let them drop below minPercent.
+  // Premium users (or remix flows) get an updated list pushed in by the
+  // relevant pre-fill code paths.
   const [list, setList] = useState([
     { account: LOCKED_FUND_ACCOUNT, percent: 10, locked: true, minPercent: 10 },
+    { account: LOCKED_ENCODER_ACCOUNT, percent: 1, locked: true, minPercent: 1 },
   ]);
-  const [remaingPercent, setRemaingPercent] = useState(90);
+  const [remaingPercent, setRemaingPercent] = useState(89);
 
   // Premium status lands asynchronously (1 network call). When it flips
-  // to true we drop the locked threespeakfund row from the UI so the
-  // user doesn't see "10% to threespeakfund (locked)" while the publish
-  // path silently omits it. Non-Pro stays as-is.
+  // to true we drop the locked threespeakfund row (and the encoder.pay row,
+  // UNLESS this Pro holder is grandfathered into still paying it) from the
+  // UI so it matches what the publish path actually broadcasts. Guarded by a
+  // ref so it prunes exactly once even if the effect re-runs. Non-Pro stays.
+  const prunedLockedRef = useRef(false);
   useEffect(() => {
-    if (!isPremium) return;
-    setList((prev) => {
-      const next = prev.filter((b) => b.account !== LOCKED_FUND_ACCOUNT);
-      if (next.length === prev.length) return prev; // no change
-      return next;
-    });
-    setRemaingPercent((prev) => Math.min(100, prev + 10));
-  }, [isPremium]);
+    if (!isPremium || prunedLockedRef.current) return;
+    prunedLockedRef.current = true;
+    const keepEncoder = chargesEncoder({ isPremium, username: user, includeEncoder: true });
+    setList((prev) => prev.filter(
+      (b) => b.account !== LOCKED_FUND_ACCOUNT
+        && (keepEncoder || b.account !== LOCKED_ENCODER_ACCOUNT),
+    ));
+    // Always reclaim the 10% fund; reclaim the 1% encoder only when dropped.
+    setRemaingPercent((prev) => Math.min(100, prev + (keepEncoder ? 10 : 11)));
+  }, [isPremium, user]);
 
   // Entry origin (stories → "Share a Short", default → "Share a Video")
   const [fromStories, setFromStories] = useState(false);
@@ -548,11 +555,14 @@ export function EmbedUploadProvider({ children }) {
           beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
         }
 
-      // Apply locked beneficiaries: 10% threespeakfund for non-Pro users
-      // (skipped for Pro subscribers) + 5% to the original creator on
-      // remix/clip (kept for both tiers).
+      // Apply locked beneficiaries: 10% threespeakfund + 1% encoder.pay for
+      // non-Pro users (both skipped for Pro subscribers) + 5% to the original
+      // creator on remix/clip (kept for both tiers). encoder.pay rides on
+      // embed uploads specifically because they go through 3Speak's encoder.
       enforceLockedBeneficiaries(beneMap, {
         isPremium,
+        username: user,
+        includeEncoder: true,
         originalAuthor: originalAuthor && originalPermlink ? originalAuthor : null,
       });
 

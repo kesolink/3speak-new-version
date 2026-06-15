@@ -12,6 +12,44 @@ export const LOCKED_FUND_ACCOUNT = 'threespeakfund';
 export const LOCKED_FUND_PERCENT = 10;
 export const LOCKED_FUND_WEIGHT = LOCKED_FUND_PERCENT * 100; // Hive uses 1/100ths of a percent
 
+// Video-encoding split. Covers the cost of 3Speak's transcoding pipeline, so
+// it only rides along on flows that actually encode video (embed uploads) —
+// callers opt in with `includeEncoder: true`. Like the platform fund it's
+// dropped for Pro subscribers, and where present it is locked (the UI renders
+// it without a delete control and refuses to drop below `minPercent`).
+export const LOCKED_ENCODER_ACCOUNT = 'encoder.pay';
+export const LOCKED_ENCODER_PERCENT = 1;
+export const LOCKED_ENCODER_WEIGHT = LOCKED_ENCODER_PERCENT * 100;
+
+// Pro subscribers normally skip the encoder.pay split — EXCEPT this snapshot
+// of the current Pro holders (pulled from the checker /premium list on
+// 2026-06-13). These accounts keep paying the 1% encoder split even while
+// premium. New Pro subscribers after this date are NOT here and skip it per
+// the normal Pro rule. Lowercased Hive usernames.
+export const ENCODER_PREMIUM_PAYERS = new Set([
+  'ankalagonchik',
+  'coolmole',
+  'eddieespinod',
+  'eddiespino',
+  'eddiespinod',
+  'joseamenac',
+  'meno',
+  'starkerz',
+  'xvlad',
+  'mantequilla-soft',
+]);
+
+/**
+ * Whether the 1% encoder.pay split applies for this publish.
+ * Only flows that actually encode video opt in (`includeEncoder`). Non-Pro
+ * always pays; Pro pays only if grandfathered into ENCODER_PREMIUM_PAYERS.
+ */
+export function chargesEncoder({ isPremium, username, includeEncoder }) {
+  if (!includeEncoder) return false;
+  if (!isPremium) return true;
+  return ENCODER_PREMIUM_PAYERS.has(String(username || '').toLowerCase());
+}
+
 export const REMIX_AUTHOR_PERCENT = 5;
 export const REMIX_AUTHOR_WEIGHT = REMIX_AUTHOR_PERCENT * 100;
 
@@ -19,12 +57,14 @@ export const REMIX_AUTHOR_WEIGHT = REMIX_AUTHOR_PERCENT * 100;
  * Initial UI list of locked beneficiaries shown in the publish dialog.
  *
  *  - skips threespeakfund when `isPremium`
+ *  - adds the 1% encoder split when `includeEncoder` and `chargesEncoder`
+ *    (Pro skips it unless grandfathered — see ENCODER_PREMIUM_PAYERS)
  *  - always includes the remix-source author when `originalAuthor` is
  *    provided (remix attribution survives Pro)
  *
  * @returns {Array<{account, percent, locked, minPercent}>}
  */
-export function getLockedBeneficiaries({ isPremium, originalAuthor }) {
+export function getLockedBeneficiaries({ isPremium, originalAuthor, includeEncoder, username }) {
   const locked = [];
   if (!isPremium) {
     locked.push({
@@ -32,6 +72,14 @@ export function getLockedBeneficiaries({ isPremium, originalAuthor }) {
       percent: LOCKED_FUND_PERCENT,
       locked: true,
       minPercent: LOCKED_FUND_PERCENT,
+    });
+  }
+  if (chargesEncoder({ isPremium, username, includeEncoder })) {
+    locked.push({
+      account: LOCKED_ENCODER_ACCOUNT,
+      percent: LOCKED_ENCODER_PERCENT,
+      locked: true,
+      minPercent: LOCKED_ENCODER_PERCENT,
     });
   }
   if (originalAuthor) {
@@ -54,7 +102,7 @@ export function getLockedBeneficiaries({ isPremium, originalAuthor }) {
  *
  * Mutates `beneMap` in place and returns it for chaining.
  */
-export function enforceLockedBeneficiaries(beneMap, { isPremium, originalAuthor }) {
+export function enforceLockedBeneficiaries(beneMap, { isPremium, originalAuthor, includeEncoder, username }) {
   if (!isPremium) {
     beneMap.set(
       LOCKED_FUND_ACCOUNT,
@@ -64,6 +112,16 @@ export function enforceLockedBeneficiaries(beneMap, { isPremium, originalAuthor 
     // Premium user — drop any inherited fund entry (e.g. from a stale
     // initial-state list that was created before their flag flipped).
     beneMap.delete(LOCKED_FUND_ACCOUNT);
+  }
+  // Encoder split is independent of the platform fund: non-Pro always pays,
+  // and grandfathered Pro holders keep paying too.
+  if (chargesEncoder({ isPremium, username, includeEncoder })) {
+    beneMap.set(
+      LOCKED_ENCODER_ACCOUNT,
+      Math.max(beneMap.get(LOCKED_ENCODER_ACCOUNT) || 0, LOCKED_ENCODER_WEIGHT),
+    );
+  } else {
+    beneMap.delete(LOCKED_ENCODER_ACCOUNT);
   }
   if (originalAuthor) {
     beneMap.set(

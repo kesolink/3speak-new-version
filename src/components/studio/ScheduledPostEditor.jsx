@@ -32,6 +32,11 @@ function tagsFromText(text) {
 // Beneficiary modal renders it without a delete control and only allows raising.
 const TS_FUND_ACCOUNT = 'threespeakfund';
 const TS_FUND_MIN_PERCENT = 10;
+// @encoder.pay 1% video-encoding split, set at upload time for non-Pro embed
+// posts. We don't force-add it here (Pro posts never carry it), but when the
+// post already has it we re-lock it so editing can't delete or reduce it.
+const ENCODER_ACCOUNT = 'encoder.pay';
+const ENCODER_MIN_PERCENT = 1;
 
 function benesToList(bs) {
   const items = Array.isArray(bs) ? bs : [];
@@ -41,6 +46,10 @@ function benesToList(bs) {
       tsFundFound = true;
       const pct = Math.max(TS_FUND_MIN_PERCENT, (Number(b.weight) || 0) / 100);
       return { account: TS_FUND_ACCOUNT, percent: pct, locked: true, minPercent: TS_FUND_MIN_PERCENT };
+    }
+    if (b.account === ENCODER_ACCOUNT) {
+      const pct = Math.max(ENCODER_MIN_PERCENT, (Number(b.weight) || 0) / 100);
+      return { account: ENCODER_ACCOUNT, percent: pct, locked: true, minPercent: ENCODER_MIN_PERCENT };
     }
     return { account: b.account, percent: (Number(b.weight) || 0) / 100 };
   });
