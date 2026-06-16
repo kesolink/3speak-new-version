@@ -314,7 +314,7 @@ function EmbedDetails() {
 
         </div>
       </div>
-      {isOpen && <CommunityModal isOpen={isOpen} data={communitiesData} close={closeCommunityModal} setCommunity={setCommunity} />}
+      {isOpen && <CommunityModal isOpen={isOpen} data={communitiesData} close={closeCommunityModal} setCommunity={setCommunity} selected={community} />}
       {benficaryOpen && <Beneficiary_modal
         close={toggleBeneficiaryModal}
         isOpen={benficaryOpen}

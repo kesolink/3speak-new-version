@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MdPlayArrow, MdPlaylistPlay, MdShare, MdAdd } from 'react-icons/md';
 import { useAppStore } from '../../lib/store';
 import PayoutAmount from '../PayoutAmount/PayoutAmount';
-import PremiumBadge from '../PremiumBadge/PremiumBadge';
+import AuthorBadge from '../AuthorBadge/AuthorBadge';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { audioCategoryIcon } from '../../utils/audioCategoryIcons';
 // Reuse the existing tile styles defined in Audio.scss so this component is the
@@ -100,6 +100,9 @@ function AudioTile({
   // on the cover reveals them (and suppresses the play that the tap would fire).
   const tileRef = useRef(null);
   const [revealed, setRevealed] = useState(false);
+  // Only check this author's follow status once the tile scrolls into view, so
+  // a long list of audio tiles doesn't fire an RPC per tile up front.
+  const [inView, setInView] = useState(false);
   const longPressTimer = useRef(null);
   const suppressClickRef = useRef(false);
   const wasTouchRef = useRef(false); // distinguishes touch-tap from desktop click
@@ -119,6 +122,17 @@ function AudioTile({
 
   // Clean up a pending timer if the tile unmounts mid-press.
   useEffect(() => () => clearTimeout(longPressTimer.current), []);
+
+  // Lazily flip `inView` the first time the tile nears the viewport.
+  useEffect(() => {
+    const el = tileRef.current;
+    if (!el || inView) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) { setInView(true); obs.disconnect(); }
+    }, { rootMargin: '150px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [inView]);
 
   // Once revealed, a tap anywhere outside this tile collapses the actions.
   useEffect(() => {
@@ -203,12 +217,14 @@ function AudioTile({
   const body = (
     <div className="audio-tile-body">
       <span className="audio-tile-title" onClick={handlePlay}>{item.title || 'Untitled'}</span>
-      <span className="audio-tile-author" onClick={handleAuthor}>@{item.owner}<PremiumBadge username={item.owner} size={11} /></span>
+      <AuthorBadge author={item.owner} showFollow={inView} compact tabHint="audio" onClick={onAuthorClick} />
       {metaLine && <span className="audio-tile-meta"><i className={`audio-tile-meta-icon ${audioCategoryIcon(item.category)}`} /> {metaLine}</span>}
       <div className="audio-tile-footer">
-        {item.plays > 0 && <span>{item.plays} plays</span>}
-        {item.stats?.total_hive_reward > 0 && <PayoutAmount amount={item.stats.total_hive_reward} size={10} />}
-        <span>{fmtAgo(item.createdAt)}</span>
+        <div className="audio-tile-footer-left">
+          {item.stats?.total_hive_reward > 0 && <PayoutAmount amount={item.stats.total_hive_reward} size={10} />}
+          {item.plays > 0 && <span>{item.plays} plays</span>}
+        </div>
+        <span className="audio-tile-time">{fmtAgo(item.createdAt)}</span>
       </div>
     </div>
   );

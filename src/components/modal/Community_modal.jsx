@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
+import React, { useState, useEffect } from "react";
 import "./Community_modal.scss";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
+import { Users, PenLine, ChevronDown, Loader2 } from "lucide-react";
 import { CHECKER_URL } from "../../utils/config";
 
 // Debounce hook
@@ -15,68 +15,141 @@ const useDebounce = (value, delay = 300) => {
   return debounced;
 };
 
-// Portal-based detail popup to escape overflow clipping
-function CommunityDetailPortal({ community, anchorRef, visible }) {
-  const popupRef = useRef(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+// 8071 -> "8.1K", 1200000 -> "1.2M"
+const formatCount = (n) => {
+  if (n == null) return null;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return n.toLocaleString();
+};
 
-  useLayoutEffect(() => {
-    if (!visible || !anchorRef.current) return;
-    const rect = anchorRef.current.getBoundingClientRect();
-    setPos({
-      top: rect.top + window.scrollY - 6,
-      left: rect.left + window.scrollX,
-    });
-  }, [visible, anchorRef]);
+// Rules come as one rule per line — turn each non-empty line into a markdown
+// bullet (stripping any existing bullet/number marker so we don't double up).
+const toBulletList = (text) =>
+  String(text || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => `- ${l.replace(/^[-*•]\s*/, "").replace(/^\d+[.)]\s*/, "")}`)
+    .join("\n");
 
-  if (!visible || !community.about && !community.subscribers) return null;
+// Community about/rules can contain markdown + HTML — render them with the same
+// (sanitizing) Hive renderer the post body uses. Lazy-loaded to avoid pulling
+// the renderer (and its node polyfills) into the main bundle.
+let rendererPromise = null;
+const getRenderer = async () => {
+  if (!rendererPromise) {
+    rendererPromise = import("@snapie/renderer").then(({ createHiveRenderer }) =>
+      createHiveRenderer({
+        ipfsGateway: "https://hotipfs-3speak-1.b-cdn.net",
+        convertHiveUrls: true,
+        internalUrlPrefix: "",
+        usertagUrlFn: (account) => `/p/${account}`,
+        hashtagUrlFn: (tag) => `/t/${tag}`,
+      })
+    );
+  }
+  return rendererPromise;
+};
 
-  return createPortal(
-    <div
-      ref={popupRef}
-      className="community-badge-detail-portal"
-      style={{ top: pos.top, left: pos.left }}
-    >
-      {community.about && (
-        <span className="community-badge-about">{community.about}</span>
-      )}
-      <span className="community-badge-stats">
-        {community.subscribers ? `${community.subscribers.toLocaleString()} subscribers` : ''}
-        {community.subscribers && community.num_authors ? ' · ' : ''}
-        {community.num_authors ? `${community.num_authors.toLocaleString()} authors` : ''}
-      </span>
-    </div>,
-    document.body
-  );
+function MarkdownText({ text }) {
+  const [html, setHtml] = useState("");
+  useEffect(() => {
+    let alive = true;
+    if (!text) { setHtml(""); return; }
+    getRenderer()
+      .then((render) => { if (alive) { try { setHtml(render(text)); } catch { setHtml(""); } } })
+      .catch(() => { if (alive) setHtml(""); });
+    return () => { alive = false; };
+  }, [text]);
+  if (!html) return text ? <p className="community-card-text">{text}</p> : null;
+  return <div className="community-card-text markdown-view" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-function CommunityBadge({ community, onClick }) {
-  const badgeRef = useRef(null);
-  const [hovered, setHovered] = useState(false);
+function CommunityCard({ community, onSelect }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Full metadata (bio + description + rules) comes from the checker's
+  // /community/:name endpoint. Fetched eagerly because the bio shown on the card
+  // can't be trusted from search (the shared community collection gets its
+  // `about` wiped by another service) — this endpoint is the reliable source.
+  const { data: detail, isFetching } = useQuery({
+    queryKey: ["community-detail", community.name],
+    enabled: !!community.name,
+    queryFn: async () => {
+      const res = await axios.get(`${CHECKER_URL}/community/${encodeURIComponent(community.name)}`);
+      return res.data?.community || null;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  const subs = community.subscribers ?? detail?.subscribers;
+  const authors = community.num_authors ?? detail?.num_authors;
+  const bio = community.about || detail?.about;
 
   return (
-    <div
-      ref={badgeRef}
-      className="community-badge"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <img
-        src={`https://images.ecency.com/u/${community.name}/avatar/small`}
-        alt=""
-      />
-      <span className="community-badge-title">{community.title}</span>
-      <CommunityDetailPortal
-        community={community}
-        anchorRef={badgeRef}
-        visible={hovered}
-      />
+    <div className={`community-card${expanded ? " expanded" : ""}`}>
+      <div className="community-card-main" onClick={() => onSelect(community)}>
+        <img
+          className="community-card-avatar"
+          src={`https://images.hive.blog/u/${community.name}/avatar`}
+          alt=""
+          loading="lazy"
+          onError={(e) => { e.currentTarget.style.visibility = "hidden"; }}
+        />
+        <div className="community-card-info">
+          <span className="community-card-title">{community.title || community.name}</span>
+          <span className="community-card-stats">
+            {subs != null && (
+              <span className="community-card-stat"><Users size={13} /> {formatCount(subs)}</span>
+            )}
+            {authors != null && (
+              <span className="community-card-stat"><PenLine size={13} /> {formatCount(authors)}</span>
+            )}
+          </span>
+          {bio && <span className="community-card-bio">{bio}</span>}
+        </div>
+        <button
+          type="button"
+          className="community-card-toggle"
+          aria-label={expanded ? "Hide details" : "Show details"}
+          aria-expanded={expanded}
+          onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+        >
+          <ChevronDown size={18} className={expanded ? "rot" : ""} />
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="community-card-detail">
+          {isFetching && (
+            <div className="community-card-loading"><Loader2 size={15} className="spin" /> Loading…</div>
+          )}
+          {detail?.description && (
+            <div className="community-card-section">
+              <h4>About</h4>
+              <MarkdownText text={detail.description} />
+            </div>
+          )}
+          {detail?.rules && (
+            <div className="community-card-section">
+              <h4>Rules</h4>
+              <MarkdownText text={toBulletList(detail.rules)} />
+            </div>
+          )}
+          {!isFetching && !detail?.description && !detail?.rules && (
+            <div className="community-card-loading">No extra info for this community.</div>
+          )}
+          <button type="button" className="community-card-select" onClick={() => onSelect(community)}>
+            Select this community
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function CommunitieModal({ isOpen, data, close, setCommunity }) {
+function CommunitieModal({ isOpen, data, close, setCommunity, selected }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const debouncedQuery = useDebounce(searchQuery, 400);
@@ -100,13 +173,43 @@ function CommunitieModal({ isOpen, data, close, setCommunity }) {
     staleTime: 60_000,
   });
 
-  // Show search results when searching, default data otherwise
-  const visibleCommunities =
-    debouncedQuery.trim().length >= 2
-      ? searchResults
-      : (data || []).slice(0, 10);
+  // Lock the page behind the modal so touch-scrolling moves the modal (the
+  // mobile bottom sheet), not the page underneath it.
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
+
+  // Default (no search) shows a single card: the already-selected community if
+  // there is one, otherwise the 3Speak community. The rest appear on search.
+  const DEFAULT_COMMUNITY = "hive-181335";
+  const searching = debouncedQuery.trim().length >= 2;
+
+  let selectedCommunity = null;
+  if (selected) {
+    if (typeof selected === "string") {
+      selectedCommunity =
+        (data || []).find((c) => c.name === selected) ||
+        { name: selected, title: selected === DEFAULT_COMMUNITY ? "3Speak" : selected };
+    } else if (selected.name) {
+      selectedCommunity = selected;
+    }
+  }
+
+  const defaultCommunity =
+    selectedCommunity ||
+    (data || []).find((c) => c.name === DEFAULT_COMMUNITY) ||
+    { name: DEFAULT_COMMUNITY, title: "3Speak" };
+  const visibleCommunities = searching ? searchResults : [defaultCommunity];
 
   if (!isOpen) return null;
+
+  const onSelect = (community) => {
+    setCommunity(community);
+    close();
+  };
 
   return (
     <div className={`modal ${isOpen ? "open" : ""}`}>
@@ -140,20 +243,20 @@ function CommunitieModal({ isOpen, data, close, setCommunity }) {
           <div className="community-list-wrap">
             {visibleCommunities.length > 0 ? (
               visibleCommunities.map((community, index) => (
-                <CommunityBadge
-                  key={index}
+                <CommunityCard
+                  key={community.name || index}
                   community={community}
-                  onClick={() => {
-                    setCommunity(community);
-                    close();
-                  }}
+                  onSelect={onSelect}
                 />
               ))
             ) : (
-              !isLoading &&
-              debouncedQuery.trim().length >= 2 && <p>No communities found.</p>
+              !isLoading && searching && <p>No communities found.</p>
             )}
           </div>
+
+          {!searching && (
+            <p className="community-search-hint">Search above to find more communities.</p>
+          )}
 
         </div>
       </div>
