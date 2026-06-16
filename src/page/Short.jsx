@@ -41,6 +41,7 @@ import { MdTranslate, MdClosedCaption, MdClosedCaptionOff, MdFlag } from 'react-
 import mantequillaLogo from '../assets/mantequilla-logo.png';
 import ReportModal, { isReported } from '../components/modal/ReportModal';
 import { Flag } from 'lucide-react';
+import ShareChooserModal from '../components/Chat/ShareChooserModal';
 import useTranslation from '../hooks/useTranslation';
 import TranslateButton from '../components/TranslateButton/TranslateButton';
 import useSubtitles from '../hooks/useSubtitles';
@@ -110,6 +111,10 @@ const getRenderer = async () => {
   }
   return rendererPromise;
 };
+
+// Markdown collapses single newlines — turn them into hard breaks so multi-line
+// comments keep their line breaks when rendered.
+const hardBreakMd = (text) => String(text || '').replace(/\n/g, '  \n');
 
 /* ---- Caption renderer: markdown links → clickable badges, strips HTML ---- */
 function renderCaption(text) {
@@ -193,6 +198,7 @@ const VideoShort = () => {
   // (it's a full-screen bottom sheet there).
   const [showComments, setShowComments] = useState(() => typeof window !== 'undefined' && window.innerWidth > 768);
   const [newComment, setNewComment] = useState('');
+  const [shareChooserOpen, setShareChooserOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
@@ -1293,7 +1299,7 @@ const VideoShort = () => {
         const rendered = {};
         const renderComment = (c) => {
           if (c?.body) {
-            try { rendered[c.permlink] = render(c.body); } catch (_) {}
+            try { rendered[c.permlink] = render(hardBreakMd(c.body)); } catch (_) {}
           }
           if (c.children) c.children.forEach(renderComment);
         };
@@ -1407,8 +1413,52 @@ const VideoShort = () => {
     setPostingComment(true);
     const newPermlink = `re-${parentPermlink}-${Date.now()}`;
 
+    const newCommentObj = {
+      id: `${user}-${newPermlink}`,
+      author: user,
+      permlink: newPermlink,
+      body: commentText,
+      createdAt: new Date().toISOString(),
+      timeAgo: 'Just now',
+      netVotes: 0,
+      children: [],
+      stats: {
+        num_likes: 0,
+        total_hive_reward: 0
+      },
+      user: {
+        username: `@${user}`,
+        avatar: `https://images.hive.blog/u/${user}/avatar`
+      },
+      has_voted: false
+    };
+
+    // Pre-render the body (markdown + line breaks) for instant display.
     try {
-      const result = await commentWithAioha(
+      const render = await getRenderer();
+      const html = render(hardBreakMd(commentText));
+      setRenderedBodies(prev => ({ ...prev, [newPermlink]: html }));
+    } catch (_) { /* falls back to raw body */ }
+
+    // Optimistically add the comment + bump the count NOW — signing happens in
+    // the background, so the UI shouldn't wait for it (and the result shape of
+    // the background broadcast must not gate the count).
+    setVideos(prev =>
+      prev.map((v, idx) => {
+        if (idx !== currentIndex) return v;
+        return {
+          ...v,
+          comments: isReply
+            ? addReplyToComment(v.comments, parentPermlink, newCommentObj)
+            : [newCommentObj, ...v.comments],
+          stats: { ...v.stats, comments: (v.stats.comments || 0) + 1 }
+        };
+      })
+    );
+    if (isReply) { setReplyText(''); setActiveReply(null); } else { setNewComment(''); }
+
+    try {
+      await commentWithAioha(
         parentAuthor,
         parentPermlink,
         newPermlink,
@@ -1416,64 +1466,34 @@ const VideoShort = () => {
         commentText,
         { app: '3speak/new-version' }
       );
-
-      if (result.success) {
-        toast.success('Comment posted successfully!');
-
-        const newCommentObj = {
-          id: `${user}-${newPermlink}`,
-          author: user,
-          permlink: newPermlink,
-          body: commentText,
-          createdAt: new Date().toISOString(),
-          timeAgo: 'Just now',
-          netVotes: 0,
-          children: [],
-          stats: {
-            num_likes: 0,
-            total_hive_reward: 0
-          },
-          user: {
-            username: `@${user}`,
-            avatar: `https://images.hive.blog/u/${user}/avatar`
-          },
-          has_voted: false
-        };
-
-        if (isReply) {
-          setVideos(prev =>
-            prev.map((v, idx) => {
-              if (idx !== currentIndex) return v;
-              return {
-                ...v,
-                comments: addReplyToComment(v.comments, parentPermlink, newCommentObj),
-                stats: { ...v.stats, comments: (v.stats.comments || 0) + 1 }
-              };
-            })
-          );
-          setReplyText('');
-          setActiveReply(null);
-        } else {
-          setVideos(prev =>
-            prev.map((v, idx) => {
-              if (idx !== currentIndex) return v;
-              return {
-                ...v,
-                comments: [newCommentObj, ...v.comments],
-                stats: { ...v.stats, comments: (v.stats.comments || 0) + 1 }
-              };
-            })
-          );
-          setNewComment('');
-        }
-      }
+      toast.success('Comment posted successfully!');
     } catch (err) {
       console.error('Comment failed:', err);
       toast.error('Comment failed: ' + (err.message || 'please try again'));
+      // Roll back the optimistic comment + count.
+      setVideos(prev =>
+        prev.map((v, idx) => {
+          if (idx !== currentIndex) return v;
+          return {
+            ...v,
+            comments: removeCommentByPermlink(v.comments, newPermlink),
+            stats: { ...v.stats, comments: Math.max(0, (v.stats.comments || 1) - 1) }
+          };
+        })
+      );
     } finally {
       setPostingComment(false);
     }
   };
+
+  // Remove a comment (top-level or nested) by permlink — used to roll back an
+  // optimistic comment if the background broadcast fails.
+  const removeCommentByPermlink = (comments, permlink) =>
+    comments
+      .filter(c => c.permlink !== permlink)
+      .map(c => (c.children && c.children.length
+        ? { ...c, children: removeCommentByPermlink(c.children, permlink) }
+        : c));
 
   // Helper to add reply to nested comments
   const addReplyToComment = (comments, parentPermlink, newComment) => {
@@ -2767,7 +2787,7 @@ const VideoShort = () => {
             <span className="actionLabel">{formatPayout(currentVideo.stats.payout)}</span>
           </div>
 
-          <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleShare(); }}>
+          <div className="actionItem" onClick={(e) => { e.stopPropagation(); setShareChooserOpen(true); }}>
             <div className="actionButton">
               <Share2 size={24} />
             </div>
@@ -2795,6 +2815,14 @@ const VideoShort = () => {
 
 
         </div>
+
+        <ShareChooserModal
+          open={shareChooserOpen}
+          url={`${window.location.origin}/shorts?v=${currentVideo.author}/${currentVideo.permlink}`}
+          title={currentVideo.title}
+          onClose={() => setShareChooserOpen(false)}
+          onGeneralShare={handleShare}
+        />
 
         {/* NAVIGATION */}
         <div className="navigationArrows">
@@ -2903,12 +2931,8 @@ const VideoShort = () => {
               e.target.style.height = e.target.scrollHeight + 'px';
             }}
             disabled={!user || postingComment || currentVideo.hivePostMissing}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !postingComment) {
-                e.preventDefault();
-                handlePostComment(currentVideo.author, currentVideo.hivePermlink, newComment, false);
-              }
-            }}
+            // Enter always inserts a newline (multi-line comments); posting is
+            // handled only by the Send button.
           />
           <button
             className="sendCommentBtn"
@@ -2933,6 +2957,32 @@ const VideoShort = () => {
         originalPermlink={editorOriginalPermlink}
         originalShortPermlink={editorOriginalShortPermlink}
       />
+
+      {/* Mobile-only quick comment bar at the bottom (replaces the app nav bar
+          on the shorts view). Hidden while the full comments panel is open. */}
+      {!showComments && (
+        <div className="shortsBottomComment">
+          <textarea
+            rows={1}
+            placeholder={user ? 'Add a comment…' : 'Login to comment'}
+            value={newComment}
+            onChange={(e) => {
+              setNewComment(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
+            disabled={!user || currentVideo.hivePostMissing}
+          />
+          <button
+            className="sendCommentBtn"
+            onClick={() => handlePostComment(currentVideo.author, currentVideo.hivePermlink, newComment, false)}
+            disabled={!user || !newComment.trim() || postingComment || currentVideo.hivePostMissing}
+            aria-label="Send comment"
+          >
+            {postingComment ? <Loader2 size={18} className="spinner" /> : <Send size={18} />}
+          </button>
+        </div>
+      )}
     </main>
   {isReportOpen && (
     <ReportModal

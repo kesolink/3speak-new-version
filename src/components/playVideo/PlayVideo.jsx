@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
 import CommentSection from "./CommentSection";
+import ShareChooserModal from "../Chat/ShareChooserModal";
 import { useAppStore } from '../../lib/store';
 import { estimate, getUersContent, getVotePower } from "../../utils/hiveUtils";
 import { getUserReputation } from "../../utils/reputation";
@@ -99,6 +100,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [communityData, setCommunityData] = useState(null);
   const [authorReputation, setAuthorReputation] = useState(null);
   const [fabOpen, setFabOpen] = useState(false);
+  const [shareChooserOpen, setShareChooserOpen] = useState(false);
   const [isFollowingCreator, setIsFollowingCreator] = useState(null);
   const [followLoading, setFollowLoading] = useState(false);
 
@@ -974,8 +976,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 <button
                   type="button"
                   className="share-btn"
-                  onClick={handleShare}
-                  title="Share with timestamp"
+                  onClick={() => setShareChooserOpen(true)}
+                  title="Share"
                 >
                   <MdShare size={16} />
                 </button>
@@ -1148,6 +1150,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           </div>
         )}
 
+        <ShareChooserModal
+          open={shareChooserOpen}
+          url={`${window.location.origin}/watch?v=${author}/${permlink}`}
+          title={videoDetails?.title}
+          onClose={() => setShareChooserOpen(false)}
+          onGeneralShare={handleShare}
+        />
+
         <CommentSection
           videoDetails={videoDetails}
           author={author}
@@ -1223,7 +1233,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 <span className="fab-action-label">Share</span>
                 <button
                   className="fab-action-btn"
-                  onClick={() => { handleShare(); setFabOpen(false); }}
+                  onClick={() => { setShareChooserOpen(true); setFabOpen(false); }}
                   aria-label="Share"
                 >
                   <MdShare size={20} />

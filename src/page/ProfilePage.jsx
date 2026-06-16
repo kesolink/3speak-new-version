@@ -68,7 +68,16 @@ function ProfilePage() {
     if (tab === 'playlists') setShow('playlists');
     else if (tab === 'shorts') setShow('shorts');
     else if (tab === 'audio') setShow('audio');
+    else if (!tab) setShow('video');
   }, [searchParams]);
+
+  // Switch tab AND reflect it in the URL so browser back-navigation
+  // (e.g. returning from an opened short/playlist) lands on the same tab.
+  const selectTab = useCallback((tab) => {
+    setShow(tab);
+    const q = tab && tab !== 'video' ? `?tab=${tab}` : '';
+    navigate(`/profile${q}`, { replace: true });
+  }, [navigate]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -449,23 +458,17 @@ function ProfilePage() {
       {/* ================= TOGGLE ================= */}
       <div className="toggle-wrap">
         <div className="wrap">
-          <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
-          <span className={show === "shorts" ? "active" : ""} onClick={() => setShow("shorts")}>Shorts</span>
-          <span className={show === "audio" ? "active" : ""} onClick={() => setShow("audio")}>Audio</span>
-          <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
-            Playlists {playlists.length > 0 && `(${playlists.length})`}
+          <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
+          <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
+          <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
+            Playlists
           </span>
           <span role="button" tabIndex={0} onClick={() => setShowEditHint(true)}>Edit Video</span>
         </div>
 
         <div className="wrap-in">
           <span onClick={() => navigate(`/wallet/${user}`)}>Wallet</span>
-
-          {authenticated && (
-            <div className="wrap-upload-video" onClick={handleUploadNavigate}>
-              <FaVideo />
-            </div>
-          )}
         </div>
       </div>
 

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '../../hive-api/api';
 import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import icon from "../../../public/images/stack.png"
 import "./UserProfilePage.scss"
 import BarLoader from '../Loader/BarLoader';
@@ -39,6 +39,7 @@ function UserProfilePage() {
     const { user } = useParams();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate()
+    const location = useLocation();
     const queryClient = useReactQueryClient();
     const { user: authenticatedUser, authenticated } = useAppStore();
     const [follower, setFollower] = useState(null)
@@ -51,6 +52,24 @@ function UserProfilePage() {
       if (tab === 'audio') return 'audio';
       return 'video';
     });
+
+    // Keep tab state in sync with the URL (browser back/forward, sidebar links)
+    useEffect(() => {
+      const tab = searchParams.get('tab');
+      if (tab === 'playlists') setShow('playlists');
+      else if (tab === 'shorts') setShow('shorts');
+      else if (tab === 'audio') setShow('audio');
+      else if (!tab) setShow('video');
+    }, [searchParams]);
+
+    // Switch tab AND reflect it in the URL so browser back-navigation
+    // (e.g. returning from an opened short/playlist) lands on the same tab.
+    const selectTab = useCallback((tab) => {
+      setShow(tab);
+      const q = tab && tab !== 'video' ? `?tab=${tab}` : '';
+      navigate(`${location.pathname}${q}`, { replace: true });
+    }, [navigate, location.pathname]);
+
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [newPlaylistAccess, setNewPlaylistAccess] = useState('public');
@@ -321,6 +340,15 @@ const {
                 {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
               </button>
             )}
+            {authenticated && !isOwnProfile && (
+              <button
+                className="btn btn-secondary"
+                title={`Message @${user}`}
+                onClick={() => navigate(`/chat?dm=${encodeURIComponent(user)}`)}
+              >
+                Write message
+              </button>
+            )}
             <button
               className="btn btn-secondary"
               onClick={async () => {
@@ -355,10 +383,10 @@ const {
       />
       <div className="toggle-wrap">
         <div className="wrap">
-          <span className={show === "video" ? "active" : ""} onClick={() => setShow("video")}>Videos</span>
-          <span className={show === "shorts" ? "active" : ""} onClick={() => setShow("shorts")}>Shorts</span>
-          <span className={show === "audio" ? "active" : ""} onClick={() => setShow("audio")}>Audio</span>
-          <span className={show === "playlists" ? "active" : ""} onClick={() => setShow("playlists")}>
+          <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
+          <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
+          <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
         </div>

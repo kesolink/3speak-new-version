@@ -6,7 +6,9 @@ import { getCreatorSettings, isUploadBlocked } from '../../utils/creatorSettings
 import { useSupportBlock } from '../../lib/supportBlockStore';
 import './OpenPodModal.scss';
 
-const API_URL = import.meta.env.VITE_HANGOUTS_API_URL;
+// Strip any trailing slash — useHangoutsRoom builds `${apiBaseUrl}/rooms` with a
+// raw fetch, so a trailing slash yields `//rooms` and a 404 from the API.
+const API_URL = (import.meta.env.VITE_HANGOUTS_API_URL || '').replace(/\/$/, '');
 const LK_URL  = import.meta.env.VITE_LIVEKIT_URL || 'wss://livekit.3speak.tv';
 const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
 

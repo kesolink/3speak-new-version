@@ -241,6 +241,21 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace(/^\/image-api/, ''),
       },
+      // Snapie chat API (@snapie/chat-client). Same-origin proxy:
+      // /snapie-chat/api/chat/* -> https://snapie.io/api/chat/*.
+      // snapie.io carries the delegated-verify patch (verified 2026-06-15), so
+      // background @threespeak chat signing works against the public service.
+      '/snapie-chat': {
+        target: 'https://snapie.io',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/snapie-chat/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('origin');
+          });
+        },
+      },
     },
   },
 });
