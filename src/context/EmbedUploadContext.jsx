@@ -520,7 +520,7 @@ export function EmbedUploadProvider({ children }) {
       const watchPath = fromStories
         ? `/shorts?v=${user}/${hivePermlink}`
         : `/watch?v=${user}/${hivePermlink}`;
-      postBody += `\n\n---\n▶ [Watch on 3Speak](https://3speak.tv${watchPath})`;
+      postBody += `\n\n---\n▶ [Watch on 3speak.tv](https://3speak.tv${watchPath})`;
 
       // Tag taxonomy differs by upload type:
       //   - shorts: forced ['3speak', 'hive-181335', 'short', ...userTags]
