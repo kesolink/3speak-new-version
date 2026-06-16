@@ -508,60 +508,70 @@
 
 // ─── Tile row (horizontal scroll) ───
 .audio-tile-row {
-  // Horizontal feed (matches the video home page rails): fill top→bottom then
-  // scroll right. Row count adapts to tile count via --audio-rows (set by the
-  // AudioTileRow component); defaults to 2.
+  // Responsive grid that fills the available width and wraps — the column count
+  // adapts to the viewport instead of being a fixed-width horizontal rail.
   display: grid;
-  grid-template-rows: repeat(var(--audio-rows, 2), auto);
-  grid-auto-flow: column;
-  grid-auto-columns: 170px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
-  overflow-x: auto;
   padding-bottom: 6px;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
 
-  // On phones, drop the horizontal-scroll rail and wrap tiles into a normal
-  // 2-column vertical grid that grows downward (--audio-rows is ignored here).
+  // On phones, two cards per row — same as the main video card rails.
   @include mix.respond(phone) {
-    grid-auto-flow: row;
-    grid-template-rows: none;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-auto-columns: auto;
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
-    overflow-x: visible;
-    padding-bottom: 0;
   }
 }
 
 // ─── Tile grid (search results) ─────
 .audio-tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 14px;
-  @include mix.respond(phone) { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  @include mix.respond(phone) { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 }
 
 // ─── Audio Tile ─────────────────────
 .audio-tile {
-  width: 170px;
-  min-width: 170px;
+  width: 200px;
+  min-width: 200px;
   flex-shrink: 0;
   position: relative;
+  box-sizing: border-box;
+  // Same card container + hover as the video cards, for a consistent feel.
+  background-color: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  padding: 8px;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+
   @include mix.respond(phone) {
     width: 150px; min-width: 150px;
     // Inside a wrapped row grid on phones, stretch to fill the grid column.
     .audio-tile-row & { width: auto; min-width: 0; }
   }
 
+  // In any of the responsive grids, stretch to fill the column instead of the
+  // fixed 250px base width.
+  .audio-tile-row &,
   .audio-tile-grid & { width: auto; min-width: 0; }
+
+  @media (hover: hover) {
+    &:hover {
+      transform: scale(1.015);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+    }
+    [data-theme="dark"] &:hover {
+      background-color: #242424;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+    }
+  }
 }
 
 .audio-tile-cover {
   position: relative;
   border-radius: 10px;
   overflow: hidden;
-  aspect-ratio: 1;
+  aspect-ratio: 16 / 9; // match the video thumbnails
   background: var(--bg-tertiary);
   cursor: pointer;
   // Long-press to reveal actions on touch: don't trigger the OS callout /
@@ -657,7 +667,18 @@
 }
 
 .audio-tile-body {
-  padding: 4px 2px 0;
+  padding: 6px 2px 0;
+
+  // AuthorBadge (with follow button) reused from the video cards — sized down
+  // to fit the narrower audio tile.
+  .author-badge {
+    margin: 4px 0 2px;
+    max-width: 100%;
+
+    img { width: 24px; height: 24px; }
+    .author-name { font-size: 12px; }
+    .follow-btn { padding: 0 10px; font-size: 11px; }
+  }
 }
 
 // One-line metadata summary shown beneath the username (e.g. "reggae · 103 bpm").
@@ -703,10 +724,20 @@
 
 .audio-tile-footer {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   font-size: 10px;
   color: var(--text-muted);
-  margin-top: 3px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-light);
+
+  .audio-tile-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 }
 
 // Action buttons live inside the thumbnail (top-right of cover) so they
@@ -739,11 +770,9 @@
 }
 
 .audio-tile-skeleton {
-  width: 170px;
-  min-width: 170px;
-  flex-shrink: 0;
-  aspect-ratio: 1;
-  border-radius: 10px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
   background: var(--bg-tertiary);
   animation: audio-pulse 1.2s ease-in-out infinite;
 }

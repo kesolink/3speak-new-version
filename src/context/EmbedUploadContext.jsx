@@ -418,9 +418,11 @@ export function EmbedUploadProvider({ children }) {
       // file (e.g. the Hangouts server). Reuse it so the Hive post permlink
       // matches the embed permlink — that's what the existing /video/{p}/hive
       // link endpoint expects.
-      const trimmedDesc = (description || '').trim();
-      const slug = trimmedDesc
-        ? trimmedDesc.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 27).replace(/-+$/, '')
+      // Permlink slug source: longform videos use the title; shorts have no
+      // title, so they keep using the first words of the description (caption).
+      const slugSource = ((fromStories ? description : title) || description || '').trim();
+      const slug = slugSource
+        ? slugSource.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 27).replace(/-+$/, '')
         : '';
       const generatedPermlink = prefilled && prefilledPermlink
         ? prefilledPermlink
@@ -511,6 +513,14 @@ export function EmbedUploadProvider({ children }) {
           : `${window.location.origin}/@${originalAuthor}/${originalPermlink}`;
         postBody += `\n\n---\n*Based on a video by [@${originalAuthor}](${originalLink})*`;
       }
+
+      // "Watch on 3Speak" link at the bottom, pointing at the right page for the
+      // content type: shorts → /shorts, regular videos → /watch. Always points at
+      // the main instance (3speak.tv), never preview, regardless of where posted.
+      const watchPath = fromStories
+        ? `/shorts?v=${user}/${hivePermlink}`
+        : `/watch?v=${user}/${hivePermlink}`;
+      postBody += `\n\n---\n▶ [Watch on 3speak.tv](https://3speak.tv${watchPath})`;
 
       // Tag taxonomy differs by upload type:
       //   - shorts: forced ['3speak', 'hive-181335', 'short', ...userTags]

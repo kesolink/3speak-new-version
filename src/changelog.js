@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.17.0',
+    date: '2026-06-15',
+    summary:
+      'The community picker when uploading is redesigned: each community shows a card with its subscriber count and bio, and you can expand it to read the full About and rules. Video and audio cards now gently zoom on hover, and audio cards now match the look of video cards (16:9 cover, author with a follow button).',
+  },
+  {
+    version: '1.16.0',
+    date: '2026-06-15',
+    summary:
+      'Videos posted to Hive now include a “Watch on 3Speak” link at the bottom that opens the right page (the shorts player for shorts, the watch page for videos). A video’s link is now based on its title instead of its description (shorts still use the first words of their text).',
+  },
+  {
     version: '1.15.0',
     date: '2026-06-15',
     summary:
