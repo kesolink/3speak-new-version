@@ -515,11 +515,12 @@ export function EmbedUploadProvider({ children }) {
       }
 
       // "Watch on 3Speak" link at the bottom, pointing at the right page for the
-      // content type: shorts → /shorts, regular videos → /watch.
+      // content type: shorts → /shorts, regular videos → /watch. Always points at
+      // the main instance (3speak.tv), never preview, regardless of where posted.
       const watchPath = fromStories
         ? `/shorts?v=${user}/${hivePermlink}`
         : `/watch?v=${user}/${hivePermlink}`;
-      postBody += `\n\n---\n▶ [Watch on 3Speak](${window.location.origin}${watchPath})`;
+      postBody += `\n\n---\n▶ [Watch on 3Speak](https://3speak.tv${watchPath})`;
 
       // Tag taxonomy differs by upload type:
       //   - shorts: forced ['3speak', 'hive-181335', 'short', ...userTags]
