@@ -49,14 +49,18 @@ export function fixVideoThumbnail(video, portrait = false) {
   }
 
   // ✅ Already a SIZED Hive proxy URL (…/p/… or …/WxH/…) — already small, leave it.
-  // (Full-size CDN images on images.hive.blog / files.peakd.com / images.3speak.tv /
-  // images.ecency.com fall through to the resize proxy below instead of loading full-res.)
   if (cleanThumbnail.includes("images.hive.blog/p/") || /images\.hive\.blog\/\d+x\d+\//.test(cleanThumbnail)) {
     // For shorts, re-request the proxied image at portrait dimensions (the
     // baked-in params are landscape). The /p/<hash> form re-proxies the original.
     if (portrait && cleanThumbnail.includes("images.hive.blog/p/")) {
       return `${cleanThumbnail.split('?')[0]}?format=jpeg&mode=cover&width=${size.w}&height=${size.h}`;
     }
+    return cleanThumbnail;
+  }
+
+  // ⚠️ images.hive.blog's resize proxy 403s on ecency-hosted sources, so load
+  // ecency thumbnails directly instead of routing them through that proxy.
+  if (cleanThumbnail.includes("i.ecency.com") || cleanThumbnail.includes("images.ecency.com")) {
     return cleanThumbnail;
   }
 
