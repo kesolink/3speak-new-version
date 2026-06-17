@@ -58,10 +58,21 @@ export function fixVideoThumbnail(video, portrait = false) {
     return cleanThumbnail;
   }
 
-  // ⚠️ images.hive.blog's resize proxy 403s on ecency-hosted sources, so load
-  // ecency thumbnails directly instead of routing them through that proxy.
+  // ⚠️ images.hive.blog's resize proxy 403s on ecency-hosted sources. Route them
+  // through ecency's OWN imagehoster (same /p/ API) instead, so the thumbnail is
+  // still downscaled — and portrait-cropped for shorts — rather than loading the
+  // full-resolution original.
   if (cleanThumbnail.includes("i.ecency.com") || cleanThumbnail.includes("images.ecency.com")) {
-    return cleanThumbnail;
+    // Already an ecency resize-proxy URL — leave it (re-size for portrait shorts).
+    if (cleanThumbnail.includes("images.ecency.com/p/") || /images\.ecency\.com\/\d+x\d+\//.test(cleanThumbnail)) {
+      if (portrait && cleanThumbnail.includes("images.ecency.com/p/")) {
+        return `${cleanThumbnail.split('?')[0]}?format=jpeg&mode=cover&width=${size.w}&height=${size.h}`;
+      }
+      return cleanThumbnail;
+    }
+    // Raw ecency image — re-proxy through ecency (hive's proxy 403s on these).
+    const encoded = bs58.encode(Buffer.from(cleanThumbnail));
+    return `https://images.ecency.com/p/${encoded}?format=jpeg&mode=cover&width=${size.w}&height=${size.h}`;
   }
 
   // ⚠️ media.3speak.tv doesn't exist anymore - use fallback
