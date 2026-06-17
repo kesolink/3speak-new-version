@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./Community_modal.scss";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Users, PenLine, ChevronDown, Loader2 } from "lucide-react";
 import { CHECKER_URL } from "../../utils/config";
+import { getSubscriptions } from "../../hive-api/hiveApi";
+import { useAppStore } from "../../lib/store";
 
 // Debounce hook
 const useDebounce = (value, delay = 300) => {
@@ -68,14 +70,27 @@ function MarkdownText({ text }) {
 
 function CommunityCard({ community, onSelect }) {
   const [expanded, setExpanded] = useState(false);
+  const cardRef = useRef(null);
+  // Only load this card's full metadata once it scrolls into view, so a long
+  // list (e.g. the user's subscriptions) doesn't fire a request per card up front.
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || inView) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) { setInView(true); obs.disconnect(); }
+    }, { rootMargin: "200px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [inView]);
 
   // Full metadata (bio + description + rules) comes from the checker's
-  // /community/:name endpoint. Fetched eagerly because the bio shown on the card
-  // can't be trusted from search (the shared community collection gets its
-  // `about` wiped by another service) — this endpoint is the reliable source.
+  // /community/:name endpoint. The bio shown on the card can't be trusted from
+  // search (the shared community collection gets its `about` wiped by another
+  // service) — this endpoint is the reliable source.
   const { data: detail, isFetching } = useQuery({
     queryKey: ["community-detail", community.name],
-    enabled: !!community.name,
+    enabled: inView && !!community.name,
     queryFn: async () => {
       const res = await axios.get(`${CHECKER_URL}/community/${encodeURIComponent(community.name)}`);
       return res.data?.community || null;
@@ -88,7 +103,7 @@ function CommunityCard({ community, onSelect }) {
   const bio = community.about || detail?.about;
 
   return (
-    <div className={`community-card${expanded ? " expanded" : ""}`}>
+    <div ref={cardRef} className={`community-card${expanded ? " expanded" : ""}`}>
       <div className="community-card-main" onClick={() => onSelect(community)}>
         <img
           className="community-card-avatar"
@@ -173,6 +188,20 @@ function CommunitieModal({ isOpen, data, close, setCommunity, selected }) {
     staleTime: 60_000,
   });
 
+  // The current user's subscribed communities, shown in the default (no-search)
+  // list alongside the 3Speak / selected community.
+  const user = useAppStore((s) => s.user);
+  const { data: subscriptions = [] } = useQuery({
+    queryKey: ["community-subscriptions", user],
+    enabled: isOpen && !!user,
+    queryFn: async () => {
+      // bridge.list_all_subscriptions → [[name, title, role, role_title], ...]
+      const res = await getSubscriptions(user);
+      return (res || []).map((s) => ({ name: s[0], title: s[1] || s[0] }));
+    },
+    staleTime: 5 * 60_000,
+  });
+
   // Lock the page behind the modal so touch-scrolling moves the modal (the
   // mobile bottom sheet), not the page underneath it.
   useEffect(() => {
@@ -202,7 +231,24 @@ function CommunitieModal({ isOpen, data, close, setCommunity, selected }) {
     selectedCommunity ||
     (data || []).find((c) => c.name === DEFAULT_COMMUNITY) ||
     { name: DEFAULT_COMMUNITY, title: "3Speak" };
-  const visibleCommunities = searching ? searchResults : [defaultCommunity];
+
+  // Enrich subscriptions with subscriber counts from the loaded community list
+  // (bridge.list_communities) and sort them biggest-first.
+  const dataByName = new Map((data || []).map((c) => [c.name, c]));
+  const sortedSubs = subscriptions
+    .map((s) => {
+      const d = dataByName.get(s.name);
+      return d ? { ...s, subscribers: d.subscribers, num_authors: d.num_authors, about: d.about } : s;
+    })
+    .sort((a, b) => (b.subscribers || 0) - (a.subscribers || 0));
+
+  // Default list: the selected/3Speak community first, then the user's
+  // subscribed communities (sorted by size) — deduped by name (first wins).
+  const seenNames = new Set();
+  const defaultList = [defaultCommunity, ...sortedSubs].filter(
+    (c) => c && c.name && !seenNames.has(c.name) && seenNames.add(c.name)
+  );
+  const visibleCommunities = searching ? searchResults : defaultList;
 
   if (!isOpen) return null;
 
