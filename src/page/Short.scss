@@ -1332,14 +1332,20 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.5rem;
-    padding-bottom: 0.5rem;
+    // Desktop: bottom-align the column next to the video; gap is ~50% of the
+    // (smaller) button size.
+    align-self: flex-end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0;
 
     @media (max-width: 768px) {
       position: absolute;
       right: 0.75rem;
       bottom: 2rem;
       z-index: 50;
+      align-self: auto;
+      margin-bottom: 0;
       padding-bottom: 0;
       gap: 0.625rem;
     }
@@ -1362,6 +1368,18 @@
   .actionButton {
     width: 3rem;
     height: 3rem;
+
+    // Desktop: ~66% of the original size (icons scaled to match).
+    @media (min-width: 769px) {
+      width: 2rem;
+      height: 2rem;
+
+      svg,
+      img {
+        width: 1rem;
+        height: 1rem;
+      }
+    }
     background-color: var(--bg-tertiary);
     backdrop-filter: blur(4px);
     border-radius: 50%;
@@ -1558,10 +1576,12 @@
 
 
   .navigationArrows {
-    position: absolute;
-    right: -5rem;
+    // Pinned to the far right of the screen (not next to the centered video).
+    position: fixed;
+    right: 1.25rem;
     top: 50%;
     transform: translateY(-50%);
+    z-index: 200; // above the comments panel (150) so they stay visible
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -1729,7 +1749,9 @@
   .commentsPanel {
     position: fixed;
     top: 0;
-    right: 0;
+    // Desktop: sit left of the far-right nav arrows so they stay visible
+    // (arrows occupy ~1.25rem–4.25rem from the right edge). Mobile resets to 0.
+    right: 5rem;
     width: 400px;
     height: 100vh;
     background-color: var(--bg-secondary);

@@ -1777,6 +1777,28 @@ const VideoShort = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNext, handlePrevious, seekTo, togglePlayPause, toggleMute, showComments, isTransitioning]);
 
+  // Desktop: the scroll wheel navigates shorts, exactly like the Up/Down arrows
+  // (scroll down = next, scroll up = previous). Attached to the video container
+  // only, so scrolling the comments side-panel still scrolls the comments.
+  // A short cooldown stops one wheel gesture from skipping several shorts.
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth <= 768) return;
+    const el = videoContainerRef.current;
+    if (!el) return;
+    let lock = false;
+    const onWheel = (e) => {
+      if (Math.abs(e.deltaY) < 8) return; // ignore tiny trackpad jitter
+      e.preventDefault();
+      if (lock || isTransitioning) return;
+      lock = true;
+      if (e.deltaY > 0) handleNext();
+      else handlePrevious();
+      setTimeout(() => { lock = false; }, 700);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [handleNext, handlePrevious, isTransitioning]);
+
   // Local handler for the hidden focusable element (helps capture on mobile)
   const handleKeyDownCapture = (e) => {
     const active = document.activeElement;
@@ -2824,19 +2846,22 @@ const VideoShort = () => {
           onGeneralShare={handleShare}
         />
 
-        {/* NAVIGATION */}
-        <div className="navigationArrows">
-          <button className="navButton" onClick={handlePrevious} disabled={currentIndex === 0}>
-            <ArrowUp size={24} />
-          </button>
-          <button className="navButton" onClick={handleNext} disabled={currentIndex === videos.length - 1 && !hasMore}>
-            {loading && currentIndex === videos.length - 1 ? (
-              <Loader2 size={24} className="spinner" />
-            ) : (
-              <ArrowDown size={24} />
-            )}
-          </button>
-        </div>
+      </div>
+
+      {/* NAVIGATION — kept OUTSIDE .videoWrapper so its position:fixed anchors to
+          the viewport. The wrapper gets a transform when comments open, which
+          would otherwise become the containing block and mis-place the arrows. */}
+      <div className="navigationArrows">
+        <button className="navButton" onClick={handlePrevious} disabled={currentIndex === 0}>
+          <ArrowUp size={24} />
+        </button>
+        <button className="navButton" onClick={handleNext} disabled={currentIndex === videos.length - 1 && !hasMore}>
+          {loading && currentIndex === videos.length - 1 ? (
+            <Loader2 size={24} className="spinner" />
+          ) : (
+            <ArrowDown size={24} />
+          )}
+        </button>
       </div>
 
       {/* Mobile Comments Overlay + Panel — portaled to body so it renders above nav */}
