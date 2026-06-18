@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.19.0',
+    date: '2026-06-17',
+    summary:
+      'Shorts on desktop: scroll with your mouse wheel to move between shorts (like the up/down arrow keys), the action buttons are smaller and sit at the bottom, and the up/down navigation arrows now stay on the far right — with the comments panel opening to their left.',
+  },
+  {
+    version: '1.18.0',
+    date: '2026-06-17',
+    summary:
+      'The community picker when uploading now lists the communities you’re subscribed to (sorted by size) right under the default one, so you don’t have to search for your usual communities.',
+  },
+  {
     version: '1.17.0',
     date: '2026-06-15',
     summary:

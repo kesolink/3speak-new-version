@@ -94,6 +94,11 @@ export async function getAccounts(accounts) {
   return await hiveRpc("condenser_api.get_accounts", [accounts]);
 }
 
+// Communities an account subscribes to. Each entry is [name, title, role, role_title].
+export async function getSubscriptions(account) {
+  return await hiveRpc("bridge.list_all_subscriptions", { account });
+}
+
 /* -----------------------------
    Utils
 ------------------------------ */

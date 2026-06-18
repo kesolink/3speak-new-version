@@ -60,6 +60,7 @@
 
 // ─── Branded community card ───
 .community-card {
+  flex-shrink: 0; // don't let the flex column squish cards — let the list scroll
   border: 1px solid var(--border-light, rgba(0, 0, 0, 0.1));
   border-radius: 12px;
   background: var(--card-bg, #fff);
