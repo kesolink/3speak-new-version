@@ -47,6 +47,7 @@ import AboutPage from "./components/LandingPage/AboutPage";
 import { toast, Toaster } from 'sonner'
 import { CircleCheck, CircleX, TriangleAlert, Info } from 'lucide-react'
 import './toast.css'
+import { fetchNewerVersion, reloadForUpdate } from './utils/checkLatestVersion'
 // Retired alongside the legacy /studio flow — kept here as comments for ease of
 // roll-back; the embed-studio equivalents at /embed-studio/{thumbnail,details,preview}
 // are what users hit now.
@@ -254,6 +255,29 @@ function App() {
   useEffect(() => {
     const { previousVersion, shouldPrompt } = readAppVersion();
     if (shouldPrompt) useAppStore.getState().setAppUpdatedFrom(previousVersion);
+  }, []);
+
+  // Compare the running build against the latest version on GitHub (develop) and
+  // prompt the user to refresh if they're on a stale (cached) build — so updates
+  // don't require a manual reload. Re-checks on tab focus and every 30 min.
+  useEffect(() => {
+    let shown = false;
+    const promptIfNewer = async () => {
+      if (shown) return;
+      const newer = await fetchNewerVersion();
+      if (!newer) return;
+      shown = true;
+      toast(`A new version (${newer}) is available`, {
+        description: 'Refresh to get the latest updates.',
+        duration: Infinity,
+        action: { label: 'Refresh', onClick: () => reloadForUpdate() },
+      });
+    };
+    promptIfNewer();
+    const onFocus = () => promptIfNewer();
+    window.addEventListener('focus', onFocus);
+    const id = setInterval(promptIfNewer, 30 * 60 * 1000);
+    return () => { window.removeEventListener('focus', onFocus); clearInterval(id); };
   }, []);
 
   // Persist the last visited non-login route so the app can return
