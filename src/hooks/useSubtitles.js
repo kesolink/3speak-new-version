@@ -30,7 +30,7 @@ const subtitleCache = {};
  * @param {string} author - Video author
  * @param {string} permlink - Video permlink
  */
-export default function useSubtitles(author, permlink) {
+export default function useSubtitles(author, permlink, { autoEnglish = false } = {}) {
   const [availableLanguages, setAvailableLanguages] = useState(null);
   const [selectedLang, setSelectedLang] = useState(null);
   const [cues, setCues] = useState([]);
@@ -68,14 +68,14 @@ export default function useSubtitles(author, permlink) {
         }
         setAvailableLanguages(data);
 
-        // Auto-select only if user previously chose a language
+        // Auto-select the user's stored language; or, when `autoEnglish` is set
+        // (e.g. the hover preview), default to English if present even without a
+        // stored preference. setSelectedLang here does NOT persist a choice.
         const stored = localStorage.getItem(SUBTITLE_LANG_KEY);
-        if (stored) {
-          if (data.some(d => d.lang === stored)) {
-            setSelectedLang(stored);
-          } else if (data.some(d => d.lang === 'en')) {
-            setSelectedLang('en');
-          }
+        if (stored && data.some(d => d.lang === stored)) {
+          setSelectedLang(stored);
+        } else if ((autoEnglish || stored) && data.some(d => d.lang === 'en')) {
+          setSelectedLang('en');
         }
       } catch (err) {
         console.error('[useSubtitles] Failed to check availability:', err);
@@ -84,7 +84,7 @@ export default function useSubtitles(author, permlink) {
     })();
 
     return () => { cancelled = true; };
-  }, [author, permlink]);
+  }, [author, permlink, autoEnglish]);
 
   // Fetch + parse SRT when selectedLang changes
   useEffect(() => {

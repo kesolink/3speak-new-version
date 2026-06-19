@@ -164,6 +164,13 @@ function App() {
   const location = useLocation();
   const { initializeAuth, initializeTheme, authenticated, LogOut, switchAccount, setUser, user: appUser } = useAppStore();
   const sessionExpired = useAppStore((s) => s.sessionExpired);
+  const homeCardSize = useAppStore((s) => s.homeCardSize);
+
+  // Reflect the card-size preference on <html> so the card grids (home, profile,
+  // playlists) can size themselves via CSS variables.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-card-size', homeCardSize || 'large');
+  }, [homeCardSize]);
   const clearSessionExpired = useAppStore((s) => s.clearSessionExpired);
   const { aioha, user: aiohaUser } = useAioha();
   const sidebar = useAppStore((s) => s.sidebarOpen);

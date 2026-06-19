@@ -7,6 +7,24 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.23.0',
+    date: '2026-06-19',
+    summary:
+      'On mobile, switch on Large cards to get a full-width video feed where the centred video auto-plays a muted preview as you scroll. Turn off Large cards or Video previews in Settings to disable it.',
+  },
+  {
+    version: '1.22.0',
+    date: '2026-06-19',
+    summary:
+      'Hover a video card on desktop to play a muted preview — with a draggable timeline and subtitles when available. You can switch previews off under Settings → Video previews.',
+  },
+  {
+    version: '1.21.0',
+    date: '2026-06-19',
+    summary:
+      'Video cards are bigger and now a consistent 16:9 on the home, profile and playlist pages. Prefer the old compact look? Switch from Large to Small cards in Settings → Appearance.',
+  },
+  {
     version: '1.20.0',
     date: '2026-06-18',
     summary:

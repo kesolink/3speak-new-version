@@ -17,11 +17,16 @@ import img from "../../assets/image/speak.jpg";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ProfileModal from "../modal/ProfileModal";
+import useHoverPreview from "../../hooks/useHoverPreview";
 
 
 function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
+
+  // Hover-to-play preview (single reused player overlay) — shared with other grids.
+  const { containerProps, getCardProps, overlay } = useHoverPreview();
+
   const formatViewCount = (views) => {
     if (views === null || views === undefined) return null;
     if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
@@ -41,19 +46,25 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
   if (error) return <div>Error: {error}</div>;
 
   return (
-    <div className={`card-container${shortsGrid ? ' card-container--shorts' : ''}`}>
+    <div
+      className={`card-container${shortsGrid ? ' card-container--shorts' : ''}`}
+      {...containerProps}
+    >
       {processedVideos.map((video, index) => {
         const postKey = `${video.author?.username || video.author || video.owner}/${
           video.permlink
         }`;
 
+        const cardAuthor = video.author?.username || video.author || video.owner;
+
         return (
           <Link
-            to={`${linkPrefix}?v=${video.author?.username || video.author || video.owner}/${
+            to={`${linkPrefix}?v=${cardAuthor}/${
               video.permlink
             }${linkQuery}${video._scheduled ? '&scheduled=1' : ''}`}
             className="card"
             key={postKey}
+            {...getCardProps(postKey, cardAuthor, video.permlink, video._processedThumbnail, video.status)}
           >
             {/* Thumbnail */}
             <div className="img-wrap">
@@ -190,6 +201,8 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
           onClose={() => setModalUser(null)}
         />
       )}
+
+      {overlay}
     </div>
   );
 }

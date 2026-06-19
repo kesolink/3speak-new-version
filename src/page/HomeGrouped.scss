@@ -17,6 +17,41 @@
   max-width: 100%;
   overflow-x: hidden;
 
+  // Card-size preference (desktop rails). Large is the default.
+  --home-card-w: 420px;
+  --home-title-scale: 1.3;
+  &[data-card-size="small"] {
+    --home-card-w: 280px;
+    --home-title-scale: 1;
+  }
+
+  .home-card-size-toggle {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin: 4px 10px 0;
+
+    button {
+      padding: 4px 14px;
+      font-size: 12.5px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: 1px solid var(--border-light);
+      background: var(--card-bg);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+      &.active {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+        color: #fff;
+      }
+    }
+
+    @include respond(phone) { display: none; } // desktop-only sizing control
+  }
+
   @include respond(phone) {
     // padding: 15px 0;
   }
@@ -207,7 +242,7 @@
         grid-template-columns: none !important;
         grid-template-rows: repeat(var(--vr-rows, 3), 1fr) !important;
         grid-auto-flow: column !important;
-        grid-auto-columns: 280px !important;
+        grid-auto-columns: var(--home-card-w) !important;
         gap: 20px !important;
         grid-column-gap: 20px !important;
         grid-row-gap: 20px !important;
@@ -218,9 +253,14 @@
         }
 
         .card {
-          width: 280px;
-          min-width: 280px;
+          width: var(--home-card-w);
+          min-width: var(--home-card-w);
           transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+          // Larger title in large mode (scale = 1.5; small mode keeps 1).
+          h2 {
+            font-size: calc(13px * var(--home-title-scale));
+          }
 
           @include respond(phone) {
             width: 160px;
@@ -292,7 +332,7 @@
       display: grid;
       grid-template-rows: repeat(3, 1fr);
       grid-auto-flow: column;
-      grid-auto-columns: 280px;
+      grid-auto-columns: var(--home-card-w);
       gap: 20px;
       grid-column-gap: 20px;
       grid-row-gap: 20px;
@@ -302,8 +342,8 @@
       }
 
       .skeleton-card-horizontal {
-        width: 280px;
-        min-width: 280px;
+        width: var(--home-card-w);
+        min-width: var(--home-card-w);
         background-color: var(--card-bg);
         border-radius: 12px;
         box-shadow: var(--card-shadow);
@@ -317,7 +357,7 @@
 
         .video-thumbnail-skeleton {
           width: 100%;
-          height: 170px;
+          aspect-ratio: 16 / 9; height: auto;
           border-radius: 5px 5px 0 0;
 
           @include respond(phone) {
@@ -326,9 +366,14 @@
         }
 
         .title-skeleton {
-          height: 14px;
-          margin: 8px 4px 6px;
+          // Match the loaded card's 2-line title block (~2.8em), scaled by size.
+          height: calc(36px * var(--home-title-scale, 1));
+          margin: 5px 4px;
           border-radius: 4px;
+
+          @include respond(phone) {
+            height: 24px;
+          }
         }
 
         .skeleton-profile-row {
@@ -376,5 +421,56 @@
     background: transparent !important;
     color: var(--text-primary) !important;
     border: none !important;
+  }
+}
+
+// ── Mobile + Large card size: turn the horizontal rails into a full-width,
+//    single-column vertical feed (pairs with center-based autoplay). ──
+@include respond(phone) {
+  html[data-card-size="large"] {
+    .video-scroll-container-horizontal {
+      overflow-x: hidden;
+
+      .card-container-horizontal .card-container {
+        grid-template-rows: none !important;
+        grid-auto-flow: row !important;
+        grid-template-columns: 1fr !important;
+        grid-auto-columns: auto !important;
+        gap: 14px !important;
+
+        .card {
+          width: 100% !important;
+          min-width: 0 !important;
+
+          .img-wrap img {
+            aspect-ratio: 16 / 9 !important;
+            height: auto !important;
+          }
+          h2 { font-size: 14px; }
+        }
+      }
+    }
+  }
+}
+
+// ── Mobile + Large: loading skeletons match the full-width vertical feed ──
+// !important to beat the more-specific default phone skeleton rules (160px/90px).
+@include respond(phone) {
+  html[data-card-size="large"] .skeleton-horizontal-container {
+    grid-template-rows: none !important;
+    grid-auto-flow: row !important;
+    grid-template-columns: 1fr !important;
+    grid-auto-columns: auto !important;
+    gap: 14px !important;
+
+    .skeleton-card-horizontal {
+      width: 100% !important;
+      min-width: 0 !important;
+
+      .video-thumbnail-skeleton {
+        aspect-ratio: 16 / 9 !important;
+        height: auto !important;
+      }
+    }
   }
 }
