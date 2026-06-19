@@ -171,7 +171,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 };
 
 const HomeGrouped = () => {
-  const { authenticated, user, showNsfw } = useAppStore();
+  const { authenticated, user, showNsfw, homeCardSize } = useAppStore();
   const queryClient = useQueryClient();
 
   const { data: homeData, isLoading: homeLoading } = useQuery({
@@ -223,7 +223,7 @@ const HomeGrouped = () => {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-    <div className="home-grouped-container">
+    <div className="home-grouped-container" data-card-size={homeCardSize || 'large'}>
       <ShortsStories />
       <OpenPodsLiveStrip />
 

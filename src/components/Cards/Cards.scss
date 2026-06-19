@@ -1,14 +1,24 @@
 @use "../../mixins.scss" as *;
 
+// Card-size preference (set on <html> from the store). Large is the default.
+html[data-card-size="small"] { --card-min-w: 300px; }
+html[data-card-size="large"] { --card-min-w: 460px; }
+
 .card-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-w, 460px), 1fr));
   grid-column-gap: 16px;
   grid-row-gap: 30px;
   margin-top: 15px;
+  position: relative; // anchor for the single hover-preview overlay
   @include respond(phone) {
-      grid-row-gap: 10px;
-   }
+    grid-row-gap: 10px;
+    // Mobile: small = compact 2-up, large = full-width single column.
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    html[data-card-size="large"] & {
+      grid-template-columns: 1fr;
+    }
+  }
 
   .card {
     background-color: var(--card-bg);
@@ -42,6 +52,7 @@
       // width: 270px;
       width: 100%;
       position: relative;
+
       img {
         // width: 100%;
 
@@ -51,15 +62,13 @@
         // background-size: cover;
 
         width: 100%;
-        height: 170px; /* Or you can use 'auto' and remove fixed height */
+        aspect-ratio: 16 / 9; /* always 16:9 regardless of card width */
+        height: auto;
         border-radius: 5px;
         object-fit: cover; /* Ensures the image maintains its aspect ratio */
         object-position: center; /* Centers the image within its container */
         background-position: center;
         background-size: cover;
-        @include respond(phone) {
-          height: 195px;
-        }
       }
 
       .buttom-title {
@@ -421,7 +430,7 @@
 
 // Shorts grid: 9:16 vertical thumbnails
 .card-container--shorts {
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); // ~1.5x larger
 
   @include respond(phone) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -454,3 +463,102 @@
   }
 }
 
+
+// ── Hover-to-play preview overlay (single, reused; positioned over a card) ──
+// Global (not scoped to .card-container) so any grid can host it (e.g. playlists).
+.card-hover-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-radius: 5px;
+  overflow: hidden;
+  z-index: 4;
+  visibility: hidden;
+  pointer-events: none; // hover + clicks pass through to the card beneath
+
+  &.active { visibility: visible; }
+
+  .card-hover-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: transparent;
+    opacity: 0; // hidden (instant) until ready — the poster covers this gap
+  }
+  &.ready .card-hover-video { opacity: 1; }
+
+  // Poster = the hovered card's thumbnail, covering the (reused) video until the
+  // new clip is actually playing. Prevents the previous clip's last frame from
+  // flashing when moving between cards, and shows the thumbnail while loading.
+  .card-hover-poster {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+  }
+  &.ready .card-hover-poster { opacity: 0; }
+
+  // Subtitles, sized + positioned for the small preview (above the scrub bar).
+  .subtitle-overlay {
+    bottom: 22px;
+    padding: 0 6px;
+    z-index: 5;
+
+    .subtitle-overlay-text {
+      font-size: 16px; // ~1.5x larger
+      padding: 3px 8px;
+    }
+  }
+
+  // Scrub bar — the only interactive part of the overlay. Lifted off the very
+  // bottom edge so the track + handle aren't clipped by the overlay's overflow.
+  .card-hover-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 26px; // generous hit area
+    display: none;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 3;
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 9px;
+      height: 5px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.35);
+    }
+  }
+  &.ready .card-hover-bar { display: block; }
+
+  .card-hover-bar-fill {
+    position: absolute;
+    left: 0;
+    bottom: 9px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--accent-primary, #e53935);
+  }
+  .card-hover-bar-handle {
+    position: absolute;
+    bottom: 5px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.6);
+    transform: translateX(-50%);
+  }
+}

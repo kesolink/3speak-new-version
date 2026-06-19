@@ -23,6 +23,7 @@ import { MdPlayArrow as MdPlayIcon } from 'react-icons/md';
 import AudioTile from '../components/AudioTile/AudioTile';
 import AddToPlaylistModal from '../components/AddToPlaylistModal/AddToPlaylistModal';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
+import useHoverPreview from '../hooks/useHoverPreview';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
 import { DATE_FILTERS, getSinceTimestamp, formatRelativeDate } from '../utils/dateFilters';
 dayjs.extend(relativeTime);
@@ -115,6 +116,9 @@ function PlaylistView() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user: authenticatedUser } = useAppStore();
+
+  // Hover-to-play preview for the video cards in the grid.
+  const { containerProps, getCardProps, overlay } = useHoverPreview();
 
   // State for edit mode
   const [editableVideos, setEditableVideos] = useState(null);
@@ -624,7 +628,7 @@ function PlaylistView() {
           </div>
         ) : (
           /* Grid view (default) */
-          <div className="playlist-videos-grid">
+          <div className="playlist-videos-grid" {...containerProps}>
             {displayVideos.map((video) => video.isAudio && video.audioDoc ? (
               <AudioTile
                 key={`${video.author}-${video.permlink}`}
@@ -651,6 +655,7 @@ function PlaylistView() {
                 to={`/watch?v=${video.author}/${video.permlink}&playlist=${playlistId}&pos=${video.position}`}
                 state={{ playlist, videos: allVideos, currentIndex: video.position }}
                 className="playlist-video-card"
+                {...getCardProps(`${video.author}/${video.permlink}`, video.author, video.permlink, fixVideoThumbnail(video), video.status)}
               >
                 <div className="video-thumbnail">
                   <img
@@ -685,6 +690,7 @@ function PlaylistView() {
                 </div>
               </Link>
             ))}
+            {overlay}
           </div>
         )}
       </div>

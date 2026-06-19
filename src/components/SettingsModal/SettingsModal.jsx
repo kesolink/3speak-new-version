@@ -38,11 +38,15 @@ function Row({ title, desc, checked, onChange }) {
  * side menu, now grouped with headers + explanations and compact switches.
  */
 export default function SettingsModal({ isOpen, onClose }) {
-  const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden } = useAppStore();
+  const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled } = useAppStore();
   if (!isOpen) return null;
 
   // The left sidebar only exists on desktop, so its toggle is irrelevant on mobile/tablet.
   const isDesktop = window.matchMedia('(min-width: 1025px)').matches;
+  // Previews only work on touch devices in large mode, so hide the toggle when
+  // a touch user has small cards selected (it would have no effect).
+  const isTouch = !window.matchMedia('(hover: hover)').matches;
+  const showPreviewSetting = !isTouch || homeCardSize === 'large';
 
   return createPortal(
     <div className="settings-modal-overlay" onClick={onClose}>
@@ -78,6 +82,20 @@ export default function SettingsModal({ isOpen, onClose }) {
               desc="Collapse the left navigation sidebar for a wider content area."
               checked={!!sidebarHidden}
               onChange={(hide) => setSidebarHidden(hide)}
+            />
+          )}
+          <Row
+            title="Large cards"
+            desc="Show bigger video cards on the home, profile and playlist pages. Turn off for smaller, more compact cards."
+            checked={homeCardSize === 'large'}
+            onChange={(large) => setHomeCardSize(large ? 'large' : 'small')}
+          />
+          {showPreviewSetting && (
+            <Row
+              title="Video previews"
+              desc="Play a muted preview when you hover a video card (and, on mobile in large mode, the centred card auto-plays as you scroll)."
+              checked={previewEnabled !== false}
+              onChange={(v) => setPreviewEnabled(v)}
             />
           )}
         </div>
