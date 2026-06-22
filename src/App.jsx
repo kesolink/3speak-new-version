@@ -75,7 +75,6 @@ import Notifications from "./page/Notifications";
 import PostView from "./page/PostView";
 import Audio from "./page/Audio";
 import AudioPost from "./page/AudioPost";
-import { LegacyUploadProvider } from "./context/LegacyUploadContext";
 import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
 import { HangoutContextProvider, useHangout } from "./context/HangoutContext";
@@ -440,7 +439,6 @@ function App() {
   return (
     <HangoutContextProvider tokenStorage={import.meta.env.VITE_HANGOUTS_TOKEN_STORAGE || 'none'}>
     <HiveAuthProvider>
-    <LegacyUploadProvider>
     <EmbedUploadProvider>
     <ChatProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
@@ -573,7 +571,6 @@ function App() {
 
     </ChatProvider>
     </EmbedUploadProvider>
-    </LegacyUploadProvider>
     </HiveAuthProvider>
     </HangoutContextProvider>
   );
