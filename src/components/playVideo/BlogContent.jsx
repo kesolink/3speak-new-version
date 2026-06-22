@@ -79,6 +79,26 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
       ''
     );
 
+    // YouTube: keep the original link in the body instead of an embedded player.
+    // (The underlying renderer auto-embeds YouTube URLs; we undo that.) Handles
+    // youtube.com/embed, youtube-nocookie.com, youtu.be and ?v= forms.
+    const ytIdFrom = (src) => {
+      const m = src.match(/(?:youtube(?:-nocookie)?\.com\/embed\/|youtu\.be\/|[?&]v=)([A-Za-z0-9_-]{6,})/);
+      return m ? m[1] : null;
+    };
+    const ytLink = (id) => {
+      const url = `https://www.youtube.com/watch?v=${id}`;
+      return `<p><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></p>`;
+    };
+    cleaned = cleaned.replace(
+      /<div[^>]*class="[^"]*videoWrapper[^"]*"[^>]*>\s*<iframe[^>]*src="([^"]*(?:youtube(?:-nocookie)?\.com|youtu\.be)[^"]*)"[^>]*>\s*<\/iframe>\s*<\/div>/gi,
+      (m, src) => { const id = ytIdFrom(src); return id ? ytLink(id) : m; }
+    );
+    cleaned = cleaned.replace(
+      /<iframe[^>]*src="([^"]*(?:youtube(?:-nocookie)?\.com|youtu\.be)[^"]*)"[^>]*>\s*<\/iframe>/gi,
+      (m, src) => { const id = ytIdFrom(src); return id ? ytLink(id) : m; }
+    );
+
     // Pattern 7: Remove leading <hr> separating header from content
     cleaned = cleaned.replace(/^[\s]*<hr[^>]*\/?>/i, '');
     cleaned = cleaned.replace(/^[\s]*<hr[^>]*\/?>/i, '');

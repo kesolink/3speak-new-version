@@ -84,3 +84,23 @@
     }
   }
 }
+
+.recommended .wrap-img {
+  position: relative;
+
+  .promoted-badge {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 2;
+    background: rgba(229, 57, 53, 0.95);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border-radius: 5px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+}

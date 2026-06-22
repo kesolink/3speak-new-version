@@ -2423,7 +2423,7 @@
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 10px;
     background: var(--bg-secondary, #1a1a1a);
     border-top: 1px solid var(--border-light, #2d2d2d);
 

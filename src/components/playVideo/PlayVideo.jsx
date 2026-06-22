@@ -44,7 +44,8 @@ import { removeFromPlaylist } from "../../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import Button from "../Button/Button";
-import { Repeat2, Scissors, Tornado, Film, Music } from 'lucide-react';
+import { Repeat2, Scissors, Tornado, Film, Music, Rocket } from 'lucide-react';
+import PromoteModal from '../Promote/PromoteModal';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
 import SubtitleOverlay from '../SubtitleOverlay/SubtitleOverlay';
@@ -96,6 +97,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [promoteOpen, setPromoteOpen] = useState(false);
   const [isRemovingWatchLater, setIsRemovingWatchLater] = useState(false);
   const [communityData, setCommunityData] = useState(null);
   const [authorReputation, setAuthorReputation] = useState(null);
@@ -993,6 +995,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
                 </button>
 
+                {authenticated && isLoggedIn() && (
+                  <button
+                    type="button"
+                    className="promote-btn"
+                    onClick={() => setPromoteOpen(true)}
+                    title="Promote this video"
+                  >
+                    <Rocket size={15} />
+                    <span>Promote</span>
+                  </button>
+                )}
+
                 {authenticated && user === author && (
                   <button
                     type="button"
@@ -1219,6 +1233,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         author={author}
         permlink={permlink}
         onSaved={(changes) => onVideoEdited?.(changes)}
+      />
+
+      <PromoteModal
+        open={promoteOpen}
+        onClose={() => setPromoteOpen(false)}
+        author={author}
+        permlink={permlink}
       />
 
       {/* Mobile FAB — speed-dial for quick actions */}

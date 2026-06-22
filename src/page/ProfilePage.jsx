@@ -30,7 +30,6 @@ import "ldrs/react/Quantum.css";
 import icon from "../../public/images/stack.png";
 import { UPLOAD_TOKEN, UPLOAD_URL } from "../utils/config";
 import "./ProfilePage.scss";
-import { useLegacyUpload } from "../context/LegacyUploadContext";
 import checker from "../../public/images/checker.png";
 import { useMyPlaylists } from "../hooks/useMyPlaylists";
 import { useWatchedVideosCount } from "../hooks/useWatchedVideos";
@@ -47,7 +46,6 @@ const WATCH_LATER_NAME = 'Watch Later';
 
 function ProfilePage() {
 
-  const  {uploadVideoProgress, uploadStatus, hasBackgroundJob} = useLegacyUpload();
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -228,7 +226,8 @@ function ProfilePage() {
           limit: pageSize,
           offset: pageParam * pageSize,
           status: 'all', // Get published and scheduled videos
-          sort: 'newest' // Sort by newest first
+          sort: 'newest', // Sort by newest first
+          include_unlisted: 1, // own profile: show unlisted videos (badged) so they can be re-listed
         },
         headers: {
           'Content-Type': 'application/json'
@@ -471,31 +470,6 @@ function ProfilePage() {
           <span onClick={() => navigate(`/wallet/${user}`)}>Wallet</span>
         </div>
       </div>
-
-      {/* ================= IN-PROGRESS BANNER ================= */}
-
-      {hasBackgroundJob && !uploadStatus && (<div className="progressbar-container">
-            <div className="content-wrap">
-              <div className="wrap">
-                <div className="wrap-top"><h3>Fetching Video </h3> <div>{uploadVideoProgress}%</div></div>
-                {uploadVideoProgress > 0 && <div className="progress-bars">
-                  <div className="progress-bar-fill" style={{ width: `${uploadVideoProgress}%` }}>
-                    {/* {uploadVideoProgress > 0 && <span className="progress-bar-text">{uploadVideoProgress}%</span>} */}
-                  </div>
-                </div>}
-              </div>
-              <div className="wrap">
-                <div className="wrap-upload"><h3>{!uploadStatus ? "Uploading video" : 'Video uploaded'} </h3> <div>{!uploadStatus ? <LineSpinner size="20" stroke="3" speed="1" color="black" /> : <img src={checker} alt="" />}</div></div>
-              </div>
-          <div className="background-text">
-            <p>Please do not close your browser while the upload is in progress.</p>
-            <p>A background job is currently running and will automatically publish your post.</p>
-          </div>
-
-
-            </div>
-          </div>
-      )}
 
     {inProgress?.count > 0 && (
       <div className="active-renders">

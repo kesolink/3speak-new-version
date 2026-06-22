@@ -22,7 +22,11 @@ const FONT_OPTIONS = [
 
 function PortalIf({ condition, children }) {
   if (condition && typeof document !== 'undefined') {
-    return createPortal(children, document.body);
+    // In fullscreen only the fullscreen element's subtree is painted, so portal
+    // into it (e.g. the subtitle/quality menus) instead of <body> — otherwise the
+    // menu is invisible/unreachable in fullscreen on mobile.
+    const target = document.fullscreenElement || document.body;
+    return createPortal(children, target);
   }
   return children;
 }

@@ -201,9 +201,18 @@ html[data-card-size="large"] { --card-min-w: 460px; }
         &.draft {
           background: linear-gradient(135deg, rgba(158, 158, 158, 0.95), rgba(117, 117, 117, 0.95));
           box-shadow: 0 2px 8px rgba(117, 117, 117, 0.4);
-          
+
           &:hover {
             box-shadow: 0 4px 12px rgba(117, 117, 117, 0.6);
+          }
+        }
+
+        &.unlisted {
+          background: linear-gradient(135deg, rgba(66, 66, 66, 0.95), rgba(33, 33, 33, 0.95));
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+
+          &:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
           }
         }
 

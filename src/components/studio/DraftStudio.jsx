@@ -59,6 +59,7 @@ const DraftStudio = () => {
           offset: pageParam * pageSize,
           status,
           sort: 'newest',
+          include_unlisted: 1, // owner's manage view: include unlisted so they can be edited/re-listed
         },
         headers: {
           'Content-Type': 'application/json',

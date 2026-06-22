@@ -8,12 +8,36 @@ import { toast } from 'sonner';
 import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, HIVE_API_URL, EMBED_DEBUG, CHECKER_API_KEY } from '../utils/config';
 import { uploadThumbnail } from '../utils/uploadThumbnail';
 import { pickEmbedEndpoint } from '../utils/embedEndpoints';
+import { reloadIfStale } from '../utils/checkLatestVersion';
 import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn, getCurrentProvider, Providers, broadcastViaThreespeak, KeyTypes } from '../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
 import { enforceLockedBeneficiaries, chargesEncoder, LOCKED_FUND_ACCOUNT, LOCKED_ENCODER_ACCOUNT } from '../utils/beneficiaries';
 import axios from 'axios';
+
+// Hosts that support TUS resume (tusd-backed). The legacy embed.3speak.tv origin
+// does NOT — a leftover fingerprint there fails with "invalid or missing length
+// value" — so cross-session resume must stay OFF for it.
+const NON_RESUMABLE_UPLOAD_RX = /(^|\/\/)embed\.3speak\.tv\b/i;
+function endpointSupportsResume(endpoint) {
+  return !NON_RESUMABLE_UPLOAD_RX.test(endpoint || '');
+}
+
+// Browser connection hint. On a thin/flaky/metered uplink we shrink to small
+// SEQUENTIAL chunks: big parallel chunks contend for bandwidth and trip tusd's
+// ~60s body-read timeout (the ERR_READ_TIMEOUT / ERR_UPLOAD_INTERRUPTED cascade
+// that loses uploads on bad connections).
+function getConnectionProfile() {
+  const c = (typeof navigator !== 'undefined' &&
+    (navigator.connection || navigator.mozConnection || navigator.webkitConnection)) || null;
+  if (!c) return { weak: false };
+  const et = String(c.effectiveType || '');
+  const weak = /(slow-2g|2g|3g)/i.test(et) ||
+    (Number.isFinite(c.downlink) && c.downlink > 0 && c.downlink < 1.5) ||
+    !!c.saveData;
+  return { weak, effectiveType: et, downlink: c.downlink, saveData: !!c.saveData };
+}
 
 const EmbedUploadContext = createContext(null);
 
@@ -58,6 +82,7 @@ export function EmbedUploadProvider({ children }) {
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [declineRewards, SetDeclineRewards] = useState(false);
   const [rewardPowerup, setRewardPowerup] = useState(false);
+  const [isNsfw, setIsNsfw] = useState(false);
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState('');
 
@@ -115,6 +140,9 @@ export function EmbedUploadProvider({ children }) {
   const [statusText, setStatusText] = useState('');
   const [statusMessages, setStatusMessages] = useState([]);
   const [embedUrl, setEmbedUrl] = useState('');
+  // Hive permlink of the just-published post — used by the success screen to
+  // offer promotion of the new video.
+  const [publishedPermlink, setPublishedPermlink] = useState('');
 
   // Prefilled state — set when arriving from an external upload (e.g. Hangouts
   // server-side recording) that already pushed a video to the embed service.
@@ -204,6 +232,7 @@ export function EmbedUploadProvider({ children }) {
     setTagsPreview([]);
     setCommunity('hive-181335');
     setBeneficiaries([]);
+    setIsNsfw(false);
     SetDeclineRewards(false);
     setRewardPowerup(false);
     setIsScheduled(false);
@@ -219,6 +248,7 @@ export function EmbedUploadProvider({ children }) {
     setStatusText('');
     setStatusMessages([]);
     setEmbedUrl('');
+    setPublishedPermlink('');
     setBeneficiaryList([]);
     setList([]);
     setRemaingPercent(100);
@@ -230,11 +260,24 @@ export function EmbedUploadProvider({ children }) {
   };
 
   // Forget any background upload so a newly-selected/replaced video re-uploads.
+  // This is an EXPLICIT user reset (Replace Video / pick another), so it must
+  // also discard any resumable state — terminate the partial on the server and
+  // clear stored TUS fingerprints — otherwise re-picking the same file would
+  // silently resume when the user wanted a clean start. (A crash/reload, by
+  // contrast, leaves the fingerprint in place so resume still works there.)
   const resetEarlyUpload = useCallback(() => {
     if (tusUploadRef.current) {
-      try { tusUploadRef.current.abort(); } catch { /* ignore */ }
+      // abort(true) sends a DELETE to terminate the upload + drops its fingerprint.
+      try { Promise.resolve(tusUploadRef.current.abort(true)).catch(() => {}); } catch { /* ignore */ }
       tusUploadRef.current = null;
     }
+    // Belt-and-suspenders: clear any leftover TUS fingerprints synchronously so
+    // the next selection can't resume a stale partial (only one upload at a time).
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('tus::')) localStorage.removeItem(key);
+      });
+    } catch { /* ignore */ }
     earlyEmbedUrlRef.current = '';
     earlyUploadPromiseRef.current = null;
     earlyUploadStartedRef.current = false;
@@ -261,50 +304,80 @@ export function EmbedUploadProvider({ children }) {
 
     const MB = 1024 * 1024;
     const sizeBytes = videoFile.size || 0;
+    const conn = getConnectionProfile();
     let chunkSize, parallelUploads;
-    if (sizeBytes > 500 * MB) { chunkSize = 20 * MB; parallelUploads = 3; }
+    if (conn.weak) {
+      // Thin/flaky/metered uplink: small SEQUENTIAL chunks. Each PATCH finishes
+      // well inside the server read-timeout, a drop loses little, and we avoid the
+      // multi-stream contention that caused the read-timeout/interrupt cascade.
+      chunkSize = 5 * MB; parallelUploads = 1;
+    } else if (sizeBytes > 500 * MB) { chunkSize = 20 * MB; parallelUploads = 3; }
     else if (sizeBytes > 50 * MB) { chunkSize = 10 * MB; parallelUploads = 3; }
     else { chunkSize = 5 * MB; parallelUploads = 2; }
 
+    // Cross-session resume only on tusd-backed hosts (see endpointSupportsResume).
+    const resumable = endpointSupportsResume(uploadEndpoint);
+
     let capturedEmbedUrl = '';
-    await new Promise((resolve, reject) => {
-      const upload = new tus.Upload(videoFile, {
-        endpoint: uploadEndpoint,
-        chunkSize,
-        parallelUploads,
-        retryDelays: [0, 2000, 5000, 10000],
-        storeFingerprintForResuming: false,
-        removeFingerprintOnSuccess: true,
-        headers: {
-          ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
-        },
-        metadata: {
-          filename: videoFile.name,
-          filetype: videoFile.type,
-          frontend_app: '3speak-tv',
-          owner: user,
-          short: fromStories ? 'true' : 'false',
-          duration: String(Math.round(videoDuration)),
-          ...(generatedPermlink ? { permlink: generatedPermlink } : {}),
-        },
-        onError: (err) => {
-          console.error('TUS upload error:', err);
-          reject(err);
-        },
-        onProgress: (bytesUploaded, bytesTotal) => {
-          const pct = Math.round((bytesUploaded / bytesTotal) * 100);
-          setUploadProgress(pct);
-          setStatusText(`Uploading video... ${pct}%`);
-        },
-        onSuccess: () => resolve(),
-        onAfterResponse: (req, res) => {
-          const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
-          if (header) capturedEmbedUrl = header;
-        },
-      });
-      tusUploadRef.current = upload;
-      upload.start();
+    let resolveDone, rejectDone;
+    const done = new Promise((resolve, reject) => { resolveDone = resolve; rejectDone = reject; });
+    const upload = new tus.Upload(videoFile, {
+      endpoint: uploadEndpoint,
+      chunkSize,
+      parallelUploads,
+      // ~2 min of backoff so transient drops recover instead of hard-failing.
+      // Each retry HEADs the upload and continues from the server's offset.
+      retryDelays: [0, 3000, 5000, 10000, 20000, 30000, 60000],
+      storeFingerprintForResuming: resumable,
+      removeFingerprintOnSuccess: true,
+      // Retry network drops + the transient 5xx tusd returns for stalled/
+      // interrupted bodies (ERR_READ_TIMEOUT / EOF / lock); never retry auth/4xx.
+      onShouldRetry: (err) => {
+        const status = err?.originalResponse?.getStatus?.() ?? 0;
+        const willRetry = status === 0 || status === 409 || status === 423 ||
+          status === 429 || status >= 500;
+        if (willRetry) setStatusText('Connection unstable — retrying…');
+        return willRetry;
+      },
+      headers: {
+        ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
+      },
+      metadata: {
+        filename: videoFile.name,
+        filetype: videoFile.type,
+        frontend_app: '3speak-tv',
+        owner: user,
+        short: fromStories ? 'true' : 'false',
+        duration: String(Math.round(videoDuration)),
+        ...(generatedPermlink ? { permlink: generatedPermlink } : {}),
+      },
+      onError: (err) => {
+        console.error('TUS upload error:', err);
+        rejectDone(err);
+      },
+      onProgress: (bytesUploaded, bytesTotal) => {
+        const pct = Math.round((bytesUploaded / bytesTotal) * 100);
+        setUploadProgress(pct);
+        setStatusText(`Uploading video... ${pct}%`);
+      },
+      onSuccess: () => resolveDone(),
+      onAfterResponse: (req, res) => {
+        const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
+        if (header) capturedEmbedUrl = header;
+      },
     });
+    tusUploadRef.current = upload;
+    // Resume an interrupted upload from a previous session if one exists for this
+    // file on a resumable host — picks up where the dropped connection left off
+    // instead of restarting at 0%.
+    if (resumable) {
+      try {
+        const prev = await upload.findPreviousUploads();
+        if (prev && prev.length) upload.resumeFromPreviousUpload(prev[0]);
+      } catch { /* no resumable upload — start fresh */ }
+    }
+    upload.start();
+    await done;
     return capturedEmbedUrl;
   }, [videoFile, user, fromStories, videoDuration]);
 
@@ -327,6 +400,9 @@ export function EmbedUploadProvider({ children }) {
     setStatusText('Uploading video in the background…');
     const p = (async () => {
       try {
+        // Stale-client guard: if a newer build is deployed, force-reload onto it
+        // BEFORE any upload starts, so nobody uploads on cached/retired code.
+        if (await reloadIfStale()) return '';   // page is reloading — bail out
         // Pick the least-busy embed server (sticky for the rest of this upload).
         const { base, uploadUrl } = await pickEmbedEndpoint();
         chosenEmbedBaseRef.current = base;
@@ -529,10 +605,16 @@ export function EmbedUploadProvider({ children }) {
       const baseTags = fromStories
         ? ['3speak', 'hive-181335', 'short']
         : ['3speak', communityTag];
+      // When marked adult, append the canonical Hive `nsfw` tag so the whole Hive
+      // ecosystem (and our hive_tags filter) treats it as NSFW.
+      const userTags = [
+        ...tagsPreview.filter(t => !baseTags.includes(t)),
+        ...(isNsfw ? ['nsfw'] : []),
+      ].filter((t, i, a) => a.indexOf(t) === i);
       const jsonMetadata = {
         app: '3speak/embed',
         format: 'markdown',
-        tags: [...baseTags, ...tagsPreview.filter(t => !baseTags.includes(t))],
+        tags: [...baseTags, ...userTags],
         // Top-level `image: [url]` is the Hive-wide convention frontends read to
         // pick a post's cover (peakd, ecency, hive.blog, …). Only add it when we
         // actually have a thumbnail — otherwise we'd post `image: [null]` which
@@ -847,6 +929,7 @@ export function EmbedUploadProvider({ children }) {
 
       // ─── Done ───
       setStatusText('Completed');
+      setPublishedPermlink(hivePermlink);
       setCompleted(true);
       setUploading(false);
       addMessage('Video successfully published!', 'success');
@@ -884,6 +967,7 @@ export function EmbedUploadProvider({ children }) {
     beneficiaries, setBeneficiaries,
     declineRewards, SetDeclineRewards,
     rewardPowerup, setRewardPowerup,
+    isNsfw, setIsNsfw,
     isScheduled, setIsScheduled,
     scheduleDateTime, setScheduleDateTime,
     // Community data
@@ -901,6 +985,7 @@ export function EmbedUploadProvider({ children }) {
     statusText, setStatusText,
     statusMessages, setStatusMessages,
     embedUrl, setEmbedUrl,
+    publishedPermlink,
     // Background ('early') video upload that starts on the details step
     videoUploadStatus,
     selectedEndpoint,

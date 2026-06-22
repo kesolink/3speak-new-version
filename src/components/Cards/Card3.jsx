@@ -5,7 +5,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { IoCalendarOutline } from "react-icons/io5";
 dayjs.extend(utc);
-import { MdDelete, MdError, MdPhoneIphone } from "react-icons/md";
+import { MdDelete, MdError, MdPhoneIphone, MdVisibilityOff } from "react-icons/md";
 import { FaCog, FaFileAlt } from "react-icons/fa";
 import AddToPlaylistButton from "../AddToPlaylistButton/AddToPlaylistButton";
 import TimeAgo from "../TimeAgo/TimeAgo";
@@ -138,6 +138,13 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                 <div className="status-badge failed" title="Video processing failed">
                   <MdError size={18} />
                   <span>Failed</span>
+                </div>
+              )}
+
+              {video.unlisted && (
+                <div className="status-badge unlisted" title="Unlisted — hidden from feeds & search, only reachable by direct link">
+                  <MdVisibilityOff size={18} />
+                  <span>Unlisted</span>
                 </div>
               )}
             </div>

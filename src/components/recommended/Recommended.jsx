@@ -32,6 +32,7 @@ function Recommended({suggestedVideos}) {
                   alt={data.title}
                   onError={(e) => (e.currentTarget.src = fallbackImg)}
                 />
+                {data._promoted && <span className="promoted-badge">Promoted</span>}
                 <AddToPlaylistButton
                   author={author}
                   permlink={data.permlink}
