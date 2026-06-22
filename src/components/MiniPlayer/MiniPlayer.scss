@@ -3,7 +3,10 @@
 .mini-player {
   display: none;
   position: fixed;
-  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  // Sit flush on top of the bottom app bar. The bar is `bottom:0` with height
+  // var(--bottom-nav-height,56px) and intentionally NO safe-area padding, so we
+  // match that exactly — adding env(safe-area-inset-bottom) here left a gap.
+  bottom: var(--bottom-nav-height, 56px);
   left: 0;
   right: 0;
   height: 56px;
