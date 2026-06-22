@@ -97,16 +97,11 @@ function EmbedPreview() {
           <div className="studio-page-content">
             <div className="ep-review">
               <div className="ep-grid">
-                {/* LEFT: media */}
-                <div className="ep-media">
-                  {prevVideoFile && (
-                    <div className={`ep-media-video${fromStories ? ' ep-media-video--portrait' : ''}`}>
-                      <VideoPreview file={prevVideoFile} />
-                    </div>
-                  )}
+                {/* LEFT: thumbnail, video, settings */}
+                <div className="ep-left">
                   {selectedThumbnail && (
-                    <div className="ep-media-thumb">
-                      <span className="ep-media-thumb__label">Thumbnail</span>
+                    <div className="ep-media-block">
+                      <span className="ep-media-label">Thumbnail</span>
                       <img
                         className={`ep-thumb${fromStories ? ' ep-thumb--portrait' : ''}`}
                         src={selectedThumbnail}
@@ -114,21 +109,13 @@ function EmbedPreview() {
                       />
                     </div>
                   )}
-                </div>
 
-                {/* RIGHT: details + settings */}
-                <div className="ep-details">
-                  {title && <h2 className="ep-title">{title}</h2>}
-
-                  <div className="ep-desc">
-                    <EditorPreview content={description} />
-                  </div>
-
-                  {tagsPreview && tagsPreview.length > 0 && (
-                    <div className="ep-tags">
-                      {tagsPreview.map((tag, index) => (
-                        <span className="ep-tag" key={index}>#{tag}</span>
-                      ))}
+                  {prevVideoFile && (
+                    <div className="ep-media-block">
+                      <span className="ep-media-label">Video</span>
+                      <div className={`ep-media-video${fromStories ? ' ep-media-video--portrait' : ''}`}>
+                        <VideoPreview file={prevVideoFile} />
+                      </div>
                     </div>
                   )}
 
@@ -166,6 +153,20 @@ function EmbedPreview() {
                       </span>
                     </div>
 
+                    <div className="ep-setting ep-setting--top">
+                      <span className="ep-setting__icon"><Tag size={18} /></span>
+                      <span className="ep-setting__label">Tags</span>
+                      <span className="ep-setting__value">
+                        {tagsPreview && tagsPreview.length > 0 ? (
+                          <span className="ep-tags">
+                            {tagsPreview.map((tag, index) => (
+                              <span className="ep-tag" key={index}>#{tag}</span>
+                            ))}
+                          </span>
+                        ) : <span className="ep-muted">None</span>}
+                      </span>
+                    </div>
+
                     <div className="ep-setting">
                       <span className="ep-setting__icon"><Repeat2 size={18} /></span>
                       <span className="ep-setting__label">Remix / clip</span>
@@ -181,16 +182,30 @@ function EmbedPreview() {
                     </div>
                   </div>
                 </div>
+
+                {/* RIGHT: title + description */}
+                <div className="ep-right">
+                  <span className="ep-media-label">Body</span>
+                  {title && <h2 className="ep-title">{title}</h2>}
+                  <div className="ep-desc">
+                    <EditorPreview content={description} />
+                  </div>
+                </div>
               </div>
 
-              <div className="submit-btn-wrap">
+              <div className="ep-actions">
                 <button
-                  className="edit-btn"
+                  type="button"
+                  className="ep-btn ep-btn--secondary"
                   onClick={() => navigate('/embed-studio/details')}
                 >
                   Edit Post
                 </button>
-                <button onClick={handlePostVideo}>
+                <button
+                  type="button"
+                  className="ep-btn ep-btn--primary"
+                  onClick={handlePostVideo}
+                >
                   {fromStories ? 'Post Short' : 'Post Video'}
                 </button>
               </div>

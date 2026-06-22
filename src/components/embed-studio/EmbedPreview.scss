@@ -2,16 +2,16 @@
 
 /* Redesigned embed-studio review/preview step */
 .ep-review {
-  max-width: 1000px;
+  max-width: 1040px;
   margin: 0 auto;
   width: 100%;
 }
 
 .ep-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 22px;
-  align-items: start;
+  align-items: stretch;
 
   @include mix.respond(phone) {
     grid-template-columns: 1fr;
@@ -19,17 +19,12 @@
   }
 }
 
-/* ---- Left: media ---- */
-.ep-media {
+/* ---- Left: thumbnail, video, settings ---- */
+.ep-left {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  position: sticky;
-  top: 12px;
-
-  @include mix.respond(phone) {
-    position: static;
-  }
+  min-width: 0;
 }
 
 .ep-media-video {
@@ -53,18 +48,18 @@
   }
 }
 
-.ep-media-thumb {
+.ep-media-block {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
 
-  &__label {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: var(--text-secondary, #888);
-  }
+.ep-media-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #888);
 }
 
 .ep-thumb {
@@ -81,11 +76,11 @@
   }
 }
 
-/* ---- Right: details ---- */
-.ep-details {
+/* ---- Right: title + description (tall) ---- */
+.ep-right {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -98,36 +93,43 @@
   word-break: break-word;
 }
 
+/* The renderer (EditorPreview → .editor-preview) already draws its own card, so
+   this is just a flex wrapper that stretches it taller — no second container. */
 .ep-desc {
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--text-secondary, #555);
-  max-height: 220px;
-  overflow-y: auto;
-  padding-right: 6px;
+  flex: 1;
+  display: flex;
+  min-height: 0;
 
-  img { max-width: 100%; border-radius: 8px; }
-  p { margin: 0 0 0.6em; }
+  .editor-preview {
+    flex: 1;
+    width: 100%;
+    margin: 0;
+    min-height: 340px;
+    max-height: 70vh;
+
+    @include mix.respond(phone) {
+      min-height: 180px;
+    }
+  }
 }
 
 .ep-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .ep-tag {
   font-size: 12px;
   font-weight: 600;
-  padding: 5px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
-  background: var(--bg-secondary, #f1f1f3);
+  background: var(--bg-primary, #f1f1f3);
   color: var(--text-secondary, #555);
 }
 
 /* ---- Publish settings panel ---- */
 .ep-settings {
-  margin-top: 4px;
   border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
   border-radius: 14px;
   overflow: hidden;
@@ -146,7 +148,7 @@
 
 .ep-setting {
   display: grid;
-  grid-template-columns: 22px 130px 1fr;
+  grid-template-columns: 22px 120px 1fr;
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
@@ -160,7 +162,7 @@
 
   &__icon {
     display: flex;
-    color: var(--accent-primary, #e53935);
+    color: var(--text-secondary, #888);
   }
   &__label {
     font-weight: 600;
@@ -210,8 +212,47 @@
 }
 
 .ep-nsfw-on {
-  color: #e53935;
+  color: var(--accent-primary, #e53935);
   font-weight: 700;
+}
+
+/* ---- Actions row (below the grid) ---- */
+.ep-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+
+  @include mix.respond(phone) {
+    .ep-btn { flex: 1; }
+  }
+}
+
+.ep-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 26px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+  &--secondary {
+    background: transparent;
+    border-color: var(--border-color, rgba(0, 0, 0, 0.2));
+    color: var(--text-primary, #111);
+    &:hover { background: var(--bg-secondary, #f1f1f3); }
+  }
+
+  &--primary {
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    &:hover { opacity: 0.92; }
+  }
 }
 
 /* Promote button on the upload success screen */

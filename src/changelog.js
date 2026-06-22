@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.31.0',
+    date: '2026-06-22',
+    summary:
+      'The quick Edit on a video (the pencil) now has the same controls as the full Edit page: unlist, mark adult/NSFW, allow or block remix/clip, and promote. The pre-publish review step is cleaner, and on mobile the subtitles menu now opens centred in fullscreen instead of being cut off at the bottom.',
+  },
+  {
     version: '1.30.0',
     date: '2026-06-22',
     summary:

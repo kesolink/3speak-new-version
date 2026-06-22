@@ -269,9 +269,28 @@ function VideoControls({
     };
   }, [mobileSettingsOpen]);
 
-  // On mobile, compute fixed position for menus to escape overflow:hidden
+  // Position the popup menus (subtitles/quality/speed) as a fixed overlay.
+  // In fullscreen, anchoring them to the bottom control bar clips them off the
+  // bottom of the screen, so center them instead. On mobile (non-fullscreen) we
+  // anchor under the button to escape overflow:hidden. Desktop non-fullscreen
+  // renders inline (returns null).
   const getPortalStyle = useCallback((wrapRef) => {
-    if (typeof window === 'undefined' || window.innerWidth > 767) return null;
+    if (typeof window === 'undefined') return null;
+    if (isFullscreen) {
+      return {
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'translate(-50%, -50%)',
+        margin: 0,
+        maxHeight: '70vh',
+        overflowY: 'auto',
+        zIndex: 2147483647,
+      };
+    }
+    if (window.innerWidth > 767) return null;
     if (!wrapRef.current) return null;
     const rect = wrapRef.current.getBoundingClientRect();
     return {
@@ -281,9 +300,10 @@ function VideoControls({
       right: Math.max(8, window.innerWidth - rect.right),
       marginBottom: 0,
       maxHeight: '60vh',
+      overflowY: 'auto',
       zIndex: 10000,
     };
-  }, []);
+  }, [isFullscreen]);
 
   const subtitlePortalStyle = subtitleMenuOpen ? getPortalStyle(subtitleMenuRef) : null;
   const qualityPortalStyle = qualityMenuOpen ? getPortalStyle(qualityMenuRef) : null;

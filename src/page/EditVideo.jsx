@@ -48,6 +48,9 @@ const EditVideo = () => {
   const initialListedRef = React.useRef(true);
   const [isNsfw, setIsNsfw] = useState(false);
   const initialNsfwRef = React.useRef(false);
+  const [reusable, setReusable] = useState(true);
+  const initialReusableRef = React.useRef(true);
+  const originalMetaRef = React.useRef(null);
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [promotedUntil, setPromotedUntil] = useState(null);
   const [renderedHTML, setRenderedHTML] = useState('');
@@ -103,10 +106,26 @@ const EditVideo = () => {
     }
   }, [description]);
 
-  console.log(permlink)
-  console.log(id)
-
-
+  // Load the original on-chain json_metadata so we can PRESERVE it on save
+  // (the old code rebuilt metadata from scratch, dropping `video`) and read the
+  // current "Allow Remix/Clip" (json_metadata.video.reusable) flag.
+  useEffect(() => {
+    if (!user || !permlink) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const post = await client.call('condenser_api', 'get_content', [user, permlink]);
+        if (cancelled || !post) return;
+        let meta = {};
+        try { meta = JSON.parse(post.json_metadata || '{}'); } catch (_) {}
+        originalMetaRef.current = meta;
+        const r = meta.video?.reusable !== false;
+        setReusable(r);
+        initialReusableRef.current = r;
+      } catch (_) { /* best-effort */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, permlink]);
 
 const handleSubmit = async (e) => {
   e.preventDefault();
@@ -127,10 +146,15 @@ const handleSubmit = async (e) => {
     .map(paragraph => `<p>${paragraph.replace(/\n/g, ' ')}</p>`)
     .join('');
 
+  // Preserve the original json_metadata (video info, etc.) and only update the
+  // bits we control here: tags + the remix/clip flag.
+  const origMeta = originalMetaRef.current || {};
   const metadata = {
+    ...origMeta,
     tags: tagsArray,
-    app: '3speak/new-version',
+    app: origMeta.app || '3speak/new-version',
     format: 'html',
+    video: { ...(origMeta.video || { platform: '3speak' }), reusable },
   };
 
   const jsonMetadata = JSON.stringify(metadata);
@@ -272,8 +296,8 @@ const handleSubmit = async (e) => {
               <button
                 type="button"
                 role="switch"
-                aria-checked={!listed}
-                className={`listing-switch${!listed ? ' is-unlisted' : ''}`}
+                aria-checked={listed}
+                className={`listing-switch${listed ? ' is-on' : ''}`}
                 onClick={() => setListed(l => !l)}
               >
                 <span className="listing-switch__track"><span className="listing-switch__thumb" /></span>
@@ -292,8 +316,28 @@ const handleSubmit = async (e) => {
               <button
                 type="button"
                 role="switch"
+                aria-checked={reusable}
+                className={`listing-switch${reusable ? ' is-on' : ''}`}
+                onClick={() => setReusable(v => !v)}
+              >
+                <span className="listing-switch__track"><span className="listing-switch__thumb" /></span>
+                <span className="listing-switch__label">
+                  <strong>Allow Remix/Clip</strong>
+                  <small>
+                    {reusable
+                      ? 'Others can create remixes/clips from this video; you are credited as original author.'
+                      : 'Others cannot remix or clip this video.'}
+                  </small>
+                </span>
+              </button>
+            </div>
+
+            <div className="form-group listing-toggle">
+              <button
+                type="button"
+                role="switch"
                 aria-checked={isNsfw}
-                className={`listing-switch${isNsfw ? ' is-unlisted' : ''}`}
+                className={`listing-switch listing-switch--danger${isNsfw ? ' is-on' : ''}`}
                 onClick={() => setIsNsfw(v => !v)}
               >
                 <span className="listing-switch__track"><span className="listing-switch__thumb" /></span>
