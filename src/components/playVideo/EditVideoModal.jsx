@@ -9,6 +9,8 @@ import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, CHECKER_URL, CHECKER_API_KEY } from '../../utils/config';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
+import PromoteModal from '../Promote/PromoteModal';
+import { Rocket } from 'lucide-react';
 import './EditVideoModal.scss';
 
 const hiveClient = getHiveClient();
@@ -114,6 +116,16 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
   const [thumbUploading, setThumbUploading] = useState(false);
   const thumbInputRef = useRef(null);
 
+  // Listing / NSFW / promotion (checker-backed, same as the full Edit page)
+  const [listed, setListed] = useState(true);
+  const [isNsfw, setIsNsfw] = useState(false);
+  const [reusable, setReusable] = useState(true);
+  const [promotedUntil, setPromotedUntil] = useState(null);
+  const [promoteOpen, setPromoteOpen] = useState(false);
+  const initialListedRef = useRef(true);
+  const initialNsfwRef = useRef(false);
+  const initialReusableRef = useRef(true);
+
   // Fetch original post when modal opens
   useEffect(() => {
     if (!isOpen || !author || !permlink) return;
@@ -157,9 +169,36 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
         setBody(middle);
         setBodyHeader(header);
         setBodyFooter(footer);
-        setTagsInput(metaTags.join(' '));
+        // Strip the canonical `nsfw` tag from the editable tags — it's driven by
+        // the Adult/NSFW toggle instead.
+        const visibleTags = metaTags.filter((t) => String(t).toLowerCase() !== 'nsfw');
+        const tagNsfw = metaTags.some((t) => String(t).toLowerCase() === 'nsfw');
+        setTagsInput(visibleTags.join(' '));
         setThumbnailUrl(currentThumb);
+        const metaReusable = meta.video?.reusable !== false;
+        setReusable(metaReusable);
+        initialReusableRef.current = metaReusable;
         setLoading(false);
+
+        // Pull checker-backed state (listing, NSFW flag, promotion) from the doc.
+        try {
+          const { data: doc } = await axios.get(`${CHECKER_URL}/videodetails/${author}/${permlink}`);
+          if (!cancelled && doc) {
+            const isListed = doc.listed_on_3speak !== false;
+            const nsfw = doc.isNsfwContent === true || tagNsfw
+              || (Array.isArray(doc.hive_tags) && doc.hive_tags.some((t) => String(t).toLowerCase() === 'nsfw'));
+            setListed(isListed);
+            setIsNsfw(nsfw);
+            setPromotedUntil(doc.promotedUntil || null);
+            initialListedRef.current = isListed;
+            initialNsfwRef.current = nsfw;
+          } else if (!cancelled) {
+            setIsNsfw(tagNsfw);
+            initialNsfwRef.current = tagNsfw;
+          }
+        } catch (_) {
+          if (!cancelled) { setIsNsfw(tagNsfw); initialNsfwRef.current = tagNsfw; }
+        }
       } catch (err) {
         if (cancelled) return;
         console.error('Failed to load post for edit:', err);
@@ -183,6 +222,14 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
     setThumbnailUrl('');
     setLoadError(null);
     setSaving(false);
+    setListed(true);
+    setIsNsfw(false);
+    setReusable(true);
+    setPromotedUntil(null);
+    setPromoteOpen(false);
+    initialListedRef.current = true;
+    initialNsfwRef.current = false;
+    initialReusableRef.current = true;
   }, [isOpen]);
 
   // Parse tags input (space/comma separated, lowercased, deduplicated)
@@ -203,8 +250,14 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
   const bodyValid = body.trim().length > 0;
   const canSave = titleValid && tagsValid && bodyValid && !!original && !saving;
 
-  // Has anything actually changed?
-  const isDirty = useMemo(() => {
+  // Final on-chain tags = visible tags + the canonical `nsfw` tag when marked adult.
+  const finalTags = useMemo(() => {
+    const base = parsedTags.filter((t) => t !== 'nsfw');
+    return isNsfw ? [...base, 'nsfw'] : base;
+  }, [parsedTags, isNsfw]);
+
+  // On-chain content change (needs a Hive broadcast). Includes the nsfw tag.
+  const contentDirty = useMemo(() => {
     if (!original) return false;
     const origTags = Array.isArray(original.meta.tags) ? original.meta.tags : [];
     const origThumb = (() => {
@@ -216,13 +269,20 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
       return Array.isArray(original.meta.image) ? (original.meta.image[0] || '') : '';
     })();
     const { middle: origMiddle } = splitPostBody(original.post.body || '');
+    const origReusable = original.meta.video?.reusable !== false;
     return (
       title.trim() !== (original.post.title || '').trim() ||
       body !== origMiddle ||
-      parsedTags.join(' ') !== origTags.join(' ') ||
-      thumbnailUrl.trim() !== origThumb
+      finalTags.join(' ') !== origTags.join(' ') ||
+      thumbnailUrl.trim() !== origThumb ||
+      reusable !== origReusable
     );
-  }, [original, title, body, parsedTags, thumbnailUrl]);
+  }, [original, title, body, finalTags, thumbnailUrl, reusable]);
+
+  const listingChanged = listed !== initialListedRef.current;
+  const nsfwChanged = isNsfw !== initialNsfwRef.current;
+  // Checker-only changes (listing) don't need a broadcast but should enable Save.
+  const isDirty = contentDirty || listingChanged;
 
   const handleThumbFilePick = async (e) => {
     const file = e.target.files?.[0];
@@ -261,78 +321,100 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
     setSaving(true);
     try {
       const { post, meta } = original;
-
-      // Build new json_metadata preserving the original structure
-      const newMeta = { ...meta };
-      newMeta.tags = parsedTags;
-
-      // Update thumbnail references in both `image` and `video.info.sourceMap`
       const trimmedThumb = thumbnailUrl.trim();
-      if (trimmedThumb) {
-        newMeta.image = Array.isArray(newMeta.image)
-          ? [trimmedThumb, ...newMeta.image.filter((u) => u !== trimmedThumb)]
-          : [trimmedThumb];
+      let finalBody = post.body || '';
 
-        if (newMeta.video?.info?.sourceMap && Array.isArray(newMeta.video.info.sourceMap)) {
-          const sm = newMeta.video.info.sourceMap.map((s) =>
-            s.type === 'thumbnail' ? { ...s, url: trimmedThumb } : s
-          );
-          // If no existing thumbnail entry, add one
-          if (!sm.some((s) => s.type === 'thumbnail')) {
-            sm.push({ type: 'thumbnail', url: trimmedThumb });
+      // Only broadcast to Hive when on-chain content actually changed (title,
+      // body, tags incl. nsfw, or thumbnail). Listing is checker-only.
+      if (contentDirty) {
+        const newMeta = { ...meta };
+        newMeta.tags = finalTags;
+        // Allow Remix/Clip lives at json_metadata.video.reusable.
+        newMeta.video = { ...(newMeta.video || { platform: '3speak' }), reusable };
+
+        // Update thumbnail references in both `image` and `video.info.sourceMap`
+        if (trimmedThumb) {
+          newMeta.image = Array.isArray(newMeta.image)
+            ? [trimmedThumb, ...newMeta.image.filter((u) => u !== trimmedThumb)]
+            : [trimmedThumb];
+
+          if (newMeta.video?.info?.sourceMap && Array.isArray(newMeta.video.info.sourceMap)) {
+            const sm = newMeta.video.info.sourceMap.map((s) =>
+              s.type === 'thumbnail' ? { ...s, url: trimmedThumb } : s
+            );
+            if (!sm.some((s) => s.type === 'thumbnail')) {
+              sm.push({ type: 'thumbnail', url: trimmedThumb });
+            }
+            newMeta.video = { ...newMeta.video, info: { ...newMeta.video.info, sourceMap: sm } };
           }
-          newMeta.video = { ...newMeta.video, info: { ...newMeta.video.info, sourceMap: sm } };
         }
-      }
 
-      // Rewrite the thumbnail URL inside the header's image-link, if a header
-      // exists and the thumbnail changed. The pattern is [![...](OLD)](watch).
-      let finalHeader = bodyHeader;
-      if (trimmedThumb && finalHeader) {
-        finalHeader = finalHeader.replace(
-          /(\[\s*!\[[^\]]*\]\()[^)]*(\)\s*\]\([^)]*\))/,
-          `$1${trimmedThumb}$2`
-        );
-      }
-
-      // Rebuild the full post body: preserved header + user-edited middle + preserved footer
-      const finalBody = recombinePostBody(finalHeader, body, bodyFooter);
-
-      const result = await commentWithAioha(
-        post.parent_author || '',
-        post.parent_permlink || '',
-        permlink,
-        title.trim(),
-        finalBody,
-        newMeta,
-        null // don't touch comment_options on edit — can't be changed after first broadcast
-      );
-
-      if (!result?.success) {
-        throw new Error(result?.error || 'Broadcast failed');
-      }
-
-      toast.success('Video updated!');
-
-      // Push the new thumbnail straight to the checker's MongoDB (Pancreas
-      // API) so listings refresh immediately instead of waiting for the
-      // Hive→Mongo sync. Best-effort; no-op when key unset.
-      if (trimmedThumb && CHECKER_API_KEY) {
-        try {
-          await axios.put(
-            `${CHECKER_URL}/video/thumbnail`,
-            { owner: author, permlink, thumbnail: trimmedThumb },
-            { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } },
+        // Rewrite the thumbnail URL inside the header's image-link, if present.
+        let finalHeader = bodyHeader;
+        if (trimmedThumb && finalHeader) {
+          finalHeader = finalHeader.replace(
+            /(\[\s*!\[[^\]]*\]\()[^)]*(\)\s*\]\([^)]*\))/,
+            `$1${trimmedThumb}$2`
           );
-        } catch (thumbErr) {
-          console.warn('Thumbnail Mongo update failed (will reconcile on sync):', thumbErr?.message);
+        }
+
+        finalBody = recombinePostBody(finalHeader, body, bodyFooter);
+
+        const result = await commentWithAioha(
+          post.parent_author || '',
+          post.parent_permlink || '',
+          permlink,
+          title.trim(),
+          finalBody,
+          newMeta,
+          null // don't touch comment_options on edit
+        );
+        if (!result?.success) {
+          throw new Error(result?.error || 'Broadcast failed');
+        }
+
+        // Reflect the new thumbnail in Mongo immediately (best-effort).
+        if (trimmedThumb && CHECKER_API_KEY) {
+          try {
+            await axios.put(
+              `${CHECKER_URL}/video/thumbnail`,
+              { owner: author, permlink, thumbnail: trimmedThumb },
+              { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } },
+            );
+          } catch (thumbErr) {
+            console.warn('Thumbnail Mongo update failed (will reconcile on sync):', thumbErr?.message);
+          }
         }
       }
+
+      // NSFW flag (immediate) — the nsfw tag above is canonical.
+      if (nsfwChanged && CHECKER_API_KEY) {
+        try {
+          await axios.put(`${CHECKER_URL}/video/nsfw`, { owner: author, permlink, nsfw: isNsfw },
+            { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } });
+          initialNsfwRef.current = isNsfw;
+        } catch (e) { console.warn('NSFW flag update failed:', e?.message); }
+      }
+
+      // Listing (unlist / re-list).
+      if (listingChanged && CHECKER_API_KEY) {
+        try {
+          await axios.put(`${CHECKER_URL}/video/listing`, { owner: author, permlink, listed },
+            { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } });
+          initialListedRef.current = listed;
+          toast.success(listed ? 'Video re-listed.' : 'Video unlisted.');
+        } catch (e) {
+          console.warn('Listing update failed:', e?.message);
+          toast.error('Could not update the listing.');
+        }
+      }
+
+      if (contentDirty) toast.success('Video updated!');
 
       onSaved?.({
         title: title.trim(),
         body: finalBody,
-        tags: parsedTags,
+        tags: finalTags,
         thumbnail: trimmedThumb,
       });
       onClose();
@@ -450,10 +532,65 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
               rows={10}
               placeholder="Tell viewers about your video…"
             />
-            <span className="edit-video-hint">
-              Supports markdown. The 3Speak video embed at the top and bottom of
-              your post is preserved automatically.
-            </span>
+            <span className="edit-video-hint">Supports markdown.</span>
+
+            {/* Listing / Remix / NSFW toggles + Promote */}
+            <div className="evm-toggle-row">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={listed}
+                className={`evm-switch${listed ? ' is-on' : ''}`}
+                onClick={() => setListed((v) => !v)}
+                disabled={saving}
+              >
+                <span className="evm-switch__track"><span className="evm-switch__thumb" /></span>
+                <span className="evm-switch__label">
+                  <strong>{listed ? 'Listed' : 'Unlisted'}</strong>
+                  <small>{listed ? 'Shown in feeds, search and on your profile.' : 'Hidden from feeds & search — still plays by direct link, stays on your profile (badged).'}</small>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={reusable}
+                className={`evm-switch${reusable ? ' is-on' : ''}`}
+                onClick={() => setReusable((v) => !v)}
+                disabled={saving}
+              >
+                <span className="evm-switch__track"><span className="evm-switch__thumb" /></span>
+                <span className="evm-switch__label">
+                  <strong>Allow Remix/Clip</strong>
+                  <small>{reusable ? 'Others can create remixes/clips; you are credited as original author.' : 'Others cannot remix or clip this video.'}</small>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isNsfw}
+                className={`evm-switch evm-switch--danger${isNsfw ? ' is-on' : ''}`}
+                onClick={() => setIsNsfw((v) => !v)}
+                disabled={saving}
+              >
+                <span className="evm-switch__track"><span className="evm-switch__thumb" /></span>
+                <span className="evm-switch__label">
+                  <strong>{isNsfw ? 'Adult / NSFW' : 'Not adult'}</strong>
+                  <small>{isNsfw ? 'Hidden from feeds & search unless the viewer enabled NSFW; tagged nsfw on Hive.' : 'Normal content, shown to everyone.'}</small>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="evm-promote-btn"
+                onClick={() => setPromoteOpen(true)}
+                disabled={saving}
+              >
+                <Rocket size={16} />
+                {promotedUntil && new Date(promotedUntil).getTime() > Date.now() ? 'Promoted' : 'Promote video'}
+              </button>
+            </div>
 
             <div className="edit-video-actions">
               <button
@@ -475,6 +612,15 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
           </form>
         )}
       </div>
+
+      <PromoteModal
+        open={promoteOpen}
+        onClose={() => setPromoteOpen(false)}
+        author={author}
+        permlink={permlink}
+        promotedUntil={promotedUntil}
+        onPromoted={(until) => setPromotedUntil(until)}
+      />
     </div>,
     document.body
   );

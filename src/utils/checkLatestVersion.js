@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { APP_VERSION } from "../version";
 import { APP_VERSION_STORAGE_KEY } from "./appVersion";
 
@@ -63,4 +64,24 @@ export async function reloadForUpdate() {
     // ignore — reload anyway
   }
   window.location.reload();
+}
+
+// Upload gate. Call this at the very start of any real upload. If a newer build
+// has been deployed (per the GitHub `develop` version.js — the same changelog-
+// driven version check used for the global refresh prompt), it toasts and force-
+// reloads onto the latest build BEFORE the upload runs, then resolves `true` so
+// the caller can bail out. Resolves `false` when the running build is current.
+//
+// Why this exists: stale, service-worker-cached tabs running the retired legacy
+// uploader POST to a dead backend that returns an HTML error page, producing the
+// "Unexpected token '<' ... <!DOCTYPE ... is not valid json" upload failure. The
+// fix is to never let a stale client start an upload — refresh it first.
+export async function reloadIfStale() {
+  const newer = await fetchNewerVersion();
+  if (!newer) return false;
+  toast(`Updating to the latest version (${newer})…`, {
+    description: "Reloading so your upload runs on the newest build.",
+  });
+  await reloadForUpdate();
+  return true;
 }

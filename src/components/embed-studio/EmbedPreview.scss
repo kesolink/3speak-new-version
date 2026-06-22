@@ -1,0 +1,274 @@
+@use "../../mixins.scss" as mix;
+
+/* Redesigned embed-studio review/preview step */
+.ep-review {
+  max-width: 1040px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.ep-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: stretch;
+
+  @include mix.respond(phone) {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* ---- Left: thumbnail, video, settings ---- */
+.ep-left {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ep-media-video {
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+  aspect-ratio: 16 / 9;
+
+  video, & > * {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  &--portrait {
+    aspect-ratio: 9 / 16;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+}
+
+.ep-media-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ep-media-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #888);
+}
+
+.ep-thumb {
+  width: 100%;
+  border-radius: 12px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+
+  &--portrait {
+    aspect-ratio: 9 / 16;
+    max-width: 200px;
+    object-fit: cover;
+  }
+}
+
+/* ---- Right: title + description (tall) ---- */
+.ep-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ep-title {
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary, #111);
+  word-break: break-word;
+}
+
+/* The renderer (EditorPreview → .editor-preview) already draws its own card, so
+   this is just a flex wrapper that stretches it taller — no second container. */
+.ep-desc {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+
+  .editor-preview {
+    flex: 1;
+    width: 100%;
+    margin: 0;
+    min-height: 340px;
+    max-height: 70vh;
+
+    @include mix.respond(phone) {
+      min-height: 180px;
+    }
+  }
+}
+
+.ep-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ep-tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-primary, #f1f1f3);
+  color: var(--text-secondary, #555);
+}
+
+/* ---- Publish settings panel ---- */
+.ep-settings {
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg-secondary, #fafafa);
+
+  &__head {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #888);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+  }
+}
+
+.ep-setting {
+  display: grid;
+  grid-template-columns: 22px 120px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+
+  & + .ep-setting {
+    border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
+  }
+
+  &--top { align-items: start; }
+
+  &__icon {
+    display: flex;
+    color: var(--text-secondary, #888);
+  }
+  &__label {
+    font-weight: 600;
+    color: var(--text-secondary, #777);
+  }
+  &__value {
+    font-weight: 600;
+    color: var(--text-primary, #111);
+    min-width: 0;
+    word-break: break-word;
+
+    &--community {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      img {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+    }
+  }
+
+  @include mix.respond(phone) {
+    grid-template-columns: 22px 1fr;
+    grid-template-areas:
+      "icon label"
+      "icon value";
+    gap: 4px 12px;
+
+    .ep-setting__icon { grid-area: icon; }
+    .ep-setting__label { grid-area: label; }
+    .ep-setting__value { grid-area: value; }
+  }
+}
+
+.ep-muted { color: var(--text-secondary, #999); font-weight: 500; }
+
+.ep-benes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ep-bene {
+  font-size: 13px;
+}
+
+.ep-nsfw-on {
+  color: var(--accent-primary, #e53935);
+  font-weight: 700;
+}
+
+/* ---- Actions row (below the grid) ---- */
+.ep-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+
+  @include mix.respond(phone) {
+    .ep-btn { flex: 1; }
+  }
+}
+
+.ep-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 26px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+  &--secondary {
+    background: transparent;
+    border-color: var(--border-color, rgba(0, 0, 0, 0.2));
+    color: var(--text-primary, #111);
+    &:hover { background: var(--bg-secondary, #f1f1f3); }
+  }
+
+  &--primary {
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    &:hover { opacity: 0.92; }
+  }
+}
+
+/* Promote button on the upload success screen */
+.promote-success-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 11px 20px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  &:hover { opacity: 0.92; }
+}

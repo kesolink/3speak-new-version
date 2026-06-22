@@ -1,13 +1,16 @@
 import React from "react";
 import "../legacy-studio/Preview.scss";
+import "./EmbedPreview.scss";
 import { Navigate, useNavigate } from "react-router-dom";
-import { CheckCircle, Upload, FileText, Info } from "lucide-react";
+import { CheckCircle, Upload, FileText, Info, Users, Coins, Gift, Repeat2, Tag, ShieldAlert } from "lucide-react";
 import VideoPreview from "../studio/VideoPreview";
 import { StepProgress } from "../legacy-studio/StepProgress";
 import EmbedUploadProgressBar from "./EmbedUploadProgressBar";
 import { useEmbedUpload } from "../../context/EmbedUploadContext";
 import "../legacy-studio/VideoUploadStatus.scss";
 import EditorPreview from "../Editor/EditorPreview";
+import PromoteModal from "../Promote/PromoteModal";
+import { Rocket } from "lucide-react";
 
 function EmbedPreview() {
   const {
@@ -28,13 +31,52 @@ function EmbedPreview() {
     resetUploadState,
     user,
     fromStories,
+    community,
+    beneficiaries,
+    declineRewards,
+    rewardPowerup,
+    reusable,
+    originalAuthor,
+    originalPermlink,
+    isNsfw,
+    publishedPermlink,
   } = useEmbedUpload();
 
   const navigate = useNavigate();
+  const [promoteOpen, setPromoteOpen] = React.useState(false);
 
   if (!description || (!fromStories && !title)) {
     return <Navigate to="/embed-studio" replace />;
   }
+
+  // --- Derived display values for the publish-settings panel ---
+  const isDefaultCommunity = !community || community === "hive-181335";
+  const communityDisplay = isDefaultCommunity
+    ? { name: "hive-181335", title: "Threespeak" }
+    : { name: community.name, title: community.title || community.name };
+
+  const payoutLabel = declineRewards
+    ? "Declined (rewards burned)"
+    : rewardPowerup
+      ? "100% Hive Power"
+      : "50% HBD / 50% HP";
+
+  const isRemix = !!(originalAuthor && originalPermlink);
+  const remixLabel = isRemix ? "On (this is a remix)" : reusable ? "Allowed" : "Not allowed";
+
+  // `beneficiaries` is an array initially but the beneficiary modal stores it as
+  // a JSON string — normalise both shapes before rendering.
+  let beneList = [];
+  try {
+    beneList = Array.isArray(beneficiaries)
+      ? beneficiaries
+      : beneficiaries
+        ? JSON.parse(beneficiaries)
+        : [];
+  } catch (_) {
+    beneList = [];
+  }
+  const userBeneficiaries = beneList.filter((b) => b && b.account);
 
   const handlePostVideo = () => {
     publishToEmbed();
@@ -53,64 +95,117 @@ function EmbedPreview() {
           <EmbedUploadProgressBar />
 
           <div className="studio-page-content">
-            <div className="preview-container">
-              <div className="preview">
-                <h3>Preview</h3>
+            <div className="ep-review">
+              <div className="ep-grid">
+                {/* LEFT: thumbnail, video, settings */}
+                <div className="ep-left">
+                  {selectedThumbnail && (
+                    <div className="ep-media-block">
+                      <span className="ep-media-label">Thumbnail</span>
+                      <img
+                        className={`ep-thumb${fromStories ? ' ep-thumb--portrait' : ''}`}
+                        src={selectedThumbnail}
+                        alt="Thumbnail"
+                      />
+                    </div>
+                  )}
 
-                {title && (
-                  <div className="preview-section">
-                    <label className="preview-label">Title</label>
-                    <div className="preview-title">{title}</div>
+                  {prevVideoFile && (
+                    <div className="ep-media-block">
+                      <span className="ep-media-label">Video</span>
+                      <div className={`ep-media-video${fromStories ? ' ep-media-video--portrait' : ''}`}>
+                        <VideoPreview file={prevVideoFile} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="ep-settings">
+                    <div className="ep-settings__head">Publish settings</div>
+
+                    <div className="ep-setting">
+                      <span className="ep-setting__icon"><Users size={18} /></span>
+                      <span className="ep-setting__label">Community</span>
+                      <span className="ep-setting__value ep-setting__value--community">
+                        <img src={`https://images.hive.blog/u/${communityDisplay.name}/avatar`} alt="" />
+                        {communityDisplay.title}
+                      </span>
+                    </div>
+
+                    <div className="ep-setting">
+                      <span className="ep-setting__icon"><Coins size={18} /></span>
+                      <span className="ep-setting__label">Payout</span>
+                      <span className="ep-setting__value">{payoutLabel}</span>
+                    </div>
+
+                    <div className="ep-setting ep-setting--top">
+                      <span className="ep-setting__icon"><Gift size={18} /></span>
+                      <span className="ep-setting__label">Beneficiaries</span>
+                      <span className="ep-setting__value">
+                        {userBeneficiaries.length === 0 ? (
+                          <span className="ep-muted">None</span>
+                        ) : (
+                          <span className="ep-benes">
+                            {userBeneficiaries.map((b, i) => (
+                              <span className="ep-bene" key={i}>@{b.account} · {(Number(b.weight) / 100).toFixed(0)}%</span>
+                            ))}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="ep-setting ep-setting--top">
+                      <span className="ep-setting__icon"><Tag size={18} /></span>
+                      <span className="ep-setting__label">Tags</span>
+                      <span className="ep-setting__value">
+                        {tagsPreview && tagsPreview.length > 0 ? (
+                          <span className="ep-tags">
+                            {tagsPreview.map((tag, index) => (
+                              <span className="ep-tag" key={index}>#{tag}</span>
+                            ))}
+                          </span>
+                        ) : <span className="ep-muted">None</span>}
+                      </span>
+                    </div>
+
+                    <div className="ep-setting">
+                      <span className="ep-setting__icon"><Repeat2 size={18} /></span>
+                      <span className="ep-setting__label">Remix / clip</span>
+                      <span className="ep-setting__value">{remixLabel}</span>
+                    </div>
+
+                    <div className="ep-setting">
+                      <span className="ep-setting__icon"><ShieldAlert size={18} /></span>
+                      <span className="ep-setting__label">Adult / NSFW</span>
+                      <span className="ep-setting__value">
+                        {isNsfw ? <span className="ep-nsfw-on">Yes</span> : <span className="ep-muted">No</span>}
+                      </span>
+                    </div>
                   </div>
-                )}
-
-                <div className="preview-section">
-                  <label className="preview-label">Description</label>
-                  <EditorPreview content={description} />
                 </div>
 
-                {prevVideoFile && (
-                  <div className="preview-section">
-                    <label className="preview-label">Video Preview</label>
-                    <div className="preview-video">
-                      <VideoPreview file={prevVideoFile} />
-                    </div>
+                {/* RIGHT: title + description */}
+                <div className="ep-right">
+                  <span className="ep-media-label">Body</span>
+                  {title && <h2 className="ep-title">{title}</h2>}
+                  <div className="ep-desc">
+                    <EditorPreview content={description} />
                   </div>
-                )}
-
-                {selectedThumbnail && (
-                  <div className="preview-section">
-                    <label className="preview-label">Thumbnail</label>
-                    <img
-                      className={`preview-thumbnail${fromStories ? ' preview-thumbnail--portrait' : ''}`}
-                      src={selectedThumbnail}
-                      alt="Thumbnail"
-                    />
-                  </div>
-                )}
-
-                {tagsPreview && (
-                  <div className="preview-section">
-                    <label className="preview-label">Tags</label>
-                    <div className="preview-tags">
-                      {tagsPreview.map((tag, index) => (
-                        <span className="tag-item" key={index}>
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
 
-              <div className="submit-btn-wrap">
+              <div className="ep-actions">
                 <button
-                  className="edit-btn"
+                  type="button"
+                  className="ep-btn ep-btn--secondary"
                   onClick={() => navigate('/embed-studio/details')}
                 >
                   Edit Post
                 </button>
-                <button onClick={handlePostVideo}>
+                <button
+                  type="button"
+                  className="ep-btn ep-btn--primary"
+                  onClick={handlePostVideo}
+                >
                   {fromStories ? 'Post Short' : 'Post Video'}
                 </button>
               </div>
@@ -189,6 +284,11 @@ function EmbedPreview() {
             <h3>Upload Finished!</h3>
             <p>{fromStories ? 'Your short has been published on 3Speak.' : 'Your video has been published on 3Speak.'}</p>
             {fromStories && <p style={{ color: '#e53935' }}>It will take around 5 minutes for it to show up on your profile.</p>}
+            {!fromStories && publishedPermlink && (
+              <button className="promote-success-btn" onClick={() => setPromoteOpen(true)}>
+                <Rocket size={18} /> Promote this video
+              </button>
+            )}
             {embedUrl && (
               <p style={{ fontSize: '0.85rem', wordBreak: 'break-all', marginTop: '0.5rem' }}>
                 Embed URL: {embedUrl}
@@ -208,6 +308,14 @@ function EmbedPreview() {
           </div>
         </div>
       )}
+
+      <PromoteModal
+        open={promoteOpen}
+        onClose={() => setPromoteOpen(false)}
+        author={user}
+        permlink={publishedPermlink}
+        promotedUntil={null}
+      />
     </>
   );
 }

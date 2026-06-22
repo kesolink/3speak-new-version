@@ -967,11 +967,23 @@ function Watch() {
     skip: !author || author === 'unknown',
   });
 
+  // Promoted videos — shown first in recommendations with a "Promoted" badge.
+  const [promotedVideos, setPromotedVideos] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${import.meta.env.VITE_CHECKER_URL}/feeds/promoted?limit=10`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled && d?.success) setPromotedVideos(d.videos || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   // Smart recommendation logic:
-  // 1. Show up to 4 videos from the same author first
-  // 2. Then show related/recommended videos
-  // 3. Fall back to trending if not enough related videos
-  // 4. Exclude the current video from all lists
+  // 1. One promoted video first (badged)
+  // 2. Show up to 4 videos from the same author
+  // 3. Then show related/recommended videos
+  // 4. Fall back to trending if not enough related videos
+  // 5. Exclude the current video from all lists
   const suggestedVideos = useMemo(() => {
     const authorItems = authorVideosData?.socialFeed?.items || [];
     const relatedItems = suggestionsData?.relatedFeed?.items || [];
@@ -1009,9 +1021,16 @@ function Watch() {
       }
     }
 
-    // Combine: author videos first, then recommendations
-    return [...authorVideos, ...recommendations];
-  }, [authorVideosData, suggestionsData, trendingData, author, permlink]);
+    // 0. One promoted video first (excluding the current one + dupes)
+    const promoted = (promotedVideos || [])
+      .filter(v => v.permlink !== permlink && !usedPermlinks.has(v.permlink))
+      .slice(0, 1)
+      .map(v => ({ ...v, _promoted: true }));
+    promoted.forEach(v => usedPermlinks.add(v.permlink));
+
+    // Combine: promoted first, then author videos, then recommendations
+    return [...promoted, ...authorVideos, ...recommendations];
+  }, [authorVideosData, suggestionsData, trendingData, promotedVideos, author, permlink]);
 
   const suggestedVideosRef = useRef(suggestedVideos);
   suggestedVideosRef.current = suggestedVideos;

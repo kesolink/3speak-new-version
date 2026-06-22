@@ -455,6 +455,7 @@
             }
 
             .vote-btn,
+            .promote-btn,
             .summary-btn {
                 display: inline-flex;
                 align-items: center;
@@ -473,6 +474,10 @@
                   background-color: var(--accent-primary);
                   color: var(--text-inverse);
                 }
+            }
+
+            .promote-btn {
+                @include mix.respond(phone) { span { display: none; } }
             }
 
             .summary-btn {

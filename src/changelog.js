@@ -7,6 +7,54 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.31.0',
+    date: '2026-06-22',
+    summary:
+      'The quick Edit on a video (the pencil) now has the same controls as the full Edit page: unlist, mark adult/NSFW, allow or block remix/clip, and promote. The pre-publish review step is cleaner, and on mobile the subtitles menu now opens centred in fullscreen instead of being cut off at the bottom.',
+  },
+  {
+    version: '1.30.0',
+    date: '2026-06-22',
+    summary:
+      'You can now promote any video so it shows first in the Recommended list (with a “Promoted” tag) and in a Promoted row on the home page. Tap Promote on a video (also offered right after uploading and on the Edit page), choose 1–7 days, and pay in HBD or HIVE from your own wallet.',
+  },
+  {
+    version: '1.29.0',
+    date: '2026-06-22',
+    summary:
+      'The final review step before publishing a video is redesigned and now shows everything you picked at a glance — community, payout, beneficiaries, tags and the remix setting.',
+  },
+  {
+    version: '1.28.0',
+    date: '2026-06-22',
+    summary:
+      'You can now mark a video as adult/NSFW — either while uploading (Add details) or later from its Edit page. Adult videos are hidden from feeds and search for viewers who haven’t turned on NSFW.',
+  },
+  {
+    version: '1.27.0',
+    date: '2026-06-22',
+    summary:
+      'You can now unlist a video from its Edit page to hide it from all feeds and search while it stays playable by direct link. Unlisted videos remain on your own profile with an “Unlisted” badge so you can re-list them anytime.',
+  },
+  {
+    version: '1.26.0',
+    date: '2026-06-22',
+    summary:
+      'Fixed: on mobile, you can now open the subtitles and quality menu while a video is playing in fullscreen.',
+  },
+  {
+    version: '1.25.0',
+    date: '2026-06-22',
+    summary:
+      'YouTube links inside a post now stay as normal clickable links instead of being turned into an embedded player.',
+  },
+  {
+    version: '1.24.0',
+    date: '2026-06-22',
+    summary:
+      'Fixed the comment box at the bottom of mobile Shorts — it was too tall and covered part of the video description.',
+  },
+  {
     version: '1.23.0',
     date: '2026-06-19',
     summary:
