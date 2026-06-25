@@ -60,25 +60,34 @@ function isBot(userAgent) {
   return BOT_USER_AGENTS.some((bot) => ua.includes(bot.toLowerCase()));
 }
 
+// Routes that carry the video as a ?v=author/permlink param. The value is the
+// canonical path to echo back (og:url/canonical), and whether it's a short.
+const VPARAM_ROUTES = {
+  '/watch': { routePath: 'watch', kind: 'watch' },
+  '/shorts': { routePath: 'shorts', kind: 'shorts' },
+  '/shorts/stories': { routePath: 'shorts/stories', kind: 'shorts' },
+};
+
 /**
- * Parse video author/permlink + route kind from the URL.
+ * Parse video author/permlink + route info from the URL.
  * Supports:
- *   /watch?v=author/permlink            → { author, permlink, kind: 'watch' }
- *   /shorts?v=author/permlink           → { author, permlink, kind: 'shorts' }
- *   /@author/permlink (skip "shorts")   → { author, permlink, kind: 'watch' }
- * Returns the match or null.
+ *   /watch?v=author/permlink            → kind 'watch'
+ *   /shorts?v=author/permlink           → kind 'shorts'
+ *   /shorts/stories?v=author/permlink   → kind 'shorts' (story-feed deep link)
+ *   /@author/permlink (skip "shorts")   → kind 'watch'
+ * Returns { author, permlink, kind, routePath } or null.
  */
 function parseVideoUrl(url) {
   const { pathname, searchParams } = url;
 
-  // /watch?v=author/permlink  and  /shorts?v=author/permlink
-  if (pathname === '/watch' || pathname === '/shorts') {
+  const vRoute = VPARAM_ROUTES[pathname];
+  if (vRoute) {
     const v = searchParams.get('v');
     if (v && v.includes('/')) {
       const [author, ...rest] = v.split('/');
       const permlink = rest.join('/');
       if (author && permlink) {
-        return { author, permlink, kind: pathname === '/shorts' ? 'shorts' : 'watch' };
+        return { author, permlink, kind: vRoute.kind, routePath: vRoute.routePath };
       }
     }
     return null;
@@ -89,7 +98,7 @@ function parseVideoUrl(url) {
   if (atMatch) {
     const [, author, permlink] = atMatch;
     if (permlink === 'shorts') return null; // shorts listing page, not a video
-    return { author, permlink, kind: 'watch' };
+    return { author, permlink, kind: 'watch', routePath: 'watch' };
   }
 
   return null;
@@ -247,10 +256,26 @@ function fixThumbnail(thumbnail) {
   }
 
   if (t.startsWith('http')) {
-    return `https://images.hive.blog/0x0/${t}`;
+    return `https://images.hive.blog/${OG_IMAGE_BOX}/${t}`;
   }
 
   return t;
+}
+
+// Social crawlers reject oversized images (Discord/Twitter drop multi-MB or
+// huge-dimension files — a raw images.hive.blog upload is often the user's
+// full-res photo at 3+ MB). Route raw hive images through hive's resize proxy
+// so the card gets a bounded copy. Already-sized proxies (/WxH/), processed CDN
+// (/p/...), avatars (/u/...) and non-hive hosts (images.3speak.tv, the local
+// fallback) are left untouched — they're already small.
+const OG_IMAGE_BOX = '1280x720';
+function boundImage(url) {
+  if (!url || typeof url !== 'string') return url;
+  const m = url.match(/^https?:\/\/images\.hive\.blog\/([^/]+)\//);
+  if (!m) return url;
+  const seg = m[1];
+  if (/^\d+x\d+$/.test(seg) || seg === 'p' || seg === 'u') return url;
+  return `https://images.hive.blog/${OG_IMAGE_BOX}/${url}`;
 }
 
 function extractDescription(body) {
@@ -545,7 +570,7 @@ const server = http.createServer(async (req, res) => {
       if (thumbSource) thumbnail = thumbSource.url;
     }
     if (!thumbnail && meta.image && meta.image[0]) thumbnail = meta.image[0];
-    const image = fixThumbnail(thumbnail);
+    const image = boundImage(fixThumbnail(thumbnail));
 
     const kindLabel = video.kind === 'shorts' ? 'Short' : 'Video';
     const title =
@@ -557,10 +582,9 @@ const server = http.createServer(async (req, res) => {
       ? extractDescription(post.body)
       : `A ${kindLabel.toLowerCase()} by @${video.author} on 3Speak.`;
 
-    // Canonicalize to the same route kind that was shared (/watch vs /shorts),
-    // keeping the original share permlink so the link opens the right asset.
-    const routePath = video.kind === 'shorts' ? 'shorts' : 'watch';
-    const selfUrl = `${origin}/${routePath}?v=${video.author}/${video.permlink}`;
+    // Canonicalize to the exact route that was shared (/watch, /shorts or
+    // /shorts/stories), keeping the original permlink so the link opens right.
+    const selfUrl = `${origin}/${video.routePath}?v=${video.author}/${video.permlink}`;
     const canonicalUrl = resolveCanonical(meta, selfUrl);
     const duration = videoInfo.duration || (embed && embed.duration) || null;
     const uploadDate = toIsoDate((post && post.created) || (embed && embed.createdAt));
