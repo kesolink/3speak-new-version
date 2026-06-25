@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.33.0',
+    date: '2026-06-25',
+    summary:
+      'Sharing a video or short now shows a proper preview. When you paste a 3Speak link on Twitter/X, Discord, Telegram, WhatsApp and similar, the post unfurls with the video’s thumbnail, title and description instead of the plain 3Speak logo.',
+  },
+  {
+    version: '1.32.0',
+    date: '2026-06-25',
+    summary:
+      'YouTube links in a video’s description now stay as normal clickable links instead of being turned into an embedded player, so descriptions with two links on one line (e.g. “Source: A & B”) keep their layout.',
+  },
+  {
     version: '1.31.0',
     date: '2026-06-22',
     summary:
