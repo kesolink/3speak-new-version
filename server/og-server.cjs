@@ -1,0 +1,605 @@
+// OG / Twitter-Card prerender sidecar for social media crawlers.
+//
+// WHY THIS EXISTS
+// ---------------
+// preview.3speak.tv (and prod 3speak.tv) ship the SPA as a static shell whose
+// only <meta> tags are the generic site defaults. Social crawlers (Twitterbot,
+// Discordbot, Telegram, WhatsApp, …) do NOT execute JavaScript, so react-helmet
+// never runs for them and every shared video/short renders the same homepage
+// card. This standalone service renders per-video Open Graph + Twitter Card +
+// schema.org VideoObject HTML for those bots. Humans never hit it — nginx routes
+// only crawler User-Agents here (see preview.3speak.tv.nginx).
+//
+// This is a near-verbatim port of the Vercel Edge Middleware in ../middleware.js
+// (which only runs on Vercel and is dead in our Vite-dev / static-nginx deploys),
+// re-expressed as a plain Node http server and EXTENDED to also cover the
+// /shorts?v=author/permlink route. Keep the two in sync if you touch either.
+//
+// Deps: none — Node 18+ global fetch / AbortController only (run with /usr/bin/node v18;
+// nvm v22 segfaults on this box — see the preview-3speak-api service notes).
+
+const http = require('http');
+
+const PORT = process.env.OG_PORT || 4023;
+const HIVE_API = 'https://api.hive.blog';
+const BUNNY_IPFS_CDN = 'https://hotipfs-3speak-1.b-cdn.net';
+// Base for author/publisher links + the fallback logo. og:url / canonical are
+// derived from the *request* host instead (so a shared preview link points back
+// to preview, and a prod link to prod) — see requestOrigin().
+const BASE_URL = process.env.OG_BASE_URL || 'https://3speak.tv';
+const FALLBACK_THUMBNAIL = `${BASE_URL}/3speak.jpeg`;
+const TRANSLATE_API_URL = process.env.TRANSLATE_API_URL || 'https://translate.3speak.tv';
+// Checker/embed metadata API. Shorts (and some embed-only videos) are NOT Hive
+// posts — they're embed assets whose permlink in the share URL is the *asset*
+// id, not a Hive permlink. So a Hive lookup by that id 404s. /videodetails
+// resolves the embed-video doc (title, thumbnail_url, duration, embed_url).
+const CHECKER_URL = process.env.CHECKER_URL || 'https://checker.3speak.tv';
+// Cap the transcript we inline so a long video can't bloat the bot response.
+const MAX_TRANSCRIPT_CHARS = 20000;
+
+const BOT_USER_AGENTS = [
+  'facebookexternalhit',
+  'Facebot',
+  'Twitterbot',
+  'Discordbot',
+  'TelegramBot',
+  'WhatsApp',
+  'LinkedInBot',
+  'Slackbot',
+  'Embedly',
+  'Pinterest',
+  'vkShare',
+  'Applebot',
+  'Googlebot',
+  'bingbot',
+];
+
+function isBot(userAgent) {
+  if (!userAgent) return false;
+  const ua = userAgent.toLowerCase();
+  return BOT_USER_AGENTS.some((bot) => ua.includes(bot.toLowerCase()));
+}
+
+/**
+ * Parse video author/permlink + route kind from the URL.
+ * Supports:
+ *   /watch?v=author/permlink            → { author, permlink, kind: 'watch' }
+ *   /shorts?v=author/permlink           → { author, permlink, kind: 'shorts' }
+ *   /@author/permlink (skip "shorts")   → { author, permlink, kind: 'watch' }
+ * Returns the match or null.
+ */
+function parseVideoUrl(url) {
+  const { pathname, searchParams } = url;
+
+  // /watch?v=author/permlink  and  /shorts?v=author/permlink
+  if (pathname === '/watch' || pathname === '/shorts') {
+    const v = searchParams.get('v');
+    if (v && v.includes('/')) {
+      const [author, ...rest] = v.split('/');
+      const permlink = rest.join('/');
+      if (author && permlink) {
+        return { author, permlink, kind: pathname === '/shorts' ? 'shorts' : 'watch' };
+      }
+    }
+    return null;
+  }
+
+  // /@author/permlink
+  const atMatch = pathname.match(/^\/@([^/]+)\/(.+)$/);
+  if (atMatch) {
+    const [, author, permlink] = atMatch;
+    if (permlink === 'shorts') return null; // shorts listing page, not a video
+    return { author, permlink, kind: 'watch' };
+  }
+
+  return null;
+}
+
+async function fetchHivePost(author, permlink) {
+  const res = await fetch(HIVE_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'bridge.get_post',
+      params: { author, permlink, observer: '' },
+      id: 1,
+    }),
+  });
+
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  const post = data && data.result;
+  if (!post || !post.author || post.author === '') return null;
+  return post;
+}
+
+/**
+ * Resolve an embed-video doc from the checker (/videodetails/:owner/:permlink).
+ * Returns the raw doc or null. Time-boxed — never blocks the bot response long.
+ * The matching `videos`/`embed-video` collections key on owner+permlink (asset
+ * id) OR hive_author+hive_permlink, so it works for the share URL's id directly.
+ */
+async function fetchEmbedDetails(owner, permlink) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    const res = await fetch(
+      `${CHECKER_URL}/videodetails/${encodeURIComponent(owner)}/${encodeURIComponent(permlink)}`,
+      { signal: ctrl.signal },
+    );
+    if (!res.ok) return null;
+    const doc = await res.json();
+    if (!doc || typeof doc !== 'object' || (!doc.permlink && !doc.owner)) return null;
+    return doc;
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Parse an embed_url ("@author/permlink") into { author, permlink } or null.
+ */
+function parseEmbedUrl(embedUrl) {
+  if (!embedUrl || typeof embedUrl !== 'string') return null;
+  const m = embedUrl.replace(/^@/, '').match(/^([^/]+)\/(.+)$/);
+  if (!m) return null;
+  return { author: m[1], permlink: m[2] };
+}
+
+function parseMeta(jsonMetadata) {
+  if (!jsonMetadata) return {};
+  if (typeof jsonMetadata === 'object') return jsonMetadata;
+  try {
+    return JSON.parse(jsonMetadata);
+  } catch (_) {
+    return {};
+  }
+}
+
+function isAdultByTitle(title) {
+  if (!title) return false;
+  return /(\bporn\b|\bxxx\b|\bnsfw\b|\bnude[sd]?\b|\bnaked\b|sex\s*tape|onlyfans|\bhentai\b|camgirl|\bescort\b)/i.test(
+    title,
+  );
+}
+
+function getIndexability(post, meta) {
+  const tags = Array.isArray(meta && meta.tags)
+    ? meta.tags.map((t) => String(t).toLowerCase())
+    : [];
+
+  if (tags.includes('nsfw') || tags.includes('xxx') || tags.includes('porn')) {
+    return { index: false, reason: 'nsfw-tag' };
+  }
+  if (isAdultByTitle(post.title)) {
+    return { index: false, reason: 'nsfw-title' };
+  }
+
+  if ((post.stats && post.stats.gray === true) || (post.stats && post.stats.hide === true)) {
+    return { index: false, reason: 'muted' };
+  }
+  if (Array.isArray(post.blacklists) && post.blacklists.length > 0) {
+    return { index: false, reason: 'blacklist' };
+  }
+
+  const videoInfo = (meta && meta.video && meta.video.info) || {};
+  const hasVideo = !!(
+    videoInfo.duration ||
+    videoInfo.ipfs ||
+    videoInfo.filename ||
+    (Array.isArray(videoInfo.sourceMap) &&
+      videoInfo.sourceMap.some((s) => s && s.type && s.type !== 'thumbnail'))
+  );
+  const appIsSpeak = String((meta && meta.app) || '').toLowerCase().includes('speak');
+  const bodyLen = (post.body || '').trim().length;
+  if (!hasVideo && !appIsSpeak && bodyLen < 50) {
+    return { index: false, reason: 'empty' };
+  }
+
+  return { index: true };
+}
+
+function resolveCanonical(meta, selfUrl) {
+  const declared = meta && meta.canonical_url;
+  if (typeof declared === 'string') {
+    const trimmed = declared.trim();
+    if (/^https?:\/\/[^\s"'<>]+$/i.test(trimmed)) return trimmed;
+  }
+  return selfUrl;
+}
+
+function fixThumbnail(thumbnail) {
+  if (!thumbnail || typeof thumbnail !== 'string' || thumbnail.trim() === '') {
+    return FALLBACK_THUMBNAIL;
+  }
+
+  const t = thumbnail.trim();
+
+  if (t.includes('/ipfs/http')) {
+    const match = t.match(/\/ipfs\/(https?:\/\/.+)/);
+    if (match && match[1]) return match[1];
+  }
+
+  if (t.includes('ipfs://')) {
+    const hash = t.replace('ipfs://', '').trim();
+    if (!hash) return FALLBACK_THUMBNAIL;
+    return `${BUNNY_IPFS_CDN}/ipfs/${hash}`;
+  }
+
+  if (t.includes('ipfs-3speak.b-cdn.net')) {
+    return t.replace('https://ipfs-3speak.b-cdn.net', BUNNY_IPFS_CDN);
+  }
+
+  if (
+    t.includes('images.hive.blog') ||
+    t.includes('files.peakd.com') ||
+    t.includes('images.3speak.tv')
+  ) {
+    return t;
+  }
+
+  if (t.includes('media.3speak.tv')) {
+    return FALLBACK_THUMBNAIL;
+  }
+
+  if (t.startsWith('http')) {
+    return `https://images.hive.blog/0x0/${t}`;
+  }
+
+  return t;
+}
+
+function extractDescription(body) {
+  if (!body) return '';
+  let text = body
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[#*_~`>]/g, '')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (text.length > 200) {
+    text = text.slice(0, 197) + '...';
+  }
+  return text;
+}
+
+function secondsToISO8601(sec) {
+  const total = Math.round(Number(sec) || 0);
+  if (total <= 0) return null;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `PT${h ? `${h}H` : ''}${m ? `${m}M` : ''}${s ? `${s}S` : ''}` || 'PT0S';
+}
+
+function toIsoDate(created) {
+  if (!created || typeof created !== 'string') return null;
+  return /[zZ]|[+-]\d{2}:?\d{2}$/.test(created) ? created : `${created}Z`;
+}
+
+function srtToText(srt) {
+  if (!srt || typeof srt !== 'string') return '';
+  const out = [];
+  let last = '';
+  for (const block of srt.trim().replace(/\r\n/g, '\n').split(/\n\n+/)) {
+    const lines = block.split('\n');
+    const tsIdx = lines.findIndex((l) => l.includes('-->'));
+    if (tsIdx === -1) continue;
+    const text = lines
+      .slice(tsIdx + 1)
+      .join(' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text && text !== last) {
+      out.push(text);
+      last = text;
+    }
+  }
+  let joined = out.join(' ').replace(/\s+/g, ' ').trim();
+  if (joined.length > MAX_TRANSCRIPT_CHARS) {
+    joined = joined.slice(0, MAX_TRANSCRIPT_CHARS).replace(/\s+\S*$/, '') + '…';
+  }
+  return joined;
+}
+
+async function fetchTranscript(author, permlink) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 2500);
+  try {
+    const listRes = await fetch(`${TRANSLATE_API_URL}/subtitles/${author}/${permlink}`, {
+      signal: ctrl.signal,
+    });
+    if (!listRes.ok) return null;
+    const list = await listRes.json();
+    if (!Array.isArray(list) || list.length === 0) return null;
+
+    const entry = list.find((l) => l && l.lang === 'en') || list[0];
+    if (!entry || !entry.cid) return null;
+
+    const srtRes = await fetch(`${BUNNY_IPFS_CDN}/ipfs/${entry.cid}`, { signal: ctrl.signal });
+    if (!srtRes.ok) return null;
+    const text = srtToText(await srtRes.text());
+    if (!text) return null;
+    return { text, lang: entry.lang || 'en' };
+  } catch (_) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function buildOgHtml({
+  title,
+  description,
+  image,
+  url,
+  duration,
+  author,
+  noindex,
+  uploadDate,
+  embedUrl,
+  transcript,
+}) {
+  const safeTitle = escapeHtml(title);
+  const safeDesc = escapeHtml(description);
+  const safeImage = escapeHtml(image);
+  const safeUrl = escapeHtml(url);
+  const safeAuthor = escapeHtml(author);
+
+  const durationMeta = duration
+    ? `<meta property="og:video:duration" content="${Math.round(duration)}" />`
+    : '';
+
+  const robotsMeta = noindex
+    ? '<meta name="robots" content="noindex, follow" />'
+    : '<meta name="robots" content="index, follow" />';
+
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type': 'VideoObject',
+    name: title,
+    description: description || title,
+    thumbnailUrl: image,
+    contentUrl: url,
+    embedUrl,
+    url,
+    author: { '@type': 'Person', name: `@${author}`, url: `${BASE_URL}/user/${author}` },
+    publisher: {
+      '@type': 'Organization',
+      name: '3Speak',
+      logo: { '@type': 'ImageObject', url: FALLBACK_THUMBNAIL },
+    },
+  };
+  if (uploadDate) ld.uploadDate = uploadDate;
+  const isoDuration = secondsToISO8601(duration);
+  if (isoDuration) ld.duration = isoDuration;
+  if (transcript) ld.transcript = transcript;
+  const jsonLd = `<script type="application/ld+json">${JSON.stringify(ld).replace(
+    /</g,
+    '\\u003c',
+  )}</script>`;
+
+  const transcriptSection = transcript
+    ? `\n  <section>\n    <h2>Transcript</h2>\n    <p>${escapeHtml(transcript)}</p>\n  </section>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${safeTitle} - 3Speak</title>
+  ${robotsMeta}
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="video.other" />
+  <meta property="og:site_name" content="3Speak" />
+  <meta property="og:title" content="${safeTitle}" />
+  <meta property="og:description" content="${safeDesc}" />
+  <meta property="og:image" content="${safeImage}" />
+  <meta property="og:url" content="${safeUrl}" />
+  ${durationMeta}
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@3speaktv" />
+  <meta name="twitter:title" content="${safeTitle}" />
+  <meta name="twitter:description" content="${safeDesc}" />
+  <meta name="twitter:image" content="${safeImage}" />
+
+  <link rel="canonical" href="${safeUrl}" />
+
+  ${jsonLd}
+</head>
+<body>
+  <h1>${safeTitle}</h1>
+  <p><a href="${safeUrl}">${safeTitle}</a> by @${safeAuthor} on <a href="${escapeHtml(BASE_URL)}">3Speak</a></p>
+  <p>${safeDesc}</p>${transcriptSection}
+</body>
+</html>`;
+}
+
+// Generic site card — returned for bots on non-video URLs (or on any error),
+// so the worst case is identical to today's static index.html defaults rather
+// than a broken response. Mirrors index.html's primary OG/Twitter tags.
+function buildGenericHtml(siteUrl) {
+  const url = escapeHtml(siteUrl);
+  const title = '3Speak - Decentralized Video Platform';
+  const desc =
+    '3Speak is a decentralized video sharing platform built on blockchain technology. Watch, upload, and share videos while earning cryptocurrency rewards.';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <meta name="robots" content="index, follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="3Speak" />
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${desc}" />
+  <meta property="og:image" content="${FALLBACK_THUMBNAIL}" />
+  <meta property="og:url" content="${url}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@3speaktv" />
+  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:description" content="${desc}" />
+  <meta name="twitter:image" content="${FALLBACK_THUMBNAIL}" />
+  <link rel="canonical" href="${url}" />
+</head>
+<body><h1>${title}</h1><p>${desc}</p></body>
+</html>`;
+}
+
+// Reconstruct the public origin from the proxy headers nginx forwards
+// (X-Forwarded-Proto + Host) so og:url/canonical match the host that was
+// actually shared — preview on preview, prod on prod.
+function requestOrigin(req) {
+  const proto = (req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+  const host = (req.headers['host'] || '3speak.tv').split(',')[0].trim();
+  return `${proto}://${host}`;
+}
+
+function sendHtml(req, res, status, html) {
+  res.writeHead(status, {
+    'Content-Type': 'text/html; charset=utf-8',
+    // no-store, NOT s-maxage: preview/prod sit behind Cloudflare, whose cache is
+    // keyed by URL and does NOT vary on User-Agent. If a shared cache stored this
+    // bot-only prerender it could serve the stripped OG page to a real human (or
+    // a stale page to bots). Bot traffic is low, so skipping the edge cache is a
+    // cheap price for never cross-serving. (The Vercel original used s-maxage
+    // because Vercel's edge keys differently — not safe here.)
+    'Cache-Control': 'no-store',
+  });
+  if (req.method === 'HEAD') return res.end();
+  res.end(html);
+}
+
+const server = http.createServer(async (req, res) => {
+  const origin = requestOrigin(req);
+
+  // Lightweight health probe for systemd / curl checks.
+  if (req.url === '/og-health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end('{"ok":true}');
+  }
+
+  let url;
+  try {
+    url = new URL(req.url, origin);
+  } catch (_) {
+    return sendHtml(req, res, 200, buildGenericHtml(origin));
+  }
+
+  try {
+    const video = parseVideoUrl(url);
+    if (!video) return sendHtml(req, res, 200, buildGenericHtml(origin + req.url));
+
+    // Resolve the Hive post and/or the embed-video doc. Shorts (and some embed
+    // videos) aren't Hive posts — the share URL's permlink is the embed *asset*
+    // id, so a Hive lookup by it 404s. Strategy:
+    //   - /shorts: resolve the embed doc first, then the Hive post via embed_url.
+    //   - /watch & /@: try Hive directly; only on a miss fall back to the embed
+    //     doc (cheap, and avoids a checker call for ordinary videos).
+    let post = null;
+    let embed = null;
+    if (video.kind === 'shorts') {
+      embed = await fetchEmbedDetails(video.author, video.permlink);
+      const hiveRef = embed && parseEmbedUrl(embed.embed_url);
+      if (hiveRef) post = await fetchHivePost(hiveRef.author, hiveRef.permlink);
+    } else {
+      post = await fetchHivePost(video.author, video.permlink);
+      if (!post) {
+        embed = await fetchEmbedDetails(video.author, video.permlink);
+        const hiveRef = embed && parseEmbedUrl(embed.embed_url);
+        if (hiveRef) post = await fetchHivePost(hiveRef.author, hiveRef.permlink);
+      }
+    }
+
+    if (!post && !embed) return sendHtml(req, res, 200, buildGenericHtml(origin + req.url));
+
+    const meta = post ? parseMeta(post.json_metadata) : {};
+    const videoInfo = (meta.video && meta.video.info) || {};
+
+    // Thumbnail: embed doc's thumbnail_url wins (it's the one the app shows for
+    // shorts), then the Hive post's sourceMap/image, then the site fallback.
+    let thumbnail = (embed && embed.thumbnail_url) || null;
+    if (!thumbnail && videoInfo.sourceMap) {
+      const thumbSource = videoInfo.sourceMap.find((s) => s.type === 'thumbnail');
+      if (thumbSource) thumbnail = thumbSource.url;
+    }
+    if (!thumbnail && meta.image && meta.image[0]) thumbnail = meta.image[0];
+    const image = fixThumbnail(thumbnail);
+
+    const kindLabel = video.kind === 'shorts' ? 'Short' : 'Video';
+    const title =
+      (post && post.title) ||
+      (embed && (embed.hive_title || embed.embed_title || embed.originalFilename)) ||
+      `${kindLabel} by @${video.author}`;
+
+    const description = post
+      ? extractDescription(post.body)
+      : `A ${kindLabel.toLowerCase()} by @${video.author} on 3Speak.`;
+
+    // Canonicalize to the same route kind that was shared (/watch vs /shorts),
+    // keeping the original share permlink so the link opens the right asset.
+    const routePath = video.kind === 'shorts' ? 'shorts' : 'watch';
+    const selfUrl = `${origin}/${routePath}?v=${video.author}/${video.permlink}`;
+    const canonicalUrl = resolveCanonical(meta, selfUrl);
+    const duration = videoInfo.duration || (embed && embed.duration) || null;
+    const uploadDate = toIsoDate((post && post.created) || (embed && embed.createdAt));
+
+    // Indexability: full signal set when there's a Hive post; for embed-only
+    // assets fall back to the NSFW flag + title heuristic.
+    const index = post
+      ? getIndexability(post, meta).index
+      : !(embed && embed.isNsfwContent) && !isAdultByTitle(title);
+
+    // Transcripts only exist for Hive-backed videos; fetch by the resolved Hive
+    // author/permlink (not the embed asset id), and skip on noindex pages.
+    let transcript = null;
+    if (post && index) {
+      const t = await fetchTranscript(post.author, post.permlink);
+      transcript = (t && t.text) || null;
+    }
+
+    const html = buildOgHtml({
+      title,
+      description,
+      image,
+      url: canonicalUrl,
+      duration,
+      author: video.author,
+      noindex: !index,
+      uploadDate,
+      embedUrl: `${origin}/embed?v=${video.author}/${video.permlink}`,
+      transcript,
+    });
+
+    return sendHtml(req, res, 200, html);
+  } catch (err) {
+    console.error('[og] error:', err && err.message);
+    // Never fail the bot — degrade to the generic card.
+    return sendHtml(req, res, 200, buildGenericHtml(origin + req.url));
+  }
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`3Speak OG prerender service running on 127.0.0.1:${PORT}`);
+});
