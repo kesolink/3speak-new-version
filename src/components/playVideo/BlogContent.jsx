@@ -30,6 +30,15 @@ const getRenderer = async () => {
 
 const THRESHOLD_HEIGHT = 100;
 
+// Keep YouTube links as plain inline links instead of auto-embedded players.
+// We wrap any BARE YouTube URL in explicit markdown-link form `[url](url)` BEFORE
+// rendering — the renderer then leaves it as a normal <a> in place (so two links
+// on one line, e.g. "Source: A & B", stay inline) instead of pulling the first
+// one out into a block embed that splits the paragraph.
+const YT_BARE_URL_RE = /(?<!\]\()(?<!["'=\[])\bhttps?:\/\/(?:www\.)?(?:m\.)?(?:youtube\.com\/(?:watch\?[^\s)]+|shorts\/[A-Za-z0-9_-]+|v\/[A-Za-z0-9_-]+|embed\/[A-Za-z0-9_-]+)|youtu\.be\/[A-Za-z0-9_-]+(?:\?[^\s)]*)?)/g;
+const preprocessYouTubeLinks = (markdown) =>
+  typeof markdown === 'string' ? markdown.replace(YT_BARE_URL_RE, (u) => `[${u}](${u})`) : markdown;
+
 const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) => {
   const [content, setContent] = useState("");
   const [renderedContent, setRenderedContent] = useState("");
@@ -148,7 +157,7 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
     getRenderer()
       .then((render) => {
         try {
-          let renderedHTML = render(contentString);
+          let renderedHTML = render(preprocessYouTubeLinks(contentString));
           renderedHTML = cleanContent(renderedHTML);
 
           // Extract audio.3speak.tv containers and replace with React mount slots
