@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.34.0',
+    date: '2026-06-26',
+    summary:
+      'The review step before publishing a video now looks just like the finished post: your video player (showing the thumbnail until you press play), then the title and the description exactly as viewers will see them — YouTube links stay as normal links instead of turning into embeds. Community, payout, beneficiaries, tags and the other publish settings are listed below the post.',
+  },
+  {
     version: '1.33.0',
     date: '2026-06-25',
     summary:
