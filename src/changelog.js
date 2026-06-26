@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.36.0',
+    date: '2026-06-26',
+    summary:
+      'The video watch page has a cleaner desktop layout: the player sits flush at the top, the title shows views, age, rewards and votes beside it, and all the action buttons (Vote, Tip, Reshare, Clip, Share, Promote, Playlist, Report) are now consistent pill buttons in one tidy row, with the description in a rounded card below.',
+  },
+  {
     version: '1.35.0',
     date: '2026-06-26',
     summary:
