@@ -1,91 +1,112 @@
 @use "../../mixins.scss" as mix;
 
-/* Redesigned embed-studio review/preview step */
+/* Redesigned embed-studio review/preview step — single column, rendered to look
+   like the final post (player → title → description), with publish settings
+   shown below the post body. */
 .ep-review {
-  max-width: 1040px;
+  max-width: 760px;
   margin: 0 auto;
   width: 100%;
 }
 
-.ep-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 22px;
-  align-items: stretch;
-
-  @include mix.respond(phone) {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-}
-
-/* ---- Left: thumbnail, video, settings ---- */
-.ep-left {
+/* ---- The post preview itself ---- */
+.ep-post {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  min-width: 0;
+  gap: 12px;
 }
 
-.ep-media-video {
+/* One card wrapping the player + description (the unified "post body"). The
+   card background/radius live here now, NOT on the inner markdown container. */
+.ep-post-card {
+  background: var(--card-bg);
   border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.12);
+
+  /* Player sits flush at the top of the card — the card clips its corners and
+     provides the shadow, so it drops its own. */
+  .ep-player {
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* Neutralise BlogContent's own card so it doesn't double up inside ours. */
+  .blog-content-container {
+    background-color: transparent;
+    border-radius: 0;
+  }
+}
+
+/* Player — stands in for the leading embed URL of the published body. */
+.ep-player {
+  position: relative;
+  overflow: hidden;
   background: #000;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
   aspect-ratio: 16 / 9;
 
-  video, & > * {
+  video,
+  .ep-player__still {
     width: 100%;
     height: 100%;
-    object-fit: contain;
     display: block;
   }
+  video { object-fit: contain; }
+  .ep-player__still { object-fit: cover; }
 
   &--portrait {
     aspect-ratio: 9 / 16;
     max-width: 320px;
+    width: 100%;
     margin: 0 auto;
   }
 }
 
-.ep-media-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ep-media-label {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--text-secondary, #888);
-}
-
-.ep-thumb {
+/* Thumbnail-as-poster with a play button, shown until the user hits play. */
+.ep-player__poster {
+  position: relative;
+  display: block;
   width: 100%;
-  border-radius: 12px;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #000;
+  cursor: pointer;
 
-  &--portrait {
-    aspect-ratio: 9 / 16;
-    max-width: 200px;
+  img {
+    width: 100%;
+    height: 100%;
     object-fit: cover;
+    display: block;
   }
+
+  &[disabled] { cursor: default; }
 }
 
-/* ---- Right: title + description (tall) ---- */
-.ep-right {
+.ep-player__play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 64px;
+  height: 64px;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding-left: 4px; /* optical centering of the play triangle */
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  pointer-events: none;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.ep-player__poster:hover .ep-player__play {
+  background: var(--accent-primary, #e53935);
+  transform: scale(1.05);
 }
 
 .ep-title {
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.25;
   font-weight: 700;
   margin: 0;
@@ -93,24 +114,9 @@
   word-break: break-word;
 }
 
-/* The renderer (EditorPreview → .editor-preview) already draws its own card, so
-   this is just a flex wrapper that stretches it taller — no second container. */
-.ep-desc {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-
-  .editor-preview {
-    flex: 1;
-    width: 100%;
-    margin: 0;
-    min-height: 340px;
-    max-height: 70vh;
-
-    @include mix.respond(phone) {
-      min-height: 180px;
-    }
-  }
+/* Description rendered through the same BlogContent the watch page uses. */
+.ep-body {
+  width: 100%;
 }
 
 .ep-tags {
@@ -128,8 +134,9 @@
   color: var(--text-secondary, #555);
 }
 
-/* ---- Publish settings panel ---- */
+/* ---- Publish settings panel (below the post body) ---- */
 .ep-settings {
+  margin-top: 26px;
   border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
   border-radius: 14px;
   overflow: hidden;

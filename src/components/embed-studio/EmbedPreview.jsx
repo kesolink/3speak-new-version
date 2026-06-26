@@ -3,12 +3,12 @@ import "../legacy-studio/Preview.scss";
 import "./EmbedPreview.scss";
 import { Navigate, useNavigate } from "react-router-dom";
 import { CheckCircle, Upload, FileText, Info, Users, Coins, Gift, Repeat2, Tag, ShieldAlert } from "lucide-react";
-import VideoPreview from "../studio/VideoPreview";
 import { StepProgress } from "../legacy-studio/StepProgress";
 import EmbedUploadProgressBar from "./EmbedUploadProgressBar";
 import { useEmbedUpload } from "../../context/EmbedUploadContext";
 import "../legacy-studio/VideoUploadStatus.scss";
-import EditorPreview from "../Editor/EditorPreview";
+import BlogContent from "../playVideo/BlogContent";
+import EmbedPreviewPlayer from "./EmbedPreviewPlayer";
 import PromoteModal from "../Promote/PromoteModal";
 import { Rocket } from "lucide-react";
 
@@ -64,6 +64,19 @@ function EmbedPreview() {
   const isRemix = !!(originalAuthor && originalPermlink);
   const remixLabel = isRemix ? "On (this is a remix)" : reusable ? "Allowed" : "Not allowed";
 
+  // The body the viewer will actually read = description (+ remix credit). The
+  // published body also prepends the embed URL and appends a "Watch on 3Speak"
+  // footer, but BlogContent strips both on render — so rendering this through the
+  // same BlogContent the watch page uses gives a faithful preview. The player is
+  // shown separately above, standing in for that leading embed URL.
+  const previewBody = isRemix
+    ? `${description}\n\n---\n*Based on a video by [@${originalAuthor}](${
+        fromStories
+          ? `${window.location.origin}/shorts?v=${originalAuthor}/${originalPermlink}`
+          : `${window.location.origin}/@${originalAuthor}/${originalPermlink}`
+      })*`
+    : description;
+
   // `beneficiaries` is an array initially but the beneficiary modal stores it as
   // a JSON string — normalise both shapes before rendering.
   let beneList = [];
@@ -96,100 +109,87 @@ function EmbedPreview() {
 
           <div className="studio-page-content">
             <div className="ep-review">
-              <div className="ep-grid">
-                {/* LEFT: thumbnail, video, settings */}
-                <div className="ep-left">
-                  {selectedThumbnail && (
-                    <div className="ep-media-block">
-                      <span className="ep-media-label">Thumbnail</span>
-                      <img
-                        className={`ep-thumb${fromStories ? ' ep-thumb--portrait' : ''}`}
-                        src={selectedThumbnail}
-                        alt="Thumbnail"
-                      />
-                    </div>
-                  )}
+              {/* POST PREVIEW — rendered like the final post: player (standing in
+                  for the leading embed URL) → title → description body. */}
+              <div className="ep-post">
+                {title && <h2 className="ep-title">{title}</h2>}
 
-                  {prevVideoFile && (
-                    <div className="ep-media-block">
-                      <span className="ep-media-label">Video</span>
-                      <div className={`ep-media-video${fromStories ? ' ep-media-video--portrait' : ''}`}>
-                        <VideoPreview file={prevVideoFile} />
-                      </div>
-                    </div>
-                  )}
+                {/* One card wrapping the player + description so the video reads
+                    as part of the post body, not a detached element. */}
+                <div className="ep-post-card">
+                  <EmbedPreviewPlayer
+                    file={prevVideoFile}
+                    poster={selectedThumbnail}
+                    portrait={fromStories}
+                  />
 
-                  <div className="ep-settings">
-                    <div className="ep-settings__head">Publish settings</div>
-
-                    <div className="ep-setting">
-                      <span className="ep-setting__icon"><Users size={18} /></span>
-                      <span className="ep-setting__label">Community</span>
-                      <span className="ep-setting__value ep-setting__value--community">
-                        <img src={`https://images.hive.blog/u/${communityDisplay.name}/avatar`} alt="" />
-                        {communityDisplay.title}
-                      </span>
-                    </div>
-
-                    <div className="ep-setting">
-                      <span className="ep-setting__icon"><Coins size={18} /></span>
-                      <span className="ep-setting__label">Payout</span>
-                      <span className="ep-setting__value">{payoutLabel}</span>
-                    </div>
-
-                    <div className="ep-setting ep-setting--top">
-                      <span className="ep-setting__icon"><Gift size={18} /></span>
-                      <span className="ep-setting__label">Beneficiaries</span>
-                      <span className="ep-setting__value">
-                        {userBeneficiaries.length === 0 ? (
-                          <span className="ep-muted">None</span>
-                        ) : (
-                          <span className="ep-benes">
-                            {userBeneficiaries.map((b, i) => (
-                              <span className="ep-bene" key={i}>@{b.account} · {(Number(b.weight) / 100).toFixed(0)}%</span>
-                            ))}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="ep-setting ep-setting--top">
-                      <span className="ep-setting__icon"><Tag size={18} /></span>
-                      <span className="ep-setting__label">Tags</span>
-                      <span className="ep-setting__value">
-                        {tagsPreview && tagsPreview.length > 0 ? (
-                          <span className="ep-tags">
-                            {tagsPreview.map((tag, index) => (
-                              <span className="ep-tag" key={index}>#{tag}</span>
-                            ))}
-                          </span>
-                        ) : <span className="ep-muted">None</span>}
-                      </span>
-                    </div>
-
-                    <div className="ep-setting">
-                      <span className="ep-setting__icon"><Repeat2 size={18} /></span>
-                      <span className="ep-setting__label">Remix / clip</span>
-                      <span className="ep-setting__value">{remixLabel}</span>
-                    </div>
-
-                    <div className="ep-setting">
-                      <span className="ep-setting__icon"><ShieldAlert size={18} /></span>
-                      <span className="ep-setting__label">Adult / NSFW</span>
-                      <span className="ep-setting__value">
-                        {isNsfw ? <span className="ep-nsfw-on">Yes</span> : <span className="ep-muted">No</span>}
-                      </span>
-                    </div>
+                  <div className="ep-body">
+                    <BlogContent description={previewBody} alwaysExpanded />
                   </div>
                 </div>
+              </div>
 
-                {/* RIGHT: title + description */}
-                <div className="ep-right">
-                  <span className="ep-media-label">Body</span>
-                  {title && <h2 className="ep-title">{title}</h2>}
-                  <div className="ep-desc">
-                    <EditorPreview content={description} />
-                  </div>
+              {/* Everything that isn't the post body, shown below it. */}
+              <div className="ep-settings">
+                <div className="ep-settings__head">Publish settings</div>
+
+                <div className="ep-setting">
+                  <span className="ep-setting__icon"><Users size={18} /></span>
+                  <span className="ep-setting__label">Community</span>
+                  <span className="ep-setting__value ep-setting__value--community">
+                    <img src={`https://images.hive.blog/u/${communityDisplay.name}/avatar`} alt="" />
+                    {communityDisplay.title}
+                  </span>
+                </div>
+
+                <div className="ep-setting">
+                  <span className="ep-setting__icon"><Coins size={18} /></span>
+                  <span className="ep-setting__label">Payout</span>
+                  <span className="ep-setting__value">{payoutLabel}</span>
+                </div>
+
+                <div className="ep-setting ep-setting--top">
+                  <span className="ep-setting__icon"><Gift size={18} /></span>
+                  <span className="ep-setting__label">Beneficiaries</span>
+                  <span className="ep-setting__value">
+                    {userBeneficiaries.length === 0 ? (
+                      <span className="ep-muted">None</span>
+                    ) : (
+                      <span className="ep-benes">
+                        {userBeneficiaries.map((b, i) => (
+                          <span className="ep-bene" key={i}>@{b.account} · {(Number(b.weight) / 100).toFixed(0)}%</span>
+                        ))}
+                      </span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="ep-setting ep-setting--top">
+                  <span className="ep-setting__icon"><Tag size={18} /></span>
+                  <span className="ep-setting__label">Tags</span>
+                  <span className="ep-setting__value">
+                    {tagsPreview && tagsPreview.length > 0 ? (
+                      <span className="ep-tags">
+                        {tagsPreview.map((tag, index) => (
+                          <span className="ep-tag" key={index}>#{tag}</span>
+                        ))}
+                      </span>
+                    ) : <span className="ep-muted">None</span>}
+                  </span>
+                </div>
+
+                <div className="ep-setting">
+                  <span className="ep-setting__icon"><Repeat2 size={18} /></span>
+                  <span className="ep-setting__label">Remix / clip</span>
+                  <span className="ep-setting__value">{remixLabel}</span>
+                </div>
+
+                <div className="ep-setting">
+                  <span className="ep-setting__icon"><ShieldAlert size={18} /></span>
+                  <span className="ep-setting__label">Adult / NSFW</span>
+                  <span className="ep-setting__value">
+                    {isNsfw ? <span className="ep-nsfw-on">Yes</span> : <span className="ep-muted">No</span>}
+                  </span>
                 </div>
               </div>
 
