@@ -8,8 +8,7 @@ import { MdReplay, MdPlayArrow } from "react-icons/md";
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useQuery } from "@apollo/client";
-import { GET_PROFILE, GET_VIDEO } from "../../graphql/queries";
+import { fetchHiveProfile, fetchPlaySource } from "../../lib/videoData";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
@@ -41,7 +40,7 @@ import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
 import PlaylistBar from "../PlaylistBar/PlaylistBar";
 import { useMyPlaylists, isVideoInPlaylist } from "../../hooks/useMyPlaylists";
 import { removeFromPlaylist } from "../../utils/playlistOperations";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import Button from "../Button/Button";
 import { Repeat2, Scissors, Tornado, Film, Music, Rocket } from 'lucide-react';
@@ -198,19 +197,24 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     return `${diffInMonths}mo ago`;
   }, []);
 
-  // Queries with proper skip conditions
-  const getUserProfile = useQuery(GET_PROFILE, {
-    variables: { id: videoDetails?.author?.id },
-    skip: !videoDetails?.author?.id,
+  // Uploader profile — from Hive (lib/videoData), not the retired union API.
+  const profileName = videoDetails?.author?.username || videoDetails?.author?.id || author;
+  const { data: profile } = useQuery({
+    queryKey: ['hive-profile', profileName],
+    queryFn: () => fetchHiveProfile(profileName),
+    enabled: !!profileName && profileName !== 'unknown',
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch spkvideo separately (resilient — doesn't block videoDetails)
-  const { data: videoData } = useQuery(GET_VIDEO, {
-    variables: { author, permlink },
-    skip: !author || !permlink,
+  // HLS source — resolved from play.3speak.tv by author/permlink (only used by
+  // the clip/remix editor; the main player resolves its own source).
+  const { data: playSource } = useQuery({
+    queryKey: ['play-source', author, permlink],
+    queryFn: () => fetchPlaySource(author, permlink),
+    enabled: !!author && !!permlink,
+    staleTime: 5 * 60 * 1000,
   });
-  const spkvideo = videoData?.socialPost?.spkvideo || videoDetails?.spkvideo;
-  const profile = getUserProfile.data?.profile;
+  const spkvideo = playSource || videoDetails?.spkvideo;
   
   // Fetch extended video details (mantecurated etc.) from checker API
   const [extendedDetails, setExtendedDetails] = useState({});

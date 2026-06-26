@@ -4,8 +4,8 @@ import './Watch.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Card3 from '../components/Cards/Card3';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
-import { GET_RELATED, GET_VIDEO_DETAILS, TRENDING_FEED, GET_AUTHOR_VIDEOS } from '../graphql/queries';
-import { useQuery } from '@apollo/client';
+import { useQuery } from '@tanstack/react-query';
+import { fetchVideoDetails, fetchTrendingFeed, fetchAuthorVideos } from '../lib/videoData';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
@@ -727,24 +727,19 @@ function Watch() {
       const wrapper = wrapperRef.current;
       if (!wrapper) return;
 
+      // This immersive CSS-fullscreen is a TOUCH-device (phone/tablet) behaviour
+      // for landscape rotation. A desktop monitor always reports "landscape" with
+      // a large short side, so without this guard a horizontal video fills the
+      // whole viewport on desktop — and it fires whenever the page renders with
+      // the wrapper already mounted (e.g. warm react-query cache). Desktop uses
+      // the real fullscreen button instead, so gate this to touch devices.
+      const isTouch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+
       const isLandscape = screen.orientation.type.startsWith('landscape');
       const shortSide = Math.min(screen.width, screen.height);
       const isPhoneLandscape = isLandscape && shortSide <= 500;
 
-      console.log('[orientation]', {
-        type: screen.orientation.type,
-        isLandscape,
-        screenW: screen.width,
-        screenH: screen.height,
-        shortSide,
-        innerW: window.innerWidth,
-        innerH: window.innerHeight,
-        isVertical: videoIsVerticalRef.current,
-        isPhoneLandscape,
-        willAddFullscreen: isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape,
-      });
-
-      if (isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape) {
+      if (isTouch && isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape) {
         wrapper.classList.add('landscape-fullscreen');
         setIsFullscreen(true);
       } else if (wrapper.classList.contains('landscape-fullscreen')) {
@@ -792,87 +787,28 @@ function Watch() {
     togglePip();
   }, [togglePip]);
 
-  const { data: videoData, loading: videoLoading, error: videoError, refetch: refetchVideo } = useQuery(GET_VIDEO_DETAILS, {
-    variables: { author, permlink },
-    skip: scheduled, // scheduled posts aren't on Hive/indexed yet
+  // Video post details — sourced from Hive (via lib/videoData), not the retired
+  // union GraphQL API. The player loads its own HLS source by author/permlink,
+  // so this only supplies post metadata (title/body/stats/tags/author).
+  const {
+    data: videoDetailsData,
+    isLoading: videoLoading,
+    isError: videoIsError,
+    refetch: refetchVideo,
+  } = useQuery({
+    queryKey: ['video-details', author, permlink],
+    queryFn: () => fetchVideoDetails(author, permlink),
+    enabled: !scheduled && !!author && author !== 'unknown',
+    retry: 1,
+    staleTime: 60 * 1000,
   });
-
-  // Hive fallback: when GraphQL doesn't have the video, fetch directly from blockchain
-  const [hiveFallback, setHiveFallback] = useState(null);
-  const [hiveFallbackLoading, setHiveFallbackLoading] = useState(false);
-  const [hiveFallbackDone, setHiveFallbackDone] = useState(false);
-
-  useEffect(() => {
-    if (scheduled || videoLoading || videoData?.socialPost || !author || author === 'unknown') return;
-
-    let cancelled = false;
-    setHiveFallbackLoading(true);
-
-    (async () => {
-      try {
-        const post = await hiveClient.call('condenser_api', 'get_content', [author, permlink]);
-        if (cancelled || !post || !post.author) { setHiveFallbackLoading(false); return; }
-
-        let meta = {};
-        try { meta = JSON.parse(post.json_metadata || '{}'); } catch (_) {}
-        const videoInfo = meta.video?.info || {};
-
-        // Build play_url from video metadata
-        let play_url = videoInfo.video_v2 || videoInfo.file || null;
-        if (!play_url && videoInfo.sourceMap) {
-          const videoSource = videoInfo.sourceMap.find(s => s.type === 'video');
-          if (videoSource) play_url = videoSource.url;
-        }
-
-        // Build thumbnail from metadata
-        let thumbnail_url = null;
-        if (videoInfo.sourceMap) {
-          const thumbSource = videoInfo.sourceMap.find(s => s.type === 'thumbnail');
-          if (thumbSource) thumbnail_url = thumbSource.url;
-        }
-        if (!thumbnail_url && meta.image?.[0]) thumbnail_url = meta.image[0];
-
-        const payout = parseFloat(post.total_payout_value) + parseFloat(post.curator_payout_value) + parseFloat(post.pending_payout_value || '0');
-
-        setHiveFallback({
-          title: post.title,
-          body: post.body,
-          author: {
-            id: post.author,
-            username: post.author,
-            profile: { name: post.author, images: { avatar: `https://images.hive.blog/u/${post.author}/avatar` } },
-          },
-          stats: {
-            num_comments: post.children || 0,
-            num_votes: post.active_votes?.length || 0,
-            total_hive_reward: payout,
-          },
-          community: post.category ? { _id: post.category, title: post.category } : null,
-          created_at: post.created,
-          tags: meta.tags || [],
-          parent_permlink: post.parent_permlink,
-          spkvideo: play_url ? { play_url, thumbnail_url, duration: videoInfo.duration || 0 } : null,
-          _hiveFallback: true,
-        });
-      } catch (err) {
-        const benign = err?.name === 'RPCError';
-        (benign ? console.warn : console.error)(
-          `[hive-fallback] ${author}/${permlink}:`, err?.jse_shortmsg || err?.message || err,
-        );
-      } finally {
-        if (!cancelled) { setHiveFallbackLoading(false); setHiveFallbackDone(true); }
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [scheduled, videoLoading, videoData, author, permlink]);
 
   // Optimistic override populated right after the author saves an edit.
   // The GraphQL indexer may lag a few minutes behind the Hive blockchain,
   // so we merge these values onto videoDetails immediately, then let a
   // scheduled refetch replace them with real server data.
   const [editOverride, setEditOverride] = useState(null);
-  const baseVideoDetails = scheduled ? scheduledDetails : (videoData?.socialPost || hiveFallback);
+  const baseVideoDetails = scheduled ? scheduledDetails : (videoDetailsData || null);
   const videoDetails = useMemo(() => {
     if (!baseVideoDetails || !editOverride) return baseVideoDetails;
     const merged = { ...baseVideoDetails, ...editOverride };
@@ -891,10 +827,8 @@ function Watch() {
       tags: changes.tags,
       thumbnail_url: changes.thumbnail || undefined,
     });
-    // Wipe hive fallback so a fresh fetch can happen, and re-run the GraphQL query.
-    setHiveFallback(null);
-    setHiveFallbackDone(false);
-    // Apollo indexers typically trail chain by ~30-90s; requery a few times.
+    // Re-fetch from Hive a few times — the edit may take a moment to propagate
+    // across nodes.
     const timers = [8000, 20000, 45000].map((delay) =>
       setTimeout(() => { refetchVideo().catch(() => {}); }, delay)
     );
@@ -953,19 +887,21 @@ function Watch() {
     };
   }, []);
 
-  // Fetch related videos
-  const { data: suggestionsData, loading: suggestionsLoading } = useQuery(GET_RELATED, {
-    variables: { author, permlink },
+  // Suggestion feeds from the checker (items already match the Card3 shape).
+  // There's no dedicated "related" endpoint, so trending stands in for related.
+  const { data: trendingItems = [], isLoading: trendingLoading } = useQuery({
+    queryKey: ['watch-trending'],
+    queryFn: () => fetchTrendingFeed(24),
+    staleTime: 5 * 60 * 1000,
   });
-
-  // Fetch trending as fallback
-  const { data: trendingData, loading: trendingLoading } = useQuery(TRENDING_FEED);
-
-  // Fetch videos from the same author
-  const { data: authorVideosData, loading: authorVideosLoading } = useQuery(GET_AUTHOR_VIDEOS, {
-    variables: { id: author },
-    skip: !author || author === 'unknown',
+  const { data: authorItems = [], isLoading: authorVideosLoading } = useQuery({
+    queryKey: ['watch-author-videos', author],
+    queryFn: () => fetchAuthorVideos(author, 12),
+    enabled: !!author && author !== 'unknown',
+    staleTime: 60 * 1000,
   });
+  const relatedItems = trendingItems;
+  const suggestionsLoading = trendingLoading;
 
   // Promoted videos — shown first in recommendations with a "Promoted" badge.
   const [promotedVideos, setPromotedVideos] = useState([]);
@@ -985,10 +921,6 @@ function Watch() {
   // 4. Fall back to trending if not enough related videos
   // 5. Exclude the current video from all lists
   const suggestedVideos = useMemo(() => {
-    const authorItems = authorVideosData?.socialFeed?.items || [];
-    const relatedItems = suggestionsData?.relatedFeed?.items || [];
-    const trendingItems = trendingData?.trendingFeed?.items || [];
-
     // Track permlinks to avoid duplicates
     const usedPermlinks = new Set();
     usedPermlinks.add(permlink); // Exclude current video
@@ -1030,7 +962,7 @@ function Watch() {
 
     // Combine: promoted first, then author videos, then recommendations
     return [...promoted, ...authorVideos, ...recommendations];
-  }, [authorVideosData, suggestionsData, trendingData, promotedVideos, author, permlink]);
+  }, [authorItems, relatedItems, trendingItems, promotedVideos, author, permlink]);
 
   const suggestedVideosRef = useRef(suggestedVideos);
   suggestedVideosRef.current = suggestedVideos;
@@ -1132,13 +1064,8 @@ function Watch() {
     setReactionsVisible(true);
   }, [reactions, searchParams]);
 
-  const isNetworkError = videoError && videoError.networkError && !hiveFallback;
-  // Also wait while Hive fallback hasn't been attempted yet (covers the gap between
-  // GraphQL completing and the fallback useEffect firing)
-  const awaitingFallback = !videoLoading && !videoData?.socialPost && !hiveFallbackDone && author !== 'unknown';
-  const isLoading = scheduled
-    ? scheduledLoading
-    : (videoLoading || hiveFallbackLoading || awaitingFallback || (suggestionsLoading && trendingLoading && authorVideosLoading));
+  const isNetworkError = videoIsError && !videoDetails;
+  const isLoading = scheduled ? scheduledLoading : videoLoading;
 
   if (isLoading) {
     return <BarLoader />;
