@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.35.0',
+    date: '2026-06-26',
+    summary:
+      'Watch pages are more reliable: video pages now load their details directly from Hive and 3Speak’s own services instead of a separate API, so they keep working even when that API is down. This also trims an external dependency under the hood.',
+  },
+  {
     version: '1.34.0',
     date: '2026-06-26',
     summary:

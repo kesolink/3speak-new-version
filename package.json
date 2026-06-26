@@ -12,7 +12,6 @@
   "dependencies": {
     "@aioha/aioha": "^1.8.2",
     "@aioha/react-ui": "^1.6.0",
-    "@apollo/client": "^3.13.5",
     "@capacitor/android": "^8.1.0",
     "@capacitor/cli": "^8.1.0",
     "@capacitor/core": "^8.1.0",
