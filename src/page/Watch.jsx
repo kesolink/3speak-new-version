@@ -727,24 +727,19 @@ function Watch() {
       const wrapper = wrapperRef.current;
       if (!wrapper) return;
 
+      // This immersive CSS-fullscreen is a TOUCH-device (phone/tablet) behaviour
+      // for landscape rotation. A desktop monitor always reports "landscape" with
+      // a large short side, so without this guard a horizontal video fills the
+      // whole viewport on desktop — and it fires whenever the page renders with
+      // the wrapper already mounted (e.g. warm react-query cache). Desktop uses
+      // the real fullscreen button instead, so gate this to touch devices.
+      const isTouch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+
       const isLandscape = screen.orientation.type.startsWith('landscape');
       const shortSide = Math.min(screen.width, screen.height);
       const isPhoneLandscape = isLandscape && shortSide <= 500;
 
-      console.log('[orientation]', {
-        type: screen.orientation.type,
-        isLandscape,
-        screenW: screen.width,
-        screenH: screen.height,
-        shortSide,
-        innerW: window.innerWidth,
-        innerH: window.innerHeight,
-        isVertical: videoIsVerticalRef.current,
-        isPhoneLandscape,
-        willAddFullscreen: isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape,
-      });
-
-      if (isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape) {
+      if (isTouch && isLandscape && !videoIsVerticalRef.current && !isPhoneLandscape) {
         wrapper.classList.add('landscape-fullscreen');
         setIsFullscreen(true);
       } else if (wrapper.classList.contains('landscape-fullscreen')) {
