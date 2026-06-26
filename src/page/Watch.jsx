@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { getHiveClient } from '../utils/hiveNode';
 import './Watch.scss';
+import './WatchV2.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import Card3 from '../components/Cards/Card3';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -87,7 +88,7 @@ function filterValidVideos(videos) {
   });
 }
 
-function Watch() {
+function Watch({ v2 = false }) {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -1085,9 +1086,10 @@ function Watch() {
   }
 
   return (
-    <div className={`play-container${isReactionPlayerVisible && reactions.length > 0 ? ` reaction-${reactionSize}` : ''}`}>
+    <div className={`play-container${isReactionPlayerVisible && reactions.length > 0 ? ` reaction-${reactionSize}` : ''}${v2 ? ' watch-v2' : ''}`}>
       <AmbientGlow getVideoEl={() => player?.element} glowMode={glowMode} />
       <PlayVideo
+        v2={v2}
         videoDetails={videoDetails}
         author={author}
         permlink={permlink}

@@ -480,7 +480,7 @@ function App() {
             <Route path="/" element={<HomeGrouped />} />
             <Route path="/home-feed" element={<Feed />} />
             <Route path="/follow-feed" element={<FollowFeed />} />
-            <Route path="/watch" element={<Watch />} />
+            <Route path="/watch" element={<Watch v2 />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/post/:author/:permlink" element={<PostView />} />
             <Route path="/upload" element={<UploadVideo />} />

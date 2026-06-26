@@ -332,239 +332,87 @@
                 }
             }
 
+            // ---- Action bar: one row of pills, ordered. Vote · Tip · Reshare ·
+            // Clip on the left; the rest on the right with Report always last.
+            // The left/right groups are flattened (display:contents) so every
+            // button orders within the single row.
             .info-buttons-row {
                 display: flex;
+                flex-wrap: wrap;
                 align-items: center;
-                justify-content: space-between;
-                gap: 7px;
-                @include mix.respond(phone) {
-                    gap: 5px;
-                }
+                gap: 8px;
 
-                .info-buttons-left {
-                    display: flex;
-                    align-items: center;
-                    gap: 7px;
+                // On mobile the actions live in the FAB (speed-dial), so hide
+                // this inline bar entirely.
+                @include mix.respond(phone) { display: none; }
 
-                    @include mix.respond(phone) {
-                        display: none;
-                    }
-                }
+                .info-buttons-left,
+                .info-buttons-right { display: contents; }
 
-                .info-buttons-right {
-                    display: flex;
-                    align-items: center;
-                    gap: 7px;
-                    // Stay right-aligned even when the left (clip) group isn't
-                    // rendered — otherwise space-between would drop this group
-                    // to the left when the author disallows clipping.
-                    margin-left: auto;
-                    @include mix.respond(phone) {
-                        gap: 5px;
-                    }
-                }
+                .vote-btn   { order: 1; }
+                .tip-btn    { order: 2; }
+                .reshare-btn{ order: 3; }
+                .clip-btn   { order: 4; }
+                .share-btn  { order: 10; margin-left: auto; }
+                .promote-btn{ order: 12; }
+                .playlist-btn { order: 13; }
+                .summary-btn  { order: 14; }
+                .edit-video-btn { order: 15; }
+                .watch-later-remove-btn { order: 16; }
+                .report-btn { order: 99; }
             }
 
-            .watch-later-remove-btn {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 4px 8px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
-                border: none;
-                border-radius: 5px;
-                font-size: 20px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-
-                .watch-later-icon-wrap {
-                  position: relative;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-
-                  .x-badge {
-                    position: absolute;
-                    top: -6px;
-                    right: -8px;
-                    font-size: 12px;
-                    font-weight: 700;
-                    line-height: 1;
-                    background: rgba(255, 255, 255, 0.15);
-                    color: var(--text-secondary);
-                    width: 14px;
-                    height: 14px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                  }
-                }
-
-                &:hover {
-                  background-color: var(--accent-primary);
-                  color: var(--text-inverse);
-
-                  .x-badge {
-                    background: rgba(0, 0, 0, 0.3);
-                    color: var(--text-inverse);
-                  }
-                }
-
-                &.loading {
-                  opacity: 0.5;
-                  cursor: not-allowed;
-                }
-            }
-            .playlist-btn {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 4px 8px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
-                border: none;
-                border-radius: 5px;
-                font-size: 20px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-
-                &:hover {
-                  background-color: var(--accent-primary);
-                  color: var(--text-inverse);
-                }
-            }
-
-            .share-btn {
+            // ====================================================================
+            // ONE button class for every action in the bar. All the per-button
+            // classes (.vote-btn, .share-btn, …) are kept ONLY for ordering/state
+            // above — the look lives here, in a single place.
+            // ====================================================================
+            .pv-btn {
                 display: inline-flex;
                 align-items: center;
-                padding: 4px 8px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
+                justify-content: center;
+                gap: 6px;
+                height: 36px;
+                padding: 0 14px;
                 border: none;
-                border-radius: 5px;
-                font-size: 13px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-
-                &:hover {
-                  background-color: var(--accent-primary);
-                  color: var(--text-inverse);
-                }
-            }
-
-            .vote-btn,
-            .promote-btn,
-            .summary-btn {
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-                padding: 4px 10px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
-                border: none;
-                border-radius: 5px;
-                font-size: 13px;
+                border-radius: 999px;
+                background: var(--bg-tertiary, rgba(127, 127, 127, 0.14));
+                color: var(--text-primary);
+                font-size: 14px;
                 font-weight: 500;
-                cursor: pointer;
-                transition: all 0.2s ease;
-
-                &:hover {
-                  background-color: var(--accent-primary);
-                  color: var(--text-inverse);
-                }
-            }
-
-            .promote-btn {
-                @include mix.respond(phone) { span { display: none; } }
-            }
-
-            .summary-btn {
+                line-height: 1;
                 white-space: nowrap;
-
-                @include mix.respond(phone) {
-                    // Keep just the icon on small screens to save room.
-                    span { display: none; }
-                }
-            }
-
-            .edit-video-btn {
-                display: inline-flex;
-                align-items: center;
-                padding: 4px 8px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
-                border: none;
-                border-radius: 5px;
-                font-size: 13px;
                 cursor: pointer;
-                transition: all 0.2s ease;
+                transition: background 0.15s ease, color 0.15s ease;
 
-                &:hover {
-                  background-color: var(--accent-primary);
-                  color: var(--text-inverse);
-                }
-            }
+                svg { flex-shrink: 0; }
+                span { font-size: 14px; font-weight: 500; }
 
-            .report-btn {
-                display: inline-flex;
-                align-items: center;
-                padding: 4px 8px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
-                border: none;
-                border-radius: 5px;
-                font-size: 13px;
-                cursor: pointer;
-                transition: all 0.2s ease;
+                &:hover { background: var(--border-color, rgba(127, 127, 127, 0.28)); }
+                &:disabled { opacity: 0.4; cursor: not-allowed; }
 
-                &:hover {
-                  background-color: var(--accent-primary);
-                  color: var(--text-inverse);
-                }
+                // State variants
+                &.reshared { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+                &.reported { background: rgba(227, 19, 55, 0.14); color: #e31337; }
+                &.active   { background: rgba(229, 57, 53, 0.16); color: var(--accent-primary); }
+                &.loading  { opacity: 0.5; cursor: not-allowed; }
 
-                &.reported {
-                  color: #e31337;
-                  background-color: rgba(227, 19, 55, 0.12);
+                .reshare-count { font-weight: 600; }
 
-                  &:hover {
-                    background-color: rgba(227, 19, 55, 0.2);
-                    color: #e31337;
-                  }
-                }
-            }
-
-            .reshare-btn {
-                display: inline-flex;
-                align-items: center;
-                gap: 4px;
-                padding: 4px 8px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: var(--text-secondary);
-                border: none;
-                border-radius: 5px;
-                font-size: 13px;
-                cursor: pointer;
-                transition: all 0.2s ease;
-
-                &:hover {
-                  background-color: var(--accent-primary);
-                  color: var(--text-inverse);
-                }
-
-                &.reshared {
-                  color: #22c55e;
-                  background-color: rgba(34, 197, 94, 0.12);
-
-                  &:hover {
-                    background-color: rgba(34, 197, 94, 0.2);
-                    color: #22c55e;
-                  }
-                }
-
-                .reshare-count {
-                  font-weight: 500;
+                // Watch-later "remove" badge sitting on the clock icon.
+                .watch-later-icon-wrap {
+                    position: relative;
+                    display: inline-flex;
+                    align-items: center;
+                    .x-badge {
+                        position: absolute;
+                        top: -7px; right: -9px;
+                        width: 14px; height: 14px;
+                        display: flex; align-items: center; justify-content: center;
+                        font-size: 11px; font-weight: 700; line-height: 1;
+                        border-radius: 50%;
+                        background: var(--accent-primary); color: #fff;
+                    }
                 }
             }
         }
@@ -575,8 +423,8 @@
         display: inline;
     }
 
-    .remix-btn,
-    .clip-btn {
+    // .clip-btn styling now lives in the unified .pv-btn rule above.
+    .remix-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -593,27 +441,6 @@
         &:hover {
           background-color: var(--accent-primary);
           color: var(--text-inverse);
-        }
-
-        &.active {
-          color: var(--accent-primary);
-          background-color: rgba(var(--accent-primary-rgb, 255, 0, 0), 0.15);
-        }
-
-        &:disabled {
-          opacity: 0.35;
-          cursor: not-allowed;
-          &:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: var(--text-secondary);
-          }
-        }
-
-        @include mix.respond(phone) {
-            flex: 1;
-            padding: 6px 14px;
-            border-radius: 16px;
-            font-size: 13px;
         }
     }
 
@@ -665,17 +492,13 @@
         gap: 7px;
         margin-top: 8px;
 
+        // The mobile clip control uses the shared .pv-btn pill, full-width.
+        .pv-btn { flex: 1; }
+
+        // The mobile-only "Clip Video" entry button is redundant — the FAB
+        // already has Clip Video (the clip controls bar is separate). Hide it.
         &.mobile-only {
             display: none;
-
-            @include mix.respond(phone) {
-                display: flex;
-                gap: 8px;
-
-                .tools-row-label {
-                    display: inline;
-                }
-            }
         }
     }
 
