@@ -43,7 +43,7 @@ import { removeFromPlaylist } from "../../utils/playlistOperations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import Button from "../Button/Button";
-import { Repeat2, Scissors, Tornado, Film, Music, Rocket } from 'lucide-react';
+import { Repeat2, Scissors, Tornado, Film, Music, Rocket, Gift } from 'lucide-react';
 import PromoteModal from '../Promote/PromoteModal';
 import { recordReshare, getResharesForVideo } from '../../utils/reshares';
 import EditorModal from '../modal/EditorModal';
@@ -57,7 +57,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled }) => {
+const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
   const { user, authenticated } = useAppStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -334,9 +334,21 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     try {
       const res = await axios.get(`${FEED_URL}/apiv2/@${author}/${permlink}`);
       setSpeakData(res.data);
-      setView(res.data.views);
     } catch (err) {
-      console.error("Error fetching speak data:", err);
+      // Legacy endpoint — best-effort; the view count comes from the checker below.
+    }
+    // View count from the checker /views — the same source the cards use
+    // (the legacy apiv2 endpoint is gone, which is why this read as 0 before).
+    try {
+      const vres = await axios.post(
+        `${CHECKER_URL}/views`,
+        { videos: [{ author, permlink }] },
+        { timeout: 15000 },
+      );
+      const count = vres.data?.data?.[`${author}/${permlink}`];
+      if (typeof count === 'number') setView(count);
+    } catch (err) {
+      console.error('Error fetching view count:', err.message);
     }
   }, [author, permlink]);
 
@@ -603,6 +615,66 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     return <BarLoader />;
   }
 
+  // Views/age + payout/votes. In v2 this is rendered on the right of the title
+  // (stacked); in the classic layout it sits as its own row below the buttons.
+  // Defined once so the refs/tooltips only ever attach to a single instance.
+  const statsRow = (
+    <div className="info-stats-row">
+      <div className="wrap-left">
+        <ViewCount views={view} author={author} permlink={permlink} size={13} />
+        <div className="wrap">
+          <LuTimer />
+          <span>{formatRelativeTime(videoDetails?.created_at)}</span>
+        </div>
+      </div>
+      <div className="wrap-right-stats">
+        <span
+          ref={payoutRef}
+          onMouseEnter={() => setShowBeneficiaries(true)}
+          onMouseLeave={() => setShowBeneficiaries(false)}
+          onClick={() => setPinnedBeneficiaries(prev => !prev)}
+          style={{ cursor: 'pointer' }}
+        >
+          <PayoutAmount amount={videoDetails?.stats?.total_hive_reward ?? 0} size={13} />
+        </span>
+        {(showBeneficiaries || pinnedBeneficiaries) && beneficiaries.length > 0 && (
+          <BeneficiariesTooltip
+            beneficiaries={beneficiaries}
+            payoutInfo={payoutInfo}
+            displayTotal={videoDetails?.stats?.total_hive_reward ?? 0}
+            anchorRef={payoutRef}
+            pinned={pinnedBeneficiaries}
+            onClose={() => setPinnedBeneficiaries(false)}
+          />
+        )}
+        <span className="wrap" ref={voteCountRef}>
+          <UpvoteCount
+            count={optimisticVoteCount}
+            voted={isVoted}
+            onClick={toggleTooltip}
+            loading={isLoading}
+            onCountEnter={() => setOpenToolTip(true)}
+            onCountLeave={() => setOpenToolTip(false)}
+            onCountClick={() => setPinnedTooltip(prev => !prev)}
+            size={13}
+          >
+            <div className="loader-circle">
+              <TailChase className="loader-circle" size="15" speed="1.5" color="red" />
+            </div>
+          </UpvoteCount>
+          {(openTooltip || pinnedTooltip) && (
+            <ToolTip
+              tooltipVoters={tooltipVoters}
+              anchorRef={voteCountRef}
+              pinned={pinnedTooltip}
+              onClose={() => setPinnedTooltip(false)}
+            />
+          )}
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <div className="play-video">
@@ -783,6 +855,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 )}
               </div>
             </div>
+            {v2 && <div className="pv2-title-meta">{statsRow}</div>}
             <button
               type="button"
               className="mobile-title-toggle"
@@ -846,67 +919,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </span>
               </div>
             )}
-            <div className="info-stats-row">
-              <div className="wrap-left">
-                <ViewCount views={view} author={author} permlink={permlink} size={13} />
-                <div className="wrap">
-                  <LuTimer />
-                  <span>{formatRelativeTime(videoDetails?.created_at)}</span>
-                </div>
-              </div>
-              <div className="wrap-right-stats">
-                <span
-                  ref={payoutRef}
-                  onMouseEnter={() => setShowBeneficiaries(true)}
-                  onMouseLeave={() => setShowBeneficiaries(false)}
-                  onClick={() => setPinnedBeneficiaries(prev => !prev)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <PayoutAmount amount={videoDetails?.stats?.total_hive_reward ?? 0} size={13} />
-                </span>
-                {(showBeneficiaries || pinnedBeneficiaries) && beneficiaries.length > 0 && (
-                  <BeneficiariesTooltip
-                    beneficiaries={beneficiaries}
-                    payoutInfo={payoutInfo}
-                    displayTotal={videoDetails?.stats?.total_hive_reward ?? 0}
-                    anchorRef={payoutRef}
-                    pinned={pinnedBeneficiaries}
-                    onClose={() => setPinnedBeneficiaries(false)}
-                  />
-                )}
-                <span className="wrap" ref={voteCountRef}>
-                  <UpvoteCount
-                    count={optimisticVoteCount}
-                    voted={isVoted}
-                    onClick={toggleTooltip}
-                    loading={isLoading}
-                    onCountEnter={() => setOpenToolTip(true)}
-                    onCountLeave={() => setOpenToolTip(false)}
-                    onCountClick={() => setPinnedTooltip(prev => !prev)}
-                    size={13}
-                  >
-                    <div className="loader-circle">
-                      <TailChase className="loader-circle" size="15" speed="1.5" color="red" />
-                    </div>
-                  </UpvoteCount>
-                  {(openTooltip || pinnedTooltip) && (
-                    <ToolTip
-                      tooltipVoters={tooltipVoters}
-                      anchorRef={voteCountRef}
-                      pinned={pinnedTooltip}
-                      onClose={() => setPinnedTooltip(false)}
-                    />
-                  )}
-                </span>
-              </div>
-            </div>
+            {!v2 && statsRow}
 
             <div className="info-buttons-row">
               {FEATURE_EDITOR && canRemixClip && (
                 <div className="info-buttons-left">
                   <button
                     type="button"
-                    className={`clip-btn${clipMode ? ' active' : ''}`}
+                    className={`pv-btn clip-btn${clipMode ? ' active' : ''}`}
                     onClick={clipMode ? handleCancelClip : handleStartClipMode}
                     title={!authenticated ? 'Log in to clip' : clipMode ? 'Cancel clip' : 'Clip video'}
                     disabled={!authenticated}
@@ -943,7 +963,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   (authenticated && user === author) && (
                     <button
                       type="button"
-                      className="edit-video-btn"
+                      className="pv-btn edit-video-btn"
                       onClick={() => onEditScheduled?.()}
                       title="Edit scheduled post (details, date, or cancel)"
                     >
@@ -955,7 +975,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 {titleMeta.hasSummary && (
                   <button
                     type="button"
-                    className="summary-btn"
+                    className="pv-btn summary-btn"
                     onClick={() => setSummaryOpen(true)}
                     title="AI summary of this video"
                   >
@@ -971,7 +991,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   // already voted to avoid showing a stale CTA.
                   <button
                     type="button"
-                    className="vote-btn"
+                    className="pv-btn vote-btn"
                     onClick={toggleTooltip}
                     title="Vote on this video"
                   >
@@ -981,28 +1001,30 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 )}
                 <button
                   type="button"
-                  className="share-btn"
+                  className="pv-btn share-btn"
                   onClick={() => setShareChooserOpen(true)}
                   title="Share"
                 >
                   <MdShare size={16} />
+                  <span>Share</span>
                 </button>
 
                 <button
                   type="button"
-                  className={`reshare-btn${hasReshared ? ' reshared' : ''}`}
+                  className={`pv-btn reshare-btn${hasReshared ? ' reshared' : ''}`}
                   onClick={handleReshare}
                   disabled={!authenticated || !isLoggedIn()}
                   title={!authenticated ? 'Log in to reshare' : hasReshared ? 'Reshared' : 'Reshare'}
                 >
                   <Repeat2 size={16} />
+                  <span>Reshare</span>
                   {reshareCount > 0 && <span className="reshare-count">{reshareCount}</span>}
                 </button>
 
                 {authenticated && isLoggedIn() && (
                   <button
                     type="button"
-                    className="promote-btn"
+                    className="pv-btn promote-btn"
                     onClick={() => setPromoteOpen(true)}
                     title="Promote this video"
                   >
@@ -1014,7 +1036,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 {authenticated && user === author && (
                   <button
                     type="button"
-                    className="edit-video-btn"
+                    className="pv-btn edit-video-btn"
                     onClick={() => {
                       videoControls?.onPause?.();
                       setIsEditOpen(true);
@@ -1027,17 +1049,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
                 <button
                   type="button"
-                  className={`report-btn${isReported('post', `${author}/${permlink}`) ? ' reported' : ''}`}
+                  className={`pv-btn report-btn${isReported('post', `${author}/${permlink}`) ? ' reported' : ''}`}
                   onClick={() => setIsReportOpen(true)}
                   title="Report video"
                 >
                   <MdFlag size={16} />
+                  <span>Report</span>
                 </button>
 
                 {isInWatchLater && (
                   <button
                     type="button"
-                    className={`watch-later-remove-btn ${isRemovingWatchLater ? 'loading' : ''}`}
+                    className={`pv-btn watch-later-remove-btn ${isRemovingWatchLater ? 'loading' : ''}`}
                     onClick={handleRemoveFromWatchLater}
                     disabled={isRemovingWatchLater}
                     title="Remove from Watch Later"
@@ -1051,10 +1074,14 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
                 {authenticated && isLoggedIn() && (
                   <>
-                    <button type="button" className="playlist-btn" onClick={() => setIsPlaylistModalOpen(true)} title="Add to playlist">
+                    <button type="button" className="pv-btn playlist-btn" onClick={() => setIsPlaylistModalOpen(true)} title="Add to playlist">
                       <MdPlaylistAdd />
+                      <span>Playlist</span>
                     </button>
-                    <Button text="Tip" prominent onClick={() => setIsTipModalOpen(true)} />
+                    <button type="button" className="pv-btn tip-btn" onClick={() => setIsTipModalOpen(true)} title="Tip the creator">
+                      <Gift size={16} />
+                      <span>Tip</span>
+                    </button>
                   </>
                 )}
 
@@ -1088,7 +1115,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             <div className="tools-row mobile-only">
               <button
                 type="button"
-                className={`clip-btn${clipMode ? ' active' : ''}`}
+                className={`pv-btn clip-btn${clipMode ? ' active' : ''}`}
                 onClick={clipMode ? handleCancelClip : handleStartClipMode}
                 title={!authenticated ? 'Log in to clip' : clipMode ? 'Cancel clip' : 'Clip video'}
                 disabled={!authenticated}
