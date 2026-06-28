@@ -5,6 +5,13 @@
     <link rel="icon" type="image/jpeg" href="3speak.jpeg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!-- Warm up connections to the video CDN + player API so card previews
+         (and playback) fetch their first manifest/segment without paying DNS/TLS setup. -->
+    <link rel="preconnect" href="https://hotipfs-3speak-1.b-cdn.net" crossorigin />
+    <link rel="preconnect" href="https://play.3speak.tv" crossorigin />
+    <link rel="dns-prefetch" href="https://hotipfs-3speak-1.b-cdn.net" />
+    <link rel="dns-prefetch" href="https://play.3speak.tv" />
+
     <!-- Primary Meta Tags -->
     <title>3Speak - Decentralized Video Platform</title>
     <meta name="title" content="3Speak - Decentralized Video Platform" />

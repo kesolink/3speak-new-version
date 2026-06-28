@@ -1,0 +1,19 @@
+[Unit]
+Description=preview.3speak.tv OG/Twitter-Card prerender for social crawlers (port 4023)
+After=network.target
+
+[Service]
+Type=simple
+User=prodops
+Group=prodops
+WorkingDirectory=/mnt/HC_Volume_103240961/prodops/services/preview-3speak/server
+# /usr/bin/node is v18 (has global fetch/AbortController). nvm v22 segfaults on
+# this box — same reason the preview-3speak-api service pins /usr/bin/node.
+Environment=OG_PORT=4023
+Environment=CHECKER_URL=https://checker.3speak.tv
+ExecStart=/usr/bin/node /mnt/HC_Volume_103240961/prodops/services/preview-3speak/server/og-server.cjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

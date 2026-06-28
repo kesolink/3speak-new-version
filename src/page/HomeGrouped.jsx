@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import "./HomeGrouped.scss";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL, appendNsfw } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, NEW_CONTENT_URL, CHECKER_URL, appendNsfw } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -15,6 +15,7 @@ import ShortsStories from "../components/ShortsStories/ShortsStories";
 import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
+import { Rocket } from "lucide-react";
 
 // Fetch functions for each feed
 const fetchHome = async () => {
@@ -33,6 +34,11 @@ const fetchFollowFeed = async (username) => {
 
 const fetchTrending = async () => {
   const res = await axios.get(appendNsfw(`${TRENDING_SORTED_URL}?page=1&limit=50`, useAppStore.getState().showNsfw));
+  return res.data?.videos || [];
+};
+
+const fetchPromoted = async () => {
+  const res = await axios.get(appendNsfw(`${CHECKER_URL}/feeds/promoted?limit=20`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 
@@ -101,7 +107,8 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
     "Home Feed": <TrendingIcon />,
     "Follow Feed": <TrendingIcon />,
     "New Content": <NewContentIcon />,
-    "Trending": <TrendingIcon />
+    "Trending": <TrendingIcon />,
+    "Promoted": <Rocket size={18} />
   };
 
   // Hide the section entirely once it has finished loading with no videos,
@@ -171,7 +178,7 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 };
 
 const HomeGrouped = () => {
-  const { authenticated, user, showNsfw } = useAppStore();
+  const { authenticated, user, showNsfw, homeCardSize } = useAppStore();
   const queryClient = useQueryClient();
 
   const { data: homeData, isLoading: homeLoading } = useQuery({
@@ -198,6 +205,21 @@ const HomeGrouped = () => {
     gcTime: 10 * 60 * 1000,
   });
 
+  // Promoted videos. Logged-in viewers get a dedicated "Promoted" row; logged-out
+  // viewers see them mixed into the top of the Home Feed (no badge either way).
+  const { data: promotedData, isLoading: promotedLoading } = useQuery({
+    queryKey: ["promoted-grouped", showNsfw],
+    queryFn: fetchPromoted,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // For logged-out viewers, prepend promoted videos into the Home Feed (deduped).
+  const homeFeedVideos = useMemo(() => {
+    if (authenticated) return homeData || [];
+    return deduplicateVideos([...(promotedData || []), ...(homeData || [])]);
+  }, [authenticated, homeData, promotedData]);
+
   // Combine all videos for batch content loading
   const allVideos = useMemo(() => [
     ...(homeData || []).slice(0, 16),
@@ -223,13 +245,25 @@ const HomeGrouped = () => {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-    <div className="home-grouped-container">
+    <div className="home-grouped-container" data-card-size={homeCardSize || 'large'}>
       <ShortsStories />
       <OpenPodsLiveStrip />
 
+      {authenticated && (promotedData?.length > 0) && (
+        <VideoRow
+          title="Promoted"
+          videos={promotedData}
+          isLoading={false}
+          getContentForVideo={getContentForVideo}
+          isWatched={isWatched}
+          getViewCount={getViewCount}
+          priority
+        />
+      )}
+
       <VideoRow
         title={authenticated ? "Follow Feed" : "Home Feed"}
-        videos={homeData || []}
+        videos={homeFeedVideos}
         linkTo={authenticated ? "/follow-feed" : "/home-feed"}
         isLoading={homeLoading}
         getContentForVideo={getContentForVideo}

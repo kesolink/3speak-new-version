@@ -243,3 +243,83 @@
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+
+/* Listing / NSFW toggles + Promote (added to match the full Edit page) */
+.evm-toggle-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 4px;
+}
+.evm-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-secondary, #f3f3f3);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+
+  &:hover { border-color: var(--accent-primary, #e53935); }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  &__track {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 23px;
+    border-radius: 999px;
+    background: #9aa0a6; // OFF = neutral grey
+    position: relative;
+    transition: background 0.18s ease;
+  }
+  &__thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    transition: transform 0.18s ease;
+  }
+  &__label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    strong { font-size: 13.5px; font-weight: 700; color: var(--text-primary, #111); }
+    small { font-size: 11.5px; color: var(--text-secondary, #666); line-height: 1.35; }
+  }
+
+  // ON = colored + thumb right (standard toggle)
+  &.is-on {
+    .evm-switch__track { background: #2e9e5b; }
+    .evm-switch__thumb { transform: translateX(17px); }
+  }
+
+  // NSFW: ON reads as a warning, not a positive.
+  &--danger.is-on .evm-switch__track { background: var(--accent-primary, #e53935); }
+}
+.evm-promote-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-primary, #e53935);
+  background: transparent;
+  color: var(--accent-primary, #e53935);
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  &:hover:not(:disabled) { background: var(--accent-primary, #e53935); color: #fff; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}

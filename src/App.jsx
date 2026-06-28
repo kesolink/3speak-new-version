@@ -47,6 +47,7 @@ import AboutPage from "./components/LandingPage/AboutPage";
 import { toast, Toaster } from 'sonner'
 import { CircleCheck, CircleX, TriangleAlert, Info } from 'lucide-react'
 import './toast.css'
+import { fetchNewerVersion, reloadForUpdate } from './utils/checkLatestVersion'
 // Retired alongside the legacy /studio flow — kept here as comments for ease of
 // roll-back; the embed-studio equivalents at /embed-studio/{thumbnail,details,preview}
 // are what users hit now.
@@ -74,7 +75,6 @@ import Notifications from "./page/Notifications";
 import PostView from "./page/PostView";
 import Audio from "./page/Audio";
 import AudioPost from "./page/AudioPost";
-import { LegacyUploadProvider } from "./context/LegacyUploadContext";
 import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
 import { HangoutContextProvider, useHangout } from "./context/HangoutContext";
@@ -163,6 +163,13 @@ function App() {
   const location = useLocation();
   const { initializeAuth, initializeTheme, authenticated, LogOut, switchAccount, setUser, user: appUser } = useAppStore();
   const sessionExpired = useAppStore((s) => s.sessionExpired);
+  const homeCardSize = useAppStore((s) => s.homeCardSize);
+
+  // Reflect the card-size preference on <html> so the card grids (home, profile,
+  // playlists) can size themselves via CSS variables.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-card-size', homeCardSize || 'large');
+  }, [homeCardSize]);
   const clearSessionExpired = useAppStore((s) => s.clearSessionExpired);
   const { aioha, user: aiohaUser } = useAioha();
   const sidebar = useAppStore((s) => s.sidebarOpen);
@@ -254,6 +261,29 @@ function App() {
   useEffect(() => {
     const { previousVersion, shouldPrompt } = readAppVersion();
     if (shouldPrompt) useAppStore.getState().setAppUpdatedFrom(previousVersion);
+  }, []);
+
+  // Compare the running build against the latest version on GitHub (develop) and
+  // prompt the user to refresh if they're on a stale (cached) build — so updates
+  // don't require a manual reload. Re-checks on tab focus and every 30 min.
+  useEffect(() => {
+    let shown = false;
+    const promptIfNewer = async () => {
+      if (shown) return;
+      const newer = await fetchNewerVersion();
+      if (!newer) return;
+      shown = true;
+      toast(`A new version (${newer}) is available`, {
+        description: 'Refresh to get the latest updates.',
+        duration: Infinity,
+        action: { label: 'Refresh', onClick: () => reloadForUpdate() },
+      });
+    };
+    promptIfNewer();
+    const onFocus = () => promptIfNewer();
+    window.addEventListener('focus', onFocus);
+    const id = setInterval(promptIfNewer, 30 * 60 * 1000);
+    return () => { window.removeEventListener('focus', onFocus); clearInterval(id); };
   }, []);
 
   // Persist the last visited non-login route so the app can return
@@ -409,7 +439,6 @@ function App() {
   return (
     <HangoutContextProvider tokenStorage={import.meta.env.VITE_HANGOUTS_TOKEN_STORAGE || 'none'}>
     <HiveAuthProvider>
-    <LegacyUploadProvider>
     <EmbedUploadProvider>
     <ChatProvider>
     <div onClick={()=> {setGlobalCloseRender(true)}}>
@@ -451,7 +480,7 @@ function App() {
             <Route path="/" element={<HomeGrouped />} />
             <Route path="/home-feed" element={<Feed />} />
             <Route path="/follow-feed" element={<FollowFeed />} />
-            <Route path="/watch" element={<Watch />} />
+            <Route path="/watch" element={<Watch v2 />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/post/:author/:permlink" element={<PostView />} />
             <Route path="/upload" element={<UploadVideo />} />
@@ -542,7 +571,6 @@ function App() {
 
     </ChatProvider>
     </EmbedUploadProvider>
-    </LegacyUploadProvider>
     </HiveAuthProvider>
     </HangoutContextProvider>
   );

@@ -30,6 +30,15 @@ const getRenderer = async () => {
 
 const THRESHOLD_HEIGHT = 100;
 
+// Keep YouTube links as plain inline links instead of auto-embedded players.
+// We wrap any BARE YouTube URL in explicit markdown-link form `[url](url)` BEFORE
+// rendering — the renderer then leaves it as a normal <a> in place (so two links
+// on one line, e.g. "Source: A & B", stay inline) instead of pulling the first
+// one out into a block embed that splits the paragraph.
+const YT_BARE_URL_RE = /(?<!\]\()(?<!["'=\[])\bhttps?:\/\/(?:www\.)?(?:m\.)?(?:youtube\.com\/(?:watch\?[^\s)]+|shorts\/[A-Za-z0-9_-]+|v\/[A-Za-z0-9_-]+|embed\/[A-Za-z0-9_-]+)|youtu\.be\/[A-Za-z0-9_-]+(?:\?[^\s)]*)?)/g;
+const preprocessYouTubeLinks = (markdown) =>
+  typeof markdown === 'string' ? markdown.replace(YT_BARE_URL_RE, (u) => `[${u}](${u})`) : markdown;
+
 const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) => {
   const [content, setContent] = useState("");
   const [renderedContent, setRenderedContent] = useState("");
@@ -77,6 +86,26 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
     cleaned = cleaned.replace(
       /<a[^>]*href="https:\/\/3speak\.tv\/watch[^"]*"[^>]*>[\s]*<img[^>]*>[\s]*<\/a>/gi,
       ''
+    );
+
+    // YouTube: keep the original link in the body instead of an embedded player.
+    // (The underlying renderer auto-embeds YouTube URLs; we undo that.) Handles
+    // youtube.com/embed, youtube-nocookie.com, youtu.be and ?v= forms.
+    const ytIdFrom = (src) => {
+      const m = src.match(/(?:youtube(?:-nocookie)?\.com\/embed\/|youtu\.be\/|[?&]v=)([A-Za-z0-9_-]{6,})/);
+      return m ? m[1] : null;
+    };
+    const ytLink = (id) => {
+      const url = `https://www.youtube.com/watch?v=${id}`;
+      return `<p><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></p>`;
+    };
+    cleaned = cleaned.replace(
+      /<div[^>]*class="[^"]*videoWrapper[^"]*"[^>]*>\s*<iframe[^>]*src="([^"]*(?:youtube(?:-nocookie)?\.com|youtu\.be)[^"]*)"[^>]*>\s*<\/iframe>\s*<\/div>/gi,
+      (m, src) => { const id = ytIdFrom(src); return id ? ytLink(id) : m; }
+    );
+    cleaned = cleaned.replace(
+      /<iframe[^>]*src="([^"]*(?:youtube(?:-nocookie)?\.com|youtu\.be)[^"]*)"[^>]*>\s*<\/iframe>/gi,
+      (m, src) => { const id = ytIdFrom(src); return id ? ytLink(id) : m; }
     );
 
     // Pattern 7: Remove leading <hr> separating header from content
@@ -128,7 +157,7 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
     getRenderer()
       .then((render) => {
         try {
-          let renderedHTML = render(contentString);
+          let renderedHTML = render(preprocessYouTubeLinks(contentString));
           renderedHTML = cleanContent(renderedHTML);
 
           // Extract audio.3speak.tv containers and replace with React mount slots

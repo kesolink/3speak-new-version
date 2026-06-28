@@ -139,7 +139,9 @@ function UserProfilePage() {
  const LIMIT = 20;
 
 const fetchVideos = async ({ pageParam = 0 }) => {
-  const url = `${MY_VIDEOS_URL}/api/my-videos?username=${user}&limit=${LIMIT}&offset=${pageParam}&status=published&sort=newest`;
+  // On your own profile, also return unlisted videos (badged) so they can be re-listed.
+  const ownParam = isOwnProfile ? '&include_unlisted=1' : '';
+  const url = `${MY_VIDEOS_URL}/api/my-videos?username=${user}&limit=${LIMIT}&offset=${pageParam}&status=published&sort=newest${ownParam}`;
 
   const res = await axios.get(url);
   return res.data?.data?.videos || [];

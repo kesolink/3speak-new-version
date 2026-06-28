@@ -520,12 +520,17 @@
     // Grid view
     .playlist-videos-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-min-w, 460px), 1fr));
       gap: 16px;
+      position: relative; // anchor for the hover-preview overlay
 
       @include respond(phone) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
+        // Large mode on mobile: full-width single column.
+        html[data-card-size="large"] & {
+          grid-template-columns: 1fr;
+        }
       }
     }
 

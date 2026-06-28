@@ -1,8 +1,6 @@
 import React from 'react'
 import "./LeaderBoard.scss"
-import { GET_LEADER_BOARD } from '../graphql/queries';
 import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
-import "./LeaderBoard.scss"
 function LeaderBoard() {
     
 

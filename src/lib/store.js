@@ -30,6 +30,13 @@ export const useAppStore = create(
       setSidebarHidden: (val) => a[0]({ sidebarHidden: typeof val === 'function' ? val(a[1]().sidebarHidden) : val }),
       showNsfw: false,
       setShowNsfw: (val) => a[0]({ showNsfw: typeof val === 'function' ? val(a[1]().showNsfw) : val }),
+      // Video card size: 'small' | 'large' (default large). Drives home, profile
+      // and playlist card grids.
+      homeCardSize: 'large',
+      setHomeCardSize: (val) => a[0]({ homeCardSize: typeof val === 'function' ? val(a[1]().homeCardSize) : val }),
+      // Hover/scroll video previews on cards (default on).
+      previewEnabled: true,
+      setPreviewEnabled: (val) => a[0]({ previewEnabled: typeof val === 'function' ? val(a[1]().previewEnabled) : val }),
       // Set on startup to the previous app version when the user upgraded (null = first
       // visit or no change). A future changelog / "what's new" prompt reads this.
       // Deliberately NOT persisted — recomputed each load by checkAppVersion().
@@ -46,6 +53,8 @@ export const useAppStore = create(
         sidebarOpen: state.sidebarOpen,
         sidebarHidden: state.sidebarHidden,
         showNsfw: state.showNsfw,
+        homeCardSize: state.homeCardSize,
+        previewEnabled: state.previewEnabled,
       }),
     }
   )

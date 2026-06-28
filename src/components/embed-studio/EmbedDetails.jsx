@@ -33,6 +33,7 @@ function EmbedDetails() {
     scheduleDateTime, setScheduleDateTime,
     fromStories,
     reusable, setReusable,
+    isNsfw, setIsNsfw,
     originalAuthor, originalPermlink,
     startEarlyUpload,
   } = useEmbedUpload();
@@ -246,6 +247,20 @@ function EmbedDetails() {
                       checked={isRemix ? true : reusable}
                       disabled={isRemix}
                       onChange={(e) => setReusable(e.target.checked)}
+                    />
+                    <span className="toggle-track"><span className="toggle-thumb" /></span>
+                  </label>
+                </div>
+                <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                  <div className="wrap">
+                    <span>Mark as adult / NSFW</span>
+                    <span>Flags this video as adult content. It will be hidden from feeds and search for viewers who haven't enabled NSFW, and tagged <code>nsfw</code> across Hive.</span>
+                  </div>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={!!isNsfw}
+                      onChange={(e) => setIsNsfw(e.target.checked)}
                     />
                     <span className="toggle-track"><span className="toggle-thumb" /></span>
                   </label>

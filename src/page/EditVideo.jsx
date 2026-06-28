@@ -12,6 +12,8 @@ import { useAppStore } from '../lib/store';
 import * as dhive from '@hiveio/dhive';
 import MarkdownComposer from '../components/studio/MarkdownComposer';
 import { broadcastWithAioha, isLoggedIn, KeyTypes } from '../hive-api/aioha';
+import PromoteModal from '../components/Promote/PromoteModal';
+import { Rocket } from 'lucide-react';
 const client = getHiveClient();
 
 // Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
@@ -42,6 +44,15 @@ const EditVideo = () => {
   const [date, setDate] = useState('');
   const [permlink, setPermlink] = useState("")
   const [ id, setId ] = useState("");
+  const [listed, setListed] = useState(true);
+  const initialListedRef = React.useRef(true);
+  const [isNsfw, setIsNsfw] = useState(false);
+  const initialNsfwRef = React.useRef(false);
+  const [reusable, setReusable] = useState(true);
+  const initialReusableRef = React.useRef(true);
+  const originalMetaRef = React.useRef(null);
+  const [promoteOpen, setPromoteOpen] = useState(false);
+  const [promotedUntil, setPromotedUntil] = useState(null);
   const [renderedHTML, setRenderedHTML] = useState('');
   const accessToken = localStorage.getItem("access_token");
 
@@ -68,6 +79,16 @@ const EditVideo = () => {
       setDate(video.created);
       setPermlink(video.permlink)
       setId(video._id)
+      const isListed = video.listed_on_3speak !== false && video.unlisted !== true;
+      setListed(isListed);
+      initialListedRef.current = isListed;
+      const tagList = Array.isArray(video.tags)
+        ? video.tags
+        : (typeof video.tags === 'string' ? video.tags.split(',').map(t => t.trim()) : []);
+      const nsfw = video.isNsfwContent === true || tagList.some(t => String(t).toLowerCase() === 'nsfw');
+      setIsNsfw(nsfw);
+      initialNsfwRef.current = nsfw;
+      setPromotedUntil(video.promotedUntil || null);
     } else {
       toast.error('Video not found');
     }
@@ -85,10 +106,26 @@ const EditVideo = () => {
     }
   }, [description]);
 
-  console.log(permlink)
-  console.log(id)
-
-
+  // Load the original on-chain json_metadata so we can PRESERVE it on save
+  // (the old code rebuilt metadata from scratch, dropping `video`) and read the
+  // current "Allow Remix/Clip" (json_metadata.video.reusable) flag.
+  useEffect(() => {
+    if (!user || !permlink) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const post = await client.call('condenser_api', 'get_content', [user, permlink]);
+        if (cancelled || !post) return;
+        let meta = {};
+        try { meta = JSON.parse(post.json_metadata || '{}'); } catch (_) {}
+        originalMetaRef.current = meta;
+        const r = meta.video?.reusable !== false;
+        setReusable(r);
+        initialReusableRef.current = r;
+      } catch (_) { /* best-effort */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, permlink]);
 
 const handleSubmit = async (e) => {
   e.preventDefault();
@@ -98,7 +135,10 @@ const handleSubmit = async (e) => {
     return;
   }
 
-  const tagsArray = tags.split(',').map(tag => tag.trim()).filter(Boolean);
+  const baseTags = tags.split(',').map(tag => tag.trim()).filter(Boolean)
+    .filter(t => t.toLowerCase() !== 'nsfw');
+  // Append/strip the canonical Hive `nsfw` tag based on the toggle.
+  const tagsArray = isNsfw ? [...baseTags, 'nsfw'] : baseTags;
 
   // Convert description to HTML paragraphs
   const htmlDescription = description
@@ -106,10 +146,15 @@ const handleSubmit = async (e) => {
     .map(paragraph => `<p>${paragraph.replace(/\n/g, ' ')}</p>`)
     .join('');
 
+  // Preserve the original json_metadata (video info, etc.) and only update the
+  // bits we control here: tags + the remix/clip flag.
+  const origMeta = originalMetaRef.current || {};
   const metadata = {
+    ...origMeta,
     tags: tagsArray,
-    app: '3speak/new-version',
+    app: origMeta.app || '3speak/new-version',
     format: 'html',
+    video: { ...(origMeta.video || { platform: '3speak' }), reusable },
   };
 
   const jsonMetadata = JSON.stringify(metadata);
@@ -145,6 +190,37 @@ const handleSubmit = async (e) => {
       } catch (thumbErr) {
         console.warn('Thumbnail Mongo update failed (will reconcile on sync):', thumbErr?.message);
         toast.info('Thumbnail saved on Hive — it may take a moment to refresh.');
+      }
+    }
+
+    // NSFW — the `nsfw` Hive tag above is canonical; also set the checker's
+    // isNsfwContent flag for immediate effect (before the Hive→Mongo sync).
+    if (isNsfw !== initialNsfwRef.current && CHECKER_API_KEY) {
+      try {
+        await axios.put(
+          `${CHECKER_URL}/video/nsfw`,
+          { owner: user, permlink, nsfw: isNsfw },
+          { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } },
+        );
+        initialNsfwRef.current = isNsfw;
+      } catch (nsfwErr) {
+        console.warn('NSFW flag update failed (will reconcile from the nsfw tag on sync):', nsfwErr?.message);
+      }
+    }
+
+    // Listing (unlist / re-list) — only call the checker when it actually changed.
+    if (listed !== initialListedRef.current && CHECKER_API_KEY) {
+      try {
+        await axios.put(
+          `${CHECKER_URL}/video/listing`,
+          { owner: user, permlink, listed },
+          { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } },
+        );
+        initialListedRef.current = listed;
+        toast.success(listed ? 'Video re-listed — it will show in feeds again.' : 'Video unlisted — hidden from feeds & search.');
+      } catch (listErr) {
+        console.warn('Listing update failed:', listErr?.message);
+        toast.error('Could not update the listing — please try again.');
       }
     }
 
@@ -216,13 +292,81 @@ const handleSubmit = async (e) => {
               />
             </div>
             
+            <div className="form-group listing-toggle">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={listed}
+                className={`listing-switch${listed ? ' is-on' : ''}`}
+                onClick={() => setListed(l => !l)}
+              >
+                <span className="listing-switch__track"><span className="listing-switch__thumb" /></span>
+                <span className="listing-switch__label">
+                  <strong>{listed ? 'Listed' : 'Unlisted'}</strong>
+                  <small>
+                    {listed
+                      ? 'Shown in feeds, search and on your profile.'
+                      : 'Hidden from feeds & search — still plays by direct link and stays on your profile (badged).'}
+                  </small>
+                </span>
+              </button>
+            </div>
+
+            <div className="form-group listing-toggle">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={reusable}
+                className={`listing-switch${reusable ? ' is-on' : ''}`}
+                onClick={() => setReusable(v => !v)}
+              >
+                <span className="listing-switch__track"><span className="listing-switch__thumb" /></span>
+                <span className="listing-switch__label">
+                  <strong>Allow Remix/Clip</strong>
+                  <small>
+                    {reusable
+                      ? 'Others can create remixes/clips from this video; you are credited as original author.'
+                      : 'Others cannot remix or clip this video.'}
+                  </small>
+                </span>
+              </button>
+            </div>
+
+            <div className="form-group listing-toggle">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isNsfw}
+                className={`listing-switch listing-switch--danger${isNsfw ? ' is-on' : ''}`}
+                onClick={() => setIsNsfw(v => !v)}
+              >
+                <span className="listing-switch__track"><span className="listing-switch__thumb" /></span>
+                <span className="listing-switch__label">
+                  <strong>{isNsfw ? 'Adult / NSFW' : 'Not adult'}</strong>
+                  <small>
+                    {isNsfw
+                      ? 'Marked adult — hidden from feeds & search unless the viewer enabled NSFW, and tagged nsfw on Hive.'
+                      : 'Normal content, shown to everyone.'}
+                  </small>
+                </span>
+              </button>
+            </div>
+
             <div className="form-group form-actions">
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="btn btn--primary"
               >
                 <Save />
                 Update Video
+              </button>
+              <button
+                type="button"
+                className="btn btn--promote"
+                onClick={() => setPromoteOpen(true)}
+              >
+                <Rocket size={18} />
+                {promotedUntil && new Date(promotedUntil).getTime() > Date.now() ? 'Promoted' : 'Promote'}
               </button>
             </div>
           </form>
@@ -253,6 +397,15 @@ const handleSubmit = async (e) => {
           </div>
         </div>
       </div>
+
+      <PromoteModal
+        open={promoteOpen}
+        onClose={() => setPromoteOpen(false)}
+        author={user}
+        permlink={permlink}
+        promotedUntil={promotedUntil}
+        onPromoted={(until) => setPromotedUntil(until)}
+      />
     </div>
   );
 };
