@@ -613,13 +613,13 @@ export function EmbedUploadProvider({ children }) {
         : `/watch?v=${user}/${hivePermlink}`;
       postBody += `\n\n---\n▶ [Watch on 3speak.tv](https://3speak.tv${watchPath})`;
 
-      // Tag taxonomy differs by upload type:
-      //   - shorts: forced ['3speak', 'hive-181335', 'short', ...userTags]
-      //   - regular video: ['3speak', communityTag, ...userTags] — uses the actually-
-      //     selected community, no 'short' tag.
+      // Only the community tag is added automatically (no '3speak', no 'short').
+      // Shorts are identified by the embed-video `short` DB field, not a Hive tag.
+      // The community tag is surfaced in the uploader's tag list and counts toward
+      // the 10-tag limit, so the total never exceeds 10.
       const baseTags = fromStories
-        ? ['3speak', 'hive-181335', 'short']
-        : ['3speak', communityTag];
+        ? ['hive-181335']
+        : [communityTag];
       // When marked adult, append the canonical Hive `nsfw` tag so the whole Hive
       // ecosystem (and our hive_tags filter) treats it as NSFW.
       const userTags = [

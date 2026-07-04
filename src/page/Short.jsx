@@ -30,6 +30,7 @@ import {
   RotateCcw,
   Repeat2,
   WandSparkles,
+  Pencil,
   Moon,
   Lightbulb,
   Sun,
@@ -81,6 +82,7 @@ import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import EditorModal from '../components/modal/EditorModal';
+import EditVideoModal from '../components/playVideo/EditVideoModal';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 
@@ -217,6 +219,7 @@ const VideoShort = () => {
 
   // Editor modal state
   const [showEditorModal, setShowEditorModal] = useState(false);
+  const [isEditShortOpen, setIsEditShortOpen] = useState(false);
   const [editorVideoUrl, setEditorVideoUrl] = useState(null);
   const [editorVideoName, setEditorVideoName] = useState(null);
   const [editorOriginalAuthor, setEditorOriginalAuthor] = useState(null);
@@ -761,10 +764,22 @@ const VideoShort = () => {
     const videoId = currentVid.id;
     (async () => {
       try {
+        // On a deep-link the short arrives without embed_url/hivePermlink, so the
+        // Hive post can't be resolved (embed_url would be "@author/undefined").
+        // Fetch the real embed link from the checker first.
+        let embedUrl = currentVid.embedUrl;
+        let hivePermlink = currentVid.hivePermlink;
+        if (!embedUrl) {
+          try {
+            const d = await fetch(`${import.meta.env.VITE_CHECKER_URL}/videodetails/${currentVid.author}/${currentVid.permlink}`).then(r => (r.ok ? r.json() : {}));
+            if (d?.embed_url) embedUrl = d.embed_url;
+            if (d?.hive_permlink) hivePermlink = d.hive_permlink;
+          } catch { /* ignore */ }
+        }
         const shortItem = {
           owner: currentVid.author,
           permlink: currentVid.permlink,
-          embed_url: currentVid.embedUrl || `@${currentVid.author}/${currentVid.hivePermlink}`,
+          embed_url: embedUrl || `@${currentVid.author}/${hivePermlink}`,
           thumbnail_url: currentVid.thumbnailUrl || '',
           views: currentVid.stats?.views || currentVid.views || 0,
           createdAt: currentVid.createdAt || '',
@@ -785,6 +800,10 @@ const VideoShort = () => {
             reactionChain: enriched.reactionChain || null,
             childReactions: enriched.childReactions || null,
             reusable: enriched.reusable,
+            // Carry the resolved Hive permlink/embed link so the edit button and
+            // its modal work on deep-linked shorts, not just from the profile.
+            hivePermlink: enriched.hivePermlink || hivePermlink,
+            embedUrl: enriched.embedUrl || embedUrl,
             hivePostMissing: enriched.hivePostMissing,
             _enriched: true,
           };
@@ -929,6 +948,27 @@ const VideoShort = () => {
             let actualShort = await hiveApi.findShortByPermlink(sharedVideo.permlink);
             if (!actualShort) {
               actualShort = await hiveApi.findShortByEmbedUrl(sharedVideo.author, sharedVideo.permlink);
+            }
+            // findShort* only scans the shorts feed, so a direct-linked short that
+            // isn't in the feed (or is beyond the scanned pages) isn't found and we
+            // fall back to "@author/<assetId>" — which can't resolve the Hive post
+            // (breaks edit/vote). The checker's /videodetails authoritatively maps
+            // the asset id → embed_url + Hive permlink, so use it as a fallback.
+            if (!actualShort) {
+              try {
+                const d = await fetch(`${import.meta.env.VITE_CHECKER_URL}/videodetails/${sharedVideo.author}/${sharedVideo.permlink}`).then(r => (r.ok ? r.json() : null));
+                if (d && d.owner && d.embed_url) {
+                  actualShort = {
+                    owner: d.owner,
+                    permlink: d.permlink,
+                    embed_url: d.embed_url,
+                    thumbnail_url: d.thumbnail_url || '',
+                    views: d.views || 0,
+                    createdAt: d.createdAt || new Date().toISOString(),
+                    embed_title: d.embed_title || d.hive_title || '',
+                  };
+                }
+              } catch { /* ignore — falls through to the minimal shortItem below */ }
             }
             const shortItem = actualShort || {
               owner: sharedVideo.author,
@@ -2835,6 +2875,15 @@ const VideoShort = () => {
             ) : null;
           })()}
 
+          {/* Edit — own shorts only, and only when there's a Hive post to edit. */}
+          {authenticated && user === currentVideo.author && !currentVideo.hivePostMissing && (
+            <div className="actionItem" onClick={(e) => { e.stopPropagation(); try { playerRef.current?.pause?.(); } catch {} setIsEditShortOpen(true); }}>
+              <div className="actionButton">
+                <Pencil size={24} />
+              </div>
+              <span className="actionLabel">Edit</span>
+            </div>
+          )}
 
         </div>
 
@@ -2844,6 +2893,15 @@ const VideoShort = () => {
           title={currentVideo.title}
           onClose={() => setShareChooserOpen(false)}
           onGeneralShare={handleShare}
+        />
+
+        <EditVideoModal
+          isOpen={isEditShortOpen}
+          onClose={() => setIsEditShortOpen(false)}
+          author={currentVideo.author}
+          permlink={currentVideo.hivePermlink}
+          isShort
+          onSaved={() => setIsEditShortOpen(false)}
         />
 
       </div>

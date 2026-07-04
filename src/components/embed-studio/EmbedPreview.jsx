@@ -171,7 +171,7 @@ function EmbedPreview() {
                     {tagsPreview && tagsPreview.length > 0 ? (
                       <span className="ep-tags">
                         {tagsPreview.map((tag, index) => (
-                          <span className="ep-tag" key={index}>#{tag}</span>
+                          <span className="ep-tag" key={index}>{tag}</span>
                         ))}
                       </span>
                     ) : <span className="ep-muted">None</span>}

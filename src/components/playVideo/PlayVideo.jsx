@@ -1044,6 +1044,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     title="Edit video details"
                   >
                     <MdEdit size={16} />
+                    <span>Edit</span>
                   </button>
                 )}
 

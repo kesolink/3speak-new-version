@@ -716,8 +716,9 @@ export async function fetchShortsWithDetails(page = 1, limit = 10, loggedInUser 
    User-specific shorts feed
 ------------------------------ */
 
-export async function fetchUserShortsList(username, page = 1, limit = 20) {
-  const url = appendNsfw(`${USER_SHORTS_API}/${username}?page=${page}&limit=${limit}`, useAppStore.getState().showNsfw);
+export async function fetchUserShortsList(username, page = 1, limit = 20, includeUnlisted = false) {
+  let url = appendNsfw(`${USER_SHORTS_API}/${username}?page=${page}&limit=${limit}`, useAppStore.getState().showNsfw);
+  if (includeUnlisted) url += '&include_unlisted=1';
   const response = await axios.get(url);
 
   // Index results in the same maps so findShortByPermlink works
@@ -731,8 +732,8 @@ export async function fetchUserShortsList(username, page = 1, limit = 20) {
   return response.data;
 }
 
-export async function fetchUserShortsWithDetails(username, page = 1, limit = 20) {
-  const shortsList = await fetchUserShortsList(username, page, limit);
+export async function fetchUserShortsWithDetails(username, page = 1, limit = 20, includeUnlisted = false) {
+  const shortsList = await fetchUserShortsList(username, page, limit, includeUnlisted);
 
   if (!shortsList?.shorts) {
     throw new Error("Failed to fetch user shorts list");
@@ -774,6 +775,7 @@ export async function fetchUserShortsWithDetails(username, page = 1, limit = 20)
       commentsLoaded: false,
       isLiked: false,
       isDisliked: false,
+      unlisted: s.unlisted === true, // owner's own profile can badge + re-list
       _enriched: false,
     };
   });

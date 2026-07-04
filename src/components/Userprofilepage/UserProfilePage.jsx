@@ -168,7 +168,8 @@ const {
 
             // Shorts feed for this user
             const fetchUserShorts = async ({ pageParam = 1 }) => {
-              const data = await fetchUserShortsWithDetails(user, pageParam, 20);
+              // On your own profile, include unlisted shorts (badged) so they can be re-listed.
+              const data = await fetchUserShortsWithDetails(user, pageParam, 20, isOwnProfile);
               return data;
             };
 
@@ -179,7 +180,7 @@ const {
               isFetchingNextPage: isFetchingNextShortsPage,
               isLoading: isShortsLoading,
             } = useInfiniteQuery({
-              queryKey: ["UserShorts", user],
+              queryKey: ["UserShorts", user, isOwnProfile],
               queryFn: fetchUserShorts,
               getNextPageParam: (lastPage) => {
                 if (lastPage?.page < lastPage?.totalPages) {
@@ -205,6 +206,7 @@ const {
                     num_votes: s.stats?.likes || 0,
                   },
                   created_at: s.createdAt,
+                  unlisted: s.unlisted, // Card3 shows the "Unlisted" badge
                 }))
               )
             ), [shortsData?.pages]);
