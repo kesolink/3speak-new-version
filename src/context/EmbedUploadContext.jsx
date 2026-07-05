@@ -31,12 +31,23 @@ function endpointSupportsResume(endpoint) {
 function getConnectionProfile() {
   const c = (typeof navigator !== 'undefined' &&
     (navigator.connection || navigator.mozConnection || navigator.webkitConnection)) || null;
-  if (!c) return { weak: false };
+  // No Network Information API (Firefox/Safari) → we can't measure the link, so
+  // be conservative and treat it as weak. Parallel multi-part uploads strand at
+  // 0% on slow/flaky mobile links, and we'd rather a reliable sequential upload
+  // than an aggressive one that never gets a byte through.
+  if (!c) return { weak: true, effectiveType: 'unknown' };
   const et = String(c.effectiveType || '');
-  const weak = /(slow-2g|2g|3g)/i.test(et) ||
-    (Number.isFinite(c.downlink) && c.downlink > 0 && c.downlink < 1.5) ||
+  const dl = Number(c.downlink);        // Mbps (optimistic estimate)
+  const rtt = Number(c.rtt);            // ms
+  // downlink/effectiveType read optimistically on mobile (a flaky 4G still says
+  // "4g"), so lean toward "weak": anything below 4g, < 3 Mbps, high latency, or
+  // Data Saver on.
+  const weak =
+    /(slow-2g|2g|3g)/i.test(et) ||
+    (Number.isFinite(dl) && dl > 0 && dl < 3) ||
+    (Number.isFinite(rtt) && rtt > 400) ||
     !!c.saveData;
-  return { weak, effectiveType: et, downlink: c.downlink, saveData: !!c.saveData };
+  return { weak, effectiveType: et, downlink: dl, rtt, saveData: !!c.saveData };
 }
 
 const EmbedUploadContext = createContext(null);
@@ -310,10 +321,14 @@ export function EmbedUploadProvider({ children }) {
       // Thin/flaky/metered uplink: small SEQUENTIAL chunks. Each PATCH finishes
       // well inside the server read-timeout, a drop loses little, and we avoid the
       // multi-stream contention that caused the read-timeout/interrupt cascade.
-      chunkSize = 5 * MB; parallelUploads = 1;
-    } else if (sizeBytes > 500 * MB) { chunkSize = 20 * MB; parallelUploads = 3; }
-    else if (sizeBytes > 50 * MB) { chunkSize = 10 * MB; parallelUploads = 3; }
-    else { chunkSize = 5 * MB; parallelUploads = 2; }
+      chunkSize = 4 * MB; parallelUploads = 1;
+    }
+    // Parallel multi-part uploads split the uplink N ways and each part is a
+    // separate upload that can strand — great on a fat pipe, fragile otherwise.
+    // Cap at 2 and keep chunks modest so a stall costs little and resumes fast.
+    else if (sizeBytes > 500 * MB) { chunkSize = 16 * MB; parallelUploads = 2; }
+    else if (sizeBytes > 50 * MB) { chunkSize = 8 * MB; parallelUploads = 2; }
+    else { chunkSize = 5 * MB; parallelUploads = 1; }
 
     // Cross-session resume only on tusd-backed hosts (see endpointSupportsResume).
     const resumable = endpointSupportsResume(uploadEndpoint);
@@ -598,13 +613,13 @@ export function EmbedUploadProvider({ children }) {
         : `/watch?v=${user}/${hivePermlink}`;
       postBody += `\n\n---\n▶ [Watch on 3speak.tv](https://3speak.tv${watchPath})`;
 
-      // Tag taxonomy differs by upload type:
-      //   - shorts: forced ['3speak', 'hive-181335', 'short', ...userTags]
-      //   - regular video: ['3speak', communityTag, ...userTags] — uses the actually-
-      //     selected community, no 'short' tag.
+      // Only the community tag is added automatically (no '3speak', no 'short').
+      // Shorts are identified by the embed-video `short` DB field, not a Hive tag.
+      // The community tag is surfaced in the uploader's tag list and counts toward
+      // the 10-tag limit, so the total never exceeds 10.
       const baseTags = fromStories
-        ? ['3speak', 'hive-181335', 'short']
-        : ['3speak', communityTag];
+        ? ['hive-181335']
+        : [communityTag];
       // When marked adult, append the canonical Hive `nsfw` tag so the whole Hive
       // ecosystem (and our hive_tags filter) treats it as NSFW.
       const userTags = [

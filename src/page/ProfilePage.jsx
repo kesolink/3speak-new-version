@@ -317,7 +317,8 @@ function ProfilePage() {
      SHORTS FEED
   =============================== */
   const fetchMyShorts = async ({ pageParam = 1 }) => {
-    const data = await fetchUserShortsWithDetails(user, pageParam, 20);
+    // Own profile: include unlisted shorts (badged) so they can be re-listed.
+    const data = await fetchUserShortsWithDetails(user, pageParam, 20, true);
     return data;
   };
 
@@ -352,6 +353,7 @@ function ProfilePage() {
           num_votes: s.stats?.likes || 0,
         },
         created_at: s.createdAt,
+        unlisted: s.unlisted, // Card3 shows the "Unlisted" badge
       }))
     )
   ), [shortsData?.pages]);
