@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.39.0',
+    date: '2026-07-05',
+    summary:
+      'Video uploads are more reliable now. If your network blocks a normal upload (common on some mobile or work connections), it automatically switches to a more compatible method that resumes if the connection drops. You can also turn it on yourself with the new “Reliable upload” checkbox on the upload screen.',
+  },
+  {
     version: '1.38.0',
     date: '2026-07-04',
     summary:
