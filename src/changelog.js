@@ -7,6 +7,24 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.39.0',
+    date: '2026-07-05',
+    summary:
+      'Video uploads are more reliable now. If your network blocks a normal upload (common on some mobile or work connections), it automatically switches to a more compatible method that resumes if the connection drops. You can also turn it on yourself with the new “Reliable upload” checkbox on the upload screen.',
+  },
+  {
+    version: '1.38.0',
+    date: '2026-07-04',
+    summary:
+      'Tags are handled more consistently everywhere. The uploader now shows a live tag count and includes the community tag right in your tag list, so the total can never sneak past 10, and it no longer adds hidden “3speak” or “short” tags. The Edit page uses the same limit, and the community tag is shown but can’t be removed.',
+  },
+  {
+    version: '1.37.0',
+    date: '2026-07-04',
+    summary:
+      'You can now edit your own shorts. Open a short you posted and tap Edit to change its description, tags, thumbnail and settings (unlist/re-list, mark adult/NSFW). Unlisted shorts now also show on your own profile with an “Unlisted” badge so you can find and re-list them.',
+  },
+  {
     version: '1.36.0',
     date: '2026-06-26',
     summary:

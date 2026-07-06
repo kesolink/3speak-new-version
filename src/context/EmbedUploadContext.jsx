@@ -24,6 +24,8 @@ function endpointSupportsResume(endpoint) {
   return !NON_RESUMABLE_UPLOAD_RX.test(endpoint || '');
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // Browser connection hint. On a thin/flaky/metered uplink we shrink to small
 // SEQUENTIAL chunks: big parallel chunks contend for bandwidth and trip tusd's
 // ~60s body-read timeout (the ERR_READ_TIMEOUT / ERR_UPLOAD_INTERRUPTED cascade
@@ -31,12 +33,23 @@ function endpointSupportsResume(endpoint) {
 function getConnectionProfile() {
   const c = (typeof navigator !== 'undefined' &&
     (navigator.connection || navigator.mozConnection || navigator.webkitConnection)) || null;
-  if (!c) return { weak: false };
+  // No Network Information API (Firefox/Safari) → we can't measure the link, so
+  // be conservative and treat it as weak. Parallel multi-part uploads strand at
+  // 0% on slow/flaky mobile links, and we'd rather a reliable sequential upload
+  // than an aggressive one that never gets a byte through.
+  if (!c) return { weak: true, effectiveType: 'unknown' };
   const et = String(c.effectiveType || '');
-  const weak = /(slow-2g|2g|3g)/i.test(et) ||
-    (Number.isFinite(c.downlink) && c.downlink > 0 && c.downlink < 1.5) ||
+  const dl = Number(c.downlink);        // Mbps (optimistic estimate)
+  const rtt = Number(c.rtt);            // ms
+  // downlink/effectiveType read optimistically on mobile (a flaky 4G still says
+  // "4g"), so lean toward "weak": anything below 4g, < 3 Mbps, high latency, or
+  // Data Saver on.
+  const weak =
+    /(slow-2g|2g|3g)/i.test(et) ||
+    (Number.isFinite(dl) && dl > 0 && dl < 3) ||
+    (Number.isFinite(rtt) && rtt > 400) ||
     !!c.saveData;
-  return { weak, effectiveType: et, downlink: c.downlink, saveData: !!c.saveData };
+  return { weak, effectiveType: et, downlink: dl, rtt, saveData: !!c.saveData };
 }
 
 const EmbedUploadContext = createContext(null);
@@ -162,6 +175,12 @@ export function EmbedUploadProvider({ children }) {
   };
 
   const tusUploadRef = useRef(null);
+  // In-flight chunked-upload XHRs (there can be several in parallel), so an
+  // explicit reset can abort them — tusUploadRef only tracks the TUS upload.
+  const uploadXhrsRef = useRef(new Set());
+  // Once PATCH is detected blocked this session, stick to the chunked fallback
+  // for every subsequent attempt instead of re-probing TUS each time.
+  const sessionForcedReliableRef = useRef(false);
 
   // Early/background video upload — the TUS upload starts while the user is still
   // on the "Add details" step (instead of only at final publish), so by the time
@@ -170,6 +189,11 @@ export function EmbedUploadProvider({ children }) {
   // (and await) it without stale-closure issues.
   // videoUploadStatus: 'idle' | 'uploading' | 'done' | 'error'
   const [videoUploadStatus, setVideoUploadStatus] = useState('idle');
+  // Opt-in "reliable" upload — for networks that block the TUS PATCH flow (some
+  // mobile carriers / WebViews). Forces the resumable, parallel, PATCH-free
+  // chunked-POST fallback (see runChunkedUpload) instead of tus-js-client. When
+  // OFF we still auto-switch to it if PATCH is detected blocked mid-upload.
+  const [forceReliableUpload, setForceReliableUpload] = useState(false);
   // The embed host chosen for the current upload (reactive copy of
   // chosenEmbedBaseRef, for display under the progress bar).
   const [selectedEndpoint, setSelectedEndpoint] = useState('');
@@ -271,6 +295,11 @@ export function EmbedUploadProvider({ children }) {
       try { Promise.resolve(tusUploadRef.current.abort(true)).catch(() => {}); } catch { /* ignore */ }
       tusUploadRef.current = null;
     }
+    // Abort any in-flight chunked-upload requests too.
+    if (uploadXhrsRef.current.size) {
+      for (const xhr of uploadXhrsRef.current) { try { xhr.abort(); } catch { /* ignore */ } }
+      uploadXhrsRef.current.clear();
+    }
     // Belt-and-suspenders: clear any leftover TUS fingerprints synchronously so
     // the next selection can't resume a stale partial (only one upload at a time).
     try {
@@ -310,10 +339,14 @@ export function EmbedUploadProvider({ children }) {
       // Thin/flaky/metered uplink: small SEQUENTIAL chunks. Each PATCH finishes
       // well inside the server read-timeout, a drop loses little, and we avoid the
       // multi-stream contention that caused the read-timeout/interrupt cascade.
-      chunkSize = 5 * MB; parallelUploads = 1;
-    } else if (sizeBytes > 500 * MB) { chunkSize = 20 * MB; parallelUploads = 3; }
-    else if (sizeBytes > 50 * MB) { chunkSize = 10 * MB; parallelUploads = 3; }
-    else { chunkSize = 5 * MB; parallelUploads = 2; }
+      chunkSize = 4 * MB; parallelUploads = 1;
+    }
+    // Parallel multi-part uploads split the uplink N ways and each part is a
+    // separate upload that can strand — great on a fat pipe, fragile otherwise.
+    // Cap at 2 and keep chunks modest so a stall costs little and resumes fast.
+    else if (sizeBytes > 500 * MB) { chunkSize = 16 * MB; parallelUploads = 2; }
+    else if (sizeBytes > 50 * MB) { chunkSize = 8 * MB; parallelUploads = 2; }
+    else { chunkSize = 5 * MB; parallelUploads = 1; }
 
     // Cross-session resume only on tusd-backed hosts (see endpointSupportsResume).
     const resumable = endpointSupportsResume(uploadEndpoint);
@@ -321,6 +354,23 @@ export function EmbedUploadProvider({ children }) {
     let capturedEmbedUrl = '';
     let resolveDone, rejectDone;
     const done = new Promise((resolve, reject) => { resolveDone = resolve; rejectDone = reject; });
+
+    // PATCH-blocked detector. The failure signature we're catching is: create
+    // (POST) + HEAD succeed, but not a single PATCH is acknowledged — the server
+    // offset never advances (some carriers/WebViews drop the PATCH method or its
+    // application/offset+octet-stream body). If no chunk is server-acked within
+    // WATCHDOG_MS, we abort and let the caller fall back to the chunked path.
+    // A false positive is cheap: the chunked fallback is also resumable.
+    const WATCHDOG_MS = 15000;
+    let firstAck = false;
+    let watchdog = setTimeout(() => {
+      if (!firstAck) {
+        try { upload.abort(); } catch { /* ignore */ }
+        rejectDone(Object.assign(new Error('PATCH appears blocked (no chunk acknowledged)'), { code: 'PATCH_BLOCKED' }));
+      }
+    }, WATCHDOG_MS);
+    const clearWatchdog = () => { if (watchdog) { clearTimeout(watchdog); watchdog = null; } };
+
     const upload = new tus.Upload(videoFile, {
       endpoint: uploadEndpoint,
       chunkSize,
@@ -352,15 +402,23 @@ export function EmbedUploadProvider({ children }) {
         ...(generatedPermlink ? { permlink: generatedPermlink } : {}),
       },
       onError: (err) => {
+        clearWatchdog();
         console.error('TUS upload error:', err);
         rejectDone(err);
+      },
+      // Fires when the server ACKNOWLEDGES received bytes (bytesAccepted) — the
+      // reliable "a PATCH actually landed" signal. onProgress alone isn't enough:
+      // it reflects bytes the browser pushed into the socket, which a proxy can
+      // accept and then black-hole. First ack ⇒ PATCH works ⇒ disarm the watchdog.
+      onChunkComplete: (chunkSize, bytesAccepted) => {
+        if (bytesAccepted > 0 && !firstAck) { firstAck = true; clearWatchdog(); }
       },
       onProgress: (bytesUploaded, bytesTotal) => {
         const pct = Math.round((bytesUploaded / bytesTotal) * 100);
         setUploadProgress(pct);
         setStatusText(`Uploading video... ${pct}%`);
       },
-      onSuccess: () => resolveDone(),
+      onSuccess: () => { clearWatchdog(); resolveDone(); },
       onAfterResponse: (req, res) => {
         const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
         if (header) capturedEmbedUrl = header;
@@ -380,6 +438,187 @@ export function EmbedUploadProvider({ children }) {
     await done;
     return capturedEmbedUrl;
   }, [videoFile, user, fromStories, videoDuration]);
+
+  // Preflight-free multipart POST helper for the chunked protocol. No custom
+  // request headers (FormData sets multipart/form-data itself) so the browser
+  // skips the CORS preflight — the whole point of the fallback. Tracks the XHR
+  // so an explicit reset can abort it; resolves the parsed JSON body, rejects
+  // with an Error carrying { status, body } on non-2xx.
+  const postForm = useCallback((url, fields, files) => {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      Object.entries(fields || {}).forEach(([k, v]) => form.append(k, v));
+      // File/blob parts LAST so the server reads the metadata fields first.
+      Object.entries(files || {}).forEach(([k, v]) => form.append(k, v, (v && v.name) || k));
+
+      const xhr = new XMLHttpRequest();
+      uploadXhrsRef.current.add(xhr);
+      const done = () => uploadXhrsRef.current.delete(xhr);
+      xhr.open('POST', url);
+      xhr.onload = () => {
+        done();
+        let body = {};
+        try { body = JSON.parse(xhr.responseText); } catch { /* non-JSON */ }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+        else reject(Object.assign(new Error(body.error || `HTTP ${xhr.status}`), { status: xhr.status, body }));
+      };
+      xhr.onerror = () => { done(); reject(new Error('Network error')); };
+      xhr.onabort = () => { done(); reject(Object.assign(new Error('Aborted'), { code: 'ABORTED' })); };
+      xhr.send(form);
+    });
+  }, []);
+
+  // Resumable, parallel, PATCH-free chunked upload — the fallback for clients
+  // where the TUS PATCH flow is blocked. Mints a single-use token, opens a
+  // chunk session, then uploads index-addressed chunks over plain multipart
+  // POSTs (any order, up to `parallel` at a time). Survives drops: on retry /
+  // reload it re-queries /status and re-sends only the missing chunks. Returns
+  // the embed URL.
+  //
+  // Pinned to EMBED_API_URL (not pickEmbedEndpoint): only that host currently
+  // exposes /upload/chunk. Other pool hosts may run older code.
+  const runChunkedUpload = useCallback(async () => {
+    const base = (EMBED_API_URL || '').replace(/\/+$/, '');
+    if (!base) throw new Error('No embed host configured');
+    const file = videoFile;
+    const size = file.size || 0;
+    if (!size) throw new Error('Empty file');
+
+    const MB = 1024 * 1024;
+    const conn = getConnectionProfile();
+    // Mirror the TUS profile: small sequential on weak links, modest parallel on
+    // fat pipes. chunkSize is only used when we CREATE a session (a resumed
+    // session keeps the size it was created with).
+    let chunkSize, parallel;
+    if (conn.weak) { chunkSize = 2 * MB; parallel = 1; }
+    else if (size > 500 * MB) { chunkSize = 8 * MB; parallel = 2; }
+    else if (size > 50 * MB) { chunkSize = 5 * MB; parallel = 2; }
+    else { chunkSize = 5 * MB; parallel = 1; }
+
+    const fpKey = `chunked::${base}::${file.name}::${size}`;
+    let sessionId = null;
+    let totalChunks = 0;
+    let received = new Set();
+    let embedFromServer = '';
+
+    // Resume a live session for this exact file (survives a reload / retry).
+    let stored = null;
+    try { stored = localStorage.getItem(fpKey); } catch { /* ignore */ }
+    if (stored) {
+      try {
+        const st = await postForm(`${base}/upload/chunk/status`, { sessionId: stored });
+        if (st && Number.isFinite(st.totalChunks)) {
+          sessionId = stored;
+          totalChunks = st.totalChunks;
+          chunkSize = st.chunkSize;
+          received = new Set(st.received || []);
+        }
+      } catch { /* expired/unknown — create a fresh session below */ }
+    }
+
+    if (!sessionId) {
+      const tokenRes = await axios.post(
+        `${base}/uploads/token`,
+        { owner: user, frontend_app: '3speak-tv', short: !!fromStories },
+        { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } }
+      );
+      const token = tokenRes.data?.token;
+      embedFromServer = tokenRes.data?.embed_url || '';
+      if (!token) throw new Error('Failed to obtain upload token');
+
+      const created = await postForm(`${base}/upload/chunk/create`, {
+        token,
+        filename: file.name,
+        duration: String(Math.round(videoDuration)),
+        size: String(size),
+        chunkSize: String(chunkSize),
+      });
+      sessionId = created.sessionId;
+      totalChunks = created.totalChunks;
+      chunkSize = created.chunkSize;
+      embedFromServer = created.embed_url || embedFromServer;
+      received = new Set(created.received || []);
+      try { localStorage.setItem(fpKey, sessionId); } catch { /* ignore */ }
+    }
+
+    const reportProgress = (serverBytes) => {
+      const pct = size ? Math.min(100, Math.round((serverBytes / size) * 100)) : 0;
+      setUploadProgress(pct);
+      setStatusText(`Uploading video... ${pct}%`);
+    };
+    reportProgress(received.size * chunkSize);
+
+    // Work queue = the indices the server doesn't have yet.
+    const queue = [];
+    for (let i = 0; i < totalChunks; i++) if (!received.has(i)) queue.push(i);
+
+    const RETRY_DELAYS = [0, 2000, 5000, 10000, 20000, 30000];
+    let failed = null;
+
+    const worker = async () => {
+      while (queue.length && !failed) {
+        const index = queue.shift();
+        const start = index * chunkSize;
+        const blob = file.slice(start, Math.min(start + chunkSize, size));
+        let ok = false;
+        let lastErr;
+        for (let attempt = 0; attempt < RETRY_DELAYS.length && !ok && !failed; attempt++) {
+          if (attempt > 0) { setStatusText('Connection unstable — retrying…'); await sleep(RETRY_DELAYS[attempt]); }
+          try {
+            const r = await postForm(`${base}/upload/chunk`, { sessionId, index: String(index) }, { chunk: blob });
+            ok = true;
+            if (Number.isFinite(r.receivedBytes)) reportProgress(r.receivedBytes);
+          } catch (e) {
+            if (e?.code === 'ABORTED') { failed = e; return; }   // user reset — stop
+            lastErr = e;
+          }
+        }
+        if (!ok) { failed = lastErr || new Error(`Chunk ${index} failed`); return; }
+      }
+    };
+
+    const workers = Math.max(1, Math.min(parallel, queue.length || 1));
+    await Promise.all(Array.from({ length: workers }, worker));
+    if (failed) throw failed;
+
+    const fin = await postForm(`${base}/upload/chunk/finish`, { sessionId });
+    try { localStorage.removeItem(fpKey); } catch { /* ignore */ }
+    return fin.embed_url || embedFromServer || '';
+  }, [user, fromStories, videoFile, videoDuration, postForm]);
+
+  // Upload with automatic fallback. Primary path is TUS on the least-busy host;
+  // if the user forced the reliable path (checkbox) or PATCH was already detected
+  // blocked this session, go straight to the chunked fallback. If TUS trips the
+  // PATCH-blocked watchdog mid-attempt, switch to chunked and remember it for the
+  // rest of the session. Returns the embed URL.
+  const runUploadWithFallback = useCallback(async (generatedPermlink) => {
+    const reliableBase = (EMBED_API_URL || '').replace(/\/+$/, '');
+
+    if (forceReliableUpload || sessionForcedReliableRef.current) {
+      chosenEmbedBaseRef.current = reliableBase;
+      setSelectedEndpoint(reliableBase);
+      return await runChunkedUpload();
+    }
+
+    const { base, uploadUrl } = await pickEmbedEndpoint();
+    chosenEmbedBaseRef.current = base;
+    setSelectedEndpoint(base);
+    try {
+      return await runTusUpload(generatedPermlink, uploadUrl);
+    } catch (err) {
+      if (err?.code === 'PATCH_BLOCKED') {
+        sessionForcedReliableRef.current = true;   // stick to reliable this session
+        console.warn('PATCH blocked — switching to chunked upload fallback');
+        toast.message('Your network blocked the resumable upload — switching to a more compatible method.');
+        setStatusText('Switching upload method…');
+        setUploadProgress(0);
+        chosenEmbedBaseRef.current = reliableBase;
+        setSelectedEndpoint(reliableBase);
+        return await runChunkedUpload();
+      }
+      throw err;
+    }
+  }, [forceReliableUpload, runTusUpload, runChunkedUpload]);
 
   // Kick off the background upload (called when the user reaches "Add details").
   // Idempotent: only starts once per selected video. The embed asset gets its own
@@ -403,11 +642,8 @@ export function EmbedUploadProvider({ children }) {
         // Stale-client guard: if a newer build is deployed, force-reload onto it
         // BEFORE any upload starts, so nobody uploads on cached/retired code.
         if (await reloadIfStale()) return '';   // page is reloading — bail out
-        // Pick the least-busy embed server (sticky for the rest of this upload).
-        const { base, uploadUrl } = await pickEmbedEndpoint();
-        chosenEmbedBaseRef.current = base;
-        setSelectedEndpoint(base);
-        const url = await runTusUpload('', uploadUrl);
+        // TUS on the least-busy host, auto-falling back to chunked if PATCH is blocked.
+        const url = await runUploadWithFallback('');
         if (!url) throw new Error('No embed URL returned');
         earlyEmbedUrlRef.current = url;
         setEmbedUrl(url);
@@ -425,7 +661,7 @@ export function EmbedUploadProvider({ children }) {
       }
     })();
     earlyUploadPromiseRef.current = p;
-  }, [prefilled, videoFile, runTusUpload, resetEarlyUpload]);
+  }, [prefilled, videoFile, runUploadWithFallback, resetEarlyUpload]);
 
   /**
    * publishToEmbed — the 3-step publish:
@@ -529,11 +765,8 @@ export function EmbedUploadProvider({ children }) {
         addMessage('[DEBUG] Simulated upload complete');
       } else {
         // No background upload available (it failed, or the user reached publish
-        // before "Add details" started one) → upload inline now, choosing a server.
-        const { base, uploadUrl } = await pickEmbedEndpoint();
-        chosenEmbedBaseRef.current = base;
-        setSelectedEndpoint(base);
-        capturedEmbedUrl = await runTusUpload(generatedPermlink, uploadUrl);
+        // before "Add details" started one) → upload inline now, with fallback.
+        capturedEmbedUrl = await runUploadWithFallback(generatedPermlink);
       }
 
       // Fallback: if no X-Embed-URL header, warn but don't use the raw TUS URL
@@ -598,13 +831,13 @@ export function EmbedUploadProvider({ children }) {
         : `/watch?v=${user}/${hivePermlink}`;
       postBody += `\n\n---\n▶ [Watch on 3speak.tv](https://3speak.tv${watchPath})`;
 
-      // Tag taxonomy differs by upload type:
-      //   - shorts: forced ['3speak', 'hive-181335', 'short', ...userTags]
-      //   - regular video: ['3speak', communityTag, ...userTags] — uses the actually-
-      //     selected community, no 'short' tag.
+      // Only the community tag is added automatically (no '3speak', no 'short').
+      // Shorts are identified by the embed-video `short` DB field, not a Hive tag.
+      // The community tag is surfaced in the uploader's tag list and counts toward
+      // the 10-tag limit, so the total never exceeds 10.
       const baseTags = fromStories
-        ? ['3speak', 'hive-181335', 'short']
-        : ['3speak', communityTag];
+        ? ['hive-181335']
+        : [communityTag];
       // When marked adult, append the canonical Hive `nsfw` tag so the whole Hive
       // ecosystem (and our hive_tags filter) treats it as NSFW.
       const userTags = [
@@ -990,6 +1223,8 @@ export function EmbedUploadProvider({ children }) {
     videoUploadStatus,
     selectedEndpoint,
     startEarlyUpload,
+    // Opt-in "reliable" (resumable chunked, PATCH-free) upload fallback
+    forceReliableUpload, setForceReliableUpload,
     // Prefilled flow (e.g. Hangouts server-side recording)
     prefilled,
     prefilledPermlink,
