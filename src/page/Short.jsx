@@ -158,31 +158,57 @@ function renderCaption(text) {
   return elements.length > 0 ? elements : null;
 }
 
-// Register a view on the player backend once a short actually starts playing.
-// The backend (/api/view) resolves the video with findEmbedVideo(owner, permlink),
-// which matches the embed *asset* permlink — the SAME id the player uses to load
-// and play the short — NOT the Hive permlink. So we must send `video.permlink`
-// (the asset id); sending `hivePermlink` makes the lookup 404 and the view is
-// never counted. A video lives in exactly one collection, so we try 'embed' then
-// 'legacy' and stop once one counts it. `seen` dedupes per session so
-// replays/loops/seeks never double-count.
-async function recordShortView(video, seen) {
+// Track watch DURATION for a short (non-polluting — never increments the view
+// counter). On first play we open a server-measured session
+// (POST /api/watch/start); the timeupdate handler heartbeats while it plays
+// (/api/watch/beat). The backend records watched seconds + % with the viewer IP
+// into `view-durations`. Uses the embed *asset* permlink (video.permlink) — the
+// SAME id the player loads with; the Hive permlink 404s the lookup. A video
+// lives in one collection, so we try 'embed' then 'legacy'. `watchRef.key`
+// dedupes per short so a re-open doesn't start a second session.
+async function startShortWatch(video, watchRef, duration, position) {
   const permlink = video?.permlink || video?.hivePermlink;
   if (!video?.author || video.author === 'unknown' || !permlink) return;
   const key = `${video.author}/${permlink}`;
-  if (seen.has(key)) return;
-  seen.add(key);
+  const W = watchRef.current;
+  if (W.key === key && (W.sid || W.starting)) return; // already tracking this short
+  watchRef.current = { sid: null, token: null, beatMs: 5000, lastBeatAt: 0, key, starting: true };
   for (const type of ['embed', 'legacy']) {
     try {
-      const res = await fetch(`${PLAYER_URL}/api/view`, {
+      const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner: video.author, permlink, type }),
+        body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0 }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (data?.counted) break;
+      if (!res.ok) continue;                          // 404 for the wrong collection → try next
+      const data = await res.json().catch(() => null);
+      if (watchRef.current.key !== key) return;       // short changed while awaiting
+      if (data?.sid) {
+        watchRef.current = { sid: data.sid, token: data.token, beatMs: (data.beatSeconds || 5) * 1000, lastBeatAt: Date.now(), key, starting: false };
+        return;
+      }
+      if (data && data.tracked === false) break;      // no measurable duration
     } catch { /* try next type */ }
   }
+  if (watchRef.current.key === key) watchRef.current.starting = false;
+}
+
+// Send one measured heartbeat for the active short. Best-effort.
+// fetch(keepalive) — not sendBeacon: the beat is cross-origin to PLAYER_URL with
+// a JSON body (not CORS-safelisted), which a beacon can drop; keepalive survives
+// unload and does a proper CORS request.
+function shortWatchBeat(watchRef, position) {
+  const W = watchRef.current;
+  if (!W.sid) return;
+  W.lastBeatAt = Date.now(); // throttle before the async call
+  try {
+    fetch(`${PLAYER_URL}/api/watch/beat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid: W.sid, token: W.token, position: position || 0 }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch { /* best-effort */ }
 }
 
 /* ================= COMPONENT ================= */
@@ -322,6 +348,8 @@ const VideoShort = () => {
   const playPauseTimeoutRef = useRef(null);
   const commentsFetchedRef = useRef(new Set());
   const recordedShortsViewsRef = useRef(new Set()); // author/permlink already view-counted
+  // Active short's watch-duration session (server-measured heartbeat, non-polluting).
+  const shortWatchRef = useRef({ sid: null, token: null, beatMs: 5000, lastBeatAt: 0, key: null, starting: false });
   const videoContainerRef = useRef(null);
   const playerRef = useRef(null); // Single persistent SDK Player instance
   const videoElRef = useRef(null); // Single persistent <video> element ref
@@ -2082,6 +2110,14 @@ const VideoShort = () => {
       updateProgressBar();
       setIsPlaying(!paused);
 
+      // Watch-duration heartbeat while genuinely playing (throttled to beatMs;
+      // the server measures the real wall-clock gap between beats + which part
+      // of the timeline was watched, for the heatmap).
+      const W = shortWatchRef.current;
+      if (!paused && W.sid && Date.now() - W.lastBeatAt >= W.beatMs) {
+        shortWatchBeat(shortWatchRef, currentTime);
+      }
+
       // Auto-swipe: trigger swipe when near end of video
       if (playbackModeRef.current === 'auto-swipe' && !autoSwipeTriggeredRef.current) {
         const remaining = duration - currentTime;
@@ -2105,15 +2141,20 @@ const VideoShort = () => {
     player.on('play', () => {
       setIsPlaying(true);
       setAutoplayBlocked(false);
-      // Count a view the moment the active short actually starts playing.
-      recordShortView(videosRef.current[currentIndexRef.current], recordedShortsViewsRef.current);
+      // Open a watch-duration session the moment the active short starts playing
+      // (non-polluting — tracks duration without incrementing the view counter).
+      startShortWatch(videosRef.current[currentIndexRef.current], shortWatchRef, durationRef.current, currentTimeRef.current);
     });
 
     player.on('pause', () => {
       setIsPlaying(false);
+      // Final measured beat up to the pause point.
+      shortWatchBeat(shortWatchRef, currentTimeRef.current);
     });
 
     player.on('ended', () => {
+      // Capture the tail of the watched short.
+      shortWatchBeat(shortWatchRef, currentTimeRef.current);
       if (playbackModeRef.current === 'none') {
         setVideoEnded(true);
         setIsPlaying(false);

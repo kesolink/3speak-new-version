@@ -7,6 +7,24 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.42.0',
+    date: '2026-07-06',
+    summary:
+      'Cleaner player controls on phones: the timeline and play buttons now fade away together while you’re just watching (they no longer stay stuck at the bottom), and they show for a few seconds when a video opens so you can see where everything is.',
+  },
+  {
+    version: '1.41.0',
+    date: '2026-07-06',
+    summary:
+      'The watch page timeline now has a “most replayed” graph just above the scrubber — taller sections are the moments people watch and rewatch most, so you can jump straight to the highlights.',
+  },
+  {
+    version: '1.40.0',
+    date: '2026-07-06',
+    summary:
+      'Easier to aim when scrubbing: hover or drag along the video timeline and a small preview of that moment pops up above the bar, so you can find the right spot before you jump there.',
+  },
+  {
     version: '1.39.0',
     date: '2026-07-05',
     summary:

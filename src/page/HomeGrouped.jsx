@@ -17,13 +17,25 @@ import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
 import { Rocket } from "lucide-react";
 
+// Extra feed params for the logged-in user: interests (checker weights the feed
+// toward them) and, when "Hide watched" is on, currentuser (checker skips seen
+// videos server-side). Empty string when neither applies.
+const feedParams = () => {
+  const st = useAppStore.getState();
+  let p = '';
+  const list = st.interests;
+  if (Array.isArray(list) && list.length) p += `&interests=${encodeURIComponent(list.join(','))}`;
+  if (st.hideWatched && st.user) p += `&currentuser=${encodeURIComponent(st.user)}`;
+  return p;
+};
+
 // Fetch functions for each feed
 const fetchHome = async () => {
   // Use the checker's trendingSorted feed for the "home" group — the older
   // /apiv2/feeds/home path on legacy is gone now that FEED_URL points at the
   // checker. trendingSorted is the broadest curated set the checker exposes
   // (more videos than /feeds/trending).
-  const res = await axios.get(`${TRENDING_SORTED_URL}?page=1&limit=50`);
+  const res = await axios.get(`${TRENDING_SORTED_URL}?page=1&limit=50${feedParams()}`);
   return res.data.videos || res.data.trends || [];
 };
 
@@ -33,7 +45,7 @@ const fetchFollowFeed = async (username) => {
 };
 
 const fetchTrending = async () => {
-  const res = await axios.get(appendNsfw(`${TRENDING_SORTED_URL}?page=1&limit=50`, useAppStore.getState().showNsfw));
+  const res = await axios.get(appendNsfw(`${TRENDING_SORTED_URL}?page=1&limit=50${feedParams()}`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 
@@ -178,11 +190,23 @@ const VideoRow = ({ title, videos, linkTo, isLoading, getContentForVideo, isWatc
 };
 
 const HomeGrouped = () => {
-  const { authenticated, user, showNsfw, homeCardSize } = useAppStore();
+  const { authenticated, user, showNsfw, homeCardSize, hideWatched } = useAppStore();
   const queryClient = useQueryClient();
 
+  // On mobile/tablet the stacked section rows become tabs (one section at a time).
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1024px)');
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  const [activeTab, setActiveTab] = useState(0);
+
   const { data: homeData, isLoading: homeLoading } = useQuery({
-    queryKey: authenticated ? ["follow-feed", user, showNsfw] : ["home-grouped", showNsfw],
+    queryKey: authenticated ? ["follow-feed", user, showNsfw] : ["home-grouped", showNsfw, hideWatched, user],
     queryFn: authenticated ? () => fetchFollowFeed(user) : fetchHome,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -191,7 +215,7 @@ const HomeGrouped = () => {
   // Trending row is only shown for logged-in users; skip the fetch entirely
   // when anonymous so we don't pay the request cost.
   const { data: trendingData, isLoading: trendingLoading } = useQuery({
-    queryKey: ["trending-grouped", showNsfw],
+    queryKey: ["trending-grouped", showNsfw, hideWatched, user],
     queryFn: fetchTrending,
     enabled: authenticated,
     staleTime: 5 * 60 * 1000,
@@ -243,55 +267,63 @@ const HomeGrouped = () => {
     ]);
   }, [queryClient, authenticated, user]);
 
+  // Section descriptors — shared by the desktop stack and the mobile tabs.
+  const renderRow = (s) => (
+    <VideoRow
+      key={s.key}
+      title={s.title}
+      videos={s.videos}
+      linkTo={s.linkTo}
+      isLoading={s.isLoading}
+      getContentForVideo={getContentForVideo}
+      isWatched={isWatched}
+      getViewCount={getViewCount}
+      priority={s.priority}
+    />
+  );
+
+  const promotedSection = (authenticated && promotedData?.length > 0)
+    ? { key: 'promoted', title: 'Promoted', videos: promotedData, isLoading: false, priority: true }
+    : null;
+  const contentSections = [
+    { key: 'home', title: authenticated ? 'Follow Feed' : 'Home Feed', videos: homeFeedVideos, linkTo: authenticated ? '/follow-feed' : '/home-feed', isLoading: homeLoading, priority: true },
+    { key: 'new', title: 'New Content', videos: deduplicateVideos(newContentData || []), linkTo: '/new', isLoading: newContentLoading },
+  ];
+  if (authenticated) {
+    contentSections.push({ key: 'trending', title: 'Trending', videos: trendingData || [], linkTo: '/trend', isLoading: trendingLoading });
+  }
+  const tabSections = promotedSection ? [promotedSection, ...contentSections] : contentSections;
+  const safeTab = Math.min(Math.max(activeTab, 0), tabSections.length - 1);
+
   return (
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container" data-card-size={homeCardSize || 'large'}>
       <ShortsStories />
       <OpenPodsLiveStrip />
 
-      {authenticated && (promotedData?.length > 0) && (
-        <VideoRow
-          title="Promoted"
-          videos={promotedData}
-          isLoading={false}
-          getContentForVideo={getContentForVideo}
-          isWatched={isWatched}
-          getViewCount={getViewCount}
-          priority
-        />
-      )}
-
-      <VideoRow
-        title={authenticated ? "Follow Feed" : "Home Feed"}
-        videos={homeFeedVideos}
-        linkTo={authenticated ? "/follow-feed" : "/home-feed"}
-        isLoading={homeLoading}
-        getContentForVideo={getContentForVideo}
-        isWatched={isWatched}
-        getViewCount={getViewCount}
-        priority
-      />
-
-      <VideoRow
-        title="New Content"
-        videos={deduplicateVideos(newContentData || [])}
-        linkTo="/new"
-        isLoading={newContentLoading}
-        getContentForVideo={getContentForVideo}
-        isWatched={isWatched}
-        getViewCount={getViewCount}
-      />
-
-      {authenticated && (
-        <VideoRow
-          title="Trending"
-          videos={trendingData || []}
-          linkTo="/trend"
-          isLoading={trendingLoading}
-          getContentForVideo={getContentForVideo}
-          isWatched={isWatched}
-          getViewCount={getViewCount}
-        />
+      {isMobile ? (
+        <>
+          <div className="home-tabs" role="tablist">
+            {tabSections.map((s, i) => (
+              <button
+                key={s.key}
+                type="button"
+                role="tab"
+                aria-selected={safeTab === i}
+                className={`home-tab${safeTab === i ? ' active' : ''}`}
+                onClick={() => setActiveTab(i)}
+              >
+                {s.title}
+              </button>
+            ))}
+          </div>
+          {tabSections[safeTab] && renderRow(tabSections[safeTab])}
+        </>
+      ) : (
+        <>
+          {promotedSection && renderRow(promotedSection)}
+          {contentSections.map(renderRow)}
+        </>
       )}
     </div>
     </PullToRefresh>

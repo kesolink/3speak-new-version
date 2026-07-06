@@ -4,6 +4,20 @@
 // the rest of the app and the player SDK already use. Shapes mirror what the
 // old `socialPost` / `profile` / feed queries returned so callers are unchanged.
 import { getHiveClient } from '../utils/hiveNode';
+import { useAppStore } from './store';
+
+// Extra feed params: interests (checker weights the feed toward them) and, when
+// "Hide watched" is on, currentuser (checker skips already-seen videos).
+function feedParams() {
+  let p = '';
+  try {
+    const st = useAppStore.getState();
+    const list = st.interests;
+    if (Array.isArray(list) && list.length) p += `&interests=${encodeURIComponent(list.join(','))}`;
+    if (st.hideWatched && st.user) p += `&currentuser=${encodeURIComponent(st.user)}`;
+  } catch (_) { /* ignore */ }
+  return p;
+}
 
 const hiveClient = getHiveClient();
 const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://checker.3speak.tv';
@@ -126,7 +140,7 @@ export async function fetchVideoDetails(author, permlink) {
 // (and filterValidVideos) consume, so no remapping is needed.
 export async function fetchTrendingFeed(limit = 20) {
   try {
-    const r = await fetch(`${CHECKER_URL}/feeds/trendingSorted?limit=${limit}`);
+    const r = await fetch(`${CHECKER_URL}/feeds/trendingSorted?limit=${limit}${feedParams()}`);
     const j = await r.json();
     return j?.videos || [];
   } catch (_) { return []; }

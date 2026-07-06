@@ -56,6 +56,87 @@
     z-index: 0;
   }
 
+  // "Most replayed" heatmap — SVG area sitting directly above the scrubber.
+  // Subtle by default, grows + brightens when hovering the track (YouTube-style).
+  .vc-replay-heatmap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    width: 100%;
+    height: 22px;
+    margin-bottom: 2px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
+    overflow: visible;
+    transition: height 0.15s ease, opacity 0.15s ease;
+
+    path {
+      fill: rgba(255, 255, 255, 0.4);
+    }
+  }
+
+  .vc-progress-track:hover .vc-replay-heatmap {
+    height: 42px;
+    opacity: 0.95;
+
+    path {
+      fill: rgba(255, 255, 255, 0.55);
+    }
+  }
+
+  // Scrub-preview thumbnail — low-res frame at the hovered timestamp, floats
+  // above the scrubber and follows the cursor. Persists in the DOM (so the
+  // detached player stays attached); visibility toggles on hover/drag.
+  .vc-seek-preview {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    z-index: 6;
+    // Explicit box size so it can never collapse to a line, regardless of any
+    // global `video { height: auto }` reset (16:9 for a 168px-wide box).
+    height: 94px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    pointer-events: none;
+
+    &.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+    }
+  }
+
+  // Fill the fixed-size box; vertical videos are letterboxed (object-fit: contain).
+  .vc-seek-preview-video {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+    background: #000;
+  }
+
+  .vc-seek-preview-time {
+    position: absolute;
+    bottom: 4px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+    pointer-events: none;
+  }
+
   .vc-buffered-fill {
     position: absolute;
     top: 0;
@@ -664,7 +745,8 @@
       pointer-events: none;
     }
 
-    // Progress bar — always visible at very bottom
+    // Progress bar (playhead + heatmap) — hidden with the rest of the controls,
+    // fades in when they're shown (see &.visible below).
     .vc-progress-row {
       position: absolute;
       bottom: 0;
@@ -672,7 +754,9 @@
       right: 0;
       margin-bottom: 0;
       padding: 0 8px 3px;
-      pointer-events: auto;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
       z-index: 1;
     }
 
@@ -795,9 +879,14 @@
       }
     }
 
-    // When visible: show gradient + controls (not progress bar — already visible)
+    // When visible: show gradient + controls + progress bar
     &.visible {
       &::before { opacity: 1; }
+
+      .vc-progress-row {
+        opacity: 1;
+        pointer-events: auto;
+      }
 
       .vc-controls-row {
         opacity: 1;
@@ -869,6 +958,7 @@
       pointer-events: none;
     }
 
+    // Progress bar (playhead + heatmap) — hidden with the rest of the controls.
     .vc-progress-row {
       position: absolute;
       bottom: 0;
@@ -876,7 +966,9 @@
       right: 0;
       margin-bottom: 0;
       padding: 0 8px 3px;
-      pointer-events: auto;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
       z-index: 1;
     }
 
@@ -994,6 +1086,11 @@
 
     &.visible {
       &::before { opacity: 1; }
+
+      .vc-progress-row {
+        opacity: 1;
+        pointer-events: auto;
+      }
 
       .vc-controls-row {
         opacity: 1;
