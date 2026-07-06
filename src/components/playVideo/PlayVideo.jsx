@@ -226,7 +226,10 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
 
   // Memoized values
   const tags = useMemo(() => videoDetails?.tags?.slice(0, 7) || [], [videoDetails?.tags]);
-  const comunity_name = useMemo(() => videoDetails?.community?.title, [videoDetails?.community?.title]);
+  const comunity_name = useMemo(
+    () => communityData?.title || videoDetails?.community?.title,
+    [communityData?.title, videoDetails?.community?.title]
+  );
   const community_id = useMemo(() => {
     const raw = videoDetails?.community?._id;
     return raw ? raw.split('/').pop() : null;
@@ -420,7 +423,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         });
         const data = response.data?.result;
         if (data) {
-          setCommunityData({ subscribers: data.subscribers });
+          setCommunityData({ subscribers: data.subscribers, title: data.title });
         }
       } catch (err) {
         console.error('Error fetching community data:', err);
