@@ -14,7 +14,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
 import CommentSection from "./CommentSection";
 import VideoStats from "../CreatorStats/VideoStats";
-import { fetchVideoHasStats } from "../../lib/analytics";
+import { fetchVideoHasStats } from "../../lib/creatorStats";
 import ShareChooserModal from "../Chat/ShareChooserModal";
 import { useAppStore } from '../../lib/store';
 import { estimate, getUersContent, getVotePower } from "../../utils/hiveUtils";

@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.45.0',
+    date: '2026-07-07',
+    summary:
+      'Videos you publish now embed and play correctly on other Hive apps like PeakD and Ecency — not just on 3Speak — so your posts look right everywhere they’re seen. Uploads are also a bit more reliable now, preferring the faster upload servers.',
+  },
+  {
     version: '1.44.0',
     date: '2026-07-07',
     summary:
