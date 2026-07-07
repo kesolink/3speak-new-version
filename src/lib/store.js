@@ -37,6 +37,14 @@ export const useAppStore = create(
       // Hover/scroll video previews on cards (default on).
       previewEnabled: true,
       setPreviewEnabled: (val) => a[0]({ previewEnabled: typeof val === 'function' ? val(a[1]().previewEnabled) : val }),
+      // Selected content interests (ids from utils/interests.js). Canonical copy
+      // lives in the user's Hive posting_json_metadata; this is a local cache for
+      // instant UI, hydrated from Hive on load. Used later to bias served content.
+      interests: [],
+      setInterests: (val) => a[0]({ interests: typeof val === 'function' ? val(a[1]().interests) : val }),
+      // Hide videos the user has already watched from discovery feeds (default ON).
+      hideWatched: true,
+      setHideWatched: (val) => a[0]({ hideWatched: typeof val === 'function' ? val(a[1]().hideWatched) : val }),
       // Set on startup to the previous app version when the user upgraded (null = first
       // visit or no change). A future changelog / "what's new" prompt reads this.
       // Deliberately NOT persisted — recomputed each load by checkAppVersion().
@@ -45,6 +53,14 @@ export const useAppStore = create(
     }),
     {
       name: 'user-store', // The storage key for persisting user data
+      // Bump when a persisted default changes and existing stores must be migrated.
+      // v1: "Hide watched" flipped to default-ON — turn it on for everyone whose
+      // store predates the change (they had the old default `false` saved).
+      version: 1,
+      migrate: (persistedState, version) => {
+        if (version < 1 && persistedState) persistedState.hideWatched = true;
+        return persistedState;
+      },
       partialize: (state) => ({
         user: state.user, // Persist only the `user` slice
         isProcessing: state.isProcessing,
@@ -55,6 +71,8 @@ export const useAppStore = create(
         showNsfw: state.showNsfw,
         homeCardSize: state.homeCardSize,
         previewEnabled: state.previewEnabled,
+        interests: state.interests,
+        hideWatched: state.hideWatched,
       }),
     }
   )

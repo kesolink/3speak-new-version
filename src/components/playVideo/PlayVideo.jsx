@@ -13,6 +13,8 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
 import CommentSection from "./CommentSection";
+import VideoStats from "../CreatorStats/VideoStats";
+import { fetchVideoHasStats } from "../../lib/analytics";
 import ShareChooserModal from "../Chat/ShareChooserModal";
 import { useAppStore } from '../../lib/store';
 import { estimate, getUersContent, getVotePower } from "../../utils/hiveUtils";
@@ -33,7 +35,7 @@ import mantequillaLogo from "../../assets/mantequilla-logo.png";
 import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
-import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo } from "react-icons/md";
+import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo, MdBarChart } from "react-icons/md";
 import { FaHeart } from "react-icons/fa";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
@@ -69,6 +71,25 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
   const [summaryOpen, setSummaryOpen] = useState(false);
   const titleMeta = useTitleMeta(author, permlink);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [videoStatsOpen, setVideoStatsOpen] = useState(false);
+  const [videoHasStats, setVideoHasStats] = useState(false);
+  // Watch-page stats show to the video's owner and to admins (tibfox/badadib)...
+  const STATS_ADMINS = ['tibfox', 'badadib'];
+  const isStatsViewer = authenticated && !scheduled && !!author && !!permlink &&
+    (user?.toLowerCase() === author?.toLowerCase() || STATS_ADMINS.includes(user?.toLowerCase()));
+  // ...but only once we've confirmed the video actually has watch records.
+  const canSeeVideoStats = isStatsViewer && videoHasStats;
+
+  useEffect(() => {
+    setVideoHasStats(false);
+    setVideoStatsOpen(false);
+    if (!isStatsViewer) return;
+    let cancelled = false;
+    fetchVideoHasStats(author, permlink)
+      .then((d) => { if (!cancelled) setVideoHasStats(!!d?.hasData); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isStatsViewer, author, permlink]);
 
   // State
   const [openTooltip, setOpenToolTip] = useState(false);
@@ -800,6 +821,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     onSeek={videoControls.onSeek}
                     onToggleFullscreen={videoControls.onToggleFullscreen}
                     markers={videoControls.markers}
+                    replayHeatmap={videoControls.replayHeatmap}
+                    previewVideoId={videoControls.previewVideoId}
                     onMarkerSelect={videoControls.onMarkerSelect}
                     onReactToMoment={videoControls.onReactToMoment}
                     onCycleReactionSize={videoControls.onCycleReactionSize}
@@ -986,7 +1009,8 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     <span>Summary</span>
                   </button>
                 )}
-                {authenticated && isLoggedIn() && !isVoted && (
+                {authenticated && isLoggedIn() && !isVoted && user?.toLowerCase() !== author?.toLowerCase() && (
+                  // Hidden on your own video (you can't vote for yourself).
                   // Sits to the left of the share button; opens the
                   // same vote tooltip the upvote count uses, so the
                   // existing weight-picker / submit flow still drives
@@ -1000,6 +1024,18 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                   >
                     <FaHeart size={14} />
                     <span>Vote</span>
+                  </button>
+                )}
+                {canSeeVideoStats && (
+                  <button
+                    type="button"
+                    className={`pv-btn stats-btn${videoStatsOpen ? ' active' : ''}`}
+                    onClick={() => setVideoStatsOpen((o) => !o)}
+                    title="Video stats"
+                    aria-expanded={videoStatsOpen}
+                  >
+                    <MdBarChart size={16} />
+                    <span>Stats</span>
                   </button>
                 )}
                 <button
@@ -1168,6 +1204,13 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
           <VideoPlaylists author={author} permlink={permlink} />
         )}
 
+        {/* Video-stats panel (owner/admins) — toggled by the Stats button, full-width row between the buttons and the description */}
+        {canSeeVideoStats && videoStatsOpen && (
+          <div className="watch-stats-panel">
+            <VideoStats username={author} permlink={permlink} compact onSeek={videoControls?.onSeek} />
+          </div>
+        )}
+
         <div className="description-wrap">
           <div className={`description-collapsible${descriptionExpanded ? '' : ' collapsed'}`}>
             <div className="blog-content">
@@ -1285,6 +1328,24 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
         <div className={`fab-speed-dial${fabOpen ? ' open' : ''}`}>
           {fabOpen && (
             <div className="fab-actions">
+              {canSeeVideoStats && (
+                <div className="fab-action">
+                  <span className="fab-action-label">Stats</span>
+                  <button
+                    className={`fab-action-btn${videoStatsOpen ? ' fab-action-btn--active' : ''}`}
+                    onClick={() => {
+                      const nv = !videoStatsOpen;
+                      setVideoStatsOpen(nv);
+                      if (nv) setMobileDetailsExpanded(true); // panel lives inside the collapsible details
+                      setFabOpen(false);
+                    }}
+                    aria-label="Video stats"
+                  >
+                    <MdBarChart size={20} />
+                  </button>
+                </div>
+              )}
+
               <div className="fab-action">
                 <span className="fab-action-label">Share</span>
                 <button

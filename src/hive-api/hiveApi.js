@@ -7,7 +7,7 @@
 import axios from "axios";
 import { getHiveUrl } from '../utils/hiveNode';
 import { convert } from "html-to-text";
-import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL, appendNsfw } from "../utils/config";
+import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL, PLAYER_URL, appendNsfw } from "../utils/config";
 import { useAppStore } from "../lib/store";
 
 /* -----------------------------
@@ -57,7 +57,13 @@ const _shortsByPermlink = new Map(); // permlink → short object
 
 export async function fetchShortsList(page = 1, limit = 20, currentuser = null) {
   let url = appendNsfw(`${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`, useAppStore.getState().showNsfw);
-  if (currentuser) url += `&currentuser=${encodeURIComponent(currentuser)}`;
+  // Bias the feed toward the logged-in user's interests (checker weights them).
+  const _st = useAppStore.getState();
+  if (Array.isArray(_st.interests) && _st.interests.length) url += `&interests=${encodeURIComponent(_st.interests.join(','))}`;
+  // Hide already-watched shorts: use the explicit currentuser (existing callers)
+  // OR the logged-in user when the "Hide watched" setting is on.
+  const _watchUser = currentuser || (_st.hideWatched && _st.user ? _st.user : null);
+  if (_watchUser) url += `&currentuser=${encodeURIComponent(_watchUser)}`;
   console.log('Shorts API URL:', url);
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
@@ -793,19 +799,26 @@ export async function fetchUserShortsWithDetails(username, page = 1, limit = 20,
    3Speak helpers
 ------------------------------ */
 
+// Player backend that serves the embeddable iframe player. Falls back to the
+// production pool if VITE_PLAYER_URL is unset.
+const PLAYER_BASE = PLAYER_URL || 'https://play.3speak.tv';
+
+// NOTE: uses the /play route (not /embed) — /play never increments the view
+// counter but still runs the server-measured watch-duration tracking. This
+// keeps embedded-in-post videos from polluting view counts on preview.
 export function get3SpeakEmbedUrl(embedUrl, layout = "mobile", controls = true) {
   if (!embedUrl) return null;
 
   const cleanedPath = embedUrl.startsWith('@') ? embedUrl.slice(1) : embedUrl;
   const controlsParam = controls ? '' : '&controls=0';
-  return `https://play.3speak.tv/embed?v=${cleanedPath}&mode=iframe&layout=${layout}${controlsParam}`;
+  return `${PLAYER_BASE}/play?v=${cleanedPath}&mode=iframe&layout=${layout}${controlsParam}`;
 }
 
 export function build3SpeakEmbedUrl(author, permlink, layout = "mobile", controls = true) {
   if (!author || !permlink) return null;
 
   const controlsParam = controls ? '' : '&controls=0';
-  return `https://play.3speak.tv/embed?v=${author}/${permlink}&mode=iframe&layout=${layout}${controlsParam}`;
+  return `${PLAYER_BASE}/play?v=${author}/${permlink}&mode=iframe&layout=${layout}${controlsParam}`;
 }
 
 /* -----------------------------

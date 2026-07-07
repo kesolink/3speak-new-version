@@ -148,7 +148,11 @@ function clearPkceCookie(res) {
 }
 
 // === Custom_json operation whitelist ===
-const ALLOWED_OPS = ['vote', 'comment', 'delete_comment', 'comment_options', 'custom_json', 'claim_reward_balance']
+// account_update2 is allowed ONLY to set posting_json_metadata (profile-level
+// metadata, e.g. a user's 3Speak interests) — broadcastAsThreespeak enforces
+// that it carries no owner/active/posting/memo_key or json_metadata, so posting
+// authority is sufficient and it can never touch keys or active-auth metadata.
+const ALLOWED_OPS = ['vote', 'comment', 'delete_comment', 'comment_options', 'custom_json', 'claim_reward_balance', 'account_update2']
 
 const ALLOWED_CUSTOM_JSON_IDS = new Set([
   // Hive standard
@@ -169,6 +173,7 @@ const OP_USER_FIELD = {
   delete_comment: 'author',
   comment_options: 'author',
   claim_reward_balance: 'account',
+  account_update2: 'account',
 }
 
 // =====================================================================
@@ -330,6 +335,19 @@ async function broadcastAsThreespeak(hiveUsername, operations, res) {
       if (!ALLOWED_CUSTOM_JSON_IDS.has(opData.id)) {
         return res.status(403).json({ error: 'custom_json id not allowed for this app' })
       }
+    } else if (opType === 'account_update2') {
+      // Posting authority may ONLY change posting_json_metadata. Reject any
+      // field that would require active/owner auth so this can never become a
+      // key-rotation or active-metadata oracle for @threespeak.
+      if (opData.account !== hiveUsername) {
+        return res.status(403).json({ error: 'Operation not allowed' })
+      }
+      if (opData.owner != null || opData.active != null || opData.posting != null || opData.memo_key != null) {
+        return res.status(403).json({ error: 'account_update2 auth fields not allowed' })
+      }
+      if (opData.json_metadata != null && opData.json_metadata !== '') {
+        return res.status(403).json({ error: 'account_update2 json_metadata not allowed (posting auth only)' })
+      }
     } else {
       const field = OP_USER_FIELD[opType]
       if (field && opData[field] !== hiveUsername) {
@@ -378,7 +396,7 @@ app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
         const claimed = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : ''
         const ops = Array.isArray(req.body?.operations) ? req.body.operations : []
         const postingOpsOnly = ops.length > 0 && ops.every(
-          ([t]) => t === 'comment' || t === 'comment_options' || t === 'custom_json' || t === 'vote'
+          ([t]) => t === 'comment' || t === 'comment_options' || t === 'custom_json' || t === 'vote' || t === 'account_update2'
         )
         if (claimed && !postingOpsOnly) {
           return res.status(403).json({ error: 'Operation not allowed for app-key auth' })

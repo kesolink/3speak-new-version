@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import useSeekPreview from '../../hooks/useSeekPreview';
 import { createPortal } from 'react-dom';
 import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaVideo, FaCog } from 'react-icons/fa';
 import { MdClosedCaption, MdClosedCaptionOff, MdHighQuality } from 'react-icons/md';
@@ -60,6 +61,8 @@ function VideoControls({
   onSeek,
   isVisible,
   markers,
+  replayHeatmap,
+  previewVideoId,
   onMarkerSelect,
   onReactToMoment,
   onCycleReactionSize,
@@ -138,6 +141,20 @@ function VideoControls({
     return { background: `linear-gradient(to right, ${gradient.join(', ')})` };
   })() : null;
 
+  // "Most replayed" heatmap — an SVG area whose height at each x reflects how
+  // often that slice of the timeline was watched (normalized 0..1 buckets from
+  // /api/heatmap). Rendered as a stretched area above the scrubber, YouTube-style.
+  const replayHeatmapPath = useMemo(() => {
+    const b = Array.isArray(replayHeatmap) ? replayHeatmap : null;
+    if (!b || b.length < 2 || !b.some((v) => v > 0)) return null;
+    const n = b.length;
+    const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+    // SVG y grows downward; baseline at 100, peaks reach ~8 (small top margin).
+    const y = (v) => (100 - clamp01(v) * 92).toFixed(2);
+    const pts = b.map((v, i) => `${i},${y(v)}`).join(' L');
+    return { d: `M0,100 L${pts} L${n - 1},100 Z`, viewBox: `0 0 ${n - 1} 100` };
+  }, [replayHeatmap]);
+
   // Get fraction (0-1) from a pointer/touch event relative to the track
   const fractionFromEvent = useCallback((e) => {
     if (!trackRef.current || !duration) return null;
@@ -145,6 +162,16 @@ function VideoControls({
     const rect = trackRef.current.getBoundingClientRect();
     return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   }, [duration]);
+
+  // Scrub-preview thumbnail (low-res, same technique as the homepage hover cards)
+  const {
+    videoRef: previewVideoRef,
+    preview,
+    previewWidth,
+    showAt: showSeekPreview,
+    hide: hideSeekPreview,
+    fmtTime: fmtPreviewTime,
+  } = useSeekPreview({ videoId: previewVideoId, trackRef, duration });
 
   // Drag/scrub support — visual progress updates instantly, seeks throttled to ~150ms
   const isDraggingRef = useRef(false);
@@ -161,8 +188,9 @@ function VideoControls({
     setDragProgress(fraction * 100);
     onSeek?.(fraction * duration);
     lastSeekTimeRef.current = Date.now();
+    showSeekPreview(e.touches ? e.touches[0].clientX : e.clientX);
     e.preventDefault();
-  }, [fractionFromEvent, duration, onSeek]);
+  }, [fractionFromEvent, duration, onSeek, showSeekPreview]);
 
   useEffect(() => {
     const handleMove = (e) => {
@@ -173,6 +201,7 @@ function VideoControls({
       const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       dragFractionRef.current = fraction;
       setDragProgress(fraction * 100);
+      showSeekPreview(clientX);
       // Throttle actual seeks so HLS can keep up
       const now = Date.now();
       if (now - lastSeekTimeRef.current >= SEEK_THROTTLE_MS) {
@@ -187,6 +216,7 @@ function VideoControls({
       }
       isDraggingRef.current = false;
       setDragProgress(null);
+      hideSeekPreview();
     };
 
     document.addEventListener('mousemove', handleMove);
@@ -199,7 +229,7 @@ function VideoControls({
       document.removeEventListener('touchmove', handleMove);
       document.removeEventListener('touchend', handleUp);
     };
-  }, [duration, onSeek]);
+  }, [duration, onSeek, showSeekPreview, hideSeekPreview]);
 
   // Close quality menu when clicking outside
   useEffect(() => {
@@ -325,7 +355,34 @@ function VideoControls({
     >
       {/* Progress bar */}
       <div className="vc-progress-row">
-        <div className="vc-progress-track" ref={trackRef} onMouseDown={handleTrackPointerDown} onTouchStart={handleTrackPointerDown}>
+        <div
+          className="vc-progress-track"
+          ref={trackRef}
+          onMouseDown={handleTrackPointerDown}
+          onTouchStart={handleTrackPointerDown}
+          onMouseMove={(e) => { if (!isTouchDevice && previewVideoId) showSeekPreview(e.clientX); }}
+          onMouseLeave={() => { if (!isDraggingRef.current) hideSeekPreview(); }}
+        >
+          {/* Scrub-preview thumbnail (low-res HLS, no storyboard) */}
+          {previewVideoId && (
+            <div
+              className={`vc-seek-preview${preview.visible ? ' visible' : ''}`}
+              style={{ left: `${preview.leftPx}px`, width: `${previewWidth}px` }}
+            >
+              <video ref={previewVideoRef} className="vc-seek-preview-video" muted playsInline disablePictureInPicture />
+              <div className="vc-seek-preview-time">{fmtPreviewTime(preview.time)}</div>
+            </div>
+          )}
+          {replayHeatmapPath && (
+            <svg
+              className="vc-replay-heatmap"
+              viewBox={replayHeatmapPath.viewBox}
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <path d={replayHeatmapPath.d} />
+            </svg>
+          )}
           {heatmapStyle && <div className="vc-heatmap" style={heatmapStyle} />}
           <div className="vc-buffered-fill" style={{ width: `${bufferedPercent}%` }} />
           <div className="vc-progress-fill" style={{ width: `${progress}%` }} />

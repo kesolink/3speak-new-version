@@ -18,7 +18,10 @@ import useViewCounts from "../../hooks/useViewCounts"
 const FOLLOW_LIMIT = 50;
 
 const fetchFollowFeedVideos = async ({ pageParam = 1 }, username) => {
-  const url = appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${FOLLOW_LIMIT}`, useAppStore.getState().showNsfw);
+  const st = useAppStore.getState();
+  let url = appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${FOLLOW_LIMIT}`, st.showNsfw);
+  // "Hide watched" → let the checker skip videos this user already watched.
+  if (st.hideWatched && st.user) url += `&currentuser=${encodeURIComponent(st.user)}`;
   const res = await axios.get(url);
   return res.data;
 };
@@ -37,7 +40,7 @@ const fetchHomeVideos = async ({ pageParam = 0 }) => {
 
 function Feed() {
   const [isOpen, setIsOpen] = useState(false)
-  const {authenticated, user, showNsfw} = useAppStore();
+  const {authenticated, user, showNsfw, hideWatched} = useAppStore();
 
   useEffect(()=>{
     checkPostAuth(user);
@@ -51,7 +54,7 @@ function Feed() {
   isLoading,
   isError,
 } = useInfiniteQuery({
-  queryKey: authenticated ? ["follow-feed", user, showNsfw] : ["home"],
+  queryKey: authenticated ? ["follow-feed", user, showNsfw, hideWatched] : ["home"],
   queryFn: authenticated
     ? (ctx) => fetchFollowFeedVideos(ctx, user)
     : fetchHomeVideos,
