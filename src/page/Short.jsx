@@ -178,7 +178,7 @@ async function startShortWatch(video, watchRef, duration, position) {
       const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0 }),
+        body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0, source: '3speak' }),
       });
       if (!res.ok) continue;                          // 404 for the wrong collection → try next
       const data = await res.json().catch(() => null);
@@ -2851,7 +2851,7 @@ const VideoShort = () => {
 
         {/* SIDEBAR */}
         <div className="actionSidebar" onClick={(e) => e.stopPropagation()}>
-          <div className="actionItem" onClick={(e) => { e.stopPropagation(); if (currentVideo.hivePostMissing) { toast.error("Voting isn't available for this post"); return; } toggleVoteTooltip(currentVideo.author, currentVideo.hivePermlink); }}>
+          <div className={`actionItem${user && currentVideo.author && user.toLowerCase() === currentVideo.author.toLowerCase() ? ' disabled' : ''}`} onClick={(e) => { e.stopPropagation(); if (user && currentVideo.author && user.toLowerCase() === currentVideo.author.toLowerCase()) return; if (currentVideo.hivePostMissing) { toast.error("Voting isn't available for this post"); return; } toggleVoteTooltip(currentVideo.author, currentVideo.hivePermlink); }}>
             <div className={`actionButton ${currentVideo.isLiked ? 'liked' : ''}`}>
               <Heart size={24} fill={currentVideo.isLiked ? '#ff2d55' : 'none'} />
             </div>

@@ -40,7 +40,7 @@ const fetchHome = async () => {
 };
 
 const fetchFollowFeed = async (username) => {
-  const res = await axios.get(appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=1&limit=50`, useAppStore.getState().showNsfw));
+  const res = await axios.get(appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=1&limit=50${feedParams()}`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 
@@ -206,7 +206,7 @@ const HomeGrouped = () => {
   const [activeTab, setActiveTab] = useState(0);
 
   const { data: homeData, isLoading: homeLoading } = useQuery({
-    queryKey: authenticated ? ["follow-feed", user, showNsfw] : ["home-grouped", showNsfw, hideWatched, user],
+    queryKey: authenticated ? ["follow-feed", user, showNsfw, hideWatched] : ["home-grouped", showNsfw, hideWatched, user],
     queryFn: authenticated ? () => fetchFollowFeed(user) : fetchHome,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,

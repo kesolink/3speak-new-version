@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.44.0',
+    date: '2026-07-07',
+    summary:
+      'Your feeds now hide videos you’ve already watched by default, so Home, Trending and the Follow Feed keep surfacing fresh content instead of repeats. You can switch this off any time under Settings → “Hide watched”.',
+  },
+  {
+    version: '1.43.0',
+    date: '2026-07-07',
+    summary:
+      'New “Stats” tab on your profile shows how your videos are really doing: total watch time and views for a time range you pick, your best-performing videos, and per-video insights like where people drop off and the moments they replay most. You can compare any two videos side by side and see where your viewers are (a country map), their devices and browsers, when they watch, and whether they’re watching on 3Speak itself or an embedded player. Your own videos also get a “Stats” button on the watch page (in the ⋯ menu on phones).',
+  },
+  {
     version: '1.42.0',
     date: '2026-07-06',
     summary:

@@ -29,10 +29,12 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
   const startingRef = useRef(false);
   const key = author && author !== 'unknown' && permlink ? `${author}/${permlink}` : null;
 
-  // Latest playback position, kept in a ref so the stable beat() reads the
-  // current time (needed for timeline-coverage / heatmap).
+  // Latest playback position + rate, kept in refs so the stable beat() reads the
+  // current values (position → timeline-coverage/heatmap; rate → avg-speed stat).
   const posRef = useRef(0);
   posRef.current = Number(playerState?.currentTime) || 0;
+  const rateRef = useRef(1);
+  rateRef.current = Number(playerState?.playbackRate) || 1;
 
   // Reset session state whenever the video changes.
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
       fetch(`${PLAYER_URL}/api/watch/beat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sid: s.sid, token: s.token, position: posRef.current }),
+        body: JSON.stringify({ sid: s.sid, token: s.token, position: posRef.current, rate: rateRef.current }),
         keepalive: true,
       }).catch(() => {});
     } catch { /* best-effort — never disrupt playback */ }
@@ -84,7 +86,7 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
           const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ owner, permlink: vPermlink, type, duration, position: posRef.current }),
+            body: JSON.stringify({ owner, permlink: vPermlink, type, duration, position: posRef.current, source: '3speak' }),
           });
           if (!res.ok) continue;                       // 404 for the wrong collection → try the next
           const data = await res.json().catch(() => null);

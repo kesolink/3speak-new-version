@@ -1,8 +1,10 @@
 @use "../../mixins.scss" as *;
 
 // Card-size preference (set on <html> from the store). Large is the default.
-html[data-card-size="small"] { --card-min-w: 300px; }
-html[data-card-size="large"] { --card-min-w: 460px; }
+// Kept in sync with the home screen's --home-card-w (HomeGrouped.scss) so the
+// "View All" feed grids render the same card size as the home rows.
+html[data-card-size="small"] { --card-min-w: 280px; }
+html[data-card-size="large"] { --card-min-w: 420px; }
 
 .card-container {
   display: grid;
