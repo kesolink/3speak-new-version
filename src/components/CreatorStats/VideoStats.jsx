@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { fetchVideoAnalytics, fmtDuration, fmtCount } from '../../lib/analytics';
+import { fetchVideoAnalytics, fmtDuration, fmtCount } from '../../lib/creatorStats';
 import BarLoader from '../Loader/BarLoader';
 import useSeekPreview from '../../hooks/useSeekPreview';
 import './VideoStats.scss';

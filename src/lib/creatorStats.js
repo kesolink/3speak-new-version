@@ -1,5 +1,8 @@
-// Creator analytics data layer — talks to the checker's /analytics endpoints
+// Creator stats data layer — talks to the checker's /creator-stats endpoints
 // (watch-duration stats + Hive engagement + GeoLite2 demographics).
+// NOTE: deliberately NOT named "analytics" — ad-blockers/privacy extensions
+// block requests matching that word (filename AND URL path), which broke the
+// whole app for users with such extensions. Keep this name generic.
 import { CHECKER_URL } from '../utils/config';
 
 async function get(path) {
@@ -19,27 +22,27 @@ function qs(username, { days, content } = {}) {
 
 // Totals + metrics + best-performing videos. opts: { days, content }.
 export function fetchCreatorOverview(username, opts) {
-  return get(`/analytics/overview?${qs(username, opts)}`);
+  return get(`/creator-stats/overview?${qs(username, opts)}`);
 }
 
 // Daily watch-time / views trend. opts: { days, content }.
 export function fetchCreatorTimeseries(username, opts) {
-  return get(`/analytics/timeseries?${qs(username, opts)}`);
+  return get(`/creator-stats/timeseries?${qs(username, opts)}`);
 }
 
 // Per-video detail: retention curve + most-replayed buckets + stats.
 export function fetchVideoAnalytics(username, permlink) {
-  return get(`/analytics/video?username=${encodeURIComponent(username)}&permlink=${encodeURIComponent(permlink)}`);
+  return get(`/creator-stats/video?username=${encodeURIComponent(username)}&permlink=${encodeURIComponent(permlink)}`);
 }
 
 // Lightweight check: does this video have any watch records? (gates the Stats button)
 export function fetchVideoHasStats(username, permlink) {
-  return get(`/analytics/has-data?username=${encodeURIComponent(username)}&permlink=${encodeURIComponent(permlink)}`);
+  return get(`/creator-stats/has-data?username=${encodeURIComponent(username)}&permlink=${encodeURIComponent(permlink)}`);
 }
 
 // Viewer demographics (country / device / browser / time-of-day / new-vs-returning).
 export function fetchCreatorDemographics(username, opts) {
-  return get(`/analytics/demographics?${qs(username, opts)}`);
+  return get(`/creator-stats/demographics?${qs(username, opts)}`);
 }
 
 // ── formatting helpers ────────────────────────────────────────────────────

@@ -844,6 +844,18 @@ export function EmbedUploadProvider({ children }) {
         ...tagsPreview.filter(t => !baseTags.includes(t)),
         ...(isNsfw ? ['nsfw'] : []),
       ].filter((t, i, a) => a.indexOf(t) === i);
+
+      // Embed ASSET owner/permlink (…/embed?v=owner/permlink) — this is what the
+      // `video.info` block below carries so peakd/ecency render the player.
+      let embedOwner = user;
+      let embedAssetPermlink = hivePermlink;
+      try {
+        const vParam = new URL(capturedEmbedUrl).searchParams.get('v') || '';
+        const [o, p] = vParam.split('/');
+        if (o) embedOwner = o;
+        if (p) embedAssetPermlink = p;
+      } catch { /* fall back to user / hive permlink */ }
+
       const jsonMetadata = {
         app: '3speak/embed',
         format: 'markdown',
@@ -854,12 +866,32 @@ export function EmbedUploadProvider({ children }) {
         // some renderers choke on. The same field is duplicated inside `video`
         // for legacy 3Speak readers that look for it there.
         ...(thumbnailUrl ? { image: [thumbnailUrl] } : {}),
+        // Top-level `links` array — the Hive-wide convention (peakd, ecency, …)
+        // for cataloguing the URLs in the body. Listing the play.3speak.tv embed
+        // here is what lets other frontends detect and render the 3Speak player
+        // inline (matches the Snapie.io posts). `capturedEmbedUrl` is already the
+        // canonical `https://play.3speak.tv/embed?v=owner/permlink` form that the
+        // body leads with.
+        links: [capturedEmbedUrl],
         video: {
           platform: '3speak',
           url: capturedEmbedUrl,
           reusable: (originalAuthor && originalPermlink) ? true : reusable,
           ...(thumbnailUrl ? { thumbnail: thumbnailUrl } : {}),
           ...(originalAuthor ? { originalAuthor, originalPermlink } : {}),
+          // Legacy 3Speak `info` block. Other Hive frontends (peakd, ecency, …)
+          // render the player by reading video.info.author + video.info.permlink
+          // to build the embed — WITHOUT it they request an EMPTY owner/permlink
+          // and show nothing. Mirrors the schema of classic 3speak.tv posts, and
+          // our own PostView/WatchedView/chatLinks read video.info too.
+          info: {
+            platform: '3speak',
+            author: embedOwner,
+            permlink: embedAssetPermlink,
+            title: title || '',
+            duration: Number(videoDuration) || 0,
+            ...(thumbnailUrl ? { sourceMap: [{ url: thumbnailUrl, type: 'thumbnail' }] } : {}),
+          },
         },
       };
 

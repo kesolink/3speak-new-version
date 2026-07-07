@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import {
   fetchCreatorOverview, fetchCreatorTimeseries, fetchCreatorDemographics, fetchVideoAnalytics,
   fmtDuration, fmtCount, timeAgo, countryFlag, countryName, countryLatLng,
-} from '../../lib/analytics';
+} from '../../lib/creatorStats';
 import BarLoader from '../Loader/BarLoader';
 import VideoStats from './VideoStats';
 import { WORLD_LAND_PATH } from '../../lib/worldMapPath';
