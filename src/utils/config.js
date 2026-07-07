@@ -61,11 +61,15 @@ const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
 // least-busy reachable one per upload (see utils/embedEndpoints.js). Leave unset
 // to use the single EMBED_API_URL host. Each host must share the same MongoDB +
 // EMBED_API_KEY so any can serve the post-upload /video/* writes.
-const EMBED_UPLOAD_HOSTS = (import.meta.env.VITE_EMBED_UPLOAD_URLS
-  ? import.meta.env.VITE_EMBED_UPLOAD_URLS.split(/[\s,]+/)
-  : [])
+const parseHosts = (v) => (v ? v.split(/[\s,]+/) : [])
   .map((h) => h.trim().replace(/\/+$/, '').replace(/\/uploads$/, ''))
   .filter(Boolean);
+const EMBED_UPLOAD_HOSTS = parseHosts(import.meta.env.VITE_EMBED_UPLOAD_URLS);
+// Slow / last-resort upload hosts (e.g. the legacy embed.3speak.tv). These are
+// used ONLY when no primary EMBED_UPLOAD_HOSTS host is reachable, so the fast
+// servers (embed2 / embed-okinoko) stay the prominent choice. See
+// utils/embedEndpoints.js.
+const EMBED_UPLOAD_FALLBACK_HOSTS = parseHosts(import.meta.env.VITE_EMBED_UPLOAD_FALLBACK_URLS);
 const EMBED_DEBUG = import.meta.env.VITE_EMBED_DEBUG === 'true';
 const THREESPEAK_AUDIO_API_URL = import.meta.env.VITE_3SPEAK_AUDIO_API_URL || 'https://audio.3speak.tv';
 const THREESPEAK_API_KEY = import.meta.env.VITE_3SPEAK_API_KEY || '';
@@ -169,6 +173,7 @@ export {
   EMBED_UPLOAD_URL,
   EMBED_API_URL,
   EMBED_UPLOAD_HOSTS,
+  EMBED_UPLOAD_FALLBACK_HOSTS,
   EMBED_API_KEY,
   TRANSLATE_API_URL,
   TRENDING_SORTED_URL,
