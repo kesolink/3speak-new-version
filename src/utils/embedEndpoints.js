@@ -10,7 +10,7 @@
 // we fall back to probe latency (a saturated host answers slower), then random.
 // The pick NEVER blocks an upload: any failure falls back to the default host.
 
-import { EMBED_UPLOAD_HOSTS, EMBED_API_URL } from './config';
+import { EMBED_UPLOAD_HOSTS, EMBED_UPLOAD_FALLBACK_HOSTS, EMBED_API_URL } from './config';
 
 const PROBE_TIMEOUT_MS = 2500;
 const FULL_DISK_PCT = 3; // treat a host with <3% free disk as unavailable
@@ -46,39 +46,49 @@ async function probe(base) {
   }
 }
 
-/**
- * Choose an embed endpoint. Returns { base, uploadUrl }.
- * Selection order: fewest activeUploads → lowest latency → (fallback) random/first.
- */
-export async function pickEmbedEndpoint() {
-  const hosts = getEmbedHosts();
-  const fallback = { base: hosts[0] || (EMBED_API_URL || '').replace(/\/+$/, ''), get uploadUrl() { return uploadUrlFor(this.base); } };
-
-  // Single host (or none configured) → nothing to choose.
-  if (hosts.length <= 1) return { base: fallback.base, uploadUrl: uploadUrlFor(fallback.base) };
-
-  const results = (await Promise.all(hosts.map(probe))).filter((r) => r.ok);
-  if (!results.length) {
-    // Nothing answered healthily — don't block; use the first configured host.
-    return { base: fallback.base, uploadUrl: uploadUrlFor(fallback.base) };
-  }
-
-  // Pick the least-busy server, but SPREAD across ties. Under light load every
-  // host reports activeUploads: 0, so a deterministic tie-break (e.g. latency)
-  // would always land on the same (closest) host and never use the others.
-  // Candidate pool = the load-reporting hosts at the lowest activeUploads, PLUS
-  // any reachable host that can't report load (older build with the old /health).
-  // Then pick one at random. This means:
-  //   - among reporters, a genuinely busier host is avoided;
-  //   - a healthy non-reporting host still participates (spread to blindly,
-  //     since we can't read its load) instead of being permanently skipped.
+// Among reachable probe results, pick the least-busy server, SPREADING across
+// ties. Under light load every host reports activeUploads: 0, so a deterministic
+// tie-break (e.g. latency) would always land on the same host and never use the
+// others. Candidate pool = load-reporting hosts at the lowest activeUploads, PLUS
+// any reachable host that can't report load (older /health). Then pick at random:
+//   - among reporters, a genuinely busier host is avoided;
+//   - a healthy non-reporting host still participates (spread to blindly).
+// Returns the chosen base, or null when nothing was reachable.
+function chooseFromResults(results) {
+  if (!results.length) return null;
   const reporters = results.filter((r) => r.activeUploads != null);
   let pool = results;
   if (reporters.length) {
     const min = Math.min(...reporters.map((r) => r.activeUploads));
     pool = results.filter((r) => r.activeUploads == null || r.activeUploads === min);
   }
+  return pool[Math.floor(Math.random() * pool.length)].base;
+}
 
-  const chosen = pool[Math.floor(Math.random() * pool.length)].base;
-  return { base: chosen, uploadUrl: uploadUrlFor(chosen) };
+async function probeAndChoose(hosts) {
+  if (!hosts || !hosts.length) return null;
+  const results = (await Promise.all(hosts.map(probe))).filter((r) => r.ok);
+  return chooseFromResults(results);
+}
+
+/**
+ * Choose an embed endpoint. Returns { base, uploadUrl }.
+ * Tiered: prefer a reachable PRIMARY host (embed2 / embed-okinoko — fast, load
+ * spread among them); only drop to the FALLBACK tier (slow legacy embed.3speak.tv)
+ * when NO primary answers healthily. Never blocks: any failure → first configured.
+ */
+export async function pickEmbedEndpoint() {
+  const primary = getEmbedHosts();
+  const fallbackHosts = EMBED_UPLOAD_FALLBACK_HOSTS || [];
+  const ultimate = primary[0] || fallbackHosts[0] || (EMBED_API_URL || '').replace(/\/+$/, '');
+
+  // Fast path: a single primary and no fallback tier → nothing to choose/probe.
+  if (primary.length <= 1 && !fallbackHosts.length) {
+    return { base: ultimate, uploadUrl: uploadUrlFor(ultimate) };
+  }
+
+  let chosen = await probeAndChoose(primary);          // fast tier first
+  if (!chosen) chosen = await probeAndChoose(fallbackHosts); // only if no primary is up
+  const base = chosen || ultimate;
+  return { base, uploadUrl: uploadUrlFor(base) };
 }

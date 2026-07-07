@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Player, ThreeSpeakApi } from "@mantequilla-soft/3speak-player";
+import { ThreeSpeakApi } from "@mantequilla-soft/3speak-player";
 import { PLAYER_URL } from "../utils/config";
+import { createLowResPreviewPlayer } from "../lib/lowResPreviewPlayer";
 import { useAppStore } from "../lib/store";
 import useSubtitles from "./useSubtitles";
 import SubtitleOverlay from "../components/SubtitleOverlay/SubtitleOverlay";
@@ -79,17 +80,8 @@ export default function useHoverPreview() {
     if (playerRef.current) return playerRef.current;
     const el = videoElRef.current;
     if (!el) return null;
-    const player = new Player({
-      apiBase: PLAYER_URL,
-      muted: true,
-      loop: true,
-      poster: false,
-      debug: false,
-      // Lowest rendition + skip the ABR bandwidth probe so playback starts
-      // immediately at the smallest level (we cap to it anyway).
-      hlsConfig: { startLevel: 0, autoLevelCapping: 0, testBandwidth: false, maxBufferLength: 10 },
-    });
-    player.attach(el);
+    // Shared lowest-rendition preview player (also used by the scrubber preview).
+    const player = createLowResPreviewPlayer(el, { loop: true });
     playerRef.current = player;
     el.addEventListener("timeupdate", () => {
       if (!el.duration) return;

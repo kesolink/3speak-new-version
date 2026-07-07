@@ -190,9 +190,19 @@
        The stats row lives beside the title — see .pv2-title-meta above. */
     .play-video .info-buttons-row { order: 1; }
 
+    /* Video-stats panel: own full-width row, between the action bar and the
+       description (the parent is a flex row-wrap, so it needs a 100% basis or it
+       shrinks and sits inline with the buttons). */
+    .play-video .watch-stats-panel {
+      order: 3;
+      flex: 1 1 100%;
+      margin-top: 4px;
+    }
+
     /* ---- Description: a rounded card (expandable), like YouTube ---- */
     .play-video .description-wrap {
       order: 3;
+      flex: 1 1 100%;   /* fill the row instead of shrinking to the text width */
       margin-top: 12px;
 
       .description-collapsible {

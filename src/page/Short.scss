@@ -1363,6 +1363,12 @@
       gap: 0.125rem;
       pointer-events: auto;
     }
+
+    // Deactivated (e.g. voting on your own short) — visible but not clickable.
+    &.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
   }
 
   .actionButton {
