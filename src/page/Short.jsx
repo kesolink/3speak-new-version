@@ -30,6 +30,7 @@ import {
   RotateCcw,
   Repeat2,
   WandSparkles,
+  Pencil,
   Moon,
   Lightbulb,
   Sun,
@@ -81,6 +82,7 @@ import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import EditorModal from '../components/modal/EditorModal';
+import EditVideoModal from '../components/playVideo/EditVideoModal';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 
@@ -156,31 +158,57 @@ function renderCaption(text) {
   return elements.length > 0 ? elements : null;
 }
 
-// Register a view on the player backend once a short actually starts playing.
-// The backend (/api/view) resolves the video with findEmbedVideo(owner, permlink),
-// which matches the embed *asset* permlink — the SAME id the player uses to load
-// and play the short — NOT the Hive permlink. So we must send `video.permlink`
-// (the asset id); sending `hivePermlink` makes the lookup 404 and the view is
-// never counted. A video lives in exactly one collection, so we try 'embed' then
-// 'legacy' and stop once one counts it. `seen` dedupes per session so
-// replays/loops/seeks never double-count.
-async function recordShortView(video, seen) {
+// Track watch DURATION for a short (non-polluting — never increments the view
+// counter). On first play we open a server-measured session
+// (POST /api/watch/start); the timeupdate handler heartbeats while it plays
+// (/api/watch/beat). The backend records watched seconds + % with the viewer IP
+// into `view-durations`. Uses the embed *asset* permlink (video.permlink) — the
+// SAME id the player loads with; the Hive permlink 404s the lookup. A video
+// lives in one collection, so we try 'embed' then 'legacy'. `watchRef.key`
+// dedupes per short so a re-open doesn't start a second session.
+async function startShortWatch(video, watchRef, duration, position) {
   const permlink = video?.permlink || video?.hivePermlink;
   if (!video?.author || video.author === 'unknown' || !permlink) return;
   const key = `${video.author}/${permlink}`;
-  if (seen.has(key)) return;
-  seen.add(key);
+  const W = watchRef.current;
+  if (W.key === key && (W.sid || W.starting)) return; // already tracking this short
+  watchRef.current = { sid: null, token: null, beatMs: 5000, lastBeatAt: 0, key, starting: true };
   for (const type of ['embed', 'legacy']) {
     try {
-      const res = await fetch(`${PLAYER_URL}/api/view`, {
+      const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner: video.author, permlink, type }),
+        body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0, source: '3speak' }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (data?.counted) break;
+      if (!res.ok) continue;                          // 404 for the wrong collection → try next
+      const data = await res.json().catch(() => null);
+      if (watchRef.current.key !== key) return;       // short changed while awaiting
+      if (data?.sid) {
+        watchRef.current = { sid: data.sid, token: data.token, beatMs: (data.beatSeconds || 5) * 1000, lastBeatAt: Date.now(), key, starting: false };
+        return;
+      }
+      if (data && data.tracked === false) break;      // no measurable duration
     } catch { /* try next type */ }
   }
+  if (watchRef.current.key === key) watchRef.current.starting = false;
+}
+
+// Send one measured heartbeat for the active short. Best-effort.
+// fetch(keepalive) — not sendBeacon: the beat is cross-origin to PLAYER_URL with
+// a JSON body (not CORS-safelisted), which a beacon can drop; keepalive survives
+// unload and does a proper CORS request.
+function shortWatchBeat(watchRef, position) {
+  const W = watchRef.current;
+  if (!W.sid) return;
+  W.lastBeatAt = Date.now(); // throttle before the async call
+  try {
+    fetch(`${PLAYER_URL}/api/watch/beat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid: W.sid, token: W.token, position: position || 0 }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch { /* best-effort */ }
 }
 
 /* ================= COMPONENT ================= */
@@ -217,6 +245,7 @@ const VideoShort = () => {
 
   // Editor modal state
   const [showEditorModal, setShowEditorModal] = useState(false);
+  const [isEditShortOpen, setIsEditShortOpen] = useState(false);
   const [editorVideoUrl, setEditorVideoUrl] = useState(null);
   const [editorVideoName, setEditorVideoName] = useState(null);
   const [editorOriginalAuthor, setEditorOriginalAuthor] = useState(null);
@@ -319,6 +348,8 @@ const VideoShort = () => {
   const playPauseTimeoutRef = useRef(null);
   const commentsFetchedRef = useRef(new Set());
   const recordedShortsViewsRef = useRef(new Set()); // author/permlink already view-counted
+  // Active short's watch-duration session (server-measured heartbeat, non-polluting).
+  const shortWatchRef = useRef({ sid: null, token: null, beatMs: 5000, lastBeatAt: 0, key: null, starting: false });
   const videoContainerRef = useRef(null);
   const playerRef = useRef(null); // Single persistent SDK Player instance
   const videoElRef = useRef(null); // Single persistent <video> element ref
@@ -761,10 +792,22 @@ const VideoShort = () => {
     const videoId = currentVid.id;
     (async () => {
       try {
+        // On a deep-link the short arrives without embed_url/hivePermlink, so the
+        // Hive post can't be resolved (embed_url would be "@author/undefined").
+        // Fetch the real embed link from the checker first.
+        let embedUrl = currentVid.embedUrl;
+        let hivePermlink = currentVid.hivePermlink;
+        if (!embedUrl) {
+          try {
+            const d = await fetch(`${import.meta.env.VITE_CHECKER_URL}/videodetails/${currentVid.author}/${currentVid.permlink}`).then(r => (r.ok ? r.json() : {}));
+            if (d?.embed_url) embedUrl = d.embed_url;
+            if (d?.hive_permlink) hivePermlink = d.hive_permlink;
+          } catch { /* ignore */ }
+        }
         const shortItem = {
           owner: currentVid.author,
           permlink: currentVid.permlink,
-          embed_url: currentVid.embedUrl || `@${currentVid.author}/${currentVid.hivePermlink}`,
+          embed_url: embedUrl || `@${currentVid.author}/${hivePermlink}`,
           thumbnail_url: currentVid.thumbnailUrl || '',
           views: currentVid.stats?.views || currentVid.views || 0,
           createdAt: currentVid.createdAt || '',
@@ -785,6 +828,10 @@ const VideoShort = () => {
             reactionChain: enriched.reactionChain || null,
             childReactions: enriched.childReactions || null,
             reusable: enriched.reusable,
+            // Carry the resolved Hive permlink/embed link so the edit button and
+            // its modal work on deep-linked shorts, not just from the profile.
+            hivePermlink: enriched.hivePermlink || hivePermlink,
+            embedUrl: enriched.embedUrl || embedUrl,
             hivePostMissing: enriched.hivePostMissing,
             _enriched: true,
           };
@@ -929,6 +976,27 @@ const VideoShort = () => {
             let actualShort = await hiveApi.findShortByPermlink(sharedVideo.permlink);
             if (!actualShort) {
               actualShort = await hiveApi.findShortByEmbedUrl(sharedVideo.author, sharedVideo.permlink);
+            }
+            // findShort* only scans the shorts feed, so a direct-linked short that
+            // isn't in the feed (or is beyond the scanned pages) isn't found and we
+            // fall back to "@author/<assetId>" — which can't resolve the Hive post
+            // (breaks edit/vote). The checker's /videodetails authoritatively maps
+            // the asset id → embed_url + Hive permlink, so use it as a fallback.
+            if (!actualShort) {
+              try {
+                const d = await fetch(`${import.meta.env.VITE_CHECKER_URL}/videodetails/${sharedVideo.author}/${sharedVideo.permlink}`).then(r => (r.ok ? r.json() : null));
+                if (d && d.owner && d.embed_url) {
+                  actualShort = {
+                    owner: d.owner,
+                    permlink: d.permlink,
+                    embed_url: d.embed_url,
+                    thumbnail_url: d.thumbnail_url || '',
+                    views: d.views || 0,
+                    createdAt: d.createdAt || new Date().toISOString(),
+                    embed_title: d.embed_title || d.hive_title || '',
+                  };
+                }
+              } catch { /* ignore — falls through to the minimal shortItem below */ }
             }
             const shortItem = actualShort || {
               owner: sharedVideo.author,
@@ -2042,6 +2110,14 @@ const VideoShort = () => {
       updateProgressBar();
       setIsPlaying(!paused);
 
+      // Watch-duration heartbeat while genuinely playing (throttled to beatMs;
+      // the server measures the real wall-clock gap between beats + which part
+      // of the timeline was watched, for the heatmap).
+      const W = shortWatchRef.current;
+      if (!paused && W.sid && Date.now() - W.lastBeatAt >= W.beatMs) {
+        shortWatchBeat(shortWatchRef, currentTime);
+      }
+
       // Auto-swipe: trigger swipe when near end of video
       if (playbackModeRef.current === 'auto-swipe' && !autoSwipeTriggeredRef.current) {
         const remaining = duration - currentTime;
@@ -2065,15 +2141,20 @@ const VideoShort = () => {
     player.on('play', () => {
       setIsPlaying(true);
       setAutoplayBlocked(false);
-      // Count a view the moment the active short actually starts playing.
-      recordShortView(videosRef.current[currentIndexRef.current], recordedShortsViewsRef.current);
+      // Open a watch-duration session the moment the active short starts playing
+      // (non-polluting — tracks duration without incrementing the view counter).
+      startShortWatch(videosRef.current[currentIndexRef.current], shortWatchRef, durationRef.current, currentTimeRef.current);
     });
 
     player.on('pause', () => {
       setIsPlaying(false);
+      // Final measured beat up to the pause point.
+      shortWatchBeat(shortWatchRef, currentTimeRef.current);
     });
 
     player.on('ended', () => {
+      // Capture the tail of the watched short.
+      shortWatchBeat(shortWatchRef, currentTimeRef.current);
       if (playbackModeRef.current === 'none') {
         setVideoEnded(true);
         setIsPlaying(false);
@@ -2770,7 +2851,7 @@ const VideoShort = () => {
 
         {/* SIDEBAR */}
         <div className="actionSidebar" onClick={(e) => e.stopPropagation()}>
-          <div className="actionItem" onClick={(e) => { e.stopPropagation(); if (currentVideo.hivePostMissing) { toast.error("Voting isn't available for this post"); return; } toggleVoteTooltip(currentVideo.author, currentVideo.hivePermlink); }}>
+          <div className={`actionItem${user && currentVideo.author && user.toLowerCase() === currentVideo.author.toLowerCase() ? ' disabled' : ''}`} onClick={(e) => { e.stopPropagation(); if (user && currentVideo.author && user.toLowerCase() === currentVideo.author.toLowerCase()) return; if (currentVideo.hivePostMissing) { toast.error("Voting isn't available for this post"); return; } toggleVoteTooltip(currentVideo.author, currentVideo.hivePermlink); }}>
             <div className={`actionButton ${currentVideo.isLiked ? 'liked' : ''}`}>
               <Heart size={24} fill={currentVideo.isLiked ? '#ff2d55' : 'none'} />
             </div>
@@ -2835,6 +2916,15 @@ const VideoShort = () => {
             ) : null;
           })()}
 
+          {/* Edit — own shorts only, and only when there's a Hive post to edit. */}
+          {authenticated && user === currentVideo.author && !currentVideo.hivePostMissing && (
+            <div className="actionItem" onClick={(e) => { e.stopPropagation(); try { playerRef.current?.pause?.(); } catch {} setIsEditShortOpen(true); }}>
+              <div className="actionButton">
+                <Pencil size={24} />
+              </div>
+              <span className="actionLabel">Edit</span>
+            </div>
+          )}
 
         </div>
 
@@ -2844,6 +2934,15 @@ const VideoShort = () => {
           title={currentVideo.title}
           onClose={() => setShareChooserOpen(false)}
           onGeneralShare={handleShare}
+        />
+
+        <EditVideoModal
+          isOpen={isEditShortOpen}
+          onClose={() => setIsEditShortOpen(false)}
+          author={currentVideo.author}
+          permlink={currentVideo.hivePermlink}
+          isShort
+          onSaved={() => setIsEditShortOpen(false)}
         />
 
       </div>

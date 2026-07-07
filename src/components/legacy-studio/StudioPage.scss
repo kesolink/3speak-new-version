@@ -198,6 +198,11 @@
       }
       .preview-tags {
         margin-top: 5px;
+        > span {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
         span {
           font-size: 14.45px;
           font-weight: 500;

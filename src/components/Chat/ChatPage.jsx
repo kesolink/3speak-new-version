@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { ArrowLeft, Send, MessageCirclePlus, Loader2, MoreHorizontal, X } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { ArrowLeft, Send, MessageCirclePlus, Loader2, MoreHorizontal, X, Users, Hash, LogOut } from 'lucide-react'
 import {
   useConversations,
   useChatMessages,
@@ -195,9 +195,262 @@ function NewDmForm() {
   )
 }
 
+// Verify a single handle exists on Hive.
+async function hiveAccountExists(handle) {
+  const accounts = await getAccounts([handle])
+  return (accounts || []).some((a) => a.name === handle)
+}
+
+// Create a private room (group). Mode is forced private for now — no
+// public/private choice is surfaced. Collapsed to a button until opened.
+// Members are entered as chips: type a handle, press space/enter/comma to
+// verify it against Hive and add it; the × removes it.
+function NewRoomForm() {
+  const { createPrivateRoom } = useChat()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [memberInput, setMemberInput] = useState('')
+  const [members, setMembers] = useState([]) // validated Hive handles
+  const [checking, setChecking] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const close = () => {
+    setOpen(false)
+    setName('')
+    setMemberInput('')
+    setMembers([])
+  }
+
+  // Validate a token against Hive and, if it exists, add it as a chip.
+  const addMember = async (raw) => {
+    const handle = String(raw || '').trim().replace(/^@/, '').toLowerCase()
+    if (!handle) return
+    if (members.includes(handle)) { setMemberInput(''); return }
+    setChecking(true)
+    try {
+      if (!(await hiveAccountExists(handle))) {
+        toast.error(`@${handle} is not a Hive account.`)
+        return
+      }
+      setMembers((prev) => (prev.includes(handle) ? prev : [...prev, handle]))
+      setMemberInput('')
+    } catch (err) {
+      toast.error(err?.message || 'Could not verify that account.')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const removeMember = (handle) =>
+    setMembers((prev) => prev.filter((m) => m !== handle))
+
+  const onMemberKeyDown = (e) => {
+    if (e.key === ' ' || e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      if (memberInput.trim()) addMember(memberInput)
+    } else if (e.key === 'Backspace' && !memberInput && members.length) {
+      removeMember(members[members.length - 1])
+    }
+  }
+
+  // Commit completed tokens on a typed/pasted separator; keep the trailing
+  // fragment in the box.
+  const onMemberChange = (e) => {
+    const v = e.target.value
+    if (/[\s,]/.test(v)) {
+      const parts = v.split(/[\s,]+/)
+      const tail = parts.pop()
+      parts.filter(Boolean).forEach((p) => addMember(p))
+      setMemberInput(tail)
+    } else {
+      setMemberInput(v)
+    }
+  }
+
+  const submit = async (e) => {
+    e.preventDefault()
+    const roomName = name.trim()
+    if (!roomName || busy) return
+    setBusy(true)
+    try {
+      // Fold in any half-typed handle still in the box.
+      const finalMembers = [...members]
+      const tail = memberInput.trim().replace(/^@/, '').toLowerCase()
+      if (tail && !finalMembers.includes(tail)) {
+        if (!(await hiveAccountExists(tail))) {
+          toast.error(`@${tail} is not a Hive account.`)
+          return
+        }
+        finalMembers.push(tail)
+      }
+      await createPrivateRoom({ name: roomName, members: finalMembers })
+      close()
+    } catch (err) {
+      toast.error(err?.message || 'Could not create the room.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="chat-newroom-toggle" onClick={() => setOpen(true)}>
+        <Users size={16} /> New private room
+      </button>
+    )
+  }
+
+  return (
+    <form className="chat-newroom" onSubmit={submit}>
+      <input
+        type="text"
+        placeholder="Room name…"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        autoFocus
+      />
+      <div className="chat-newroom-members">
+        {members.map((m) => (
+          <span key={m} className="chat-member-chip">
+            @{m}
+            <button type="button" onClick={() => removeMember(m)} aria-label={`Remove @${m}`}>
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          placeholder={members.length ? 'Add more…' : 'Invite Hive users (optional)…'}
+          value={memberInput}
+          onChange={onMemberChange}
+          onKeyDown={onMemberKeyDown}
+          spellCheck={false}
+          autoCapitalize="none"
+        />
+        {checking && <Loader2 size={14} className="chat-spin" />}
+      </div>
+      <div className="chat-newroom-actions">
+        <button type="button" className="chat-newroom-cancel" onClick={close} disabled={busy}>
+          Cancel
+        </button>
+        <button type="submit" disabled={!name.trim() || busy}>
+          {busy ? <Loader2 size={16} className="chat-spin" /> : 'Create'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// Groups live in a separate /groups collection that the /conversations feed
+// doesn't include, so poll them ourselves and merge into the list — otherwise
+// a room you were added to never shows up.
+function useGroups() {
+  const { client, ready } = useChat()
+  const [groups, setGroups] = useState([])
+  useEffect(() => {
+    if (!ready) {
+      setGroups([])
+      return
+    }
+    let alive = true
+    const load = async () => {
+      try {
+        const g = await client.getGroups()
+        if (alive) setGroups(Array.isArray(g) ? g : [])
+      } catch {
+        /* ignore transient poll errors */
+      }
+    }
+    load()
+    const id = setInterval(load, 5000)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [client, ready])
+  return groups
+}
+
+// Browse & join public channels. Collapsed to a button until opened.
+function BrowseChannels() {
+  const { client, joinChannel } = useChat()
+  const [open, setOpen] = useState(false)
+  const [channels, setChannels] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [joining, setJoining] = useState(null)
+
+  useEffect(() => {
+    if (!open) return
+    let alive = true
+    setLoading(true)
+    client
+      .getChannels()
+      .then((c) => { if (alive) setChannels(Array.isArray(c) ? c : []) })
+      .catch(() => { if (alive) setChannels([]) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [open, client])
+
+  const join = async (ch) => {
+    setJoining(ch._id)
+    try {
+      await joinChannel(ch) // joins, then opens the channel thread
+    } catch (err) {
+      toast.error(err?.message || 'Could not join that channel.')
+    } finally {
+      setJoining(null)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="chat-newroom-toggle" onClick={() => setOpen(true)}>
+        <Hash size={16} /> Browse channels
+      </button>
+    )
+  }
+
+  return (
+    <div className="chat-browse">
+      <div className="chat-browse-head">
+        <span>Public channels</span>
+        <button type="button" onClick={() => setOpen(false)} aria-label="Close channel browser">
+          <X size={14} />
+        </button>
+      </div>
+      {loading && <div className="chat-empty">Loading channels…</div>}
+      {!loading && channels.length === 0 && (
+        <div className="chat-empty">No channels available.</div>
+      )}
+      <ul className="chat-browse-ul">
+        {channels.map((ch) => (
+          <li key={ch._id} className="chat-browse-row">
+            <span className="chat-browse-name"># {ch.name}</span>
+            <button type="button" onClick={() => join(ch)} disabled={joining === ch._id}>
+              {joining === ch._id ? <Loader2 size={14} className="chat-spin" /> : 'Join'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function ConversationList() {
   const { conversations, loading } = useConversations()
   const { openConversation, activeConversation, shareDraft } = useChat()
+  const groups = useGroups()
+
+  // Merge polled groups in, deduped by id (a real /conversations entry — which
+  // carries lastMessage/unread — wins over the bare group record).
+  const merged = useMemo(() => {
+    const byId = new Map()
+    for (const c of conversations) byId.set(c._id, c)
+    for (const g of groups) {
+      if (!byId.has(g._id)) byId.set(g._id, { ...g, type: 'group' })
+    }
+    return Array.from(byId.values())
+  }, [conversations, groups])
 
   return (
     <div className="chat-list">
@@ -205,16 +458,18 @@ function ConversationList() {
         <div className="chat-share-banner">Choose a chat to send to</div>
       )}
       <NewDmForm />
-      {loading && conversations.length === 0 && (
+      <NewRoomForm />
+      <BrowseChannels />
+      {loading && merged.length === 0 && (
         <div className="chat-empty">Loading conversations…</div>
       )}
-      {!loading && conversations.length === 0 && (
+      {!loading && merged.length === 0 && (
         <div className="chat-empty">
           No conversations yet. Start one above by entering a Hive username.
         </div>
       )}
       <ul className="chat-conv-ul">
-        {conversations.map((conv) => {
+        {merged.map((conv) => {
           const title = convTitle(conv)
           const isDm = conv.type === 'dm'
           const active = activeConversation?._id === conv._id
@@ -251,6 +506,37 @@ function ConversationList() {
         })}
       </ul>
     </div>
+  )
+}
+
+// Leave the current room/channel from the thread header (DMs can't be left).
+function LeaveButton({ conv }) {
+  const { leaveConversation, backToList } = useChat()
+  const [busy, setBusy] = useState(false)
+  const kind = conv.type === 'group' ? 'room' : 'channel'
+  const leave = async () => {
+    if (!window.confirm(`Leave this ${kind}?`)) return
+    setBusy(true)
+    try {
+      await leaveConversation(conv)
+      backToList()
+    } catch (err) {
+      toast.error(err?.message || `Could not leave the ${kind}.`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button
+      type="button"
+      className="chat-thread-leave"
+      onClick={leave}
+      disabled={busy}
+      title={`Leave ${kind}`}
+    >
+      {busy ? <Loader2 size={15} className="chat-spin" /> : <LogOut size={16} />}
+      <span>Leave</span>
+    </button>
   )
 }
 
@@ -427,6 +713,7 @@ function Thread({ conv }) {
         </button>
         <img className="chat-thread-avatar" src={avatar(isDm ? title : conv.owner || 'spknetwork')} alt="" />
         <span className="chat-thread-title">{isDm ? `@${title}` : `# ${title}`}</span>
+        {!isDm && <LeaveButton conv={conv} />}
       </header>
 
       <div className="chat-messages" ref={scrollRef}>

@@ -23,6 +23,8 @@ function EmbedVideoUploadStep1() {
     setVideoMode,
     fromStories,
     user,
+    forceReliableUpload,
+    setForceReliableUpload,
   } = useEmbedUpload()
 
   const [loading, setLoading] = useState(false)
@@ -313,6 +315,19 @@ function EmbedVideoUploadStep1() {
                   <div className="upload-info-note">
                     Info: Your video starts uploading in the background once you reach the details step.
                   </div>
+                  <label
+                    className="reliable-upload-toggle"
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '10px', cursor: 'pointer', fontSize: '0.85rem', textAlign: 'left' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!forceReliableUpload}
+                      onChange={(e) => setForceReliableUpload(e.target.checked)}
+                      style={{ marginTop: '2px' }}
+                    />
+                    <span>Reliable upload — try this if uploads keep failing on your network (works on restrictive/mobile connections; still resumable).</span>
+                  </label>
                   <img className="arrow-in" src={Arrow} alt="" />
                 </div>
               )}

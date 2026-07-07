@@ -7,6 +7,54 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.44.0',
+    date: '2026-07-07',
+    summary:
+      'Your feeds now hide videos you’ve already watched by default, so Home, Trending and the Follow Feed keep surfacing fresh content instead of repeats. You can switch this off any time under Settings → “Hide watched”.',
+  },
+  {
+    version: '1.43.0',
+    date: '2026-07-07',
+    summary:
+      'New “Stats” tab on your profile shows how your videos are really doing: total watch time and views for a time range you pick, your best-performing videos, and per-video insights like where people drop off and the moments they replay most. You can compare any two videos side by side and see where your viewers are (a country map), their devices and browsers, when they watch, and whether they’re watching on 3Speak itself or an embedded player. Your own videos also get a “Stats” button on the watch page (in the ⋯ menu on phones).',
+  },
+  {
+    version: '1.42.0',
+    date: '2026-07-06',
+    summary:
+      'Cleaner player controls on phones: the timeline and play buttons now fade away together while you’re just watching (they no longer stay stuck at the bottom), and they show for a few seconds when a video opens so you can see where everything is.',
+  },
+  {
+    version: '1.41.0',
+    date: '2026-07-06',
+    summary:
+      'The watch page timeline now has a “most replayed” graph just above the scrubber — taller sections are the moments people watch and rewatch most, so you can jump straight to the highlights.',
+  },
+  {
+    version: '1.40.0',
+    date: '2026-07-06',
+    summary:
+      'Easier to aim when scrubbing: hover or drag along the video timeline and a small preview of that moment pops up above the bar, so you can find the right spot before you jump there.',
+  },
+  {
+    version: '1.39.0',
+    date: '2026-07-05',
+    summary:
+      'Video uploads are more reliable now. If your network blocks a normal upload (common on some mobile or work connections), it automatically switches to a more compatible method that resumes if the connection drops. You can also turn it on yourself with the new “Reliable upload” checkbox on the upload screen.',
+  },
+  {
+    version: '1.38.0',
+    date: '2026-07-04',
+    summary:
+      'Tags are handled more consistently everywhere. The uploader now shows a live tag count and includes the community tag right in your tag list, so the total can never sneak past 10, and it no longer adds hidden “3speak” or “short” tags. The Edit page uses the same limit, and the community tag is shown but can’t be removed.',
+  },
+  {
+    version: '1.37.0',
+    date: '2026-07-04',
+    summary:
+      'You can now edit your own shorts. Open a short you posted and tap Edit to change its description, tags, thumbnail and settings (unlist/re-list, mark adult/NSFW). Unlisted shorts now also show on your own profile with an “Unlisted” badge so you can find and re-list them.',
+  },
+  {
     version: '1.36.0',
     date: '2026-06-26',
     summary:

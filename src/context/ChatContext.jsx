@@ -130,6 +130,93 @@ export function ChatProvider({ children }) {
     [client]
   )
 
+  // Create a PRIVATE room (a group) and open it. Mode is forced private for
+  // now — we deliberately don't surface a public/private choice yet. Returns
+  // the new conversation.
+  const createPrivateRoom = useCallback(
+    async ({ name, description = '', members = [] } = {}) => {
+      const roomName = String(name || '').trim()
+      if (!roomName) throw new Error('A room name is required.')
+      const cleanMembers = (members || [])
+        .map((m) => String(m || '').trim().replace(/^@/, '').toLowerCase())
+        .filter(Boolean)
+      const channel = await client.createGroup({
+        name: roomName,
+        description: String(description || '').trim(),
+        isPublic: false,
+        members: cleanMembers,
+      })
+      // Belt-and-suspenders: some backends ignore the create-time `members`
+      // payload, so explicitly add each invitee. Ignore per-member errors
+      // (e.g. "already a member") so one bad add doesn't fail the whole room.
+      let finalChannel = channel
+      for (const m of cleanMembers) {
+        try {
+          finalChannel = (await client.addGroupMember(channel._id, m)) || finalChannel
+        } catch { /* already a member / not supported — ignore */ }
+      }
+      // createGroup resolves to a Channel; normalize to a group Conversation so
+      // the thread view loads the right endpoint and shows a proper header.
+      const conv = {
+        ...finalChannel,
+        type: 'group',
+        name: finalChannel?.name || roomName,
+      }
+      setActiveConversation(conv)
+      return conv
+    },
+    [client]
+  )
+
+  // Join a public channel, then open it. Accepts a channel object (preferred,
+  // so we can open it after) or a bare channel id.
+  const joinChannel = useCallback(
+    async (channelOrId) => {
+      const id = typeof channelOrId === 'string' ? channelOrId : channelOrId?._id
+      if (!id) return
+      await client.joinChannel(id)
+      if (channelOrId && typeof channelOrId === 'object') {
+        const conv = { ...channelOrId, type: 'channel', name: channelOrId.name }
+        setActiveConversation(conv)
+        return conv
+      }
+    },
+    [client]
+  )
+
+  // Leave a channel. If it's the one currently open, drop back to the list.
+  const leaveChannel = useCallback(
+    async (channelOrId) => {
+      const id = typeof channelOrId === 'string' ? channelOrId : channelOrId?._id
+      if (!id) return
+      await client.leaveChannel(id)
+      setActiveConversation((cur) => (cur && cur._id === id ? null : cur))
+    },
+    [client]
+  )
+
+  // Leave a group = remove yourself from its members (the SDK has no group
+  // "leave" endpoint). If it's the one currently open, drop back to the list.
+  const leaveGroup = useCallback(
+    async (groupOrId) => {
+      const id = typeof groupOrId === 'string' ? groupOrId : groupOrId?._id
+      if (!id || !user) return
+      await client.removeGroupMember(id, user)
+      setActiveConversation((cur) => (cur && cur._id === id ? null : cur))
+    },
+    [client, user]
+  )
+
+  // Leave whatever a conversation is — dispatch by type (dm can't be left).
+  const leaveConversation = useCallback(
+    async (conv) => {
+      if (!conv || conv.type === 'dm') return
+      if (conv.type === 'group') return leaveGroup(conv)
+      return leaveChannel(conv)
+    },
+    [leaveGroup, leaveChannel]
+  )
+
   const value = useMemo(
     () => ({
       client,
@@ -142,6 +229,11 @@ export function ChatProvider({ children }) {
       openConversation,
       backToList,
       openDmWith,
+      createPrivateRoom,
+      joinChannel,
+      leaveChannel,
+      leaveGroup,
+      leaveConversation,
       shareDraft,
       setShareDraft,
     }),
@@ -156,6 +248,11 @@ export function ChatProvider({ children }) {
       openConversation,
       backToList,
       openDmWith,
+      createPrivateRoom,
+      joinChannel,
+      leaveChannel,
+      leaveGroup,
+      leaveConversation,
     ]
   )
 

@@ -2,12 +2,12 @@ import { toast } from "sonner";
 import { APP_VERSION } from "../version";
 import { APP_VERSION_STORAGE_KEY } from "./appVersion";
 
-// The deployed site is built from the repo's `develop` branch, whose version.js
-// is the source of truth for the latest released version. We read it raw from
-// GitHub and compare it to the version baked into the running bundle, so a user
-// on a stale (cached) build can be prompted to refresh.
+// The live site is deployed from the repo's `prod-3speak` branch, whose
+// version.js is the source of truth for the latest released version. We read it
+// raw from GitHub and compare it to the version baked into the running bundle,
+// so a user on a stale (cached) build can be prompted to refresh.
 const REMOTE_VERSION_URL =
-  "https://raw.githubusercontent.com/Mantequilla-Soft/new-3speak-tv/develop/src/version.js";
+  "https://raw.githubusercontent.com/Mantequilla-Soft/new-3speak-tv/prod-3speak/src/version.js";
 
 // "export const APP_VERSION = '1.2.3';" → "1.2.3"
 function parseVersion(text) {
@@ -27,7 +27,7 @@ export function isNewerVersion(a, b) {
   return false;
 }
 
-// Returns the latest version string if GitHub's develop is newer than the
+// Returns the latest version string if GitHub's prod-3speak is newer than the
 // running build, otherwise null (also null on any network error / offline).
 export async function fetchNewerVersion() {
   try {
@@ -38,7 +38,7 @@ export async function fetchNewerVersion() {
     let stored = null;
     try { stored = localStorage.getItem(APP_VERSION_STORAGE_KEY); } catch { /* ignore */ }
     console.log(
-      `[version] GitHub (develop): ${remote} | browser storage: ${stored} | running build: ${APP_VERSION}`
+      `[version] GitHub (prod-3speak): ${remote} | browser storage: ${stored} | running build: ${APP_VERSION}`
     );
 
     if (remote && isNewerVersion(remote, APP_VERSION)) return remote;
@@ -67,7 +67,7 @@ export async function reloadForUpdate() {
 }
 
 // Upload gate. Call this at the very start of any real upload. If a newer build
-// has been deployed (per the GitHub `develop` version.js — the same changelog-
+// has been deployed (per the GitHub `prod-3speak` version.js — the same changelog-
 // driven version check used for the global refresh prompt), it toasts and force-
 // reloads onto the latest build BEFORE the upload runs, then resolves `true` so
 // the caller can bail out. Resolves `false` when the running build is current.

@@ -353,6 +353,11 @@
                 .tip-btn    { order: 2; }
                 .reshare-btn{ order: 3; }
                 .clip-btn   { order: 4; }
+                // Stats sits just left of Share. It carries the right-group's
+                // margin-left:auto when present; Share then drops its own so the
+                // two stay adjacent (non-owners have no Stats, so Share keeps it).
+                .stats-btn  { order: 9; margin-left: auto; }
+                .stats-btn ~ .share-btn { margin-left: 0; }
                 .share-btn  { order: 10; margin-left: auto; }
                 .promote-btn{ order: 12; }
                 .playlist-btn { order: 13; }
@@ -1570,4 +1575,16 @@
     cursor: pointer;
     text-decoration: underline;
   }
+}
+
+/* Watch-page video-stats panel (owner/admin) — toggled by the Stats action
+   button, shown above the description. Reuses <VideoStats>. */
+.watch-stats-panel {
+  margin-top: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-light, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  padding: 14px;
 }

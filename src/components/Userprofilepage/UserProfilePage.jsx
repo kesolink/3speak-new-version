@@ -21,6 +21,7 @@ import Follower from './Follower';
 import PlaylistCard from '../Cards/PlaylistCard';
 import { useUserPlaylists } from '../../hooks/useUserPlaylists';
 import { useAppStore } from '../../lib/store';
+import CreatorStats from '../CreatorStats/CreatorStats';
 import { createPlaylist } from '../../utils/playlistOperations';
 import { toast } from 'sonner';
 import { useContentBatch } from '../../hooks/useContentBatch';
@@ -50,6 +51,7 @@ function UserProfilePage() {
       if (tab === 'playlists') return 'playlists';
       if (tab === 'shorts') return 'shorts';
       if (tab === 'audio') return 'audio';
+      if (tab === 'stats') return 'stats';
       return 'video';
     });
 
@@ -59,6 +61,7 @@ function UserProfilePage() {
       if (tab === 'playlists') setShow('playlists');
       else if (tab === 'shorts') setShow('shorts');
       else if (tab === 'audio') setShow('audio');
+      else if (tab === 'stats') setShow('stats');
       else if (!tab) setShow('video');
     }, [searchParams]);
 
@@ -80,6 +83,9 @@ function UserProfilePage() {
 
     // Check if viewing own profile and redirect to /profile
     const isOwnProfile = authenticatedUser && authenticatedUser.toLowerCase() === user?.toLowerCase();
+    // Stats are own-profile-only, except these admins who can view any profile's stats.
+    const STATS_ADMINS = ['tibfox', 'badadib'];
+    const canSeeStats = isOwnProfile || STATS_ADMINS.includes(authenticatedUser?.toLowerCase());
 
     // Redirect to /profile if viewing own profile
     useEffect(() => {
@@ -168,7 +174,8 @@ const {
 
             // Shorts feed for this user
             const fetchUserShorts = async ({ pageParam = 1 }) => {
-              const data = await fetchUserShortsWithDetails(user, pageParam, 20);
+              // On your own profile, include unlisted shorts (badged) so they can be re-listed.
+              const data = await fetchUserShortsWithDetails(user, pageParam, 20, isOwnProfile);
               return data;
             };
 
@@ -179,7 +186,7 @@ const {
               isFetchingNextPage: isFetchingNextShortsPage,
               isLoading: isShortsLoading,
             } = useInfiniteQuery({
-              queryKey: ["UserShorts", user],
+              queryKey: ["UserShorts", user, isOwnProfile],
               queryFn: fetchUserShorts,
               getNextPageParam: (lastPage) => {
                 if (lastPage?.page < lastPage?.totalPages) {
@@ -205,6 +212,7 @@ const {
                     num_votes: s.stats?.likes || 0,
                   },
                   created_at: s.createdAt,
+                  unlisted: s.unlisted, // Card3 shows the "Unlisted" badge
                 }))
               )
             ), [shortsData?.pages]);
@@ -391,6 +399,9 @@ const {
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
+          {canSeeStats && (
+            <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Stats</span>
+          )}
         </div>
         <span className="followers" onClick={()=>{handleWalletNavigate(user)}}>wallet</span>
       </div>
@@ -419,6 +430,8 @@ const {
     )
   ) : show === "audio" ? (
     <UserAudioList user={user} />
+  ) : show === "stats" ? (
+    canSeeStats ? <CreatorStats user={user} /> : null
   ) : show === "playlists" ? (
     <>
       {isOwnProfile && (

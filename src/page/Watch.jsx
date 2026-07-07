@@ -20,6 +20,7 @@ import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
+import useWatchDuration from '../hooks/useWatchDuration';
 import { fetchScheduledPost, getScheduledEmbedRef } from '../utils/scheduledPosts';
 import EditScheduledModal from '../components/modal/EditScheduledModal';
 
@@ -247,18 +248,29 @@ function Watch({ v2 = false }) {
     },
   });
 
-  // Record a view once playback actually starts. We POST the player backend's
-  // /api/view (which increments the view count) directly — the SDK's
-  // recordView() lives on its API-client class, not the Player instance
-  // usePlayer returns, so it isn't reachable here. A video lives in exactly one
+  // Track watch DURATION instead of incrementing a view. On first play we open a
+  // server-measured session (POST /api/watch/start) and heartbeat while playing
+  // (/api/watch/beat) — the backend records watched seconds + % of duration with
+  // the viewer IP into `view-durations`, WITHOUT bumping the view counter. This
+  // is the non-polluting path (mirrors the player's /play route), so preview
+  // playback never inflates production view counts. See useWatchDuration.
+  const sdkApiRef = useRef(new ThreeSpeakApi(PLAYER_URL));
+  useWatchDuration({
+    api: sdkApiRef.current,
+    author,
+    permlink,
+    playerState,
+    enabled: !scheduled,
+  });
+
+  // Also record a normal view once playback actually starts (increments the view
+  // count via the player backend's /api/view). A video lives in exactly one
   // collection, so we try 'embed' (also matches hive_permlink) then 'legacy';
   // whichever owns it counts, and we stop. Deduped per author/permlink so
   // seeking/pausing never double-counts.
   const recordedViewsRef = useRef(new Set());
-  const sdkApiRef = useRef(new ThreeSpeakApi(PLAYER_URL));
   useEffect(() => {
     if (scheduled) return; // unpublished post — no view to record
-    if (!author || author === 'unknown' || !permlink) return;
     if (playerState?.paused !== false) return; // only once it's really playing
     const key = `${author}/${permlink}`;
     if (recordedViewsRef.current.has(key)) return;
@@ -287,6 +299,30 @@ function Watch({ v2 = false }) {
       }
     })();
   }, [scheduled, author, permlink, playerState?.paused]);
+
+  // "Most replayed" heatmap — aggregate timeline coverage from all viewers
+  // (GET /api/heatmap). Fed into the scrubber to render a bar above the timeline.
+  const [replayHeatmap, setReplayHeatmap] = useState(null);
+  useEffect(() => {
+    setReplayHeatmap(null);
+    if (!author || author === 'unknown' || !permlink) return;
+    let cancelled = false;
+    (async () => {
+      // Try embed (matches hive_permlink) then legacy; use whichever has data.
+      for (const type of ['embed', 'legacy']) {
+        try {
+          const r = await fetch(`${PLAYER_URL}/api/heatmap?v=${author}/${permlink}&type=${type}`);
+          if (!r.ok) continue;
+          const data = await r.json();
+          if (!cancelled && data?.tracked && Array.isArray(data.normalized) && data.normalized.some((v) => v > 0)) {
+            setReplayHeatmap(data.normalized);
+            return;
+          }
+        } catch { /* ignore — heatmap is best-effort */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [author, permlink]);
 
   // Wrap setMuted/setVolume to persist to localStorage
   const setMuted = useCallback((muted) => {
@@ -696,6 +732,13 @@ function Watch({ v2 = false }) {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
   }, []);
+
+  // On opening a video, show the controls for the first 3s, then fade out
+  // (instead of starting hidden). Re-runs when navigating to another video.
+  useEffect(() => {
+    if (!author || author === 'unknown' || !permlink) return;
+    showControlsTemporarily();
+  }, [author, permlink, showControlsTemporarily]);
 
   const handleToggleFullscreen = useCallback(() => {
     const wrapper = wrapperRef.current;
@@ -1131,6 +1174,8 @@ function Watch({ v2 = false }) {
           onPause: pause,
           onReactToMoment: handleReactToMoment,
           markers: resolvedMarkers,
+          replayHeatmap,
+          previewVideoId: playerLoadId,
           onMarkerSelect: handleSelectReaction,
           onCycleReactionSize: isReactionPlayerVisible && reactions.length > 0 ? cycleReactionSize : null,
           reactionSizeLabel: REACTION_SIZE_LABELS[reactionSize] || reactionSize,

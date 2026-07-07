@@ -119,6 +119,17 @@ function EmbedDetails() {
   };
 
 
+  // Auto taxonomy tags that we add + show in the list and count toward the
+  // 10-tag limit. Only the community tag is added automatically — no '3speak',
+  // no 'short' (shorts are identified by the embed-video `short` DB field).
+  // The community tag counts so the total can't exceed 10.
+  const communityTag = typeof community === 'string'
+    ? (community || 'hive-181335')
+    : (community?.name || 'hive-181335');
+  const autoTags = fromStories ? ['hive-181335'] : [communityTag];
+  const maxUserTags = Math.max(0, 10 - autoTags.length);
+  const allTags = [...autoTags, ...tagsPreview.filter((t) => !autoTags.includes(t))];
+
   const handleTagChange = (e) => {
     const value = e.target.value.toLowerCase();
 
@@ -127,10 +138,10 @@ function EmbedDetails() {
       .split(/\s+/)
       .filter(Boolean);
 
-    const uniqueTags = [...new Set(tags)];
+    const uniqueTags = [...new Set(tags)].filter((t) => !autoTags.includes(t));
 
-    if (uniqueTags.length > 10) {
-      toast.error("You can add a maximum of 10 tags");
+    if (uniqueTags.length > maxUserTags) {
+      toast.error(`You can add up to ${maxUserTags} tags — the community tag is added automatically.`);
       return;
     }
 
@@ -182,20 +193,30 @@ function EmbedDetails() {
               </div>
 
               <div className="input-group">
-                <label htmlFor="">Tag</label>
+                <label htmlFor="">
+                  Tag
+                  <span
+                    className="tag-count"
+                    style={{ marginLeft: 8, fontSize: 12, color: allTags.length >= 10 ? '#e0a852' : 'var(--text-muted, #888)' }}
+                  >
+                    {allTags.length}/10 tags{!fromStories ? ' · at least 1 required' : ''}
+                  </span>
+                </label>
                 <input type="text" value={tagsInputValue} onChange={handleTagChange} />
 
                 <div className="wrap">
                   <span>Separate multiple tags with </span> <span>Space</span>
                 </div>
-                {/* Show the tags — shorts get the hardcoded shorts taxonomy prepended;
-                    regular video uploads only show what the user actually typed. */}
+                {/* The community (and 'short' for shorts) is added automatically —
+                    shown here as a pinned tag and counted toward the 10-tag limit. */}
                 <div className="preview-tags">
-                  <span>{(fromStories
-                      ? ['3speak', 'hive-181335', 'short', ...tagsPreview.filter(t => !['3speak', 'hive-181335', 'short'].includes(t))]
-                      : tagsPreview
-                    ).map((item, index) => (
-                    <span className="item" key={index} style={{ marginRight: '8px' }}>
+                  <span>{allTags.map((item, index) => (
+                    <span
+                      className={`item${index < autoTags.length ? ' item--auto' : ''}`}
+                      key={index}
+                      style={index < autoTags.length ? { opacity: 0.75, fontStyle: 'italic' } : undefined}
+                      title={index < autoTags.length ? 'Added automatically' : undefined}
+                    >
                       {item}
                     </span>
                   ))}</span>

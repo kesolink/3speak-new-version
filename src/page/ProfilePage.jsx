@@ -11,6 +11,7 @@ import { MY_VIDEOS_URL } from "../utils/config";
 import Card3 from "../components/Cards/Card3";
 import Follower from "../components/Userprofilepage/Follower";
 import BarLoader from "../components/Loader/BarLoader";
+import CreatorStats from "../components/CreatorStats/CreatorStats";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -58,6 +59,7 @@ function ProfilePage() {
     if (tab === 'playlists') return 'playlists';
     if (tab === 'shorts') return 'shorts';
     if (tab === 'audio') return 'audio';
+    if (tab === 'stats') return 'stats';
     return 'video';
   });
   // Sync tab state when URL search params change (e.g. navigating from sidebar)
@@ -66,6 +68,7 @@ function ProfilePage() {
     if (tab === 'playlists') setShow('playlists');
     else if (tab === 'shorts') setShow('shorts');
     else if (tab === 'audio') setShow('audio');
+    else if (tab === 'stats') setShow('stats');
     else if (!tab) setShow('video');
   }, [searchParams]);
 
@@ -317,7 +320,8 @@ function ProfilePage() {
      SHORTS FEED
   =============================== */
   const fetchMyShorts = async ({ pageParam = 1 }) => {
-    const data = await fetchUserShortsWithDetails(user, pageParam, 20);
+    // Own profile: include unlisted shorts (badged) so they can be re-listed.
+    const data = await fetchUserShortsWithDetails(user, pageParam, 20, true);
     return data;
   };
 
@@ -352,6 +356,7 @@ function ProfilePage() {
           num_votes: s.stats?.likes || 0,
         },
         created_at: s.createdAt,
+        unlisted: s.unlisted, // Card3 shows the "Unlisted" badge
       }))
     )
   ), [shortsData?.pages]);
@@ -463,7 +468,7 @@ function ProfilePage() {
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists
           </span>
-          <span role="button" tabIndex={0} onClick={() => setShowEditHint(true)}>Edit Video</span>
+          <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Stats</span>
         </div>
 
         <div className="wrap-in">
@@ -535,6 +540,8 @@ function ProfilePage() {
           )
         ) : show === "audio" ? (
           <UserAudioList user={user} />
+        ) : show === "stats" ? (
+          <CreatorStats user={user} />
         ) : show === "playlists" ? (
           <>
             <button className="create-playlist-btn" onClick={() => setShowCreateModal(true)}>

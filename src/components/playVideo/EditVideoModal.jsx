@@ -98,7 +98,7 @@ function recombinePostBody(header, middle, footer) {
  * @param {string} permlink
  * @param {(changes: { title, body, tags, thumbnail }) => void} onSaved
  */
-export default function EditVideoModal({ isOpen, onClose, author, permlink, onSaved }) {
+export default function EditVideoModal({ isOpen, onClose, author, permlink, onSaved, isShort = false }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -112,6 +112,10 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
   const [bodyHeader, setBodyHeader] = useState(''); // 3Speak thumb+link header, rewrite thumb on save
   const [bodyFooter, setBodyFooter] = useState(''); // trailing 3Speak link
   const [tagsInput, setTagsInput] = useState('');
+  // Auto-added taxonomy tags (3speak, the community/category, short) kept aside
+  // so the editable tag count matches the uploader (which validates only the
+  // user's own tags). Re-prepended on save.
+  const [systemTags, setSystemTags] = useState([]);
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [thumbUploading, setThumbUploading] = useState(false);
   const thumbInputRef = useRef(null);
@@ -125,6 +129,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
   const initialListedRef = useRef(true);
   const initialNsfwRef = useRef(false);
   const initialReusableRef = useRef(true);
+  const initialThumbRef = useRef(''); // loaded thumbnail baseline (for dirty check)
 
   // Fetch original post when modal opens
   useEffect(() => {
@@ -169,12 +174,20 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
         setBody(middle);
         setBodyHeader(header);
         setBodyFooter(footer);
-        // Strip the canonical `nsfw` tag from the editable tags — it's driven by
-        // the Adult/NSFW toggle instead.
-        const visibleTags = metaTags.filter((t) => String(t).toLowerCase() !== 'nsfw');
         const tagNsfw = metaTags.some((t) => String(t).toLowerCase() === 'nsfw');
-        setTagsInput(visibleTags.join(' '));
+        // Separate the auto-added taxonomy (3speak, community/category, short)
+        // and the nsfw flag from the user's own tags, so the count/limit here
+        // matches the uploader (which validates only the user tags and prepends
+        // the taxonomy). The taxonomy is preserved and re-added on save.
+        const category = String(post.category || '').toLowerCase();
+        const isSystemTag = (t) => {
+          const lc = String(t).toLowerCase();
+          return lc === '3speak' || lc === 'short' || lc === 'nsfw' || lc === category;
+        };
+        setSystemTags(metaTags.filter((t) => isSystemTag(t) && String(t).toLowerCase() !== 'nsfw'));
+        setTagsInput(metaTags.filter((t) => !isSystemTag(t)).join(' '));
         setThumbnailUrl(currentThumb);
+        initialThumbRef.current = currentThumb;
         const metaReusable = meta.video?.reusable !== false;
         setReusable(metaReusable);
         initialReusableRef.current = metaReusable;
@@ -192,6 +205,13 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
             setPromotedUntil(doc.promotedUntil || null);
             initialListedRef.current = isListed;
             initialNsfwRef.current = nsfw;
+            // Shorts store their thumbnail on the checker (not the video
+            // sourceMap), so use it as the current thumbnail when none was found
+            // in the post metadata.
+            if (isShort && doc.thumbnail_url) {
+              setThumbnailUrl((prev) => prev || doc.thumbnail_url);
+              if (!initialThumbRef.current) initialThumbRef.current = doc.thumbnail_url;
+            }
           } else if (!cancelled) {
             setIsNsfw(tagNsfw);
             initialNsfwRef.current = tagNsfw;
@@ -219,7 +239,9 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
     setBodyHeader('');
     setBodyFooter('');
     setTagsInput('');
+    setSystemTags([]);
     setThumbnailUrl('');
+    initialThumbRef.current = '';
     setLoadError(null);
     setSaving(false);
     setListed(true);
@@ -245,16 +267,25 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
 
   // Validation
   const titleLen = title.trim().length;
-  const titleValid = titleLen >= TITLE_MIN && titleLen <= TITLE_MAX;
-  const tagsValid = parsedTags.length > 0 && parsedTags.length <= MAX_TAGS;
+  // Shorts don't require a long title or any user tags (they carry a caption and
+  // the fixed shorts taxonomy) — relax those minimums for shorts.
+  const titleValid = titleLen <= TITLE_MAX && (isShort || titleLen >= TITLE_MIN);
+  // The preserved taxonomy (community, short, …) counts toward the 10-tag limit,
+  // so the user can add up to (10 − taxonomy) of their own — matching the uploader.
+  const userTagLimit = Math.max(1, MAX_TAGS - systemTags.length);
+  const tagsValid = parsedTags.length <= userTagLimit && (isShort || parsedTags.length > 0);
   const bodyValid = body.trim().length > 0;
   const canSave = titleValid && tagsValid && bodyValid && !!original && !saving;
 
-  // Final on-chain tags = visible tags + the canonical `nsfw` tag when marked adult.
+  // Final on-chain tags = preserved taxonomy + the user's tags + the canonical
+  // `nsfw` tag when marked adult (deduped, taxonomy first — same shape the
+  // uploader produces).
   const finalTags = useMemo(() => {
-    const base = parsedTags.filter((t) => t !== 'nsfw');
-    return isNsfw ? [...base, 'nsfw'] : base;
-  }, [parsedTags, isNsfw]);
+    const sys = systemTags.filter((t) => String(t).toLowerCase() !== 'nsfw');
+    const user = parsedTags.filter((t) => t !== 'nsfw');
+    const combined = [...new Set([...sys, ...user])];
+    return isNsfw ? [...combined, 'nsfw'] : combined;
+  }, [systemTags, parsedTags, isNsfw]);
 
   // On-chain content change (needs a Hive broadcast). Includes the nsfw tag.
   const contentDirty = useMemo(() => {
@@ -274,7 +305,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
       title.trim() !== (original.post.title || '').trim() ||
       body !== origMiddle ||
       finalTags.join(' ') !== origTags.join(' ') ||
-      thumbnailUrl.trim() !== origThumb ||
+      thumbnailUrl.trim() !== (origThumb || initialThumbRef.current || '').trim() ||
       reusable !== origReusable
     );
   }, [original, title, body, finalTags, thumbnailUrl, reusable]);
@@ -494,7 +525,8 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
               Upload an image or paste a direct URL. Leave unchanged to keep the current thumbnail.
             </span>
 
-            {/* Title */}
+            {/* Title — hidden for shorts (they use their caption/description). */}
+            {!isShort && <>
             <label className="edit-video-label">Title</label>
             <input
               type="text"
@@ -504,8 +536,9 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
               maxLength={TITLE_MAX}
             />
             <span className={`edit-video-hint${!titleValid && title ? ' error' : ''}`}>
-              {titleLen}/{TITLE_MAX} · min {TITLE_MIN}
+              {titleLen}/{TITLE_MAX}{isShort ? '' : ` · min ${TITLE_MIN}`}
             </span>
+            </>}
 
             {/* Tags */}
             <label className="edit-video-label">Tags</label>
@@ -517,10 +550,22 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
               placeholder="space-separated"
             />
             <div className="edit-video-tags-preview">
-              {parsedTags.map((t) => <span key={t}>#{t}</span>)}
+              {/* Auto-added taxonomy (community/category) — shown pinned and can't
+                  be removed; it's always preserved on save. */}
+              {systemTags.map((t) => (
+                <span
+                  key={`sys-${t}`}
+                  className="tag--auto"
+                  title="Added automatically — can't be removed"
+                  style={{ opacity: 0.7, fontStyle: 'italic' }}
+                >
+                  {t}
+                </span>
+              ))}
+              {parsedTags.map((t) => <span key={t}>{t}</span>)}
             </div>
             <span className={`edit-video-hint${!tagsValid && parsedTags.length ? ' error' : ''}`}>
-              {parsedTags.length}/{MAX_TAGS} tags · at least 1 required
+              {parsedTags.length}/{userTagLimit} tags{isShort ? '' : ' · at least 1 required'}
             </span>
 
             {/* Body */}
@@ -551,6 +596,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
                 </span>
               </button>
 
+              {!isShort && (
               <button
                 type="button"
                 role="switch"
@@ -565,6 +611,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
                   <small>{reusable ? 'Others can create remixes/clips; you are credited as original author.' : 'Others cannot remix or clip this video.'}</small>
                 </span>
               </button>
+              )}
 
               <button
                 type="button"
@@ -581,6 +628,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
                 </span>
               </button>
 
+              {!isShort && (
               <button
                 type="button"
                 className="evm-promote-btn"
@@ -590,6 +638,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
                 <Rocket size={16} />
                 {promotedUntil && new Date(promotedUntil).getTime() > Date.now() ? 'Promoted' : 'Promote video'}
               </button>
+              )}
             </div>
 
             <div className="edit-video-actions">
