@@ -5,6 +5,7 @@ import axios from 'axios'
 import Card3 from '../components/Cards/Card3';
 import { FIRST_UPLOADS_URL } from '../utils/config';
 import { feedParams } from '../utils/feedParams';
+import { useAppStore } from '../lib/store';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useContentBatch } from '../hooks/useContentBatch';
 import { useWatchHistory } from '../hooks/useWatchHistory';
@@ -22,6 +23,8 @@ const fetchVideos = async ({ pageParam = 1 }) => {
 
 const FirstUploads = () => {
   const queryClient = useQueryClient();
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const user = useAppStore(s => s.user);
 
   const {
     data,
@@ -31,7 +34,7 @@ const FirstUploads = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["firstupload"],
+    queryKey: ["firstupload", hideWatched, user],
     queryFn: fetchVideos,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length === 0 ? undefined : allPages.length + 1,

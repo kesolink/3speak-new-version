@@ -5,6 +5,8 @@ import axios from 'axios';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Card3 from '../components/Cards/Card3';
 import { TAG_FEED_URL } from '../utils/config';
+import { feedParams } from '../utils/feedParams';
+import { useAppStore } from '../lib/store';
 import { useContentBatch } from '../hooks/useContentBatch';
 import { useWatchHistory } from '../hooks/useWatchHistory';
 import useViewCounts from '../hooks/useViewCounts';
@@ -22,6 +24,8 @@ function TagFeed() {
   const [activeTab, setActiveTab] = useState('videos');
   const [dateFilter, setDateFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const feedUser = useAppStore(s => s.user);
 
   const since = useMemo(() => getSinceTimestamp(dateFilter), [dateFilter]);
 
@@ -49,9 +53,9 @@ function TagFeed() {
 
   // Always pass type — avoids the expensive merged "all" path on the backend
   const { data, isLoading, isFetching, isError } = useQuery({
-    queryKey: ['tagFeed', tag, activeTab, since, currentPage],
+    queryKey: ['tagFeed', tag, activeTab, since, currentPage, hideWatched, feedUser],
     queryFn: async () => {
-      let url = `${TAG_FEED_URL}/videos/tag/${tag}?page=${currentPage}&limit=${LIMIT}&type=${activeTab}`;
+      let url = `${TAG_FEED_URL}/videos/tag/${tag}?page=${currentPage}&limit=${LIMIT}&type=${activeTab}${feedParams()}`;
       if (since) url += `&since=${since}`;
       const res = await axios.get(url);
       return res.data;

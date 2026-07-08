@@ -23,6 +23,8 @@ const fetchVideos = async ({ pageParam = 1 }) => {
 
 const Trend = () => {
   const showNsfw = useAppStore(s => s.showNsfw);
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const user = useAppStore(s => s.user);
   const queryClient = useQueryClient();
 
   const {
@@ -33,7 +35,7 @@ const Trend = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["trending", showNsfw],
+    queryKey: ["trending", showNsfw, hideWatched, user],
     queryFn: fetchVideos,
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;

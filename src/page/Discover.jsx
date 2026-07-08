@@ -86,6 +86,8 @@ function saveState(state) {
 
 const Discover = () => {
   const showNsfw = useAppStore(s => s.showNsfw);
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const feedUser = useAppStore(s => s.user);
   const saved = useRef(loadState());
   const [searchTerm, setSearchTerm] = useState(() => saved.current?.searchTerm || '');
   const [debouncedTerm, setDebouncedTerm] = useState(() => saved.current?.searchTerm?.trim() || '');
@@ -146,7 +148,7 @@ const Discover = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["trending", showNsfw],
+    queryKey: ["trending", showNsfw, hideWatched, feedUser],
     queryFn: fetchVideos,
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;

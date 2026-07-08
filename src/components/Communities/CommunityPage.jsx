@@ -15,6 +15,7 @@ import HiveMarkdown from "../HiveMarkdown/HiveMarkdown";
 import { useContentBatch } from "../../hooks/useContentBatch";
 import { useWatchHistory } from "../../hooks/useWatchHistory";
 import useViewCounts from "../../hooks/useViewCounts";
+import { useAppStore } from "../../lib/store";
 
 // Hive client
 const client = getHiveClient();
@@ -23,6 +24,8 @@ function CommunityPage() {
   const { communityName: id } = useParams();
   const [dataMain, setDataMain] = useState(null);
   const [trend, setTrend] = useState(false); // false = new (default), true = trending
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const feedUser = useAppStore(s => s.user);
 
   // Fetch community info
   const fetchCommunityData = async (id) => {
@@ -68,7 +71,7 @@ function CommunityPage() {
   isLoading,
   isError,
 } = useInfiniteQuery({
-  queryKey: ["communityFeed", id, trend],
+  queryKey: ["communityFeed", id, trend, hideWatched, feedUser],
   queryFn: fetchVideos,
   getNextPageParam: (lastPage, allPages) => {
     // 🧠 Stop fetching if we already got one batch (no real pagination)
