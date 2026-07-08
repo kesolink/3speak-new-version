@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.46.0',
+    date: '2026-07-08',
+    summary:
+      'Feeds are smarter now: they rank videos partly by how much people actually watch them and lean toward the interests you’ve picked — across Home, Trending, Follow and tag pages. Also new: a “Private mode” setting that keeps your IP out of watch stats (only an anonymous id is used).',
+  },
+  {
     version: '1.45.0',
     date: '2026-07-07',
     summary:
@@ -22,7 +28,7 @@ export const CHANGELOG = [
     version: '1.43.0',
     date: '2026-07-07',
     summary:
-      'New “Stats” tab on your profile shows how your videos are really doing: total watch time and views for a time range you pick, your best-performing videos, and per-video insights like where people drop off and the moments they replay most. You can compare any two videos side by side and see where your viewers are (a country map), their devices and browsers, when they watch, and whether they’re watching on 3Speak itself or an embedded player. Your own videos also get a “Stats” button on the watch page (in the ⋯ menu on phones).',
+      'New “Stats” tab on your profile: watch time and views for a time range you pick, your best-performing videos, per-video insights like where people drop off and the moments they replay most, plus viewer demographics. Your own videos also get a “Stats” button on the watch page.',
   },
   {
     version: '1.42.0',
