@@ -45,6 +45,11 @@ export const useAppStore = create(
       // Hide videos the user has already watched from discovery feeds (default ON).
       hideWatched: true,
       setHideWatched: (val) => a[0]({ hideWatched: typeof val === 'function' ? val(a[1]().hideWatched) : val }),
+      // Private mode: when ON, watch-duration tracking sends only the pseudonymous
+      // viewer id and the server does NOT record the IP (so no country demographics
+      // for this viewer). Default OFF.
+      privateMode: false,
+      setPrivateMode: (val) => a[0]({ privateMode: typeof val === 'function' ? val(a[1]().privateMode) : val }),
       // Set on startup to the previous app version when the user upgraded (null = first
       // visit or no change). A future changelog / "what's new" prompt reads this.
       // Deliberately NOT persisted — recomputed each load by checkAppVersion().
@@ -73,6 +78,7 @@ export const useAppStore = create(
         previewEnabled: state.previewEnabled,
         interests: state.interests,
         hideWatched: state.hideWatched,
+        privateMode: state.privateMode,
       }),
     }
   )

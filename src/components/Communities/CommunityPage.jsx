@@ -5,6 +5,7 @@ import { Client } from "@hiveio/dhive";
 import "./CommunityPage.scss";
 import axios from "axios";
 import { FEED_URL, HIVE_API_NODES } from '../../utils/config'
+import { feedParams } from '../../utils/feedParams'
 import { useInfiniteQuery } from "@tanstack/react-query";
 import Card3 from "../Cards/Card3";
 import CardSkeleton from "../Cards/CardSkeleton";
@@ -49,7 +50,9 @@ function CommunityPage() {
     // query supplies 0-indexed pageParam.
     const page = (Number(pageParam) || 0) + 1;
     const variant = trend ? 'trending' : 'new';
-    const url = `${FEED_URL}/feeds/community/${id}/${variant}?page=${page}&limit=${LIMIT}`;
+    // Community "trending" tab re-ranks by interests + retention and can hide seen
+    // videos; the "new" tab stays purely chronological (no params).
+    const url = `${FEED_URL}/feeds/community/${id}/${variant}?page=${page}&limit=${LIMIT}${trend ? feedParams() : ''}`;
 
     const res = await axios.get(url);
     // Checker returns {videos: [...]}; legacy /apiv2 returned {trends: [...]}
