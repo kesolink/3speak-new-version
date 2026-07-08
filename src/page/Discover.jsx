@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
 import { TRENDING_SORTED_URL, CHECKER_URL, appendNsfw } from '../utils/config';
+import { feedParams } from '../utils/feedParams';
 import { useAppStore } from "../lib/store";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
@@ -35,7 +36,7 @@ const DATE_PRESETS = [
 ];
 
 const fetchVideos = async ({ pageParam = 1 }) => {
-  const url = appendNsfw(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}`, useAppStore.getState().showNsfw);
+  const url = appendNsfw(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}${feedParams()}`, useAppStore.getState().showNsfw);
   const res = await axios.get(url);
   return res.data;
 };
@@ -85,6 +86,8 @@ function saveState(state) {
 
 const Discover = () => {
   const showNsfw = useAppStore(s => s.showNsfw);
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const feedUser = useAppStore(s => s.user);
   const saved = useRef(loadState());
   const [searchTerm, setSearchTerm] = useState(() => saved.current?.searchTerm || '');
   const [debouncedTerm, setDebouncedTerm] = useState(() => saved.current?.searchTerm?.trim() || '');
@@ -145,7 +148,7 @@ const Discover = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["trending", showNsfw],
+    queryKey: ["trending", showNsfw, hideWatched, feedUser],
     queryFn: fetchVideos,
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;

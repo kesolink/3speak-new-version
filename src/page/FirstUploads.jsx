@@ -4,6 +4,8 @@ import CardSkeleton from "../components/Cards/CardSkeleton";
 import axios from 'axios'
 import Card3 from '../components/Cards/Card3';
 import { FIRST_UPLOADS_URL } from '../utils/config';
+import { feedParams } from '../utils/feedParams';
+import { useAppStore } from '../lib/store';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useContentBatch } from '../hooks/useContentBatch';
 import { useWatchHistory } from '../hooks/useWatchHistory';
@@ -15,12 +17,14 @@ const fetchVideos = async ({ pageParam = 1 }) => {
   // Checker /feeds/firstUploads is page-based (1,2,…) and returns
   // {success, feed, page, limit, total, totalPages, videos:[…]} — unwrap to
   // the array so the rest of this component keeps working as before.
-  const res = await axios.get(`${FIRST_UPLOADS_URL}?page=${pageParam}&limit=50`);
+  const res = await axios.get(`${FIRST_UPLOADS_URL}?page=${pageParam}&limit=50${feedParams()}`);
   return res.data.videos || [];
 };
 
 const FirstUploads = () => {
   const queryClient = useQueryClient();
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const user = useAppStore(s => s.user);
 
   const {
     data,
@@ -30,7 +34,7 @@ const FirstUploads = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["firstupload"],
+    queryKey: ["firstupload", hideWatched, user],
     queryFn: fetchVideos,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length === 0 ? undefined : allPages.length + 1,
