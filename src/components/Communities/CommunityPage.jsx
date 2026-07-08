@@ -5,6 +5,7 @@ import { Client } from "@hiveio/dhive";
 import "./CommunityPage.scss";
 import axios from "axios";
 import { FEED_URL, HIVE_API_NODES } from '../../utils/config'
+import { feedParams } from '../../utils/feedParams'
 import { useInfiniteQuery } from "@tanstack/react-query";
 import Card3 from "../Cards/Card3";
 import CardSkeleton from "../Cards/CardSkeleton";
@@ -14,6 +15,7 @@ import HiveMarkdown from "../HiveMarkdown/HiveMarkdown";
 import { useContentBatch } from "../../hooks/useContentBatch";
 import { useWatchHistory } from "../../hooks/useWatchHistory";
 import useViewCounts from "../../hooks/useViewCounts";
+import { useAppStore } from "../../lib/store";
 
 // Hive client
 const client = getHiveClient();
@@ -22,6 +24,8 @@ function CommunityPage() {
   const { communityName: id } = useParams();
   const [dataMain, setDataMain] = useState(null);
   const [trend, setTrend] = useState(false); // false = new (default), true = trending
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const feedUser = useAppStore(s => s.user);
 
   // Fetch community info
   const fetchCommunityData = async (id) => {
@@ -49,7 +53,9 @@ function CommunityPage() {
     // query supplies 0-indexed pageParam.
     const page = (Number(pageParam) || 0) + 1;
     const variant = trend ? 'trending' : 'new';
-    const url = `${FEED_URL}/feeds/community/${id}/${variant}?page=${page}&limit=${LIMIT}`;
+    // Community "trending" tab re-ranks by interests + retention and can hide seen
+    // videos; the "new" tab stays purely chronological (no params).
+    const url = `${FEED_URL}/feeds/community/${id}/${variant}?page=${page}&limit=${LIMIT}${trend ? feedParams() : ''}`;
 
     const res = await axios.get(url);
     // Checker returns {videos: [...]}; legacy /apiv2 returned {trends: [...]}
@@ -65,7 +71,7 @@ function CommunityPage() {
   isLoading,
   isError,
 } = useInfiniteQuery({
-  queryKey: ["communityFeed", id, trend],
+  queryKey: ["communityFeed", id, trend, hideWatched, feedUser],
   queryFn: fetchVideos,
   getNextPageParam: (lastPage, allPages) => {
     // 🧠 Stop fetching if we already got one batch (no real pagination)
