@@ -129,7 +129,7 @@ function Row({ title, desc, checked, onChange }) {
  * side menu, now grouped with headers + explanations and compact switches.
  */
 export default function SettingsModal({ isOpen, onClose }) {
-  const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled, hideWatched, setHideWatched } = useAppStore();
+  const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled, hideWatched, setHideWatched, privateMode, setPrivateMode } = useAppStore();
   const [tab, setTab] = useState('general');
   if (!isOpen) return null;
 
@@ -238,6 +238,12 @@ export default function SettingsModal({ isOpen, onClose }) {
                 desc="Leave out videos you've already watched from the home, trending and recommended feeds."
                 checked={!!hideWatched}
                 onChange={(v) => setHideWatched(v)}
+              />
+              <Row
+                title="Private mode"
+                desc="Don't record your IP address with watch statistics — only an anonymous per-browser id is used. Turning this on means your views won't appear in creators' country stats."
+                checked={!!privateMode}
+                onChange={(v) => setPrivateMode(v)}
               />
             </div>
 

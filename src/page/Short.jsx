@@ -65,6 +65,7 @@ const HiveIcon = ({ size = 24, className = '' }) => (
 );
 import hiveApi, { regenerateShortsSeed, consumePreloadedShorts, hasShortsPreloaded, preloadShorts, fetchUserShortsWithDetails } from '../hive-api/hiveApi';
 import { useAppStore } from '../lib/store';
+import { getViewerId } from '../utils/viewerId';
 import { recordWatch } from '../utils/watchHistory';
 import { recordReshare, getResharesForVideo, deleteReshare } from '../utils/reshares';
 import axios from 'axios';
@@ -178,7 +179,7 @@ async function startShortWatch(video, watchRef, duration, position) {
       const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0, source: '3speak' }),
+        body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0, source: '3speak', viewerId: getViewerId(), private: !!useAppStore.getState().privateMode }),
       });
       if (!res.ok) continue;                          // 404 for the wrong collection → try next
       const data = await res.json().catch(() => null);

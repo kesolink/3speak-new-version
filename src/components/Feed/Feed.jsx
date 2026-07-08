@@ -6,7 +6,8 @@ import { has3SpeakPostAuth } from '../../utils/hiveUtils';
 import { useAppStore } from '../../lib/store';
 import CardSkeleton from "../Cards/CardSkeleton"
 import axios from "axios"
-import { FEED_URL, FOLLOW_FEED_URL, appendNsfw } from '../../utils/config'
+import { FEED_URL, FOLLOW_FEED_URL, TRENDING_SORTED_URL, appendNsfw } from '../../utils/config'
+import { feedParams } from '../../utils/feedParams'
 import { useInfiniteQuery } from "@tanstack/react-query"
 import Card3 from "../Cards/Card3"
 import { useContentBatch } from "../../hooks/useContentBatch"
@@ -19,19 +20,17 @@ const FOLLOW_LIMIT = 50;
 
 const fetchFollowFeedVideos = async ({ pageParam = 1 }, username) => {
   const st = useAppStore.getState();
-  let url = appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${FOLLOW_LIMIT}`, st.showNsfw);
-  // "Hide watched" → let the checker skip videos this user already watched.
-  if (st.hideWatched && st.user) url += `&currentuser=${encodeURIComponent(st.user)}`;
+  // interests re-rank + hide-watched (when on) via the shared params.
+  const url = appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${FOLLOW_LIMIT}${feedParams()}`, st.showNsfw);
   const res = await axios.get(url);
   return res.data;
 };
 
 const fetchHomeVideos = async ({ pageParam = 0 }) => {
-  // checker's /feeds/trending is 1-based (`?page=1,2,...`) and returns
-  // `{success, feed, page, limit, total, totalPages, videos: [...]}`. Our
-  // infinite-query supplies pageParam 0,1,2…, so bump it by 1 here.
+  // Anonymous home: use the algo-aligned trendingSorted feed (retention + interests)
+  // instead of the legacy `trending`-flag endpoint. 1-based paging, {…,videos:[…]}.
   const page = (Number(pageParam) || 0) + 1;
-  const url = `${FEED_URL}/feeds/trending?page=${page}`;
+  const url = `${TRENDING_SORTED_URL}?page=${page}&limit=${FOLLOW_LIMIT}${feedParams()}`;
   const res = await axios.get(url);
   // Fall back through the older shapes in case FEED_URL is ever pointed back
   // at legacy.3speak.tv — keeps the consumer agnostic to either response.

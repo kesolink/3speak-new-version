@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
 import { TRENDING_SORTED_URL, appendNsfw } from '../utils/config';
+import { feedParams } from '../utils/feedParams';
 import { useAppStore } from '../lib/store';
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
@@ -15,13 +16,15 @@ import { TrendingIcon } from "../components/FeedIcons";
 const LIMIT = 50;
 
 const fetchVideos = async ({ pageParam = 1 }) => {
-  const url = appendNsfw(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}`, useAppStore.getState().showNsfw);
+  const url = appendNsfw(`${TRENDING_SORTED_URL}?page=${pageParam}&limit=${LIMIT}${feedParams()}`, useAppStore.getState().showNsfw);
   const res = await axios.get(url);
   return res.data;
 };
 
 const Trend = () => {
   const showNsfw = useAppStore(s => s.showNsfw);
+  const hideWatched = useAppStore(s => s.hideWatched);
+  const user = useAppStore(s => s.user);
   const queryClient = useQueryClient();
 
   const {
@@ -32,7 +35,7 @@ const Trend = () => {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ["trending", showNsfw],
+    queryKey: ["trending", showNsfw, hideWatched, user],
     queryFn: fetchVideos,
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.page >= lastPage.totalPages) return undefined;

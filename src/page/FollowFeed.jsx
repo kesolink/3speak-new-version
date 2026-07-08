@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
 import { FOLLOW_FEED_URL, appendNsfw } from "../utils/config";
+import { feedParams } from "../utils/feedParams";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -16,10 +17,8 @@ const LIMIT = 50;
 
 const fetchVideos = async ({ pageParam = 1 }, username) => {
   const st = useAppStore.getState();
-  let url = appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${LIMIT}`, st.showNsfw);
-  // "Hide watched" → let the checker skip videos this user already watched
-  // (same currentuser filter the trending / grouped feeds use).
-  if (st.hideWatched && st.user) url += `&currentuser=${encodeURIComponent(st.user)}`;
+  // interests re-rank + hide-watched (when the setting is on) via the shared params.
+  const url = appendNsfw(`${FOLLOW_FEED_URL}/${username}?page=${pageParam}&limit=${LIMIT}${feedParams()}`, st.showNsfw);
   const res = await axios.get(url);
   return res.data;
 };
