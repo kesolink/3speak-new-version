@@ -254,7 +254,7 @@ function EmbedPreview() {
                 </div>
                 <div className="discord">
                   For Support reach out to us on{" "}
-                  <a href="https://discord.gg/NSFS2VGj83" target="_blank" rel="noopener noreferrer" className="discord-link">Discord</a>
+                  <a href="https://discord.com/invite/NSFS2VGj83" target="_blank" rel="noopener noreferrer" className="discord-link">Discord</a>
                 </div>
               </div>
               <div className="activity-log-content">

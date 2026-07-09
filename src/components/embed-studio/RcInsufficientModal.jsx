@@ -81,7 +81,7 @@ export default function RcInsufficientModal({ isOpen, onClose, status, onRecheck
               post yet. This usually means very little Hive Power. Powering up a
               little HP — or receiving an RC delegation — will fix it. New to
               Hive? Reach out on the{' '}
-              <a href="https://discord.gg/3speak" target="_blank" rel="noopener noreferrer">
+              <a href="https://discord.com/invite/NSFS2VGj83" target="_blank" rel="noopener noreferrer">
                 3Speak Discord
               </a>{' '}
               and we&apos;ll help you get started.

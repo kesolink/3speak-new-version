@@ -57,7 +57,7 @@ export default function EmergencyScreen() {
       </div>
 
       <a
-        href="https://discord.gg/3speak"
+        href="https://discord.com/invite/NSFS2VGj83"
         target="_blank"
         rel="noopener noreferrer"
         style={{
