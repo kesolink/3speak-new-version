@@ -26,6 +26,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { Provider } from 'react-redux'; // Importing the Provider from react-redux
 import App from './App';
+import EmergencyScreen, { EMERGENCY_MODE } from './components/EmergencyScreen/EmergencyScreen';
 import './index.css';
 import store from '../src/redux/Store'; // Importing the Redux store (replace with your store file path)
 import { ToastContainer } from 'react-toastify';
@@ -48,7 +49,7 @@ createRoot(document.getElementById('root')).render(
           <AppProviders>
             <QueryClientProvider client={queryClient}>
               <Provider store={store}> {/* Wrap the app with the Redux Provider */}
-                <App />
+                {EMERGENCY_MODE ? <EmergencyScreen /> : <App />}
                 <ToastContainer className="custom-toast-body"/>
               </Provider>
             </QueryClientProvider>

@@ -5,6 +5,7 @@ import "./BlogContent.scss";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { TailChase } from 'ldrs/react';
 import AudioPlayerInline from "../AudioPlayerInline/AudioPlayerInline";
+import { stripAutoEmbeds } from "../../utils/stripAutoEmbeds";
 
 // Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
 let rendererPromise = null;
@@ -52,23 +53,12 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
   const cleanContent = (htmlString) => {
     let cleaned = htmlString;
 
-    // Pattern 1: The rendered video embed (iframe from @snapie/renderer)
-    cleaned = cleaned.replace(
-      /<div[^>]*class="[^"]*video-container[^"]*"[^>]*>[\s\S]*?<iframe[^>]*src="[^"]*3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>[\s\S]*?<\/div>/gi,
-      ''
-    );
-
-    // Pattern 2: Direct iframe embeds for 3speak video (not audio.3speak.tv)
-    cleaned = cleaned.replace(
-      /<iframe[^>]*src="https?:\/\/(?:embed\.)?3speak\.tv[^"]*"[^>]*>[\s\S]*?<\/iframe>/gi,
-      ''
-    );
-
-    // Pattern 3: The rendered video embed link with thumbnail
-    cleaned = cleaned.replace(
-      /<p[^>]*>[\s]*<a[^>]*class="[^"]*markdown-video-link[^"]*"[^>]*data-embed-src="https:\/\/3speak\.tv\/embed[^"]*"[^>]*>[\s\S]*?<\/a>[\s]*<\/p>/gi,
-      ''
-    );
+    // Remove ALL auto-generated embeds (iframes / video-wrapper divs / video-embed
+    // link anchors, any host): each becomes a plain link, 3Speak video embeds are
+    // dropped (the page already has its own player — this also catches the
+    // play.3speak.tv URL our uploads lead with), and audio.3speak.tv is preserved
+    // (mounted as an inline audio player below). Shared with HiveMarkdown.
+    cleaned = stripAutoEmbeds(cleaned);
 
     // Pattern 4: "Watch on 3Speak" link with play emoji (as paragraph)
     cleaned = cleaned.replace(
@@ -88,27 +78,7 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
       ''
     );
 
-    // YouTube: keep the original link in the body instead of an embedded player.
-    // (The underlying renderer auto-embeds YouTube URLs; we undo that.) Handles
-    // youtube.com/embed, youtube-nocookie.com, youtu.be and ?v= forms.
-    const ytIdFrom = (src) => {
-      const m = src.match(/(?:youtube(?:-nocookie)?\.com\/embed\/|youtu\.be\/|[?&]v=)([A-Za-z0-9_-]{6,})/);
-      return m ? m[1] : null;
-    };
-    const ytLink = (id) => {
-      const url = `https://www.youtube.com/watch?v=${id}`;
-      return `<p><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></p>`;
-    };
-    cleaned = cleaned.replace(
-      /<div[^>]*class="[^"]*videoWrapper[^"]*"[^>]*>\s*<iframe[^>]*src="([^"]*(?:youtube(?:-nocookie)?\.com|youtu\.be)[^"]*)"[^>]*>\s*<\/iframe>\s*<\/div>/gi,
-      (m, src) => { const id = ytIdFrom(src); return id ? ytLink(id) : m; }
-    );
-    cleaned = cleaned.replace(
-      /<iframe[^>]*src="([^"]*(?:youtube(?:-nocookie)?\.com|youtu\.be)[^"]*)"[^>]*>\s*<\/iframe>/gi,
-      (m, src) => { const id = ytIdFrom(src); return id ? ytLink(id) : m; }
-    );
-
-    // Pattern 7: Remove leading <hr> separating header from content
+    // Remove leading <hr> separating header from content
     cleaned = cleaned.replace(/^[\s]*<hr[^>]*\/?>/i, '');
     cleaned = cleaned.replace(/^[\s]*<hr[^>]*\/?>/i, '');
 

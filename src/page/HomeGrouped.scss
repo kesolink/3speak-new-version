@@ -507,6 +507,21 @@
   }
 }
 
+// ─── Desktop (>1024px): same tab bar, but sticky — clicking a tab smooth-scrolls
+// to that section (see the scroll-spy in HomeGrouped.jsx) instead of switching. ───
+.home-tabs--desktop {
+  position: sticky;
+  top: var(--nav-height, 56px);
+  z-index: 20;
+  background: var(--bg-primary, #0f0f0f);
+  margin-bottom: 10px;
+}
+
+// scrollIntoView target offset so a scrolled-to section clears the sticky nav + tabs.
+.home-section-anchor {
+  scroll-margin-top: calc(var(--nav-height, 56px) + 52px);
+}
+
 // On mobile the tab already names the section, so drop the per-row header title
 // and just keep "View All", pushed to the right.
 @media screen and (max-width: 1024px) {
