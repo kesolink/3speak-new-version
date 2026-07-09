@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.47.0',
+    date: '2026-07-09',
+    summary:
+      'Home page tidy-up: on desktop the section tabs (Trending, New, Follow…) now scroll you straight to each row, and on mobile promoted videos live in the Follow tab. Post descriptions are cleaner too — auto-embedded links no longer duplicate the video player.',
+  },
+  {
     version: '1.46.0',
     date: '2026-07-08',
     summary:
