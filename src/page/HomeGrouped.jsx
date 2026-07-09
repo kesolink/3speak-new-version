@@ -205,6 +205,15 @@ const HomeGrouped = () => {
   }, []);
   const [activeTab, setActiveTab] = useState(0);
 
+  // Desktop keeps the stacked rows but gains the same tab bar — clicking a tab
+  // smooth-scrolls to that section instead of switching, and a scroll-spy
+  // highlights whichever section is currently in view.
+  const sectionRefs = useRef({});
+  const [activeSection, setActiveSection] = useState(null);
+  const scrollToSection = useCallback((key) => {
+    sectionRefs.current[key]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
   const { data: homeData, isLoading: homeLoading } = useQuery({
     queryKey: authenticated ? ["follow-feed", user, showNsfw, hideWatched] : ["home-grouped", showNsfw, hideWatched, user],
     queryFn: authenticated ? () => fetchFollowFeed(user) : fetchHome,
@@ -238,11 +247,14 @@ const HomeGrouped = () => {
     gcTime: 10 * 60 * 1000,
   });
 
-  // For logged-out viewers, prepend promoted videos into the Home Feed (deduped).
+  // Merge promoted videos INTO the home/follow feed for logged-out viewers AND on
+  // mobile (mobile puts Promoted + Follow into one tab). Desktop, logged-in keeps a
+  // dedicated Promoted row/tab.
+  const mergePromotedIntoHome = !authenticated || isMobile;
   const homeFeedVideos = useMemo(() => {
-    if (authenticated) return homeData || [];
-    return deduplicateVideos([...(promotedData || []), ...(homeData || [])]);
-  }, [authenticated, homeData, promotedData]);
+    if (mergePromotedIntoHome) return deduplicateVideos([...(promotedData || []), ...(homeData || [])]);
+    return homeData || [];
+  }, [mergePromotedIntoHome, homeData, promotedData]);
 
   // Combine all videos for batch content loading
   const allVideos = useMemo(() => [
@@ -282,7 +294,7 @@ const HomeGrouped = () => {
     />
   );
 
-  const promotedSection = (authenticated && promotedData?.length > 0)
+  const promotedSection = (!mergePromotedIntoHome && authenticated && promotedData?.length > 0)
     ? { key: 'promoted', title: 'Promoted', videos: promotedData, isLoading: false, priority: true }
     : null;
   const contentSections = [
@@ -295,6 +307,43 @@ const HomeGrouped = () => {
   const tabSections = promotedSection ? [promotedSection, ...contentSections] : contentSections;
   const safeTab = Math.min(Math.max(activeTab, 0), tabSections.length - 1);
 
+  // Scroll-spy for the desktop tab bar — highlight whichever section is in view.
+  const sectionSig = tabSections.map((s) => s.key).join('|');
+  useEffect(() => {
+    if (isMobile) return undefined;
+    const els = tabSections.map((s) => sectionRefs.current[s.key]).filter(Boolean);
+    if (!els.length) return undefined;
+    setActiveSection((prev) => prev || tabSections[0]?.key);
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (vis[0]) setActiveSection(vis[0].target.dataset.sectionKey);
+      },
+      { rootMargin: '-25% 0px -65% 0px', threshold: [0, 0.2, 0.5, 1] },
+    );
+    els.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, sectionSig]);
+
+  const tabBar = (onTab, isActive) => (
+    <div className={`home-tabs${isMobile ? '' : ' home-tabs--desktop'}`} role="tablist">
+      {tabSections.map((s, i) => (
+        <button
+          key={s.key}
+          type="button"
+          role="tab"
+          aria-selected={isActive(s, i)}
+          className={`home-tab${isActive(s, i) ? ' active' : ''}`}
+          onClick={() => onTab(s, i)}
+        >
+          {s.title}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container" data-card-size={homeCardSize || 'large'}>
@@ -303,26 +352,23 @@ const HomeGrouped = () => {
 
       {isMobile ? (
         <>
-          <div className="home-tabs" role="tablist">
-            {tabSections.map((s, i) => (
-              <button
-                key={s.key}
-                type="button"
-                role="tab"
-                aria-selected={safeTab === i}
-                className={`home-tab${safeTab === i ? ' active' : ''}`}
-                onClick={() => setActiveTab(i)}
-              >
-                {s.title}
-              </button>
-            ))}
-          </div>
+          {tabBar((s, i) => setActiveTab(i), (s, i) => safeTab === i)}
           {tabSections[safeTab] && renderRow(tabSections[safeTab])}
         </>
       ) : (
         <>
-          {promotedSection && renderRow(promotedSection)}
-          {contentSections.map(renderRow)}
+          {tabBar((s) => scrollToSection(s.key), (s) => activeSection === s.key)}
+          {tabSections.map((s) => (
+            <div
+              key={s.key}
+              id={`home-section-${s.key}`}
+              data-section-key={s.key}
+              ref={(el) => { sectionRefs.current[s.key] = el; }}
+              className="home-section-anchor"
+            >
+              {renderRow(s)}
+            </div>
+          ))}
         </>
       )}
     </div>
