@@ -6,7 +6,7 @@ import { useAppStore } from '../../lib/store';
 // ── EMERGENCY / MAINTENANCE takeover ──────────────────────────────────────────
 // Flip this to `false` (or delete the early-return in App.jsx) to bring the app
 // back once the infrastructure issue is resolved.
-export const EMERGENCY_MODE = true;
+export const EMERGENCY_MODE = false;
 
 /**
  * Full-screen takeover shown INSTEAD of the app while there's an outage: just the
