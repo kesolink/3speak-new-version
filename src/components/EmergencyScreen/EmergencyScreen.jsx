@@ -4,17 +4,25 @@ import logoDark from '../../assets/image/3S_logodark.png';
 import { useAppStore } from '../../lib/store';
 
 // ── EMERGENCY / MAINTENANCE takeover ──────────────────────────────────────────
-// Flip this to `false` (or delete the early-return in App.jsx) to bring the app
-// back once the infrastructure issue is resolved.
-export const EMERGENCY_MODE = true;
+// HARD override: flip to `true` to force the maintenance screen for everyone,
+// no network round-trip. When `false` (normal), Bootstrap instead decides at
+// load time from the checker's /healthz probe (see utils/healthGate.js) — and
+// ops can force maintenance without any redeploy via the checker's
+// MAINTENANCE_MODE env. So this const is only for a deliberate, baked-in takeover.
+export const EMERGENCY_MODE = false;
 
 /**
- * Full-screen takeover shown INSTEAD of the app while there's an outage: just the
- * 3Speak logo, a short message, and a spinner. Nothing else renders.
+ * Full-screen takeover shown INSTEAD of the app.
+ *
+ * variant="down" (default): 3Speak logo, outage message, Discord link, spinner.
+ * variant="checking": neutral branded splash (logo + spinner only) shown for the
+ *   brief moment the health probe is in flight, so a healthy load never flashes
+ *   the scary "infrastructure issues" copy.
  */
-export default function EmergencyScreen() {
+export default function EmergencyScreen({ variant = 'down' }) {
   const theme = useAppStore((s) => s.theme);
   const isDark = theme !== 'light'; // dark is the default
+  const checking = variant === 'checking';
 
   return (
     <div
@@ -39,6 +47,7 @@ export default function EmergencyScreen() {
         style={{ width: 'min(220px, 62vw)', height: 'auto' }}
       />
 
+      {!checking && (
       <div style={{ maxWidth: '460px' }}>
         <h1 style={{ fontSize: 'clamp(20px, 4.5vw, 27px)', fontWeight: 700, margin: '0 0 12px' }}>
           We&rsquo;re having some infrastructure issues
@@ -55,7 +64,9 @@ export default function EmergencyScreen() {
           Discord to reach us and get live updates &mdash; thanks for your patience.
         </p>
       </div>
+      )}
 
+      {!checking && (
       <a
         href="https://discord.com/invite/NSFS2VGj83"
         target="_blank"
@@ -79,6 +90,7 @@ export default function EmergencyScreen() {
         </svg>
         Join our Discord
       </a>
+      )}
 
       <TailChase size="42" speed="1.75" color="var(--accent-primary, #e0594b)" />
     </div>
