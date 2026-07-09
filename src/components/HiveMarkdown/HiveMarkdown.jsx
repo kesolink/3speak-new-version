@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { stripAutoEmbeds } from '../../utils/stripAutoEmbeds';
 import './HiveMarkdown.scss';
 
 // Lazy-load the Hive markdown renderer (same config as the post-body renderer)
@@ -50,7 +51,7 @@ export default function HiveMarkdown({ body, className = '', collapsible = false
       .then((render) => {
         if (cancelled) return;
         try {
-          setHtml(render(body));
+          setHtml(stripAutoEmbeds(render(body)));
         } catch {
           setHtml('');
         }
