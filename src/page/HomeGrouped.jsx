@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import "./HomeGrouped.scss";
 import CardSkeleton from "../components/Cards/CardSkeleton";
 import Card3 from "../components/Cards/Card3";
-import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, DISCOVER_FEED_URL, NEW_CONTENT_URL, CHECKER_URL, appendNsfw } from "../utils/config";
+import { FEED_URL, TRENDING_SORTED_URL, FOLLOW_FEED_URL, DISCOVER_FEED_URL, INTERESTS_FEED_URL, NEW_CONTENT_URL, CHECKER_URL, appendNsfw } from "../utils/config";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -66,8 +66,12 @@ const fetchDiscover = async (page = 1) => {
 
 // "Interests" row: ONLY videos whose winning topic is in the user's interests,
 // re-ranked by retention with older ones sprinkled in. Empty with no interests.
+// Uses the DEDICATED /feeds/interests endpoint, which has its own topic-stratified
+// pool. The old `/feeds/discover?interestsOnly=1` filtered the discover pool — a
+// uniform sample of the catalogue — so niche topics ran out after a page or two
+// (science surfaced 29 of its 785 videos). Now every topic has ~25+ pages.
 const fetchInterestsFeed = async (page = 1) => {
-  const res = await axios.get(appendNsfw(`${DISCOVER_FEED_URL}?page=${page}&limit=${PAGE_POOL}&interestsOnly=1${feedParams()}`, useAppStore.getState().showNsfw));
+  const res = await axios.get(appendNsfw(`${INTERESTS_FEED_URL}?page=${page}&limit=${PAGE_POOL}${feedParams()}`, useAppStore.getState().showNsfw));
   return res.data?.videos || [];
 };
 
