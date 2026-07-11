@@ -9,6 +9,7 @@ import 'ldrs/react/TailChase.css';
 import { Orbit } from 'ldrs/react';
 import 'ldrs/react/Orbit.css';
 import { voteWithAioha, isLoggedIn } from '../../hive-api/aioha';
+import { recordViewerTag, VIEWER_TAG_OPTIONS } from '../../utils/viewerTag';
 
 const UpvoteTooltip = ({
   author,
@@ -27,6 +28,9 @@ const UpvoteTooltip = ({
   const { user, authenticated } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+  // Optional topic the viewer assigns to the video (interest taxonomy). Goes on
+  // chain in the same tx as the vote + into the checker. '' = no tag.
+  const [viewerTag, setViewerTag] = useState('');
   const tooltipRef = useRef(null);
 
   // Handle click outside to close tooltip
@@ -126,15 +130,20 @@ const UpvoteTooltip = ({
         }
       }
 
-      // Use aioha for client-side voting
-      await voteWithAioha(author, permlink, voteWeight);
+      // Vote + (optional) viewer-tag in ONE signed transaction.
+      const tag = viewerTag || null;
+      await voteWithAioha(author, permlink, voteWeight, tag);
+
+      // Mirror the tag into the checker's queryable index (best-effort; the signed
+      // on-chain custom_json is the source of truth).
+      if (tag) recordViewerTag(user, author, permlink, tag, voteWeight);
 
       // Success case - If this is a new vote (not a re-vote), increment vote count
       if (!existingVote) {
         setOptimisticVoteCount((prevCount) => prevCount + 1);
       }
 
-      toast.success(`Vote successful! Value: $${voteValue}`);
+      toast.success(`Vote successful!${tag ? ` Tagged “${tag}”.` : ''} Value: $${voteValue}`);
       setIsVoted(true);
       setShowTooltip(false);
     } catch (err) {
@@ -154,6 +163,24 @@ const UpvoteTooltip = ({
       {showTooltip && (
         <div className="tooltip-box">
           <p>Vote Weight: {weight}%</p>
+
+          {/* Optional: tag the video's topic. Highest combined vote weight wins. */}
+          <label className="viewer-tag-select" onClick={(e) => e.stopPropagation()}>
+            <span>Tag this video</span>
+            <select
+              value={viewerTag}
+              onChange={(e) => setViewerTag(e.target.value)}
+              disabled={isLoading}
+            >
+              <option value="">— optional —</option>
+              {VIEWER_TAG_OPTIONS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.emoji ? `${t.emoji} ` : ''}{t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div className="wrap">
             {isLoading ? (
               <div className='wrap-circle'>

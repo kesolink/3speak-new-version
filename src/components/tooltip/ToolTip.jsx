@@ -6,7 +6,14 @@ import HiveAvatar from '../HiveAvatar/HiveAvatar'
 
 import "./ToolTip.scss"
 
-function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
+// Reusable voters tooltip. Used by the vote counter (rows carry `reward`, shown
+// as $) and by the watch-page topic chips (rows carry `weight` 0–10000, shown as
+// a %). Optional `title` overrides the header, `emptyText` the empty state, and
+// `footer` renders a pinned-only action row (e.g. an "Open tag feed" button).
+function ToolTip({
+  tooltipVoters, anchorRef, pinned, onClose,
+  title, pinnedTitle, emptyText = 'No votes yet', footer,
+}) {
   const tipRef = useRef(null);
   const navigate = useNavigate();
   const [pos, setPos] = useState(null);
@@ -51,7 +58,11 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
       style={pos ? { top: pos.top, left: pos.left, opacity: 1 } : { opacity: 0 }}
     >
       <div className="votes-tooltip-header">
-        <span>{pinned ? `Voters (${tooltipVoters.length})` : 'Top Voters'}</span>
+        <span>
+          {pinned
+            ? (pinnedTitle || `Voters (${tooltipVoters.length})`)
+            : (title || 'Top Voters')}
+        </span>
         {pinned && (
           <button className="votes-tooltip-close" onClick={onClose}>
             <IoClose size={14} />
@@ -75,13 +86,21 @@ function ToolTip({ tooltipVoters, anchorRef, pinned, onClose }) {
             >
               @{voter.username}
             </a>
-            <span className="votes-tooltip-reward">${voter.reward.toFixed(3)}</span>
+            {voter.reward != null && (
+              <span className="votes-tooltip-reward">${voter.reward.toFixed(3)}</span>
+            )}
+            {voter.reward == null && voter.weight != null && (
+              <span className="votes-tooltip-reward">{Math.round(voter.weight / 100)}%</span>
+            )}
           </div>
         ))}
         {tooltipVoters.length === 0 && (
-          <div className="votes-tooltip-empty">No votes yet</div>
+          <div className="votes-tooltip-empty">{emptyText}</div>
         )}
       </div>
+      {pinned && footer && (
+        <div className="votes-tooltip-footer">{footer}</div>
+      )}
     </div>
   );
 

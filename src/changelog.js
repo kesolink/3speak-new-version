@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.48.0',
+    date: '2026-07-12',
+    summary:
+      'You can now tag videos with a topic. Pick one in the vote dialog when you vote, or use “Add tag” in a video card’s ⋮ menu to tag without voting. Tags are shared by everyone and help the right videos reach the right people.',
+  },
+  {
     version: '1.47.0',
     date: '2026-07-09',
     summary:

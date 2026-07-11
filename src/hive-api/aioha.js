@@ -111,22 +111,49 @@ const withHiveAuthWaiting = async (operation, message = 'Waiting for approval...
   }
 };
 
-// Helper function to vote on content
-export const voteWithAioha = async (author, permlink, weight = 10000) => {
+// Custom_json id for the crowd-sourced "viewer-tag" a user assigns from the vote
+// dialog. Broadcast in the SAME transaction as the vote (see voteWithAioha).
+export const VIEWER_TAG_CJ_ID = '3speak-viewer-tag';
+
+// Helper function to vote on content. When `viewerTag` is supplied, the vote and
+// a `3speak-viewer-tag` custom_json are broadcast together as ONE transaction
+// (both posting-auth ops), so the tag choice is atomic with the vote — one signature.
+export const voteWithAioha = async (author, permlink, weight = 10000, viewerTag = null) => {
+  const tag = viewerTag ? String(viewerTag).trim().toLowerCase() : null;
+
+  // Ops for a given voter: the vote (weight may be NEGATIVE = downvote), plus the
+  // tag custom_json when there is one. The tag always records the ABSOLUTE weight.
+  const buildOps = (voter) => {
+    const ops = [['vote', { voter, author, permlink, weight }]];
+    if (tag) {
+      ops.push(['custom_json', {
+        required_auths: [],
+        required_posting_auths: [voter],
+        id: VIEWER_TAG_CJ_ID,
+        json: JSON.stringify({ app: 'threespeak', author, permlink, tag, weight: Math.abs(weight) }),
+      }]);
+    }
+    return ops;
+  };
+
   if (isManteAuthLogin()) {
     const voter = localStorage.getItem('user_id')
-    return broadcastViaManteAuth([['vote', { voter, author, permlink, weight }]])
+    return broadcastViaManteAuth(buildOps(voter))
   }
   if (usesThreespeakProxy()) {
     try {
-      return await broadcastViaThreespeak([['vote', { voter: aioha.getCurrentUser(), author, permlink, weight }]])
+      return await broadcastViaThreespeak(buildOps(aioha.getCurrentUser()))
     } catch (e) {
       if (!isNotGrantedError(e)) throw e // not granted → sign it client-side below
     }
   }
   return withHiveAuthWaiting(async () => {
     try {
-      const result = await aioha.vote(author, permlink, weight);
+      // No tag → keep the dedicated single-op vote helper (unchanged for every
+      // other caller: comment votes, card votes without a tag, etc).
+      const result = tag
+        ? await aioha.signAndBroadcastTx(buildOps(aioha.getCurrentUser()), KeyTypes.Posting)
+        : await aioha.vote(author, permlink, weight);
       if (result.success) {
         return { success: true, result: result.result };
       } else {
@@ -138,6 +165,37 @@ export const voteWithAioha = async (author, permlink, weight = 10000) => {
       throw error;
     }
   }, 'Approve vote on HiveAuth...');
+};
+
+// Tag a video WITHOUT voting — used once the payout window has closed, when a
+// vote would be pointless. Broadcasts only the 3speak-viewer-tag custom_json
+// (posting auth). weight defaults to 10000 (interpreted as a 100% vote).
+export const tagVideoWithAioha = async (author, permlink, tag, weight = 10000) => {
+  const t = String(tag || '').trim().toLowerCase();
+  if (!t) throw new Error('No tag provided');
+  const op = (voter) => ['custom_json', {
+    required_auths: [],
+    required_posting_auths: [voter],
+    id: VIEWER_TAG_CJ_ID,
+    json: JSON.stringify({ app: 'threespeak', author, permlink, tag: t, weight }),
+  }];
+
+  if (isManteAuthLogin()) {
+    return broadcastViaManteAuth([op(localStorage.getItem('user_id'))]);
+  }
+  if (usesThreespeakProxy()) {
+    try {
+      return await broadcastViaThreespeak([op(aioha.getCurrentUser())]);
+    } catch (e) {
+      if (!isNotGrantedError(e)) throw e; // not granted → sign it client-side below
+    }
+  }
+  return withHiveAuthWaiting(async () => {
+    const result = await aioha.signAndBroadcastTx([op(aioha.getCurrentUser())], KeyTypes.Posting);
+    if (result.success) return { success: true, result: result.result };
+    console.error('Tag broadcast rejected, full aioha result:', result);
+    throw new Error(extractAiohaError(result, 'Tag failed'));
+  }, 'Approve tag on HiveAuth...');
 };
 
 // Helper function to transfer HIVE or HBD

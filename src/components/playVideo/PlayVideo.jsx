@@ -33,10 +33,18 @@ import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import mantequillaLogo from "../../assets/mantequilla-logo.png";
 import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
+import { getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
+import { displayTag, INTEREST_IDS, saveInterestsToHive } from '../../utils/interests';
+
+// Show the crowd topic consensus (viewer votes + auto/transcription tags, each
+// with its % share) under the author tags. Set VITE_SHOW_TOPIC_TAGS=false to hide.
+const SHOW_TOPIC_TAGS =
+  String(import.meta.env.VITE_SHOW_TOPIC_TAGS).toLowerCase() !== 'false';
 import { fixVideoThumbnail, fallbackImg } from '../../utils/fixThumbnails';
 import { isLoggedIn, followWithAioha } from "../../hive-api/aioha";
 import { MdPlaylistAdd, MdWatchLater, MdKeyboardArrowDown, MdKeyboardArrowUp, MdAdd, MdClose, MdShare, MdAttachMoney, MdPersonAdd, MdInfo, MdBarChart } from "react-icons/md";
 import { FaHeart } from "react-icons/fa";
+import { IoPricetagOutline } from "react-icons/io5";
 import AddToPlaylistModal from "../AddToPlaylistModal/AddToPlaylistModal";
 import VideoPlaylists from "../VideoPlaylists/VideoPlaylists";
 import PlaylistBar from "../PlaylistBar/PlaylistBar";
@@ -61,6 +69,26 @@ dayjs.extend(relativeTime);
 
 const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
   const { user, authenticated } = useAppStore();
+  const interests = useAppStore((s) => s.interests);
+  const setInterests = useAppStore((s) => s.setInterests);
+
+  // Add a topic to the user's interests (from the topic popup), persisting to Hive.
+  const addToInterests = useCallback(async (tag) => {
+    if (!user) { toast.error('Login to save interests'); return; }
+    if (!INTEREST_IDS.includes(tag)) return;
+    const cur = useAppStore.getState().interests || [];
+    if (cur.includes(tag)) return;
+    const next = [...cur, tag];
+    setInterests(next); // optimistic
+    try {
+      const saved = await saveInterestsToHive(user, next);
+      setInterests(saved);
+      toast.success(`Added “${displayTag(tag)}” to your interests`);
+    } catch (e) {
+      setInterests(cur); // revert on failure
+      toast.error(e?.message || 'Could not save interests');
+    }
+  }, [user, setInterests]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -245,8 +273,59 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
     fetch(url).then(r => r.json()).then(setExtendedDetails).catch(() => {});
   }, [author, permlink]);
 
-  // Memoized values
-  const tags = useMemo(() => videoDetails?.tags?.slice(0, 7) || [], [videoDetails?.tags]);
+  // ── Topic consensus: viewer votes + auto/transcription tags, each with its %.
+  // Shown under the author tags. Set VITE_SHOW_TOPIC_TAGS=false to hide.
+  // `topicRefreshKey` lets a successful vote-with-tag re-pull the fresh shares.
+  const [topicTags, setTopicTags] = useState(null);
+  const [topicRefreshKey, setTopicRefreshKey] = useState(0);
+  useEffect(() => {
+    if (!SHOW_TOPIC_TAGS || !author || !permlink) return undefined;
+    let alive = true;
+    getViewerTags(author, permlink)
+      .then((d) => { if (alive) setTopicTags(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [author, permlink, topicRefreshKey]);
+  const refreshTopicTags = useCallback(() => setTopicRefreshKey((k) => k + 1), []);
+
+  // Topic-chip voters tooltip: hover previews it, click pins it (like the vote
+  // counter). Each holds { tag, el } where el is the hovered/clicked chip.
+  const [tagTipHover, setTagTipHover] = useState(null);
+  const [tagTipPinned, setTagTipPinned] = useState(null);
+  const activeTagTip = tagTipPinned || tagTipHover;
+
+  // After the 7-day payout window the vote does nothing — the button becomes a
+  // "Tag" button (the popup itself switches to tag-only, see CommentVoteTooltip).
+  const votingClosed = useMemo(() => {
+    const c = videoDetails?.created || videoDetails?.created_at;
+    return !!c && (Date.now() - new Date(c).getTime()) > 7 * 24 * 60 * 60 * 1000;
+  }, [videoDetails?.created, videoDetails?.created_at]);
+
+  // Once voting is closed, the CTA becomes a one-shot "Tag" button — hide it
+  // entirely if this user has already tagged the video. Re-checks after a tag
+  // (topicRefreshKey bumps on success).
+  const [alreadyTagged, setAlreadyTagged] = useState(false);
+  useEffect(() => {
+    if (!votingClosed || !authenticated || !user || !author || !permlink) { setAlreadyTagged(false); return undefined; }
+    let alive = true;
+    getMyViewerTag(user, author, permlink).then((r) => { if (alive) setAlreadyTagged(!!r?.tagged); });
+    return () => { alive = false; };
+  }, [votingClosed, authenticated, user, author, permlink, topicRefreshKey]);
+
+  // Memoized values. Clean up author tags: split any comma-joined values,
+  // strip a leading '#', trim, drop empties + dupes — so both the chip label
+  // and the /t/:tag link use the bare tag.
+  const tags = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const raw of (videoDetails?.tags || [])) {
+      for (const part of String(raw).split(',')) {
+        const t = part.trim().replace(/^#+/, '').trim();
+        if (t && !seen.has(t)) { seen.add(t); out.push(t); }
+      }
+    }
+    return out.slice(0, 7);
+  }, [videoDetails?.tags]);
   const comunity_name = useMemo(
     () => communityData?.title || videoDetails?.community?.title,
     [communityData?.title, videoDetails?.community?.title]
@@ -924,7 +1003,76 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 <span key={index} onClick={() => handleSelectTag(tag)}>{tag}</span>
               ))}
             </div>
+
+            {/* Topic consensus (viewer votes + auto tags, each with its %). Siblings
+                of the author tags: on desktop they share the row and wrap together
+                (.topic-chips is display:contents); on mobile they drop to their own
+                line. Hover shows who tagged it; click pins that list. */}
+            {SHOW_TOPIC_TAGS && topicTags?.counts?.length > 0 && (
+              <div className="topic-chips">
+                {topicTags.counts.map((c) => (
+                  <span
+                    key={c.tag}
+                    className={`tag--topic${c.auto ? ' tag--topic-auto' : ''}${c.count > 0 ? ' tag--topic-voted' : ''}`}
+                    onMouseEnter={(e) => { if (!tagTipPinned) setTagTipHover({ tag: c.tag, el: e.currentTarget }); }}
+                    onMouseLeave={() => { if (!tagTipPinned) setTagTipHover(null); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTagTipPinned((prev) => (prev?.tag === c.tag ? null : { tag: c.tag, el: e.currentTarget }));
+                    }}
+                  >
+                    {displayTag(c.tag)} <b>{c.pct}%</b>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Voters list for the hovered/pinned topic chip. */}
+          {activeTagTip && (() => {
+            const c = topicTags?.counts?.find((x) => x.tag === activeTagTip.tag);
+            const voters = (c?.voters || []).map((v) => ({ username: v.voter, weight: v.weight }));
+            const label = displayTag(activeTagTip.tag);
+            return (
+              <ToolTip
+                tooltipVoters={voters}
+                anchorRef={{ current: activeTagTip.el }}
+                pinned={!!tagTipPinned}
+                onClose={() => { setTagTipPinned(null); setTagTipHover(null); }}
+                title={`“${label}” · tagged by ${voters.length}`}
+                pinnedTitle={`“${label}” · ${voters.length} viewer${voters.length === 1 ? '' : 's'}`}
+                emptyText={c?.auto ? 'Auto-tagged — no viewer votes yet' : 'No viewer votes yet'}
+                footer={(() => {
+                  const isInterest = INTEREST_IDS.includes(activeTagTip.tag);
+                  const already = (interests || []).includes(activeTagTip.tag);
+                  return (
+                    <>
+                      {isInterest && authenticated && (
+                        already ? (
+                          <div className="votes-tooltip-note">✓ In your interests</div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="votes-tooltip-feed-btn secondary"
+                            onClick={() => addToInterests(activeTagTip.tag)}
+                          >
+                            + Add to my interests
+                          </button>
+                        )
+                      )}
+                      <button
+                        type="button"
+                        className="votes-tooltip-feed-btn"
+                        onClick={() => { setTagTipPinned(null); setTagTipHover(null); navigate(`/t/${activeTagTip.tag}`); }}
+                      >
+                        Open tag feed
+                      </button>
+                    </>
+                  );
+                })()}
+              />
+            );
+          })()}
 
           <div className="play-video-info">
             {scheduled && (
@@ -1009,21 +1157,22 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     <span>Summary</span>
                   </button>
                 )}
-                {authenticated && isLoggedIn() && !isVoted && user?.toLowerCase() !== author?.toLowerCase() && (
+                {authenticated && isLoggedIn() && !isVoted && user?.toLowerCase() !== author?.toLowerCase() && !(votingClosed && alreadyTagged) && (
                   // Hidden on your own video (you can't vote for yourself).
                   // Sits to the left of the share button; opens the
                   // same vote tooltip the upvote count uses, so the
                   // existing weight-picker / submit flow still drives
                   // the actual broadcast. Hidden once the user has
-                  // already voted to avoid showing a stale CTA.
+                  // already voted — and, once voting is closed, once the
+                  // user has already tagged (the tag is one-shot).
                   <button
                     type="button"
                     className="pv-btn vote-btn"
                     onClick={toggleTooltip}
-                    title="Vote on this video"
+                    title={votingClosed ? 'Tag this video' : 'Vote on this video'}
                   >
-                    <FaHeart size={14} />
-                    <span>Vote</span>
+                    {votingClosed ? <IoPricetagOutline size={14} /> : <FaHeart size={14} />}
+                    <span>{votingClosed ? 'Tag' : 'Vote'}</span>
                   </button>
                 )}
                 {canSeeVideoStats && (
@@ -1138,9 +1287,12 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     accountData={accountData}
                     setAccountData={setAccountData}
                     compact
+                    enableViewerTag
+                    postCreatedAt={videoDetails?.created || videoDetails?.created_at}
                     onVoteSuccess={(a, p, isNewVote) => {
                       setIsVoted(true);
                       if (isNewVote) setOptimisticVoteCount(prev => prev + 1);
+                      refreshTopicTags();
                     }}
                   />
                 )}
@@ -1433,15 +1585,15 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 </div>
               )}
 
-              {authenticated && isLoggedIn() && (
+              {authenticated && isLoggedIn() && !(votingClosed && alreadyTagged) && (
                 <div className="fab-action">
-                  <span className="fab-action-label">Vote</span>
+                  <span className="fab-action-label">{votingClosed ? 'Tag' : 'Vote'}</span>
                   <button
                     className={`fab-action-btn${isVoted ? ' fab-action-btn--voted' : ''}`}
                     onClick={() => { setMobileDetailsExpanded(true); setShowTooltip(true); setFabOpen(false); }}
-                    aria-label="Vote"
+                    aria-label={votingClosed ? 'Tag' : 'Vote'}
                   >
-                    <FaHeart size={18} />
+                    {votingClosed ? <IoPricetagOutline size={18} /> : <FaHeart size={18} />}
                   </button>
                 </div>
               )}
