@@ -42,6 +42,19 @@ export const useAppStore = create(
       // instant UI, hydrated from Hive on load. Used later to bias served content.
       interests: [],
       setInterests: (val) => a[0]({ interests: typeof val === 'function' ? val(a[1]().interests) : val }),
+      // Shorts feed mode: 'discover' (everything, interests only BOOST the ranking)
+      // vs 'interests' (ONLY shorts whose winning topic is one of my interests).
+      // Applies to the main shorts feed only — a creator's shorts (?user=…) always
+      // stay their own date-sorted feed.
+      shortsFeedMode: 'discover',
+      setShortsFeedMode: (val) => a[0]({ shortsFeedMode: val === 'interests' ? 'interests' : 'discover' }),
+      // Show the comment input bar under a short. Off by default — it eats vertical
+      // space and the comments panel is a tap away.
+      shortsCommentBar: false,
+      setShortsCommentBar: (val) => a[0]({ shortsCommentBar: !!(typeof val === 'function' ? val(a[1]().shortsCommentBar) : val) }),
+      // Land on /shorts instead of the home feed when 3Speak is opened. Off by default.
+      openShortsOnStart: false,
+      setOpenShortsOnStart: (val) => a[0]({ openShortsOnStart: !!(typeof val === 'function' ? val(a[1]().openShortsOnStart) : val) }),
       // Hide videos the user has already watched from discovery feeds (default ON).
       hideWatched: true,
       setHideWatched: (val) => a[0]({ hideWatched: typeof val === 'function' ? val(a[1]().hideWatched) : val }),
@@ -50,6 +63,10 @@ export const useAppStore = create(
       // for this viewer). Default OFF.
       privateMode: false,
       setPrivateMode: (val) => a[0]({ privateMode: typeof val === 'function' ? val(a[1]().privateMode) : val }),
+      // Simple feeds: when ON, discovery feeds skip the ranking algorithm and are
+      // just sorted newest-first (chronological). Default OFF (algo on).
+      simpleFeed: false,
+      setSimpleFeed: (val) => a[0]({ simpleFeed: typeof val === 'function' ? val(a[1]().simpleFeed) : val }),
       // Set on startup to the previous app version when the user upgraded (null = first
       // visit or no change). A future changelog / "what's new" prompt reads this.
       // Deliberately NOT persisted — recomputed each load by checkAppVersion().
@@ -77,8 +94,12 @@ export const useAppStore = create(
         homeCardSize: state.homeCardSize,
         previewEnabled: state.previewEnabled,
         interests: state.interests,
+        shortsFeedMode: state.shortsFeedMode,
+        shortsCommentBar: state.shortsCommentBar,
+        openShortsOnStart: state.openShortsOnStart,
         hideWatched: state.hideWatched,
         privateMode: state.privateMode,
+        simpleFeed: state.simpleFeed,
       }),
     }
   )

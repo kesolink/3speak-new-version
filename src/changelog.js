@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.52.0',
+    date: '2026-07-12',
+    summary:
+      'Shorts overhaul. Switch between “Discover” and “My interests” with the toggle at the top-left, save a short to Watch Later with the new bookmark button, and swiping no longer skips over videos. The comment bar under a short and “open shorts on start” are now optional in Settings → Shorts.',
+  },
+  {
     version: '1.51.0',
     date: '2026-07-12',
     summary:
