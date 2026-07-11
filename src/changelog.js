@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.50.0',
+    date: '2026-07-12',
+    summary:
+      'The app is a lot lighter. Thumbnails and avatars are now served at sensible sizes (some thumbnails were several megabytes), feeds send far less data, and a card only loads its video when you actually look at it. Pages should feel noticeably quicker — especially on mobile data.',
+  },
+  {
     version: '1.49.0',
     date: '2026-07-12',
     summary:

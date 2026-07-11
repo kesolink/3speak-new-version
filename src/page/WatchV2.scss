@@ -199,9 +199,20 @@
       margin-top: 4px;
     }
 
+    /* ---- "Included in playlists": its own full-width row, sitting after the
+       title/author/tags header and BEFORE the description. Without an explicit
+       order it defaults to 0 and jumps to the start of the flex row, landing
+       inline-left of the author badge (which is what we don't want). ---- */
+    .play-video .video-playlists {
+      order: 6;
+      flex: 0 0 100%;
+      width: 100%;
+      margin-top: 12px;
+    }
+
     /* ---- Description: a rounded card (expandable), like YouTube ---- */
     .play-video .description-wrap {
-      order: 3;
+      order: 7;
       flex: 1 1 100%;   /* fill the row instead of shrinking to the text width */
       margin-top: 12px;
 
@@ -229,3 +240,6 @@
     }
   }
 }
+
+    /* Topic chips share the author-tags row on desktop (.topic-chips is
+       display:contents), so they inherit the right-alignment and wrap together. */
