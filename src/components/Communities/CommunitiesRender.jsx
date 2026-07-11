@@ -90,7 +90,7 @@ function CommunitiesRender() {
               <div className="img-wrap">
                 <img
                   src={
-                    'https://images.hive.blog/u/' + community.name + '/avatar?size=icon'
+                    'https://images.hive.blog/u/' + community.name + '/avatar/small?size=icon'
                   }
                   alt={community.title}
                   className="blog-image"

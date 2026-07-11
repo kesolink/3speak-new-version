@@ -362,7 +362,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.22);
     pointer-events: auto;
     cursor: pointer;
     z-index: 6;
@@ -396,7 +396,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.22);
     pointer-events: auto;
     cursor: pointer;
     z-index: 55;
@@ -2450,5 +2450,160 @@
       outline: none;
       &:focus { border-color: var(--accent-primary, #e53935); }
     }
+  }
+}
+
+/* ── Shorts feed switcher (top-left, ON the video): Discover ⇄ My interests ──
+   Matches the other on-video overlay controls (mute / playback / glow): same
+   translucent black, same hover, same 0.85-white text. */
+.shortsFeedSwitch {
+  position: absolute;
+  top: calc(12px + var(--safe-top, 0px));
+  left: 12px;
+  z-index: 6;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
+  transition: background 0.2s;
+
+  &:hover { background: rgba(0, 0, 0, 0.55); }
+
+  button {
+    padding: 5px 13px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover:not(.active) { color: #fff; }
+
+    /* Selected pill reads as "on" against the translucent track. */
+    &.active {
+      background: rgba(255, 255, 255, 0.9);
+      color: #111;
+    }
+  }
+
+  /* Mobile: the back arrow sits top-left (.shortBackBtn, left:12px), so shift the
+     switch clear of it instead of stacking underneath. */
+  @media screen and (max-width: 768px) {
+    left: 68px;
+    button { padding: 5px 11px; font-size: 12.5px; }
+  }
+}
+
+/* Empty state when "My interests" has nothing to show. */
+.shortsInterestsEmpty {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+
+  p { margin: 0; font-size: 15px; line-height: 1.5; max-width: 300px; }
+
+  button {
+    padding: 9px 18px;
+    border: none;
+    border-radius: 999px;
+    background: #fff;
+    color: #111;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+}
+
+/* Mobile action rail: a translucent CIRCLE around the icon AND its value.
+   `border-radius: 50%` only yields a circle on a SQUARE box — left to size itself
+   the item is as wide as its label ("Saved", "Share", "1.2K") and as tall as
+   icon+label, so every button came out a differently-shaped ellipse. Pin a fixed
+   square and centre the content inside it. */
+@media screen and (max-width: 768px) {
+  .actionSidebar .actionItem {
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    width: 3.4rem;
+    height: 3.4rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* base rule sets gap:0.125rem — the value sits directly under its icon */
+    gap: 0;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(4px);
+
+    /* the icon's own bubble would double up inside the circle */
+    .actionButton {
+      background-color: transparent !important;
+      backdrop-filter: none;
+      width: auto;
+      height: 1.5rem;
+      flex: 0 0 auto;
+    }
+
+    .actionLabel {
+      margin: 0;
+      max-width: 100%;
+      font-size: 0.68rem;
+      line-height: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+}
+
+/* ── Payout shown next to the date in the description (was a button in the rail) ── */
+.captionPayout {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  font-weight: 600;
+  opacity: 0.95;
+
+  svg { flex-shrink: 0; }
+}
+
+/* ── No comment bar (Settings → "Comment bar on shorts" off) ──────────────────
+   .short-main reserves 56px at the bottom for the FIXED comment bar. With the bar
+   hidden that's just dead space, so reclaim the full height. */
+@media (max-width: 767px) {
+  .short-main.no-bottom-bar {
+    bottom: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  /* Ambient-glow toggle is desktop-only — on a phone it's a rarely-used control
+     eating space in the top-right cluster. */
+  .short-main .glowIndicator {
+    display: none;
+  }
+
+  /* Close the gap it leaves: the cluster is mute(12) · playback(56) · glow(100) ·
+     subtitles(144). With glow gone, pull subtitles into its slot so the row stays
+     evenly spaced instead of leaving a hole. */
+  .short-main .subtitleIndicator {
+    right: 100px;
   }
 }

@@ -10,7 +10,11 @@ import "./ShortsStories.scss";
 
 const fetchShortsStories = async (username) => {
   const params = {};
-  if (username) params.currentuser = username;
+  if (username) {
+    // currentuser drives the always-on dismissals; hidewatched is the preference.
+    params.currentuser = username;
+    params.hidewatched = useAppStore.getState().hideWatched ? '1' : '0';
+  }
   if (useAppStore.getState().showNsfw) params.nsfw = 'true';
   const res = await axios.get(SHORTS_STORIES_URL, { params });
   return res.data;

@@ -15,6 +15,8 @@ const VIEWS_URL = CHECKER_URL;
 const MY_VIDEOS_URL = CHECKER_URL;
 const TRENDING_SORTED_URL = `${CHECKER_URL}/feeds/trendingSorted`;
 const FOLLOW_FEED_URL = `${CHECKER_URL}/feed`;
+// Discovery feed: interest + retention driven, ignores votes/views entirely.
+const DISCOVER_FEED_URL = `${CHECKER_URL}/feeds/discover`;
 const NEW_CONTENT_URL = `${CHECKER_URL}/feeds/new`;
 const FIRST_UPLOADS_URL = `${CHECKER_URL}/feeds/firstUploads`;
 const SHORTS_STORIES_URL = `${CHECKER_URL}/shorts/stories`;
@@ -178,6 +180,7 @@ export {
   TRANSLATE_API_URL,
   TRENDING_SORTED_URL,
   FOLLOW_FEED_URL,
+  DISCOVER_FEED_URL,
   NEW_CONTENT_URL,
   FIRST_UPLOADS_URL,
   SHORTS_STORIES_URL,

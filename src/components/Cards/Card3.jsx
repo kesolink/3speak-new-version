@@ -7,13 +7,14 @@ import { IoCalendarOutline } from "react-icons/io5";
 dayjs.extend(utc);
 import { MdDelete, MdError, MdPhoneIphone, MdVisibilityOff } from "react-icons/md";
 import { FaCog, FaFileAlt } from "react-icons/fa";
-import AddToPlaylistButton from "../AddToPlaylistButton/AddToPlaylistButton";
+import CardOptionsMenu from "../CardOptionsMenu/CardOptionsMenu";
 import TimeAgo from "../TimeAgo/TimeAgo";
 import { Link, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import "./Cards.scss";
-import { useState, useMemo, memo } from "react";
+import { useState, useMemo, memo, useCallback } from "react";
 import img from "../../assets/image/speak.jpg";
+import CardThumbnail from "./CardThumbnail";
 import { fixVideoThumbnail } from "../../utils/fixThumbnails";
 import AuthorBadge from "../AuthorBadge/AuthorBadge";
 import ProfileModal from "../modal/ProfileModal";
@@ -24,8 +25,41 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
 
+  // Locally dismissed content ("not interested" / hidden creator). The checker
+  // filters these out server-side, but only from the NEXT feed fetch — so we drop
+  // the cards here immediately, and put them back if the user hits Undo.
+  const [dismissed, setDismissed] = useState({ videos: new Set(), creators: new Set() });
+
+  const handleDismiss = useCallback((kind, { owner, permlink } = {}) => {
+    const key = `${String(owner).toLowerCase()}/${permlink}`;
+    const creator = String(owner).toLowerCase();
+    setDismissed((prev) => {
+      const next = { videos: new Set(prev.videos), creators: new Set(prev.creators) };
+      if (kind === "video") next.videos.add(key);
+      else if (kind === "undo-video") next.videos.delete(key);
+      else if (kind === "creator") next.creators.add(creator);
+      else if (kind === "undo-creator") next.creators.delete(creator);
+      return next;
+    });
+  }, []);
+
   // Hover-to-play preview (single reused player overlay) — shared with other grids.
-  const { containerProps, getCardProps, overlay } = useHoverPreview();
+  // On hover-capable devices the options menu is rendered INSIDE the preview
+  // overlay: `.card:hover` sets a transform, which makes the card its own stacking
+  // context, so a menu rendered in the card is always painted under the overlay.
+  const renderCardControls = useCallback(({ author, permlink, title, setLock }) => (
+    <CardOptionsMenu
+      author={author}
+      permlink={permlink}
+      title={title}
+      onDismiss={handleDismiss}
+      onOpenChange={setLock}
+    />
+  ), [handleDismiss]);
+
+  const { containerProps, getCardProps, overlay, canHover } = useHoverPreview({
+    renderControls: renderCardControls,
+  });
 
   const formatViewCount = (views) => {
     if (views === null || views === undefined) return null;
@@ -36,11 +70,15 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
 
   // Memoize video processing to prevent re-computing thumbnails on every render
   const processedVideos = useMemo(() => {
-    return videos.map(video => ({
-      ...video,
-      _processedThumbnail: fixVideoThumbnail(video, shortsGrid)
-    }));
-  }, [videos, shortsGrid]);
+    const ownerOf = (v) => String(v.author?.username || v.author || v.owner || "").toLowerCase();
+    return videos
+      .filter((v) => !dismissed.creators.has(ownerOf(v)))
+      .filter((v) => !dismissed.videos.has(`${ownerOf(v)}/${v.permlink}`))
+      .map(video => ({
+        ...video,
+        _processedThumbnail: fixVideoThumbnail(video, shortsGrid)
+      }));
+  }, [videos, shortsGrid, dismissed]);
 
   if (loading && videos.length === 0) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
@@ -64,17 +102,16 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
             }${linkQuery}${video._scheduled ? '&scheduled=1' : ''}`}
             className="card"
             key={postKey}
-            {...getCardProps(postKey, cardAuthor, video.permlink, video._processedThumbnail, video.status)}
+            data-vidkey={postKey}
+            {...getCardProps(postKey, cardAuthor, video.permlink, video._processedThumbnail, video.status, video.title)}
           >
-            {/* Thumbnail */}
+            {/* Thumbnail — fast fallback so a dead image host can't leave the
+                card blank for ~a minute (see CardThumbnail). */}
             <div className="img-wrap">
-              <img
+              <CardThumbnail
                 src={video._processedThumbnail}
-                alt="thumbnail"
-                onError={(e) => (e.currentTarget.src = img)}
-                loading={priority && index < 6 ? "eager" : "lazy"}
-                fetchpriority={priority && index < 6 ? "high" : "auto"}
-                decoding="async"
+                fallback={img}
+                eager={priority && index < 6}
               />
               {!shortsGrid && (
                 <div className="wrap">
@@ -87,12 +124,18 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
                 </div>
               )}
 
-              {/* Add to Playlist Button */}
-              <AddToPlaylistButton
-                author={video.author?.username || video.author || video.owner}
-                permlink={video.permlink}
-                title={video.title}
-              />
+              {/* Options menu (playlist / not interested / hide creator).
+                  Hover-capable devices get it inside the preview overlay instead —
+                  see renderCardControls above. Touch devices never get the
+                  `.card:hover` transform, so rendering here works for them. */}
+              {!canHover && (
+                <CardOptionsMenu
+                  author={video.author?.username || video.author || video.owner}
+                  permlink={video.permlink}
+                  title={video.title}
+                  onDismiss={handleDismiss}
+                />
+              )}
 
               {/* Status Badges */}
               {video.status === 'scheduled' && video.publish_type === 'schedule' && (

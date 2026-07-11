@@ -18,6 +18,7 @@ import {
   ChevronUp,
   ChevronDown,
   ArrowLeft,
+  Bookmark,
   ExternalLink,
   Video,
   MessageSquareText,
@@ -43,6 +44,8 @@ import mantequillaLogo from '../assets/mantequilla-logo.png';
 import ReportModal, { isReported } from '../components/modal/ReportModal';
 import { Flag } from 'lucide-react';
 import ShareChooserModal from '../components/Chat/ShareChooserModal';
+import { useMyPlaylists, isVideoInPlaylist } from '../hooks/useMyPlaylists';
+import { addToPlaylist, removeFromPlaylist, createPlaylistAndAdd } from '../utils/playlistOperations';
 import useTranslation from '../hooks/useTranslation';
 import TranslateButton from '../components/TranslateButton/TranslateButton';
 import useSubtitles from '../hooks/useSubtitles';
@@ -63,12 +66,13 @@ const HiveIcon = ({ size = 24, className = '' }) => (
     <path d="M6.076 1.637a.103.103 0 00-.09.05L.014 11.95a.102.102 0 000 .104l6.039 10.26c.04.068.14.068.18 0l5.972-10.262a.102.102 0 00-.002-.104L6.166 1.687a.103.103 0 00-.09-.05zm2.863 0c-.079 0-.13.085-.09.154l5.186 8.967a.105.105 0 00.09.053h3.117c.08 0 .13-.088.09-.157l-5.186-8.966a.104.104 0 00-.09-.051H8.94zm5.891 0a.102.102 0 00-.088.154L20.656 12l-5.914 10.209a.102.102 0 00.088.154h3.123a.1.1 0 00.088-.05l5.945-10.262a.1.1 0 000-.102L18.041 1.688a.1.1 0 00-.088-.051H14.83zm-.79 11.7a.1.1 0 00-.089.052l-5.101 8.82c-.04.069.01.154.09.154h3.117a.104.104 0 00.09-.05l5.1-8.82a.103.103 0 00-.09-.155h-3.118z" />
   </svg>
 );
-import hiveApi, { regenerateShortsSeed, consumePreloadedShorts, hasShortsPreloaded, preloadShorts, fetchUserShortsWithDetails } from '../hive-api/hiveApi';
+import hiveApi, { SHORTS_PAGE_SIZE, consumePreloadedShorts, hasShortsPreloaded, preloadShorts, fetchUserShortsWithDetails } from '../hive-api/hiveApi';
 import { useAppStore } from '../lib/store';
 import { getViewerId } from '../utils/viewerId';
 import { recordWatch } from '../utils/watchHistory';
 import { recordReshare, getResharesForVideo, deleteReshare } from '../utils/reshares';
 import axios from 'axios';
+import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { PLAYER_URL, FEATURE_EDITOR } from '../utils/config';
@@ -88,6 +92,14 @@ import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 
 // Thin wrapper: reads currentTime from a ref via polling to avoid re-rendering the whole Shorts page
+// The Watch Later playlist is identified by NAME — same convention as the watch
+// page and the add-to-playlist modal. Private, and created on first save.
+const WATCH_LATER_NAME = 'Watch Later';
+const generatePlaylistId = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
 function ShortsSubtitleOverlay({ timeRef, cues, style }) {
   const [time, setTime] = useState(0);
   useEffect(() => {
@@ -215,6 +227,16 @@ function shortWatchBeat(watchRef, position) {
 /* ================= COMPONENT ================= */
 const VideoShort = () => {
   const { user, authenticated, watchHistoryEnabled } = useAppStore();
+  // Shorts feed mode — 'discover' (everything, interests just boost the ranking) or
+  // 'interests' (ONLY shorts whose winning topic is one of mine). Persisted in the
+  // store. Never applies to a creator's feed (?user=…), which stays date-sorted.
+  const shortsFeedMode = useAppStore((s) => s.shortsFeedMode);
+  const setShortsFeedMode = useAppStore((s) => s.setShortsFeedMode);
+  const myInterests = useAppStore((s) => s.interests);
+  const hasInterests = Array.isArray(myInterests) && myInterests.length > 0;
+  const interestsMode = shortsFeedMode === 'interests' && hasInterests;
+  // Optional comment input under the short (Settings → "Comment bar on shorts").
+  const shortsCommentBar = useAppStore((s) => s.shortsCommentBar);
   const { translate: onTranslate, getTranslation, clearTranslation, translating } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentIndexRef = useRef(0);
@@ -453,6 +475,58 @@ const VideoShort = () => {
     sendCommandToVideo(currentVid, command, data);
   }, [videos, currentIndex, sendCommandToVideo]);
 
+  // Has the user interacted with the page yet? Browsers only permit autoplay while
+  // MUTED until then — and, crucially, if you UN-mute a muted-autoplaying video
+  // without user activation, Chrome/Safari respond by PAUSING it.
+  //
+  // That's exactly what broke "Open shorts on start": the app auto-navigates to
+  // /shorts with no interaction yet, we'd start muted (fine), then immediately
+  // restore the user's "unmuted" preference — and the browser paused the video, so
+  // shorts looked like they didn't autoplay. Arriving by tapping the Shorts tab
+  // worked only because that tap counted as activation.
+  //
+  // So: hold the unmute until there's a real gesture, then apply it.
+  const userGestureRef = useRef(false);
+  // True while we're autoplaying MUTED even though the user prefers sound, because
+  // there's been no gesture yet. Drives the mute icon so it tells the truth (the
+  // video really is muted) instead of showing "unmuted" over silent audio.
+  const [unmutePending, setUnmutePending] = useState(false);
+  const hasActivation = useCallback(() => {
+    if (typeof navigator !== 'undefined' && navigator.userActivation) {
+      return navigator.userActivation.hasBeenActive;
+    }
+    return userGestureRef.current;
+  }, []);
+
+  useEffect(() => {
+    if (hasActivation()) return undefined;
+    // Sound is wanted but not yet permitted → we'll be playing muted.
+    if (!isMutedRef.current) setUnmutePending(true);
+    const onGesture = (e) => {
+      userGestureRef.current = true;
+      // If this very gesture is a tap on the mute control, the user is explicitly
+      // choosing — let toggleMute own the outcome. Otherwise we'd unmute here and
+      // toggleMute would immediately flip it back to muted, so tapping "unmute"
+      // would mute you.
+      if (e?.target?.closest?.('.muteIndicator')) return;
+      setUnmutePending(false);
+      // Apply the deferred unmute now that activation allows it.
+      const p = playerRef.current;
+      if (p && !p.destroyed && !isMutedRef.current) {
+        try { p.setMuted(false); } catch { /* ignore */ }
+      }
+    };
+    const opts = { once: true, capture: true };
+    window.addEventListener('pointerdown', onGesture, opts);
+    window.addEventListener('touchstart', onGesture, opts);
+    window.addEventListener('keydown', onGesture, opts);
+    return () => {
+      window.removeEventListener('pointerdown', onGesture, opts);
+      window.removeEventListener('touchstart', onGesture, opts);
+      window.removeEventListener('keydown', onGesture, opts);
+    };
+  }, [hasActivation]);
+
   // Play an SDK player with correct mute state.
   // Always start muted so iOS allows the play(), then unmute after playback starts.
   const playPlayerWithMuteSync = useCallback((player) => {
@@ -460,14 +534,19 @@ const VideoShort = () => {
     player.setMuted(true);
     player.play().then(() => {
       if (!player.destroyed) {
-        player.setMuted(isMutedRef.current);
+        // Muting is always safe. UN-muting is only safe once the user has
+        // interacted — otherwise the browser pauses what we just started.
+        // The gesture listener above applies the unmute retroactively.
+        if (isMutedRef.current || hasActivation()) {
+          player.setMuted(isMutedRef.current);
+        }
       }
       setAutoplayBlocked(false);
     }).catch((err) => {
       console.warn('[VideoShort] play() rejected:', err);
       setAutoplayBlocked(true);
     });
-  }, []);
+  }, [hasActivation]);
 
   const togglePlayPause = useCallback(() => {
     sendCommand('toggle-play');
@@ -479,7 +558,12 @@ const VideoShort = () => {
   // Toggle mute: only send to current (active) player.
   // Other players get mute synced when they become current via playPlayerWithMuteSync.
   const toggleMute = useCallback(() => {
-    const newMuted = !isMuted;
+    // While `unmutePending` the video really IS muted (we held the unmute back for
+    // the autoplay policy) even though the stored pref says otherwise — so base the
+    // toggle on what's actually playing, not on the pref alone.
+    const currentlyMuted = isMuted || unmutePending;
+    const newMuted = !currentlyMuted;
+    setUnmutePending(false);
     const command = newMuted ? 'mute' : 'unmute';
     sendCommand(command);
     setIsMuted(newMuted);
@@ -490,7 +574,7 @@ const VideoShort = () => {
     setShowMuteIcon(true);
     if (muteIconTimeoutRef.current) clearTimeout(muteIconTimeoutRef.current);
     muteIconTimeoutRef.current = setTimeout(() => setShowMuteIcon(false), 600);
-  }, [isMuted, sendCommand]);
+  }, [isMuted, unmutePending, sendCommand]);
 
   // Cycle playback mode: auto-replay → auto-swipe → none → auto-replay
   const cyclePlaybackMode = useCallback(() => {
@@ -906,7 +990,7 @@ const VideoShort = () => {
         playerRef.current.destroy();
         playerRef.current = null;
       }
-      preloadShorts(10, user);
+      preloadShorts(SHORTS_PAGE_SIZE, user);
     };
   }, []);
 
@@ -1071,8 +1155,10 @@ const VideoShort = () => {
         } else {
           // Default global feed
           // Only use preloaded data for guests — logged-in users need
-          // currentuser filtering to exclude already-watched shorts
-          if (!user) {
+          // currentuser filtering to exclude already-watched shorts. The preload is
+          // always built in Discover mode, so it must never be served in "My
+          // interests" mode (it isn't filtered to the user's topics).
+          if (!user && !interestsMode) {
             if (!hasShortsPreloaded()) {
               setLoading(true);
             }
@@ -1089,10 +1175,13 @@ const VideoShort = () => {
             consumePreloadedShorts();
           }
 
-          // Fetch with currentuser parameter so watched shorts are filtered out
+          // Fetch with currentuser parameter so watched shorts are filtered out.
+          // NOTE: the seed is deliberately NOT regenerated here. It's one seed per
+          // page load (utils/feedSeed), so navigating away and back keeps the same
+          // order — only a real refresh reshuffles. Regenerating on mount also minted
+          // a fresh sortedShortsCache entry on the checker every single visit.
           setLoading(true);
-          regenerateShortsSeed();
-          const data = await hiveApi.fetchShortsWithDetails(1, 10, user);
+          const data = await hiveApi.fetchShortsWithDetails(1, SHORTS_PAGE_SIZE, user);
 
           if (data.success) {
             const formattedVideos = formatShorts(data.shorts);
@@ -1108,7 +1197,8 @@ const VideoShort = () => {
     };
 
     fetchShorts();
-  }, [user, feedUser, getSharedVideoFromUrl, updateUrlWithCurrentVideo]);
+    // `shortsFeedMode` is a dep so flipping Discover ⇄ My interests refetches page 1.
+  }, [user, feedUser, shortsFeedMode, getSharedVideoFromUrl, updateUrlWithCurrentVideo]);
 
   /* ---------- HANDLE IN-PAGE NAVIGATION TO A SHORT ---------- */
   // When location.search changes (e.g. clicking "View parent reaction"),
@@ -1161,12 +1251,12 @@ const VideoShort = () => {
         hivePermlink: chainData.hivePermlink,
         user: {
           username: `@${chainData.author}`,
-          avatar: `https://images.hive.blog/u/${chainData.author}/avatar`,
+          avatar: `https://images.hive.blog/u/${chainData.author}/avatar/small`,
           isSubscribed: false,
         },
         caption: chainData.title || '',
         audio: `@${chainData.author} - Original Audio`,
-        albumArt: `https://images.hive.blog/u/${chainData.author}/avatar`,
+        albumArt: `https://images.hive.blog/u/${chainData.author}/avatar/small`,
         stats: { likes: 0, dislikes: 0, comments: 0, shares: 0, remixes: 0, views: 0, payout: '0.00' },
         isLiked: false,
         isDisliked: false,
@@ -1292,8 +1382,8 @@ const VideoShort = () => {
 
     try {
       const data = feedUserRef.current
-        ? await fetchUserShortsWithDetails(feedUserRef.current, nextPage, 20)
-        : await hiveApi.fetchShortsWithDetails(nextPage, 20, user);
+        ? await fetchUserShortsWithDetails(feedUserRef.current, nextPage, SHORTS_PAGE_SIZE)
+        : await hiveApi.fetchShortsWithDetails(nextPage, SHORTS_PAGE_SIZE, user);
 
       if (data.success) {
         const formattedVideos = data.shorts.map(short => ({
@@ -1338,7 +1428,14 @@ const VideoShort = () => {
           _enriched: short._enriched != null ? short._enriched : true,
         }));
 
-        setVideos(prev => [...prev, ...formattedVideos]);
+        // Dedup on append: if the server's list ever shifts under us, a page can
+        // overlap what we already hold. Appending blindly would show the same short
+        // twice and throw the swipe index off.
+        setVideos(prev => {
+          const seen = new Set(prev.map(v => v.id));
+          const fresh = formattedVideos.filter(v => !seen.has(v.id));
+          return fresh.length ? [...prev, ...fresh] : prev;
+        });
         setHasMore(nextPage < data.totalPages);
       }
     } catch (err) {
@@ -1497,7 +1594,7 @@ const VideoShort = () => {
       },
       user: {
         username: `@${user}`,
-        avatar: `https://images.hive.blog/u/${user}/avatar`
+        avatar: `https://images.hive.blog/u/${user}/avatar/small`
       },
       has_voted: false
     };
@@ -1781,6 +1878,65 @@ const VideoShort = () => {
     }, 350);
   };
 
+  // ── Watch Later (bookmark button) ──
+  // Same playlist the watch page uses: a private playlist literally named
+  // "Watch Later", created on first use.
+  const { data: myPlaylists = [], refetch: refetchPlaylists } = useMyPlaylists({ enabled: !!user });
+  const watchLaterPlaylist = useMemo(
+    () => myPlaylists.find((p) => p.name === WATCH_LATER_NAME),
+    [myPlaylists],
+  );
+  const isInWatchLater = useMemo(
+    () => (watchLaterPlaylist && currentVideo
+      ? isVideoInPlaylist(watchLaterPlaylist, currentVideo.author, currentVideo.hivePermlink)
+      : false),
+    [watchLaterPlaylist, currentVideo],
+  );
+  const [watchLaterBusy, setWatchLaterBusy] = useState(false);
+
+  const toggleWatchLater = useCallback(async () => {
+    if (!user) { toast.error('Login to save shorts'); return; }
+    if (!currentVideo || watchLaterBusy) return;
+    if (currentVideo.hivePostMissing) { toast.error("This short can't be saved"); return; }
+    const { author, hivePermlink } = currentVideo;
+    setWatchLaterBusy(true);
+    try {
+      if (isInWatchLater) {
+        await removeFromPlaylist(watchLaterPlaylist.id, author, hivePermlink);
+        toast.success('Removed from Watch Later');
+      } else if (watchLaterPlaylist) {
+        await addToPlaylist(watchLaterPlaylist.id, author, hivePermlink, 0);
+        toast.success('Saved to Watch Later');
+      } else {
+        // First ever save — create the playlist and add in one go.
+        await createPlaylistAndAdd(WATCH_LATER_NAME, 'private', generatePlaylistId(), author, hivePermlink);
+        toast.success('Saved to Watch Later');
+      }
+      // The playlist API is eventually consistent (it writes to Hive), so give it a
+      // moment before refetching — same delay the watch page uses.
+      setTimeout(() => {
+        refetchPlaylists();
+        queryClient.invalidateQueries({ queryKey: ['myPlaylists'] });
+      }, 2000);
+    } catch (err) {
+      toast.error('Failed: ' + (err.message || 'please try again'));
+    } finally {
+      setWatchLaterBusy(false);
+    }
+  }, [user, currentVideo, watchLaterBusy, isInWatchLater, watchLaterPlaylist, refetchPlaylists, queryClient]);
+
+  // Switch the shorts feed mode. Clears the ?v= param first: we replaceState it to
+  // the short in view as you swipe, and the refetch would otherwise treat it as a
+  // "shared video", prepend it and jump back to it — i.e. you'd land on the exact
+  // short you just finished instead of the top of the new feed.
+  const switchFeedMode = useCallback((mode) => {
+    window.history.replaceState({}, '', window.location.pathname);
+    setCurrentIndex(0);
+    setPage(1);
+    setHasMore(true);
+    setShortsFeedMode(mode);
+  }, [setShortsFeedMode]);
+
   // Find the nearest ready player index in a given direction, skipping up to `maxSkip` non-ready videos
   const handlePrevious = () => {
     if (currentIndex === 0) return;
@@ -1795,6 +1951,15 @@ const VideoShort = () => {
         await loadMoreVideos();
         triggerSwipeAnimation('up');
         setCurrentIndex(prev => prev + 1);
+        return;
+      }
+      // End of the "My interests" feed. It's often short — a given topic just doesn't
+      // have many recent shorts — so drop back to Discover instead of dead-ending on
+      // the last one. Guarded on interestsMode, which flips false the moment we
+      // switch, so this can't fire twice.
+      if (interestsMode && !feedUser && !hasMore && !loadingMoreRef.current) {
+        toast.info("That's all the shorts for your interests — showing Discover");
+        switchFeedMode('discover');
       }
       return;
     }
@@ -1955,7 +2120,9 @@ const VideoShort = () => {
     const wasSwipe = Math.abs(distance) > minSwipeDistance;
 
     if (startY != null && endY != null && !showComments && !isTransitioning) {
-      if (distance > minSwipeDistance && (currentIndex < videos.length - 1 || hasMore)) {
+      // `|| interestsMode` so a swipe at the END of the interests feed still reaches
+      // handleNext, which is what triggers the automatic fall-back to Discover.
+      if (distance > minSwipeDistance && (currentIndex < videos.length - 1 || hasMore || interestsMode)) {
         setIsTransitioning(true);
         await handleNext();
         setTimeout(() => setIsTransitioning(false), 350);
@@ -2285,7 +2452,7 @@ const VideoShort = () => {
 
   if (loading && videos.length === 0) {
     return (
-      <main className="short-main">
+      <main className="short-main no-bottom-bar">
         <ShortsLoadingScreen />
       </main>
     );
@@ -2296,7 +2463,7 @@ const VideoShort = () => {
 
   if (error && videos.length === 0) {
     return (
-      <main className="short-main">
+      <main className="short-main no-bottom-bar">
         <div className="errorState">
           <p>Error loading shorts: {error}</p>
           <button onClick={() => window.location.reload()}>Retry</button>
@@ -2306,8 +2473,22 @@ const VideoShort = () => {
   }
 
   if (!currentVideo) {
+    // "My interests" can legitimately come back empty (nothing recent matches the
+    // user's topics) — say so and offer a way back, rather than a bare dead end.
+    if (interestsMode && !feedUser) {
+      return (
+        <main className="short-main no-bottom-bar">
+          <div className="emptyState shortsInterestsEmpty">
+            <p>No shorts match your interests right now.</p>
+            <button type="button" onClick={() => switchFeedMode('discover')}>
+              Switch to Discover
+            </button>
+          </div>
+        </main>
+      );
+    }
     return (
-      <main className="short-main">
+      <main className="short-main no-bottom-bar">
         <div className="emptyState">
           <p>No shorts available</p>
         </div>
@@ -2317,7 +2498,7 @@ const VideoShort = () => {
 
   return (
     <>
-    <main className="short-main">
+    <main className={`short-main${shortsCommentBar ? '' : ' no-bottom-bar'}`}>
       <div className="landscape-block"
         onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
         onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
@@ -2329,6 +2510,19 @@ const VideoShort = () => {
         <p>Please rotate your device to portrait mode</p>
       </div>
       <AmbientGlow getVideoEl={() => videoElRef.current} glowMode={glowMode} />
+
+      {/* Browser-tab title for the short currently in view (RouteTitle skips
+          /shorts so it doesn't fight us for the <title> tag). */}
+      <Helmet>
+        <title>
+          {currentVideo?.title
+            ? `${currentVideo.title} | 3Speak`
+            : currentVideo?.author
+              ? `Short by @${currentVideo.author} | 3Speak`
+              : 'Shorts | 3Speak'}
+        </title>
+      </Helmet>
+
       <div
         tabIndex={0}
         ref={keyboardRef}
@@ -2436,12 +2630,56 @@ const VideoShort = () => {
             </div>
             {/* Mute/Unmute icon (single tap feedback) */}
             <div className={`playPauseIcon ${showMuteIcon ? 'visible' : ''}`}>
-              {isMuted ? <VolumeX size={48} /> : <Volume2 size={48} />}
+              {(isMuted || unmutePending) ? <VolumeX size={48} /> : <Volume2 size={48} />}
             </div>
             {/* Heart animation (double tap feedback) */}
             <div className={`heartAnimation ${showHeartAnimation ? 'visible' : ''}`}>
               <Heart size={80} fill="#ff2d55" color="#ff2d55" />
             </div>
+
+            {/* Feed switcher — sits ON the video (top-left), inside the overlay like the
+                other on-video controls, so it lines up with the player instead of the
+                full-width page. Main feed only: a creator's shorts (?user=…) and the
+                stories view keep their own feeds, so it's hidden there.
+                Touch events are stopped so tapping it never registers as a swipe. */}
+            {!feedUser && !isStoriesMode && (
+              <div
+                className="shortsFeedSwitch"
+                role="tablist"
+                aria-label="Shorts feed"
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={shortsFeedMode !== 'interests'}
+                  className={shortsFeedMode !== 'interests' ? 'active' : ''}
+                  onClick={(e) => { e.stopPropagation(); switchFeedMode('discover'); }}
+                >
+                  Discover
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={shortsFeedMode === 'interests'}
+                  className={shortsFeedMode === 'interests' ? 'active' : ''}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!hasInterests) {
+                      toast.error("You haven't picked any interests yet — choose them in Settings");
+                      return;
+                    }
+                    switchFeedMode('interests');
+                  }}
+                  title={hasInterests ? 'Only shorts matching your interests' : 'Pick some interests first'}
+                >
+                  My interests
+                </button>
+              </div>
+            )}
             {/* Ambient glow toggle */}
             <div className={`glowIndicator${glowMode !== 'off' ? ' active' : ''}`}
               onClick={(e) => { e.stopPropagation(); toggleGlow(); }}
@@ -2469,7 +2707,7 @@ const VideoShort = () => {
               onTouchStart={(e) => e.stopPropagation()}
               onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); toggleMute(); }}
             >
-              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              {(isMuted || unmutePending) ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </div>
             {/* Playback mode fading text indicator */}
             <div className={`modeIndicatorText ${showModeIndicator ? 'visible' : ''}`}>
@@ -2794,8 +3032,18 @@ const VideoShort = () => {
                   </span>
                 )}
               </p>
-              {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && (
-                <span className="captionDate">{currentVideo.timeAgo}</span>
+              {/* Date + payout — the payout is info, not an action, so it reads better
+                  here than as a button in the action rail. */}
+              {((currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN')) || currentVideo.stats?.payout != null) && (
+                <span className="captionDate">
+                  {currentVideo.timeAgo && !currentVideo.timeAgo.includes('NaN') && currentVideo.timeAgo}
+                  {currentVideo.stats?.payout != null && (
+                    <span className="captionPayout">
+                      <HiveIcon size={11} />
+                      {formatPayout(currentVideo.stats.payout)}
+                    </span>
+                  )}
+                </span>
               )}
               {captionExpanded && (
                 <div className="captionActions" onClick={(e) => e.stopPropagation()}>
@@ -2873,6 +3121,9 @@ const VideoShort = () => {
               onVoteSuccess={handlePostVoteSuccess}
               cachedDynamicProps={cachedDynamicPropsRef.current}
               onVoteDataRefresh={fetchVoteData}
+              compact
+              enableViewerTag
+              postCreatedAt={currentVideo.createdAt || currentVideo.created}
             />
           </div>
 
@@ -2883,12 +3134,19 @@ const VideoShort = () => {
             <span className="actionLabel">{currentVideo.stats.comments}</span>
           </div>
 
-          {/* Reward/Payout Display */}
-          <div className="actionItem" onClick={(e) => e.stopPropagation()}>
-            <div className="actionButton reward">
-              <HiveIcon size={24} />
+          <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleReshare(); }}>
+            <div className={`actionButton ${hasReshared ? 'reshared' : ''}`}>
+              <Repeat2 size={24} />
             </div>
-            <span className="actionLabel">{formatPayout(currentVideo.stats.payout)}</span>
+            <span className="actionLabel">{reshareCount || 0}</span>
+          </div>
+
+          {/* Watch Later — one tap adds/removes this short from the playlist. */}
+          <div className="actionItem" onClick={(e) => { e.stopPropagation(); toggleWatchLater(); }}>
+            <div className={`actionButton ${isInWatchLater ? 'saved' : ''}`}>
+              <Bookmark size={24} fill={isInWatchLater ? 'currentColor' : 'none'} />
+            </div>
+            <span className="actionLabel">{isInWatchLater ? 'Saved' : 'Save'}</span>
           </div>
 
           <div className="actionItem" onClick={(e) => { e.stopPropagation(); setShareChooserOpen(true); }}>
@@ -2896,13 +3154,6 @@ const VideoShort = () => {
               <Share2 size={24} />
             </div>
             <span className="actionLabel">Share</span>
-          </div>
-
-          <div className="actionItem" onClick={(e) => { e.stopPropagation(); handleReshare(); }}>
-            <div className={`actionButton ${hasReshared ? 'reshared' : ''}`}>
-              <Repeat2 size={24} />
-            </div>
-            <span className="actionLabel">{reshareCount || 0}</span>
           </div>
 
           {FEATURE_EDITOR && authenticated && (() => {
@@ -3084,8 +3335,9 @@ const VideoShort = () => {
       />
 
       {/* Mobile-only quick comment bar at the bottom (replaces the app nav bar
-          on the shorts view). Hidden while the full comments panel is open. */}
-      {!showComments && (
+          on the shorts view). Hidden while the full comments panel is open, and
+          OFF by default — enable it in Settings ("Comment bar on shorts"). */}
+      {!showComments && shortsCommentBar && (
         <div className="shortsBottomComment">
           <textarea
             rows={1}
@@ -3265,6 +3517,7 @@ const CommentItem = ({
               setAccountData={setAccountData}
               cachedDynamicProps={cachedDynamicProps}
               onVoteDataRefresh={onVoteDataRefresh}
+              compact
             />
           </div>
 

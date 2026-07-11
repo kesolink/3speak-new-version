@@ -283,7 +283,7 @@ function PostView() {
       author: {
         id: post.author,
         username: post.author,
-        profile: { name: post.author, images: { avatar: `https://images.hive.blog/u/${post.author}/avatar` } },
+        profile: { name: post.author, images: { avatar: `https://images.hive.blog/u/${post.author}/avatar/small` } },
       },
       stats: {
         num_comments: post.children || 0,

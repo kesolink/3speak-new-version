@@ -484,49 +484,131 @@
   border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x; // horizontal swipe scrolls the bar
   &::-webkit-scrollbar { display: none; }
 
   .home-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     flex: 0 0 auto;
-    padding: 9px 10px;
+    padding: 9px 12px;
     border: none;
     background: transparent;
     color: var(--text-secondary, #888);
     font-size: 13.5px;
     font-weight: 600;
     white-space: nowrap;
-    cursor: pointer;
+    cursor: pointer; // the tab body just selects; only the handle grabs
     border-bottom: 2px solid transparent;
     margin-bottom: -1px; // sit on top of the container's bottom border
-    transition: color 0.12s ease, border-color 0.12s ease;
+    touch-action: pan-y; // vertical swipe scrolls the page; horizontal → reorder
+    user-select: none;
+    transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+
+    .home-tab-icon { display: inline-flex; opacity: 0.9; }
+
+    // Drag handle: revealed on hover (desktop); always faintly shown where there
+    // is no hover (touch) so it can still be grabbed to reorder.
+    .home-tab-handle {
+      display: inline-flex;
+      align-items: center;
+      margin-left: -3px;
+      color: var(--text-secondary, #888);
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+      touch-action: none; // grabbing the handle never scrolls
+      cursor: grab;
+      transition: opacity 0.12s ease, width 0.12s ease;
+
+      &:active { cursor: grabbing; }
+    }
+    &:hover .home-tab-handle { opacity: 0.7; width: 14px; }
 
     &.active {
       color: var(--text-primary, #f1f1f1);
       border-bottom-color: var(--accent-primary, #e0594b);
     }
+    // The tab being dragged: lifted look; the whole bar shows the grabbing cursor.
+    &.dragging {
+      background: var(--bg-hover, rgba(150, 150, 150, 0.12));
+      border-radius: 6px 6px 0 0;
+    }
+  }
+
+  &.is-dragging, &.is-dragging .home-tab { cursor: grabbing; }
+
+  // No hover (touch): show the grip only on the CURRENTLY SELECTED tab, so the
+  // bar isn't cluttered with a handle on every tab.
+  @media (hover: none) {
+    .home-tab.active .home-tab-handle { opacity: 0.5; width: 14px; }
+  }
+
+  // Tighter tabs on mobile so more fit without a wide gap.
+  @include respond(phone) {
+    gap: 0;
+    padding: 0 4px;
+    .home-tab {
+      padding: 8px 8px;
+      gap: 4px;
+      font-size: 13px;
+    }
   }
 }
 
-// ─── Desktop (>1024px): same tab bar, but sticky — clicking a tab smooth-scrolls
-// to that section (see the scroll-spy in HomeGrouped.jsx) instead of switching. ───
-.home-tabs--desktop {
+// Sticky tab bar at the top of the feed.
+.home-tabs--bar {
   position: sticky;
   top: var(--nav-height, 56px);
   z-index: 20;
   background: var(--bg-primary, #0f0f0f);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-// scrollIntoView target offset so a scrolled-to section clears the sticky nav + tabs.
-.home-section-anchor {
-  scroll-margin-top: calc(var(--nav-height, 56px) + 52px);
+// The active tab's content — a normal vertical grid (Card3 self-grids). No
+// horizontal scrolling anywhere.
+.home-tab-panel { padding: 0 8px; }
+
+.home-tab-skeletons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  padding: 0 8px;
 }
 
-// On mobile the tab already names the section, so drop the per-row header title
-// and just keep "View All", pushed to the right.
-@media screen and (max-width: 1024px) {
-  .home-grouped-container .video-row .row-header {
-    justify-content: flex-end;
-    .wrap-title { display: none; }
+.home-tab-viewall {
+  display: flex;
+  justify-content: center;
+  padding: 18px 0 8px;
+  .view-all {
+    padding: 8px 20px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color, rgba(150, 150, 150, 0.3));
+    color: var(--text-primary, #f1f1f1);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    &:hover { border-color: var(--accent-primary, #e0594b); }
+  }
+}
+
+.home-tab-empty {
+  padding: 40px 8px;
+  text-align: center;
+  color: var(--text-secondary, #888);
+  font-size: 14px;
+}
+
+// Infinite-scroll sentinel + "loading more" indicator at the bottom of a tab.
+.home-tab-sentinel {
+  min-height: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 18px 0;
+  .home-tab-loading {
+    font-size: 13px;
+    color: var(--text-secondary, #888);
   }
 }

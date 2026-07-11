@@ -8,19 +8,28 @@ import axios from "axios";
 import { getHiveUrl } from '../utils/hiveNode';
 import { convert } from "html-to-text";
 import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL, PLAYER_URL, appendNsfw } from "../utils/config";
+import { getFeedSeed, regenerateFeedSeed } from "../utils/feedSeed";
 import { useAppStore } from "../lib/store";
 
 /* -----------------------------
    Hive RPC setup
 ------------------------------ */
+// ONE page size for every shorts request. The server paginates with
+// skip = (page-1)*limit, so page 1 and the loadMore pages MUST agree — they used
+// to be 10 and 20, which made page 2 start at server item 20 while the client only
+// had 10. Items 11-20 were never fetched: that's the "swipe jumps over a short".
+export const SHORTS_PAGE_SIZE = 10;
+
 const SHORTS_API = SHORTS_API_URL;
 const USER_SHORTS_API = USER_SHORTS_API_URL;
 
 // Random seed for shorts ordering — regenerated each time shorts are opened
-let SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
+// Shorts share the app-wide session seed: stable across navigation, new on a real
+// page refresh. (It used to be regenerated on every visit to /shorts, which
+// reshuffled the feed whenever you navigated back to it.)
 
 export function regenerateShortsSeed() {
-  SHORTS_SEED = Math.floor(Math.random() * 1_000_000);
+  return regenerateFeedSeed();
 }
 
 /* -----------------------------
@@ -56,14 +65,22 @@ const _shortsByEmbedUrl = new Map(); // embed_url → short object
 const _shortsByPermlink = new Map(); // permlink → short object
 
 export async function fetchShortsList(page = 1, limit = 20, currentuser = null) {
-  let url = appendNsfw(`${SHORTS_API}?page=${page}&limit=${limit}&seed=${SHORTS_SEED}`, useAppStore.getState().showNsfw);
+  let url = appendNsfw(`${SHORTS_API}?page=${page}&limit=${limit}&seed=${getFeedSeed()}`, useAppStore.getState().showNsfw);
   // Bias the feed toward the logged-in user's interests (checker weights them).
   const _st = useAppStore.getState();
-  if (Array.isArray(_st.interests) && _st.interests.length) url += `&interests=${encodeURIComponent(_st.interests.join(','))}`;
-  // Hide already-watched shorts: use the explicit currentuser (existing callers)
-  // OR the logged-in user when the "Hide watched" setting is on.
-  const _watchUser = currentuser || (_st.hideWatched && _st.user ? _st.user : null);
-  if (_watchUser) url += `&currentuser=${encodeURIComponent(_watchUser)}`;
+  const _hasInterests = Array.isArray(_st.interests) && _st.interests.length > 0;
+  if (_hasInterests) url += `&interests=${encodeURIComponent(_st.interests.join(','))}`;
+  // "My interests" mode: ask the checker to HARD-filter to those topics rather than
+  // just boost them. Only meaningful when the user actually has interests set.
+  if (_hasInterests && _st.shortsFeedMode === 'interests') url += '&onlyinterests=1';
+  // Always identify the user when we can: the checker needs `currentuser` for the
+  // always-on dismissals ("not interested" / hidden creator), and separately reads
+  // `hidewatched` for the toggleable hide-watched preference.
+  const _watchUser = currentuser || _st.user || null;
+  if (_watchUser) {
+    url += `&currentuser=${encodeURIComponent(_watchUser)}`;
+    url += `&hidewatched=${_st.hideWatched ? '1' : '0'}`;
+  }
   console.log('Shorts API URL:', url);
   const response = await axios.get(url);
   console.log('Fetching shorts list data:', response.data);
@@ -180,7 +197,7 @@ export function parseEmbedUrl(embedUrl) {
 
 export function parseUserAvatar(account) {
   if (!account) {
-    return "https://images.hive.blog/u/null/avatar";
+    return "https://images.hive.blog/u/null/avatar/small";
   }
 
   try {
@@ -203,7 +220,7 @@ export function parseUserAvatar(account) {
     }
   } catch (_) { }
 
-  return `https://images.hive.blog/u/${account.name}/avatar`;
+  return `https://images.hive.blog/u/${account.name}/avatar/small`;
 }
 
 export function formatNumber(num) {
@@ -266,7 +283,7 @@ export async function fetchCompleteShortData(shortItem, loggedInUser = null) {
     caption: embed_title || "",
     user: {
       username: `@${author}`,
-      avatar: `https://images.hive.blog/u/${author}/avatar`,
+      avatar: `https://images.hive.blog/u/${author}/avatar/small`,
       isSubscribed: false
     },
     stats: {
@@ -573,7 +590,7 @@ async function loadNestedComments(comments, loggedInUser = null) {
         },
         user: {
           username: `@${comment.author}`,
-          avatar: `https://images.hive.blog/u/${comment.author}/avatar`
+          avatar: `https://images.hive.blog/u/${comment.author}/avatar/small`
         }
       };
     })
@@ -687,7 +704,7 @@ export async function fetchShortsWithDetails(page = 1, limit = 10, loggedInUser 
       tags: Array.isArray(s.hive_tags) ? s.hive_tags : [],
       user: {
         username: `@${finalAuthor}`,
-        avatar: `https://images.hive.blog/u/${finalAuthor}/avatar`,
+        avatar: `https://images.hive.blog/u/${finalAuthor}/avatar/small`,
         isSubscribed: false,
         followersCount: s.hive_followers ?? null,
         reputation: s.hive_author_reputation ?? null,
@@ -764,7 +781,7 @@ export async function fetchUserShortsWithDetails(username, page = 1, limit = 20,
       tags: Array.isArray(s.hive_tags) ? s.hive_tags : [],
       user: {
         username: `@${finalAuthor}`,
-        avatar: `https://images.hive.blog/u/${finalAuthor}/avatar`,
+        avatar: `https://images.hive.blog/u/${finalAuthor}/avatar/small`,
         isSubscribed: false,
         followersCount: s.hive_followers ?? null,
         reputation: s.hive_author_reputation ?? null,
@@ -834,7 +851,6 @@ let _preloadPromise = null;
  */
 export function preloadShorts(limit = 5, currentuser = null) {
   if (_preloadedShorts || _preloadPromise) return; // already preloading or done
-  regenerateShortsSeed();
   _preloadPromise = fetchShortsWithDetails(1, limit, currentuser)
     .then((data) => {
       _preloadedShorts = data;
