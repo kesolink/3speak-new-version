@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.53.0',
+    date: '2026-07-12',
+    summary:
+      'Settings is reorganised into tabs — General, Shorts, Content, Interests and Version — so options are easier to find. The browser tab now also shows which page you’re on instead of always saying “3Speak”.',
+  },
+  {
     version: '1.52.0',
     date: '2026-07-12',
     summary:
