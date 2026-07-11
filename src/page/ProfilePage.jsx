@@ -21,6 +21,7 @@ import { FaVideo, FaPlus } from "react-icons/fa";
 import { IoMdShare, IoMdAdd } from "react-icons/io";
 import { MdLock, MdPublic, MdClose } from "react-icons/md";
 import SocialLinks from "../components/Userprofilepage/SocialLinks";
+import LeaderboardBadges from "../components/LeaderboardBadges/LeaderboardBadges";
 import AddSocialLink_modal from "../components/modal/AddSocialLink_modal";
 import EditVideoHintModal from "../components/modal/EditVideoHintModal";
 import { fetchScheduledPosts, normalizeScheduledForCard } from "../utils/scheduledPosts";
@@ -405,6 +406,7 @@ function ProfilePage() {
             <span className="status-dot">
               <span className="dot" /> Verified creator
             </span>
+            <LeaderboardBadges username={user} />
             <SocialLinks
               hiveUsername={user}
               refreshKey={socialLinksRefreshKey}

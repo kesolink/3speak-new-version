@@ -459,3 +459,21 @@
     border: 1px solid var(--accent-primary) !important;
   }
 }
+
+// "Hide creator" toggle in the profile action row. Scoped to .button-group —
+// this stylesheet is a GLOBAL import (not a CSS module), so a bare `.btn svg`
+// rule would have restyled icons in every button in the app.
+.button-group {
+  .btn-hidden-creator {
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    border: none;
+
+    &:hover { filter: brightness(0.92); }
+  }
+
+  .btn svg {
+    vertical-align: -2px;
+    margin-right: 6px;
+  }
+}

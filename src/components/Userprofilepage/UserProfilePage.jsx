@@ -8,7 +8,7 @@ import "./UserProfilePage.scss"
 import BarLoader from '../Loader/BarLoader';
 import { Quantum } from 'ldrs/react'
 import 'ldrs/react/Quantum.css'
-import { useInfiniteQuery, useQueryClient as useReactQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient as useReactQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
@@ -17,6 +17,8 @@ import { MdAdd, MdClose, MdPlayArrow, MdFlag } from 'react-icons/md';
 import ReportModal, { isReported } from '../modal/ReportModal';
 import { RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
 import { BiDollar } from 'react-icons/bi';
+import { IoBanOutline, IoEyeOutline } from 'react-icons/io5';
+import { getHidden, hideCreator, unhideCreator } from '../../utils/userFilters';
 import Follower from './Follower';
 import PlaylistCard from '../Cards/PlaylistCard';
 import { useUserPlaylists } from '../../hooks/useUserPlaylists';
@@ -32,6 +34,7 @@ import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
 import UserAudioList from './UserAudioList';
 import SocialLinks from './SocialLinks';
+import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
 
 
@@ -86,6 +89,53 @@ function UserProfilePage() {
     // Stats are own-profile-only, except these admins who can view any profile's stats.
     const STATS_ADMINS = ['tibfox', 'badadib'];
     const canSeeStats = isOwnProfile || STATS_ADMINS.includes(authenticatedUser?.toLowerCase());
+
+    // ── "Don't show this creator" (same suppression as the card ⋮ menu) ──
+    const rqClient = useReactQueryClient();
+    const [hideLoading, setHideLoading] = useState(false);
+    const { data: hiddenData } = useQuery({
+      queryKey: ['hidden-creators', authenticatedUser],
+      queryFn: () => getHidden(authenticatedUser),
+      enabled: !!authenticatedUser,
+      staleTime: 5 * 60 * 1000,
+    });
+    const isCreatorHidden = !!hiddenData?.creators?.some(
+      (c) => String(c.creator).toLowerCase() === String(user).toLowerCase()
+    );
+
+    const handleHideToggle = useCallback(async () => {
+      if (!authenticatedUser || !user || isOwnProfile) return;
+      setHideLoading(true);
+      const ok = isCreatorHidden
+        ? await unhideCreator(authenticatedUser, user)
+        : await hideCreator(authenticatedUser, user);
+      setHideLoading(false);
+      if (!ok) {
+        toast.error('Could not update. Please try again.');
+        return;
+      }
+      // Refresh the toggle itself, then every feed that filters on it.
+      await rqClient.invalidateQueries({ queryKey: ['hidden-creators', authenticatedUser] });
+      ['discover-grouped', 'trending-grouped', 'newcontent-grouped', 'promoted-grouped',
+        'home-grouped', 'follow-feed', 'trending', 'shorts'].forEach((k) =>
+        rqClient.invalidateQueries({ queryKey: [k] }));
+
+      toast.success(
+        isCreatorHidden
+          ? `@${user}'s videos will show in your feeds again`
+          : `Hiding @${user}'s videos from your feeds`,
+        {
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              if (isCreatorHidden) await hideCreator(authenticatedUser, user);
+              else await unhideCreator(authenticatedUser, user);
+              rqClient.invalidateQueries({ queryKey: ['hidden-creators', authenticatedUser] });
+            },
+          },
+        }
+      );
+    }, [authenticatedUser, user, isOwnProfile, isCreatorHidden, rqClient]);
 
     // Redirect to /profile if viewing own profile
     useEffect(() => {
@@ -328,6 +378,7 @@ const {
             <span className="status-dot">
               <span className="dot"></span>Verified creator
             </span>
+            <LeaderboardBadges username={user} />
             <SocialLinks hiveUsername={user} />
           </>
         }
@@ -348,6 +399,22 @@ const {
                 disabled={followLoading}
               >
                 {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
+              </button>
+            )}
+            {authenticated && !isOwnProfile && (
+              <button
+                className={`btn ${isCreatorHidden ? 'btn-hidden-creator' : 'btn-secondary'}`}
+                onClick={handleHideToggle}
+                disabled={hideLoading}
+                title={isCreatorHidden
+                  ? `Show @${user}'s videos in your feeds again`
+                  : `Hide @${user}'s videos from all your feeds`}
+              >
+                {hideLoading
+                  ? 'Loading...'
+                  : isCreatorHidden
+                    ? <><IoEyeOutline /> Unhide</>
+                    : <><IoBanOutline /> Hide</>}
               </button>
             )}
             {authenticated && !isOwnProfile && (

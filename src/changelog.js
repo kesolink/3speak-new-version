@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.51.0',
+    date: '2026-07-12',
+    summary:
+      'New Leaderboard page (/leaderboard) ranking the top creators, with a “Top 10 Video Creator” badge shown on their profiles.',
+  },
+  {
     version: '1.50.0',
     date: '2026-07-12',
     summary:
