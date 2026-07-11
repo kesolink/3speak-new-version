@@ -54,6 +54,12 @@ html[data-card-size="large"] { --card-min-w: 420px; }
       // width: 270px;
       width: 100%;
       position: relative;
+      // Neutral skeleton behind the thumbnail so a slow/loading image reads as a
+      // placeholder rather than a stark white box.
+      background: var(--skeleton-bg, rgba(150, 150, 150, 0.14));
+      border-radius: 5px;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
 
       img {
         // width: 100%;
@@ -114,6 +120,14 @@ html[data-card-size="large"] { --card-min-w: 420px; }
       }
 
       &:hover .add-to-playlist-btn {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      // Options-menu trigger — same reveal, but it renders ABOVE the hover-preview
+      // overlay (see CardOptionsMenu.scss) instead of being painted over by it,
+      // which is what made the old bare playlist button useless mid-preview.
+      &:hover .card-options-btn {
         opacity: 1;
         transform: translateY(0);
       }
@@ -572,4 +586,22 @@ html[data-card-size="large"] { --card-min-w: 420px; }
     box-shadow: 0 0 3px rgba(0, 0, 0, 0.6);
     transform: translateX(-50%);
   }
+}
+
+// Loading spinner shown over a thumbnail until its first bits decode (or it
+// falls back). Sits on the neutral skeleton background of .img-wrap.
+@keyframes card-thumb-spin { to { transform: rotate(360deg); } }
+.card-thumb-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border-radius: 50%;
+  border: 2px solid rgba(150, 150, 150, 0.35);
+  border-top-color: var(--accent-primary, #e0594b);
+  animation: card-thumb-spin 0.7s linear infinite;
+  pointer-events: none;
+  z-index: 1;
 }

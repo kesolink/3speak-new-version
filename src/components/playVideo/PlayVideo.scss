@@ -176,6 +176,10 @@
                 .mobile-only {
                     display: inline-flex;
                 }
+                // Right-align the author tags on mobile too (desktop already does
+                // via the v2 min-width block), so everything tag-related lines up
+                // on the right.
+                justify-content: flex-end;
             }
         }
 
@@ -1587,4 +1591,54 @@
   border: 1px solid var(--border-light, rgba(0, 0, 0, 0.08));
   border-radius: 12px;
   padding: 14px;
+}
+
+// ── DEBUG: transcription-pipeline auto-tags ─────────────────────────────────
+// Sits directly under the real tag row. Deliberately styled as *not* a real tag:
+// dashed outline + muted ink, so nobody mistakes these for the author's tags.
+// Remove this block (and the JSX in PlayVideo) when the tagger work is done.
+// Topic consensus row (viewer votes + auto tags with %). In the v2 watch layout
+// .video-details-collapsible is a flex row where badges-row=order:1 and
+// community-tags-row=order:2; without an explicit order this row defaults to 0
+// and lands LEFT of the username. order:3 + full-width basis forces it onto its
+// own line UNDER the author tags.
+// Topic chips live INSIDE .community-tags-row, next to the author tags. On
+// desktop `.topic-chips` is display:contents so its chips become direct flex
+// children of the tags row and wrap together with the author tags. On mobile
+// (below) it collapses to its own right-aligned line, keeping the old layout.
+.topic-chips {
+  display: contents;
+
+  @include mix.respond(phone) {
+    display: flex;
+    flex-basis: 100%;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+  }
+}
+
+// Base chip = auto-only topic (dashed, muted). Viewer-voted topics get a solid
+// accent border so you can tell crowd input from the pipeline's guess.
+.tag--topic {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--border-color, rgba(150, 150, 150, 0.4));
+  background: transparent;
+  color: var(--text-secondary, #9aa0a6);
+  font-size: 12px;
+  cursor: pointer;
+
+  b { font-weight: 700; color: var(--text-primary, #f1f1f1); }
+
+  &:hover { border-color: var(--accent-primary, #e53935); }
+
+  &.tag--topic-voted {
+    border-style: solid;
+    border-color: var(--accent-primary, #e53935);
+    color: var(--text-primary, #f1f1f1);
+  }
 }

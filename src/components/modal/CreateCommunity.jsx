@@ -267,7 +267,7 @@ const CreateCommunity = ({ isOpen, close}) => {
               < div className="second-step-container">
                 <div className="Creator-info">
                   <label>Creator</label>
-                  <div className="wrap"> <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" /><span> @{user}</span></div>
+                  <div className="wrap"> <img src={`https://images.hive.blog/u/${user}/avatar/small`} alt="" /><span> @{user}</span></div>
                   {/* <span>Creation fee: 3 HIve</span> */}
                 </div>
                 <div className="fee-info">

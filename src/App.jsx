@@ -31,7 +31,7 @@ import ProfileNav from "./components/nav/ProfileNav";
 import CommunitiesRender from "./components/Communities/CommunitiesRender";
 import CommunityPage from "./components/Communities/CommunityPage";
 import TagFeed from "./page/TagFeed";
-import LeaderBoard from "./page/LeaderBoard";
+import Leaderboard from "./page/Leaderboard";
 import ProfilePage from "./page/ProfilePage";
 import Wallet from "./page/Wallet";
 import Testing from "./components/Testingfile/Testing";
@@ -40,6 +40,8 @@ import DraftStudio from "./components/studio/DraftStudio";
 import EditVideo from "./page/EditVideo";
 import EditScheduledPost from "./page/EditScheduledPost";
 import ScrollToTop from "./components/ScrollToTop";
+import RouteTitle from "./components/RouteTitle";
+import OpenShortsOnStart from "./components/OpenShortsOnStart";
 import AddAccount_modal from "./components/modal/AddAccount_modal";
 import TestingLogin3 from "./page/Login/TestingLogin3";
 // import TestingLogin from "./page/Login/TestingLogin";
@@ -476,6 +478,10 @@ function App() {
         {!hideNavOnMobile && !sidebarHidden && <Sidebar sidebar={sidebar} />}
         <div className={`container ${sidebar && !sidebarHidden ? "" : "large-container"} ${sidebarHidden ? "sidebar-fully-hidden" : ""} ${hideNavOnMobile ? "shorts-mobile-container" : ""}`}>
           <ScrollToTop />
+          {/* Browser-tab title for every route (watch/shorts set their own). */}
+          <RouteTitle />
+          {/* Optional: land on /shorts when the app is opened (off by default). */}
+          <OpenShortsOnStart />
           {/* <Toaster richColors position="top-right" /> */}
           <Routes>
             <Route path="/" element={<HomeGrouped />} />
@@ -521,7 +527,7 @@ function App() {
               element={<CommunityPage />}
             />
             <Route path="/t/:tag" element={<TagFeed />} />
-            <Route path="/leaderboard" element={<LeaderBoard />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/p/:user" element={<UserProfilePage />} />
             <Route path="/user/:user" element={<UserProfilePage />} />

@@ -165,6 +165,9 @@ const ALLOWED_CUSTOM_JSON_IDS = new Set([
   '3speak_playlist_reorder',
   '3speak_playlist_update',
   '3speak_playlist_delete',
+  // Crowd-sourced viewer tag, broadcast in the same tx as a vote (see the app's
+  // voteWithAioha). Low-stakes topic label; posting-auth only.
+  '3speak-viewer-tag',
 ])
 
 const OP_USER_FIELD = {

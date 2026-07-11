@@ -225,7 +225,7 @@ function EmbedDetails() {
               {!fromStories && (
                 <div className="community-box-wrap">
                   <div className="community-wrap" onClick={openCommunityModal}>
-                    {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
+                    {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar/small`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar/small`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
                     <IoIosArrowDropdownCircle size={16} />
                   </div>
                   <span>Select Community </span>

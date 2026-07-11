@@ -6,15 +6,19 @@
 import { getHiveClient } from '../utils/hiveNode';
 import { useAppStore } from './store';
 
-// Extra feed params: interests (checker weights the feed toward them) and, when
-// "Hide watched" is on, currentuser (checker skips already-seen videos).
+// Extra feed params: interests (checker weights the feed toward them), currentuser
+// (needed for BOTH the always-on dismissals and hide-watched), and the
+// hide-watched preference itself.
 function feedParams() {
   let p = '';
   try {
     const st = useAppStore.getState();
     const list = st.interests;
     if (Array.isArray(list) && list.length) p += `&interests=${encodeURIComponent(list.join(','))}`;
-    if (st.hideWatched && st.user) p += `&currentuser=${encodeURIComponent(st.user)}`;
+    if (st.user) {
+      p += `&currentuser=${encodeURIComponent(st.user)}`;
+      p += `&hidewatched=${st.hideWatched ? '1' : '0'}`;
+    }
   } catch (_) { /* ignore */ }
   return p;
 }
@@ -48,7 +52,7 @@ export async function fetchHiveProfile(username) {
     name: p.name || username,
     about: p.about || '',
     images: {
-      avatar: p.profile_image || `https://images.hive.blog/u/${username}/avatar`,
+      avatar: p.profile_image || `https://images.hive.blog/u/${username}/avatar/small`,
       cover: p.cover_image || '',
     },
   };
@@ -83,7 +87,20 @@ export async function fetchPlaySource(author, permlink) {
 // `socialPost` HivePost returned.
 export async function fetchVideoDetails(author, permlink) {
   if (!author || author === 'unknown' || !permlink) return null;
-  const post = await hiveClient.call('condenser_api', 'get_content', [author, permlink]);
+  let post;
+  try {
+    post = await hiveClient.call('condenser_api', 'get_content', [author, permlink]);
+  } catch (err) {
+    // Newer Hive nodes throw a JSON-RPC assertion error ("Post a/p does not
+    // exist", code -32602) for a missing post instead of returning an empty
+    // object. That's "not found" (→ null), NOT a network problem — only genuine
+    // transport failures should bubble up and show the "Network error" screen.
+    const msg = String(err?.message || err || '').toLowerCase();
+    if (msg.includes('does not exist') || msg.includes('-32602') || msg.includes('assert')) {
+      return null;
+    }
+    throw err;
+  }
   if (!post || !post.author) return null;
 
   const meta = parseMeta(post.json_metadata);
@@ -119,7 +136,7 @@ export async function fetchVideoDetails(author, permlink) {
       username: post.author,
       profile: {
         name: post.author,
-        images: { avatar: `https://images.hive.blog/u/${post.author}/avatar` },
+        images: { avatar: `https://images.hive.blog/u/${post.author}/avatar/small` },
       },
     },
     stats: {
@@ -141,6 +158,19 @@ export async function fetchVideoDetails(author, permlink) {
 export async function fetchTrendingFeed(limit = 20) {
   try {
     const r = await fetch(`${CHECKER_URL}/feeds/trendingSorted?limit=${limit}${feedParams()}`);
+    const j = await r.json();
+    return j?.videos || [];
+  } catch (_) { return []; }
+}
+
+// Sidebar recommendations for a watch page: biased toward the current video's
+// topic, the user's interests, and the same creator (see /feeds/related).
+export async function fetchRelatedFeed(author, permlink, limit = 24) {
+  if (!author || !permlink || author === 'unknown') return [];
+  try {
+    const r = await fetch(
+      `${CHECKER_URL}/feeds/related/${encodeURIComponent(author)}/${encodeURIComponent(permlink)}?limit=${limit}${feedParams()}`
+    );
     const j = await r.json();
     return j?.videos || [];
   } catch (_) { return []; }

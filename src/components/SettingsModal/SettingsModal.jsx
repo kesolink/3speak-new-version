@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
 import { toast } from 'sonner';
@@ -17,6 +17,9 @@ function InterestsSection() {
   const { interests, setInterests, user } = useAppStore();
   const [hydrating, setHydrating] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Transient "Saved" confirmation shown right after a save. Resets when the
+  // modal (and this section) unmounts, so reopening settings never shows it.
+  const [justSaved, setJustSaved] = useState(false);
   const savedRef = useRef(null); // last-known on-chain selection
 
   // Hydrate from Hive on open (Hive is canonical); keep local cache as fallback.
@@ -38,6 +41,7 @@ function InterestsSection() {
     : !sameSet(interests, savedRef.current);
 
   const toggle = (id) => {
+    setJustSaved(false); // a fresh change → back to a "Save" CTA
     setInterests(selected.has(id) ? interests.filter((x) => x !== id) : [...interests, id]);
   };
 
@@ -48,6 +52,7 @@ function InterestsSection() {
       const list = await saveInterestsToHive(user, interests);
       savedRef.current = list;
       setInterests(list);
+      setJustSaved(true);
       toast.success('Interests saved to your Hive profile');
     } catch (e) {
       toast.error(e?.message || 'Could not save interests');
@@ -80,7 +85,9 @@ function InterestsSection() {
           </button>
         ))}
       </div>
-      {user && (
+      {/* Only shown when there's something to save, while saving, or right after
+          a save (the transient "Saved" confirmation). Hidden otherwise. */}
+      {user && (dirty || saving || justSaved) && (
         <div className="settings-interests-actions">
           <button
             type="button"
@@ -124,13 +131,58 @@ function Row({ title, desc, checked, onChange }) {
   );
 }
 
+const TABS = [
+  { id: 'general', label: 'General' },
+  { id: 'shorts', label: 'Shorts' },
+  { id: 'content', label: 'Content' },
+  { id: 'interests', label: 'Interests' },
+  { id: 'version', label: 'Version' },
+];
+
 /**
  * Settings popup — the toggles that used to live inline in the profile
  * side menu, now grouped with headers + explanations and compact switches.
  */
 export default function SettingsModal({ isOpen, onClose }) {
-  const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled, hideWatched, setHideWatched, privateMode, setPrivateMode } = useAppStore();
+  const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled, shortsCommentBar, setShortsCommentBar, openShortsOnStart, setOpenShortsOnStart, hideWatched, setHideWatched, privateMode, setPrivateMode, simpleFeed, setSimpleFeed } = useAppStore();
   const [tab, setTab] = useState('general');
+
+  // Lock background page scroll while the modal is open (restore on close).
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
+
+  // ── Pin the dialog's top-left corner where it lands on open ──
+  // The overlay flex-CENTRES the dialog, so a taller tab pushes the top edge
+  // upward and the whole thing visibly jumps as you switch tabs. We let it centre
+  // once, measure where it landed, then switch to fixed top/left so it only ever
+  // grows/shrinks DOWNWARD from that spot.
+  //
+  // Not on mobile: there it's a bottom sheet and must stay pinned to the bottom.
+  const modalRef = useRef(null);
+  const [anchor, setAnchor] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!isOpen) { setAnchor(null); return undefined; }
+    // Bottom sheet (<=640px, see the SCSS) must not be anchored.
+    if (!window.matchMedia('(min-width: 641px)').matches) { setAnchor(null); return undefined; }
+
+    // anchor===null → currently centred, so this measurement is the "opened" spot.
+    if (!anchor && modalRef.current) {
+      const r = modalRef.current.getBoundingClientRect();
+      setAnchor({ top: r.top, left: r.left });
+    }
+
+    // On resize the stored coords are stale — drop the anchor so it re-centres and
+    // the effect measures the new spot on the next pass.
+    const onResize = () => setAnchor(null);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [isOpen, anchor]);
+
   if (!isOpen) return null;
 
   // The left sidebar only exists on desktop, so its toggle is irrelevant on mobile/tablet.
@@ -139,10 +191,27 @@ export default function SettingsModal({ isOpen, onClose }) {
   // a touch user has small cards selected (it would have no effect).
   const isTouch = !window.matchMedia('(hover: hover)').matches;
   const showPreviewSetting = !isTouch || homeCardSize === 'large';
+  // The shorts comment bar is rendered only under 768px (see Short.scss), so its
+  // toggle would do nothing on desktop/tablet. Gate it on the SAME breakpoint —
+  // `isDesktop` (>=1025px) would wrongly still show it on a tablet.
+  const showShortsCommentBarSetting = window.matchMedia('(max-width: 768px)').matches;
 
   return createPortal(
     <div className="settings-modal-overlay" onClick={onClose}>
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="settings-modal"
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+        style={anchor ? {
+          position: 'fixed',
+          top: anchor.top,
+          left: anchor.left,
+          // Anchored at a fixed top, a tall tab would otherwise run off the bottom
+          // of the screen — cap it to the room actually left below the anchor and
+          // let the content scroll inside.
+          maxHeight: `calc(100vh - ${Math.round(anchor.top)}px - 16px)`,
+        } : undefined}
+      >
         <div className="settings-modal-header">
           <h3>Settings</h3>
           <button className="settings-modal-close" onClick={onClose} aria-label="Close">
@@ -151,104 +220,124 @@ export default function SettingsModal({ isOpen, onClose }) {
         </div>
 
         <div className="settings-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'general'}
-            className={`settings-tab${tab === 'general' ? ' active' : ''}`}
-            onClick={() => setTab('general')}
-          >
-            General
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'content'}
-            className={`settings-tab${tab === 'content' ? ' active' : ''}`}
-            onClick={() => setTab('content')}
-          >
-            Interests
-          </button>
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              className={`settings-tab${tab === id ? ' active' : ''}`}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {tab === 'general' && (
-          <>
-            <div className="settings-section">
-              <h4 className="settings-section-title">Appearance</h4>
+          <div className="settings-section">
+            <h4 className="settings-section-title">Appearance</h4>
+            <Row
+              title="Dark mode"
+              desc="Use the dark colour theme across the app."
+              checked={theme === 'dark'}
+              onChange={(wantDark) => { if ((theme === 'dark') !== wantDark) toggleTheme(); }}
+            />
+            <Row
+              title="Large cards"
+              desc="Show bigger video cards on the home, profile and playlist pages. Turn off for smaller, more compact cards."
+              checked={homeCardSize === 'large'}
+              onChange={(large) => setHomeCardSize(large ? 'large' : 'small')}
+            />
+            {showPreviewSetting && (
               <Row
-                title="Dark mode"
-                desc="Use the dark colour theme across the app."
-                checked={theme === 'dark'}
-                onChange={(wantDark) => { if ((theme === 'dark') !== wantDark) toggleTheme(); }}
+                title="Video previews"
+                desc="Play a muted preview when you hover a video card (and, on mobile in large mode, the centred card auto-plays as you scroll)."
+                checked={previewEnabled !== false}
+                onChange={(v) => setPreviewEnabled(v)}
               />
-              {isDesktop && (
-                <Row
-                  title="Hide sidebar"
-                  desc="Collapse the left navigation sidebar for a wider content area."
-                  checked={!!sidebarHidden}
-                  onChange={(hide) => setSidebarHidden(hide)}
-                />
-              )}
+            )}
+            <Row
+              title="Simple feeds"
+              desc="Turn off the recommendation algorithm — Discover, Interests and Trending become plain newest-first lists instead of ranked ones."
+              checked={!!simpleFeed}
+              onChange={(v) => setSimpleFeed(v)}
+            />
+            {/* The sidebar only exists on desktop, so this is hidden on mobile/tablet. */}
+            {isDesktop && (
               <Row
-                title="Large cards"
-                desc="Show bigger video cards on the home, profile and playlist pages. Turn off for smaller, more compact cards."
-                checked={homeCardSize === 'large'}
-                onChange={(large) => setHomeCardSize(large ? 'large' : 'small')}
+                title="Hide sidebar"
+                desc="Collapse the left navigation sidebar for a wider content area."
+                checked={!!sidebarHidden}
+                onChange={(hide) => setSidebarHidden(hide)}
               />
-              {showPreviewSetting && (
-                <Row
-                  title="Video previews"
-                  desc="Play a muted preview when you hover a video card (and, on mobile in large mode, the centred card auto-plays as you scroll)."
-                  checked={previewEnabled !== false}
-                  onChange={(v) => setPreviewEnabled(v)}
-                />
-              )}
-            </div>
+            )}
+          </div>
+        )}
 
-            <div className="settings-section">
-              <h4 className="settings-section-title">About</h4>
-              <div className="settings-modal-row">
-                <div className="settings-row-text">
-                  <span className="settings-row-title">App version</span>
-                  <span className="settings-row-desc">v{APP_VERSION}</span>
-                </div>
-              </div>
-              <div className="settings-modal-row">
-                <div className="settings-row-text">
-                  <span className="settings-row-title">Hive RPC node</span>
-                  <span className="settings-row-desc">{getHiveUrl()}</span>
-                </div>
-              </div>
-            </div>
-          </>
+        {tab === 'shorts' && (
+          <div className="settings-section">
+            <h4 className="settings-section-title">Shorts</h4>
+            {/* Comment bar is only rendered under 768px, so it's hidden on desktop. */}
+            {showShortsCommentBarSetting && (
+              <Row
+                title="Comment bar on shorts"
+                desc="Show a comment input under a short. Off by default — you can always open the comments panel with the comment button."
+                checked={!!shortsCommentBar}
+                onChange={(v) => setShortsCommentBar(v)}
+              />
+            )}
+            <Row
+              title="Open shorts on start"
+              desc="Go straight to Shorts when you open 3Speak, instead of the home feed."
+              checked={!!openShortsOnStart}
+              onChange={(v) => setOpenShortsOnStart(v)}
+            />
+          </div>
         )}
 
         {tab === 'content' && (
-          <>
-            <div className="settings-section">
-              <h4 className="settings-section-title">Content</h4>
-              <Row
-                title="Show NSFW content"
-                desc="Display videos and audio marked not-safe-for-work. Off by default."
-                checked={showNsfw}
-                onChange={(v) => setShowNsfw(v)}
-              />
-              <Row
-                title="Hide watched videos"
-                desc="Leave out videos you've already watched from the home, trending and recommended feeds."
-                checked={!!hideWatched}
-                onChange={(v) => setHideWatched(v)}
-              />
-              <Row
-                title="Private mode"
-                desc="Don't record your IP address with watch statistics — only an anonymous per-browser id is used. Turning this on means your views won't appear in creators' country stats."
-                checked={!!privateMode}
-                onChange={(v) => setPrivateMode(v)}
-              />
-            </div>
+          <div className="settings-section">
+            <h4 className="settings-section-title">Content</h4>
+            <Row
+              title="Show NSFW content"
+              desc="Display videos and audio marked not-safe-for-work. Off by default."
+              checked={showNsfw}
+              onChange={(v) => setShowNsfw(v)}
+            />
+            <Row
+              title="Hide watched videos"
+              desc="Leave out videos you've already watched from the home, trending and recommended feeds."
+              checked={!!hideWatched}
+              onChange={(v) => setHideWatched(v)}
+            />
+            <Row
+              title="Private mode"
+              desc="Don't record your IP address with watch statistics — only an anonymous per-browser id is used. Turning this on means your views won't appear in creators' country stats."
+              checked={!!privateMode}
+              onChange={(v) => setPrivateMode(v)}
+            />
+          </div>
+        )}
 
-            <InterestsSection />
-          </>
+        {tab === 'interests' && <InterestsSection />}
+
+        {tab === 'version' && (
+          <div className="settings-section">
+            <h4 className="settings-section-title">Version</h4>
+            <div className="settings-modal-row">
+              <div className="settings-row-text">
+                <span className="settings-row-title">App version</span>
+                <span className="settings-row-desc">v{APP_VERSION}</span>
+              </div>
+            </div>
+            <div className="settings-modal-row">
+              <div className="settings-row-text">
+                <span className="settings-row-title">Hive RPC node</span>
+                <span className="settings-row-desc">{getHiveUrl()}</span>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>,

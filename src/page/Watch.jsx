@@ -3,10 +3,11 @@ import { getHiveClient } from '../utils/hiveNode';
 import './Watch.scss';
 import './WatchV2.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
+import SEOHead from '../components/SEOHead';
 import Card3 from '../components/Cards/Card3';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchVideoDetails, fetchTrendingFeed, fetchAuthorVideos } from '../lib/videoData';
+import { fetchVideoDetails, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
@@ -17,6 +18,8 @@ import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
+import { resolveVideoMeta } from '../lib/videoMetaCache';
+import { fixVideoThumbnail } from '../utils/fixThumbnails';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
@@ -34,7 +37,7 @@ function buildScheduledVideoDetails(doc) {
     author: {
       id: doc.owner,
       username: doc.owner,
-      profile: { name: doc.owner, images: { avatar: `https://images.hive.blog/u/${doc.owner}/avatar` } },
+      profile: { name: doc.owner, images: { avatar: `https://images.hive.blog/u/${doc.owner}/avatar/small` } },
     },
     stats: { num_comments: 0, num_votes: 0, total_hive_reward: 0 },
     community: doc.parentPermlink ? { _id: doc.parentPermlink, title: doc.parentPermlink } : null,
@@ -69,23 +72,25 @@ const getRenderer = async () => {
 const AUTHOR_VIDEOS_COUNT = 4;
 const QUALITY_STORAGE_KEY = '3speak-quality-pref';
 
-// Filter out videos older than December 2023 (old videos may not exist on CDN)
-const MIN_VIDEO_DATE = new Date('2023-12-01T00:00:00.000Z');
-
+// Drop videos whose asset is gone. Everything here comes from the checker, and it
+// returns TWO shapes: embed docs are normalised by the discover pool's hydrate()
+// (`created_at` + `spkvideo.play_url`), while legacy docs are passed through raw
+// (`created` + `video_v2`). This filter only understood the embed shape — a
+// leftover from the retired union GraphQL API — so it silently discarded ~95% of
+// the related feed (23 of 24 for a typical video). The sidebar was then left with
+// too few results and fell back to TRENDING, which is what put unrelated topics
+// (e.g. gaming) next to an art/music video. Accept both shapes.
+//
+// No date cutoff here on purpose: video age is a single policy owned by the
+// checker (FEED_MAX_AGE_YEARS). A second, stricter cutoff in the frontend just
+// re-created the same bug by starving the list.
 function filterValidVideos(videos) {
   if (!videos || !Array.isArray(videos)) return [];
-  return videos.filter(video => {
-    // Must have created_at date
-    if (!video?.created_at) return false;
-
-    // Filter out old videos
-    const videoDate = new Date(video.created_at);
-    if (videoDate < MIN_VIDEO_DATE) return false;
-
-    // Filter out videos without a valid play_url (likely deleted)
-    if (!video?.spkvideo?.play_url) return false;
-
-    return true;
+  return videos.filter((video) => {
+    if (!video) return false;
+    if (!(video.created_at || video.created)) return false;
+    // Playable? embed → spkvideo.play_url, legacy → video_v2.
+    return Boolean(video?.spkvideo?.play_url || video?.video_v2 || video?.playUrl);
   });
 }
 
@@ -239,7 +244,7 @@ function Watch({ v2 = false }) {
     apiBase: PLAYER_URL,
     muted: storedMuted,
     loop: false,
-    poster: true,
+    poster: false, // we set an optimized poster ourselves — see posterUrl below
     resume: false,
     hlsConfig: {
       maxBufferLength: 600,      // buffer up to 10 min ahead
@@ -281,11 +286,11 @@ function Watch({ v2 = false }) {
       // permlink — sending the Hive permlink would 404 and never count the view.
       let owner = author;
       let viewPermlink = permlink;
-      try {
-        const meta = await sdkApiRef.current.fetchVideoMetadata(author, permlink);
-        if (meta?.owner) owner = meta.owner;
-        if (meta?.permlink) viewPermlink = meta.permlink;
-      } catch { /* fall back to the URL author/permlink */ }
+      // Shared session cache — the watch-duration session resolves the same
+      // /api/embed metadata; this dedupes both into one request per video.
+      const meta = await resolveVideoMeta(sdkApiRef.current, author, permlink);
+      if (meta?.owner) owner = meta.owner;
+      if (meta?.permlink) viewPermlink = meta.permlink;
       for (const type of ['embed', 'legacy']) {
         try {
           const res = await fetch(`${PLAYER_URL}/api/view`, {
@@ -344,8 +349,10 @@ function Watch({ v2 = false }) {
 
   // Track when the <video> element is mounted and attached to the Player
   const [videoAttached, setVideoAttached] = useState(false);
+  const videoElRef = useRef(null); // handle on the element, so we can set our own poster
   const videoRef = useCallback((element) => {
     sdkVideoRef(element); // pass to usePlayer's internal attach
+    videoElRef.current = element;
     if (element) {
       // Apply stored volume immediately after attach (SDK has no volume config option)
       const savedVol = parseFloat(localStorage.getItem('3speak-volume'));
@@ -592,7 +599,7 @@ function Watch({ v2 = false }) {
           markers.push({
             pct: parentTimestamp,
             pctIsSeconds: true,
-            avatar: `https://images.hive.blog/u/${comment.author}/avatar`,
+            avatar: `https://images.hive.blog/u/${comment.author}/avatar/small`,
             label: comment.author,
             permlink: comment.permlink,
             replyCount,
@@ -863,6 +870,20 @@ function Watch({ v2 = false }) {
     return merged;
   }, [baseVideoDetails, editOverride]);
 
+  // Poster: the SDK's `poster: true` would set <video poster> straight from the
+  // RAW metadata thumbnail — for legacy uploads that's the full-resolution
+  // original (one is a 12MB JPEG), downloaded just to show a still frame. We turn
+  // the SDK's poster off (see usePlayer config) and set the resize-proxied
+  // thumbnail ourselves instead (~24KB via fixVideoThumbnail).
+  const posterUrl = useMemo(
+    () => (videoDetails ? fixVideoThumbnail(videoDetails) : null),
+    [videoDetails],
+  );
+  useEffect(() => {
+    const el = videoElRef.current;
+    if (el && posterUrl) el.poster = posterUrl;
+  }, [posterUrl, videoAttached]);
+
   const handleVideoEdited = useCallback((changes) => {
     if (!changes) return;
     setEditOverride({
@@ -932,7 +953,15 @@ function Watch({ v2 = false }) {
   }, []);
 
   // Suggestion feeds from the checker (items already match the Card3 shape).
-  // There's no dedicated "related" endpoint, so trending stands in for related.
+  // The related feed is topic/interest/creator-aware (see /feeds/related); it's
+  // keyed by the current video so it re-pulls when you navigate to a new one.
+  const { data: relatedItems = [], isLoading: relatedLoading } = useQuery({
+    queryKey: ['watch-related', author, permlink],
+    queryFn: () => fetchRelatedFeed(author, permlink, 24),
+    enabled: !!author && author !== 'unknown' && !!permlink,
+    staleTime: 5 * 60 * 1000,
+  });
+  // Plain trending is only a fallback when the related feed is thin.
   const { data: trendingItems = [], isLoading: trendingLoading } = useQuery({
     queryKey: ['watch-trending'],
     queryFn: () => fetchTrendingFeed(24),
@@ -944,8 +973,7 @@ function Watch({ v2 = false }) {
     enabled: !!author && author !== 'unknown',
     staleTime: 60 * 1000,
   });
-  const relatedItems = trendingItems;
-  const suggestionsLoading = trendingLoading;
+  const suggestionsLoading = relatedLoading;
 
   // Promoted videos — shown first in recommendations with a "Promoted" badge.
   const [promotedVideos, setPromotedVideos] = useState([]);
@@ -1130,6 +1158,15 @@ function Watch({ v2 = false }) {
 
   return (
     <div className={`play-container${isReactionPlayerVisible && reactions.length > 0 ? ` reaction-${reactionSize}` : ''}${v2 ? ' watch-v2' : ''}`}>
+      {/* Put the video's title in the browser tab (Helmet → <title>). SEOHead
+          appends " | 3Speak"; falls back to the default title when unknown. */}
+      {videoDetails?.title && (
+        <SEOHead
+          title={videoDetails.title}
+          author={author}
+          url={`https://3speak.tv/watch?v=${author}/${permlink}`}
+        />
+      )}
       <AmbientGlow getVideoEl={() => player?.element} glowMode={glowMode} />
       <PlayVideo
         v2={v2}

@@ -38,7 +38,7 @@ function Follower({count}) {
   };
 
   const getAvatar = (username) =>
-    `https://images.hive.blog/u/${username}/avatar`;
+    `https://images.hive.blog/u/${username}/avatar/small`;
 
 
   const users = activeTab === 'followers' ? follower : following;

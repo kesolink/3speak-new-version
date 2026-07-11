@@ -3,7 +3,7 @@ import "./ProfileNav.scss"
 import '../../page/Login/KeyChainLogin.scss';
 import { useAppStore } from '../../lib/store';
 import { useGetMyQuery } from '../../hooks/getUserDetails';
-import { MdCloudUpload, MdKeyboardArrowDown, MdOutlineKeyboardArrowUp, MdSettings } from "react-icons/md";
+import { MdCloudUpload, MdKeyboardArrowDown, MdOutlineKeyboardArrowUp, MdOutlineLeaderboard, MdSettings } from "react-icons/md";
 import { ImPower } from "react-icons/im";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaDiscord, FaLanguage } from 'react-icons/fa';
@@ -100,6 +100,9 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
         <div className="list-wrap">
           <Link to="/profile" className="wrap" onClick={onclose}>
             <IoMdPerson className="icon" /> <span>My Channel</span>
+          </Link>
+          <Link to="/leaderboard" className="wrap" onClick={onclose}>
+            <MdOutlineLeaderboard className="icon" /> <span>Leaderboard</span>
           </Link>
           {/* <Link className="wrap" onClick={onclose}>
             <TiThList className="icon" /> <span>Playlist</span>
