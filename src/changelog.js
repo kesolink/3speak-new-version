@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.49.0',
+    date: '2026-07-12',
+    summary:
+      'Feeds are more personal. A new Discover row and an Interests row pick videos from the topics you choose and from what people actually watch — not just from votes. You can also say what you don’t want: “Not interested” and “Don’t show this creator” in a card’s ⋮ menu.',
+  },
+  {
     version: '1.48.0',
     date: '2026-07-12',
     summary:
