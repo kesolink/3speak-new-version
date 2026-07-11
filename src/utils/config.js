@@ -17,6 +17,10 @@ const TRENDING_SORTED_URL = `${CHECKER_URL}/feeds/trendingSorted`;
 const FOLLOW_FEED_URL = `${CHECKER_URL}/feed`;
 // Discovery feed: interest + retention driven, ignores votes/views entirely.
 const DISCOVER_FEED_URL = `${CHECKER_URL}/feeds/discover`;
+// Dedicated interests feed. It has its OWN topic-stratified pool — the old
+// `/feeds/discover?interestsOnly=1` filtered the discover pool, which is a uniform
+// sample of the catalogue, so a single-topic filter starved it (science: 1 page).
+const INTERESTS_FEED_URL = `${CHECKER_URL}/feeds/interests`;
 const NEW_CONTENT_URL = `${CHECKER_URL}/feeds/new`;
 const FIRST_UPLOADS_URL = `${CHECKER_URL}/feeds/firstUploads`;
 const SHORTS_STORIES_URL = `${CHECKER_URL}/shorts/stories`;
@@ -181,6 +185,7 @@ export {
   TRENDING_SORTED_URL,
   FOLLOW_FEED_URL,
   DISCOVER_FEED_URL,
+  INTERESTS_FEED_URL,
   NEW_CONTENT_URL,
   FIRST_UPLOADS_URL,
   SHORTS_STORIES_URL,
