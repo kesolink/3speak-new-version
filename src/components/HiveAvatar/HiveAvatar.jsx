@@ -38,7 +38,7 @@ const HiveAvatar = forwardRef(function HiveAvatar(
   // a medium-ish default for the bare `/avatar` URL.
   const url = size
     ? `https://images.hive.blog/u/${encodeURIComponent(username)}/avatar/${size}`
-    : `https://images.hive.blog/u/${encodeURIComponent(username)}/avatar`;
+    : `https://images.hive.blog/u/${encodeURIComponent(username)}/avatar/small`;
   return (
     <span
       className={`hive-avatar${className ? ` ${className}` : ''}`}

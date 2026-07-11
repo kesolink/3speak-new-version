@@ -9,7 +9,12 @@ import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
 import { Orbit } from 'ldrs/react';
 import 'ldrs/react/Orbit.css';
-import { voteWithAioha, isLoggedIn } from '../../hive-api/aioha';
+import { voteWithAioha, tagVideoWithAioha, isLoggedIn } from '../../hive-api/aioha';
+import { recordViewerTag, getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
+import ViewerTagPicker from './ViewerTagPicker';
+
+// Hive posts pay out (and voting stops mattering) 7 days after creation.
+const PAYOUT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Pure-math vote estimation — no API calls
 function estimateLocal(account, dynamicProps, percent) {
@@ -42,11 +47,83 @@ const CommentVoteTooltip = ({
   onVoteSuccess,
   compact,
   cachedDynamicProps,
-  onVoteDataRefresh
+  onVoteDataRefresh,
+  // Only the VIDEO vote (watch page + shorts) enables the topic dropdown; comment
+  // votes pass this false/undefined so comments never get a tag selector.
+  enableViewerTag = false,
+  // The post's creation date — after the 7-day payout window, voting is hidden and
+  // only tagging remains (interpreted as a 100% vote).
+  postCreatedAt = null,
 }) => {
   const { user, authenticated } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  // "Don't vote — just tag": record the topic tag without casting a Hive vote,
+  // even while the vote window is still open. Only offered when tagging is enabled.
+  const [justTag, setJustTag] = useState(false);
+  // Optional topic the viewer assigns to the video (interest taxonomy). '' = none.
+  const [viewerTag, setViewerTag] = useState('');
+  // Current crowd consensus (tag -> pct), so the dropdown can show each tag's share.
+  const [tagPct, setTagPct] = useState({});
+  // For the closed-voting tag-only path: the tag this user already gave (if any).
+  const [myExistingTag, setMyExistingTag] = useState(undefined); // undefined=unknown
+
+  // After the payout window there's nothing to vote on — switch to tag-only.
+  const votingClosed = !!postCreatedAt
+    && (Date.now() - new Date(postCreatedAt).getTime()) > PAYOUT_WINDOW_MS;
+  const tagOnlyMode = enableViewerTag && votingClosed;
+
+  // Fetch the consensus when the video vote popup opens (not for comment votes).
+  useEffect(() => {
+    if (!enableViewerTag || !showTooltip || !author || !permlink) return;
+    let alive = true;
+    getViewerTags(author, permlink).then((data) => {
+      if (!alive || !data?.counts) return;
+      const map = {};
+      for (const c of data.counts) map[c.tag] = c.pct;
+      setTagPct(map);
+    });
+    return () => { alive = false; };
+  }, [enableViewerTag, showTooltip, author, permlink]);
+
+  // Tag-only mode is ONE-SHOT — check whether this user already tagged the video.
+  useEffect(() => {
+    if (!tagOnlyMode || !showTooltip || !author || !permlink || !user) return;
+    let alive = true;
+    setMyExistingTag(undefined);
+    getMyViewerTag(user, author, permlink).then((r) => {
+      if (alive) setMyExistingTag(r?.tag || null);
+    });
+    return () => { alive = false; };
+  }, [tagOnlyMode, showTooltip, author, permlink, user]);
+
+  // Tag-only submit: broadcast just the custom_json (weight = 100% vote) + mirror.
+  const handleTagOnly = async () => {
+    if (!authenticated || !isLoggedIn()) {
+      toast.error('Login to complete this operation');
+      return;
+    }
+    if (!viewerTag) {
+      toast.error('Pick a topic first');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await tagVideoWithAioha(author, permlink, viewerTag, 10000);
+      // Await the mirror so the consensus refresh below reflects this tag.
+      await recordViewerTag(user, author, permlink, viewerTag, 10000);
+      toast.success(`Tagged “${viewerTag}”`);
+      // Refresh the watch-page topics row (isNewVote=false → no vote-count change).
+      onVoteSuccess?.(author, permlink, false, 10000);
+      setShowTooltip(false);
+      setActiveTooltipPermlink?.(null);
+    } catch (err) {
+      console.error('Tag failed:', err);
+      toast.error('Tag failed: ' + (err.message || 'please try again'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const isLoadingRef = useRef(false);
   const tooltipRef = useRef(null);
 
@@ -252,13 +329,20 @@ const CommentVoteTooltip = ({
         return;
       }
 
-      await voteWithAioha(author, permlink, voteWeight);
+      // Video vote → vote + viewer-tag custom_json in ONE signed transaction.
+      const tag = enableViewerTag ? (viewerTag || null) : null;
+      await voteWithAioha(author, permlink, voteWeight, tag);
+
+      // Mirror the tag into the checker's queryable index (best-effort; the signed
+      // on-chain custom_json is the source of truth). AWAIT it so the consensus
+      // refresh in onVoteSuccess reads the just-written vote, not a stale tally.
+      if (tag) await recordViewerTag(user, author, permlink, tag, voteWeight);
 
       const finalValue = cachedAccountRef.current && cachedDynamicPropsRef.current
         ? estimateLocal(cachedAccountRef.current, cachedDynamicPropsRef.current, currentWeight)
         : '0.000';
 
-      toast.success(`Vote successful! Value: $${finalValue}`);
+      toast.success(`Vote successful!${tag ? ` Tagged “${tag}”.` : ''} Value: $${finalValue}`);
 
       // Sync back to parent
       setParentWeight(currentWeight);
@@ -342,34 +426,103 @@ const CommentVoteTooltip = ({
               <X size={18} />
             </button>
 
-            <p className="vote-popup-label" ref={labelRef}>Vote Weight: {parentWeight}%</p>
+            {tagOnlyMode ? (
+              // ── Payout window closed: no voting, tag-only (one-shot) ──
+              <>
+                <p className="vote-popup-label">Voting closed — tag this video</p>
+                {myExistingTag === undefined ? (
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <Orbit size="24" speed="1.5" color="red" />
+                  </div>
+                ) : myExistingTag ? (
+                  <p className="vote-popup-note">
+                    You tagged this as <b>{myExistingTag}</b>.
+                  </p>
+                ) : (
+                  <>
+                    <div className="viewer-tag-select" onClick={(e) => e.stopPropagation()}>
+                      <span>Pick a topic (counts as a 100% vote)</span>
+                      <ViewerTagPicker
+                        value={viewerTag}
+                        onChange={setViewerTag}
+                        tagPct={tagPct}
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <button
+                      className="vote-popup-submit"
+                      onClick={handleTagOnly}
+                      disabled={isLoading || !viewerTag}
+                    >
+                      {isLoading ? <TailChase size="18" speed="1.5" color="white" /> : 'Submit tag'}
+                    </button>
+                  </>
+                )}
+              </>
+            ) : (
+              // ── Normal vote (optionally with a tag), or tag-only via the checkbox ──
+              <>
+                {/* Vote-weight UI — kept mounted (so the slider effect stays intact)
+                    but hidden when "just tag" is on, since there's no vote then. */}
+                <div style={justTag ? { display: 'none' } : undefined}>
+                  <p className="vote-popup-label" ref={labelRef}>
+                    Vote Weight: {parentWeight}%
+                  </p>
 
-            {/* Container for custom div-based slider — no <input> at all */}
-            <div ref={sliderContainerRef} />
+                  {/* Container for custom div-based slider — no <input> at all */}
+                  <div ref={sliderContainerRef} />
 
-            <p className="vote-popup-value" ref={valueRef}>
-              {initializing ? '' : `$${parentVoteValue}`}
-            </p>
-            {initializing && (
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <Orbit size="24" speed="1.5" color="red" />
-              </div>
+                  <p className="vote-popup-value" ref={valueRef}>
+                    {initializing ? '' : `$${parentVoteValue}`}
+                  </p>
+                  {initializing && (
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <Orbit size="24" speed="1.5" color="red" />
+                    </div>
+                  )}
+                </div>
+
+                {enableViewerTag && (
+                  <>
+                    <div className="viewer-tag-select" onClick={(e) => e.stopPropagation()}>
+                      <span>Tag this video{justTag ? ' (counts as a 100% vote)' : ''}</span>
+                      <ViewerTagPicker
+                        value={viewerTag}
+                        onChange={setViewerTag}
+                        tagPct={tagPct}
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <label className="vote-just-tag" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={justTag}
+                        onChange={(e) => setJustTag(e.target.checked)}
+                        disabled={isLoading}
+                      />
+                      <span>Don&rsquo;t vote &mdash; just tag</span>
+                    </label>
+                  </>
+                )}
+
+                <button
+                  className="vote-popup-submit"
+                  onClick={justTag ? handleTagOnly : handleVote}
+                  disabled={isLoading || (justTag ? !viewerTag : initializing)}
+                >
+                  {isLoading ? (
+                    <TailChase size="18" speed="1.5" color="white" />
+                  ) : justTag ? (
+                    'Submit tag'
+                  ) : (
+                    <>
+                      <ChevronUp size={20} /> Vote
+                    </>
+                  )}
+                </button>
+              </>
             )}
-
-            <button
-              className="vote-popup-submit"
-              onClick={handleVote}
-              disabled={isLoading || initializing}
-            >
-              {isLoading ? (
-                <TailChase size="18" speed="1.5" color="white" />
-              ) : (
-                <>
-                  <ChevronUp size={20} />
-                  Vote
-                </>
-              )}
-            </button>
           </div>
         </div>,
         document.body

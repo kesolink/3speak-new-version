@@ -141,7 +141,7 @@ function Login() {
               <div className="list-acct-wrap">
                       {accountList.map((list, idex)=>(
                         <div key={idex} className='wrap' onClick={()=>handleSwitchAccount(list.username)}>   
-                        <img src={`https://images.hive.blog/u/${list.username}/avatar`} alt="" /> <span>{list.username}</span> 
+                        <img src={`https://images.hive.blog/u/${list.username}/avatar/small`} alt="" /> <span>{list.username}</span> 
                         <LuLogOut size={12}  onClick={(e) => {e.stopPropagation();  removeAccount(list.username);}} />
                         </div>
                       ))}

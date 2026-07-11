@@ -7,6 +7,42 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.53.0',
+    date: '2026-07-12',
+    summary:
+      'Settings is reorganised into tabs — General, Shorts, Content, Interests and Version — so options are easier to find. The browser tab now also shows which page you’re on instead of always saying “3Speak”.',
+  },
+  {
+    version: '1.52.0',
+    date: '2026-07-12',
+    summary:
+      'Shorts overhaul. Switch between “Discover” and “My interests” with the toggle at the top-left, save a short to Watch Later with the new bookmark button, and swiping no longer skips over videos. The comment bar under a short and “open shorts on start” are now optional in Settings → Shorts.',
+  },
+  {
+    version: '1.51.0',
+    date: '2026-07-12',
+    summary:
+      'New Leaderboard page (/leaderboard) ranking the top creators, with a “Top 10 Video Creator” badge shown on their profiles.',
+  },
+  {
+    version: '1.50.0',
+    date: '2026-07-12',
+    summary:
+      'The app is a lot lighter. Thumbnails and avatars are now served at sensible sizes (some thumbnails were several megabytes), feeds send far less data, and a card only loads its video when you actually look at it. Pages should feel noticeably quicker — especially on mobile data.',
+  },
+  {
+    version: '1.49.0',
+    date: '2026-07-12',
+    summary:
+      'Feeds are more personal. A new Discover row and an Interests row pick videos from the topics you choose and from what people actually watch — not just from votes. You can also say what you don’t want: “Not interested” and “Don’t show this creator” in a card’s ⋮ menu.',
+  },
+  {
+    version: '1.48.0',
+    date: '2026-07-12',
+    summary:
+      'You can now tag videos with a topic. Pick one in the vote dialog when you vote, or use “Add tag” in a video card’s ⋮ menu to tag without voting. Tags are shared by everyone and help the right videos reach the right people.',
+  },
+  {
     version: '1.47.0',
     date: '2026-07-09',
     summary:

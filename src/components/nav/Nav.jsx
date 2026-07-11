@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import NavSearch from "./NavSearch";
 import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { TiThMenu } from "react-icons/ti";
-import { MdOutlineSearch, MdGraphicEq, MdMic, MdPlaylistPlay, MdWatchLater, MdHistory, MdKeyboardArrowDown } from "react-icons/md";
+import { MdOutlineSearch, MdGraphicEq, MdMic, MdPlaylistPlay, MdWatchLater, MdHistory, MdKeyboardArrowDown, MdOutlineLeaderboard } from "react-icons/md";
 import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
@@ -192,6 +192,9 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           )}
         </NavLink>
         {authenticated && <NavPlaylistsDropdown user={user} />}
+        <NavLink to="/leaderboard" className={({ isActive }) => `nav-tab${isActive ? ' active' : ''}`}>
+          <MdOutlineLeaderboard className="nav-tab-icon" /> <span>Leaderboard</span>
+        </NavLink>
       </div>
 
       <div className="phone-nav-left" ref={menuIconRef} >
@@ -217,7 +220,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           <ChatButton />
           <NotificationBell />
           <span className="nav-avatar-wrap" onClick={toggleProfileNav}>
-            <img src={`https://images.hive.blog/u/${user}/avatar`} alt="" />
+            <img src={`https://images.hive.blog/u/${user}/avatar/small`} alt="" />
             <PremiumBadge username={user} size={10} className="nav-avatar-premium" />
           </span>
           <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />

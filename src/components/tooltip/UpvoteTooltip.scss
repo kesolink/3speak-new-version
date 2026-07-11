@@ -303,7 +303,7 @@
   // Compact variant — smaller popup on desktop (watch page)
   &.vote-popup--compact {
     @media screen and (min-width: 768px) {
-      width: 260px;
+      width: 360px;
       padding: 20px 18px 18px;
       gap: 12px;
       border-radius: 12px;
@@ -326,4 +326,65 @@
 @keyframes vote-slide-up {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
+}
+
+// Viewer-tag dropdown — pick the video's topic; broadcast with the vote.
+.viewer-tag-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 10px;
+  text-align: left;
+
+  span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+
+  select {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.2));
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary, #111);
+    font-size: 13px;
+    cursor: pointer;
+
+    &:disabled { opacity: 0.6; cursor: default; }
+  }
+}
+
+// "You already tagged this" note in the tag-only (voting closed) popup state.
+.vote-popup-note {
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  margin: 6px 0 4px;
+  color: var(--text-primary, #f1f1f1);
+  b { text-transform: capitalize; }
+}
+
+// "Don't vote — just tag" opt-in in the vote popup.
+.vote-just-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 2px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-secondary, #666);
+
+  input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent-primary, #e53935);
+  }
+
+  [data-theme="dark"] & { color: #bbb; }
 }

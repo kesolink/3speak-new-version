@@ -1,0 +1,111 @@
+// Trigger sits where the old add-to-playlist button was (top-left of the thumb).
+// CRITICAL: z-index must beat .card-hover-overlay (4) and its scrub bar (5),
+// otherwise the hover preview paints straight over it — which is exactly why the
+// old playlist button became useless once a preview started.
+.card-options-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+  z-index: 7;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--accent-primary, #e53935);
+    transform: translateY(0);
+  }
+
+  // Stay put while the menu is open, even if the pointer leaves the card.
+  &.open {
+    opacity: 1;
+    transform: translateY(0);
+    background: var(--accent-primary, #e53935);
+  }
+
+  &.compact {
+    top: 4px;
+    left: 4px;
+    width: 28px;
+    height: 28px;
+  }
+}
+
+// Touch devices never fire `.card:hover`, so the reveal rule in Cards.scss would
+// leave the trigger permanently invisible. Always show it there.
+@media (hover: none) {
+  .card-options-btn {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// Controls layer inside the hover-preview overlay. The overlay itself is
+// pointer-events:none (hover + clicks fall through to the card), so this layer
+// re-enables them for its own children only.
+.card-hover-overlay .card-hover-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 6; // above the video (0), poster (1) and scrub bar (3)
+  pointer-events: none;
+
+  .card-options-btn {
+    pointer-events: auto;
+    opacity: 1;         // the preview is already up; no hover reveal needed here
+    transform: none;
+  }
+}
+
+// Portalled to <body>, so it can't be clipped by the card's overflow:hidden.
+.card-options-menu {
+  position: fixed;
+  z-index: 2147483000; // above the app, below the emergency takeover
+  min-width: 232px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--bg-secondary, #212121);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &.up { transform: translateY(-100%); }
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-primary, #f1f1f1);
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    svg { flex-shrink: 0; }
+
+    &:hover,
+    &:focus-visible {
+      background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+    }
+  }
+}

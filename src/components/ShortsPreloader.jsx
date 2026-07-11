@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { preloadShorts } from '../hive-api/hiveApi';
+import { SHORTS_PAGE_SIZE, preloadShorts } from '../hive-api/hiveApi';
 import { useAppStore } from '../lib/store';
 
 /**
@@ -10,7 +10,7 @@ function ShortsPreloader() {
   const { user } = useAppStore();
 
   useEffect(() => {
-    preloadShorts(10, user);
+    preloadShorts(SHORTS_PAGE_SIZE, user);
   }, []);
 
   return null;

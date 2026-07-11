@@ -268,7 +268,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
             username: comment.author,
             profile: {
               images: {
-                avatar: `https://images.hive.blog/u/${comment.author}/avatar`,
+                avatar: `https://images.hive.blog/u/${comment.author}/avatar/small`,
               },
             },
           },
@@ -365,7 +365,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
             username: user,
             profile: {
               images: {
-                avatar: `https://images.hive.blog/u/${user}/avatar`,
+                avatar: `https://images.hive.blog/u/${user}/avatar/small`,
               },
             },
           },

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq, MdMic, MdSettings, MdCloudUpload } from "react-icons/md";
+import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq, MdMic, MdSettings, MdCloudUpload, MdOutlineLeaderboard } from "react-icons/md";
 import { IoAddCircleOutline, IoPower, IoCloudUploadSharp, IoShareOutline } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
 import { HiInformationCircle } from "react-icons/hi";
@@ -182,6 +182,9 @@ const BottomNav = ({ openLoginModal }) => {
           <div className="bottom-nav-menu-divider" />
           <Link to="/profile" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <IoMdPerson className="bottom-nav-menu-icon" /> My Channel
+          </Link>
+          <Link to="/leaderboard" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
+            <MdOutlineLeaderboard className="bottom-nav-menu-icon" /> Leaderboard
           </Link>
 
           <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuUploadOpen((v) => !v); }}>

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { PLAYER_URL } from '../utils/config';
 import { getViewerId } from '../utils/viewerId';
 import { useAppStore } from '../lib/store';
+import { resolveVideoMeta } from '../lib/videoMetaCache';
 
 /**
  * Drives the snapievideoplayer watch-duration heartbeat against the player
@@ -74,11 +75,11 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
       // URL values when metadata isn't available (legacy videos).
       let owner = author;
       let vPermlink = permlink;
-      try {
-        const meta = await api?.fetchVideoMetadata?.(author, permlink);
-        if (meta?.owner) owner = meta.owner;
-        if (meta?.permlink) vPermlink = meta.permlink;
-      } catch { /* fall back to URL author/permlink */ }
+      // Shared session cache — the view recorder resolves the same /api/embed
+      // metadata; this dedupes both into one request per video.
+      const meta = await resolveVideoMeta(api, author, permlink);
+      if (meta?.owner) owner = meta.owner;
+      if (meta?.permlink) vPermlink = meta.permlink;
 
       const duration = Number(playerState?.duration) || undefined;
       // A video lives in exactly one collection — try embed (also matches

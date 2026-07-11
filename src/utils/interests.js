@@ -17,7 +17,9 @@ export const INTERESTS = [
   { id: 'education', label: 'Education', emoji: '🎓' },
   { id: 'vlog', label: 'Vlog', emoji: '🎥' },
   { id: 'gaming', label: 'Gaming', emoji: '🎮' },
-  { id: 'cryptocurrency', label: 'Cryptocurrency', emoji: '🪙' },
+  // id stays 'cryptocurrency' (the tagger emits it + the checker matches on it);
+  // only the user-facing label is shortened to "Crypto".
+  { id: 'cryptocurrency', label: 'Crypto', emoji: '🪙' },
   { id: 'finance', label: 'Finance', emoji: '💰' },
   { id: 'food', label: 'Food', emoji: '🍔' },
   { id: 'sports', label: 'Sports', emoji: '⚽' },
@@ -26,6 +28,14 @@ export const INTERESTS = [
 
 export const INTEREST_IDS = INTERESTS.map((i) => i.id);
 const INTEREST_ID_SET = new Set(INTEREST_IDS);
+
+// Short display names for raw tag ids (e.g. the watch-page topic row shows the
+// bare tag, not the INTERESTS label). Keeps display in sync with the labels.
+const TAG_DISPLAY = { cryptocurrency: 'crypto' };
+export const displayTag = (id) => {
+  const t = String(id || '').toLowerCase();
+  return TAG_DISPLAY[t] || t;
+};
 
 // Where interests live inside the account's posting_json_metadata. Namespaced
 // under `3speak` so it sits alongside — not on top of — the standard `profile`
