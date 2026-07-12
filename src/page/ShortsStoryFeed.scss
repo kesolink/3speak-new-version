@@ -25,6 +25,8 @@
     }
   }
 
+
+
   &__player {
     flex: 1;
     min-height: 0;
@@ -122,8 +124,25 @@
           }
         }
 
+        // White-on-video: this overlay sits ON the short, so it needs the contrast
+        // the (now theme-aware) compact variant no longer hardcodes.
         .story-username {
           font-size: 9px;
+          color: #fff;
+          background: rgba(0, 0, 0, 0.5);
+          border-radius: 4px;
+          padding: 1px 4px;
+        }
+
+        .story-item--active {
+          .story-avatar-wrap {
+            border-color: rgba(255, 255, 255, 0.85) !important;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.35), 0 0 16px rgba(255, 255, 255, 0.12);
+          }
+
+          .story-username {
+            color: #fff;
+          }
         }
 
         .stories-scroll-btn {
@@ -180,5 +199,28 @@
   100% {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+
+// The comments panel is `position: fixed; top: 0; height: 100vh` (Short.scss), so on
+// the stories page it ran straight under the stories bar.
+//
+// It CANNOT be reached from inside `.shorts-story-feed`: Short.jsx portals it to
+// <body> (`.short-main.shorts-comments-portal`) so it can paint above the nav, which
+// takes it out of this page's subtree entirely. Hence matching from `body:has(...)`
+// — scoped to "the stories page is currently mounted" — and hence the CSS var living
+// on <html> instead of on the page root.
+//
+// `--stories-bar-bottom` is the bar's measured bottom edge in VIEWPORT coords, which
+// is exactly what a fixed element's `top` takes — no arithmetic against the nav
+// height needed. It falls back to 0px (= the panel's original full-height behaviour)
+// whenever the bar is hidden or not yet measured.
+//
+// Only above the mobile breakpoint: under 768px the panel is a bottom sheet
+// (`top: auto`) and the desktop bar is hidden, so there is nothing to clear.
+@media (min-width: 769px) {
+  body:has(.shorts-story-feed) .shorts-comments-portal .commentsPanel {
+    top: var(--stories-bar-bottom, 0px);
+    height: calc(100vh - var(--stories-bar-bottom, 0px));
   }
 }
