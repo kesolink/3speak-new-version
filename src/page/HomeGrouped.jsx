@@ -14,6 +14,9 @@ import { getFeedSeed, regenerateFeedSeed } from "../utils/feedSeed";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
 import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
+import ShortsRow from "../components/ShortsRow/ShortsRow";
+import { useGridColumns, useShortsPerRow } from "../hooks/useGridMetrics";
+import { SHORTS_API_URL } from "../utils/config";
 import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
 import { Rocket, Compass, Sparkles, GripVertical } from "lucide-react";
 
@@ -75,9 +78,57 @@ const fetchInterestsFeed = async (page = 1) => {
   return res.data?.videos || [];
 };
 
-const fetchTrending = async (page = 1) => {
-  const res = await axios.get(appendNsfw(`${TRENDING_SORTED_URL}?page=${page}&limit=${PAGE_MAIN}${feedParams()}`, useAppStore.getState().showNsfw));
-  return res.data?.videos || [];
+
+// Shorts sprinkled between the Discover rows. Paginated, and pulled in as the feed
+// grows, so the rails keep coming instead of stopping at a fixed count. Each rail
+// takes the NEXT slice, so no short repeats down the page.
+const SHORTS_PAGE = 60;       // per request
+
+// Shorts params. NOT feedParams(): that appends `&chrono=1` when "simple feeds" is
+// on, and the New rail also needs chrono — express would then parse `chrono` as the
+// ARRAY ['1','1'] and `req.query.chrono === '1'` would be false, silently disabling
+// it. So build the params here and emit chrono exactly once.
+// Discover and Interests both draw from the RANKED shorts feed, so without this
+// they'd share a seed and show the identical shorts. Offset the session seed per
+// section so each feed gets its own shuffle (mulberry32 diverges completely for any
+// distinct integer seed). Irrelevant for `new` (date-sorted), harmless there.
+const SHORTS_SEED_OFFSET = { discover: 0, interests: 7919, home: 15733, new: 24917 };
+
+const shortsParams = (mode, sectionKey) => {
+  const st = useAppStore.getState();
+  let p = `&seed=${getFeedSeed() + (SHORTS_SEED_OFFSET[sectionKey] || 0)}`;
+  if (Array.isArray(st.interests) && st.interests.length) p += `&interests=${encodeURIComponent(st.interests.join(','))}`;
+  if (st.user) {
+    p += `&currentuser=${encodeURIComponent(st.user)}`;
+    p += `&hidewatched=${st.hideWatched ? '1' : '0'}`;
+    if (mode === 'follow') p += `&followedby=${encodeURIComponent(st.user)}`;
+  }
+  if (mode === 'chrono' || st.simpleFeed) p += '&chrono=1';
+  return p;
+};
+
+// A different SEED only reshuffles the same shorts — the shorts ranking is
+// recency-dominated, so the newest float to the top of both feeds regardless. To
+// make Interests show genuinely DIFFERENT shorts from Discover, start it a page in.
+const SHORTS_PAGE_OFFSET = { discover: 0, interests: 1, home: 0, new: 0 };
+
+const fetchFeedShorts = async (mode, sectionKey, page = 1) => {
+  const offset = SHORTS_PAGE_OFFSET[sectionKey] || 0;
+  const url = (p) => appendNsfw(
+    `${SHORTS_API_URL}?page=${p}&limit=${SHORTS_PAGE}${shortsParams(mode, sectionKey)}`,
+    useAppStore.getState().showNsfw,
+  );
+
+  const res = await axios.get(url(page + offset));
+  const shorts = res.data?.shorts || [];
+
+  // A small shorts pool may not HAVE the offset page. Rather than leaving the feed
+  // with no rails at all, fall back to the un-offset page.
+  if (!shorts.length && offset && page === 1) {
+    const fb = await axios.get(url(page));
+    return fb.data?.shorts || [];
+  }
+  return shorts;
 };
 
 const fetchPromoted = async () => {
@@ -119,7 +170,6 @@ const iconsByTitle = {
   "Home Feed": <TrendingIcon />,
   "Follow Feed": <TrendingIcon />,
   "New Content": <NewContentIcon />,
-  "Trending": <TrendingIcon />,
   "Promoted": <Rocket size={16} />,
   "Discover": <Compass size={16} />,
   "Interests": <Sparkles size={16} />,
@@ -247,14 +297,6 @@ const HomeGrouped = () => {
   });
   const interestsData = useMemo(() => deduplicateVideos(interestsQ.data?.pages.flat() || []), [interestsQ.data]);
 
-  const trendingQ = useInfiniteQuery({
-    queryKey: ["trending-grouped", showNsfw, hideWatched, user, simpleFeed],
-    queryFn: ({ pageParam }) => fetchTrending(pageParam),
-    getNextPageParam: nextPage(),
-    enabled: authenticated,
-    ...INF,
-  });
-  const trendingData = useMemo(() => deduplicateVideos(trendingQ.data?.pages.flat() || []), [trendingQ.data]);
 
   const newQ = useInfiniteQuery({
     queryKey: ["newcontent-grouped", showNsfw, user],
@@ -267,7 +309,6 @@ const HomeGrouped = () => {
   const homeLoading = homeQ.isLoading;
   const discoverLoading = discoverQ.isLoading;
   const interestsLoading = interestsQ.isLoading;
-  const trendingLoading = trendingQ.isLoading;
   const newContentLoading = newQ.isLoading;
 
   // Promoted videos — prefixed onto EVERY feed below (no dedicated tab any more).
@@ -299,7 +340,6 @@ const HomeGrouped = () => {
     baseSections.splice(2, 0, { key: 'interests', title: 'Interests', videos: leadWithPromoted(interestsData), isLoading: interestsLoading, priority: true });
   }
   if (authenticated) {
-    baseSections.push({ key: 'trending', title: 'Trending', videos: leadWithPromoted(trendingData), linkTo: '/trend', isLoading: trendingLoading });
   }
   // A saved tabOrder may still list the retired 'promoted' key — applyTabOrder skips
   // keys with no matching section, so old orders degrade cleanly.
@@ -327,6 +367,60 @@ const HomeGrouped = () => {
     [activeVideos, visibleKeys],
   );
 
+  // Which shorts feed the active tab's rails draw from:
+  //   discover / interests → the ranked shorts feed (same source for both)
+  //   home (Follow Feed)   → only creators you follow  (?followedby=)
+  //   new                  → newest-first, no retention (?chrono=1)
+  // Logged-out has no follow list, so the Home Feed gets no rails.
+  // null = no shorts rails in this section. That single value already gates the
+  // query (`enabled`), the "wait for shorts before painting" check and the
+  // interleave props — so the Settings toggle just feeds into it, and turning it off
+  // skips the shorts request entirely rather than fetching and hiding.
+  const inlineShorts = useAppStore((st) => st.inlineShorts);
+  const shortsMode = useMemo(() => {
+    if (inlineShorts === false) return null;
+    const k = activeSection?.key;
+    if (k === 'discover' || k === 'interests') return 'ranked';
+    if (k === 'home' && authenticated && user) return 'follow';
+    if (k === 'new') return 'chrono';
+    return null;
+  }, [inlineShorts, activeSection?.key, authenticated, user]);
+
+  const shortsSectionKey = activeSection?.key || null;
+  const shortsQ = useInfiniteQuery({
+    // Keyed by SECTION, not just mode: discover and interests share the 'ranked'
+    // source but must not share a cache entry, or they'd render the same shorts.
+    queryKey: ["feed-shorts", shortsSectionKey, shortsMode, user || null, showNsfw],
+    queryFn: ({ pageParam = 1 }) => fetchFeedShorts(shortsMode, shortsSectionKey, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: nextPage(),
+    enabled: !!shortsMode,
+    // The panel waits for this (see renderPanel), so don't let a failing shorts
+    // request sit on retries and strand the whole feed on skeletons.
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const feedShorts = useMemo(() => (shortsQ.data?.pages || []).flat(), [shortsQ.data]);
+
+  // Live column count of the card grid — drives "a shorts rail every 2 rows".
+  const gridCols = useGridColumns(panelRef, `${activeSection?.key}:${activeVideos.length}`);
+  // Shorts per rail = however many fit across right now.
+  const shortsPerRow = useShortsPerRow(panelRef, `${activeSection?.key}:${activeVideos.length}`);
+
+  // Keep the shorts supply ahead of the rails. As the Discover feed pages in, more
+  // rails are needed; without this the rails would simply stop once the first batch
+  // ran out. Fetch the next shorts page whenever we're short of what the current
+  // card count will ask for.
+  const railsNeeded = gridCols > 0 ? Math.floor(activeVideos.length / (gridCols * 2)) : 0;
+  const shortsNeeded = railsNeeded * (shortsPerRow || 1);
+  useEffect(() => {
+    if (!shortsMode) return;
+    if (feedShorts.length >= shortsNeeded) return;
+    if (!shortsQ.hasNextPage || shortsQ.isFetchingNextPage) return;
+    shortsQ.fetchNextPage();
+  }, [shortsMode, shortsNeeded, feedShorts.length, shortsQ.hasNextPage, shortsQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const { getContentForVideo } = useContentBatch(visibleVideos);
   const { isWatched } = useWatchHistory(visibleVideos);
   const { getViewCount } = useViewCounts(visibleVideos);
@@ -339,7 +433,6 @@ const HomeGrouped = () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["discover-grouped"] }),
       queryClient.invalidateQueries({ queryKey: ["interests-grouped"] }),
-      queryClient.invalidateQueries({ queryKey: ["trending-grouped"] }),
       queryClient.invalidateQueries({ queryKey: ["newcontent-grouped"] }),
     ]);
   }, [queryClient, authenticated, user]);
@@ -430,11 +523,32 @@ const HomeGrouped = () => {
   }, [tabSections, drag]);
 
   // Infinite query backing each paginated section (promoted isn't paginated).
-  const queryByKey = { home: homeQ, discover: discoverQ, interests: interestsQ, trending: trendingQ, new: newQ };
+  const queryByKey = { home: homeQ, discover: discoverQ, interests: interestsQ, new: newQ };
+
+  // Slot N gets shorts [N*SIZE, (N+1)*SIZE). Returns null once we run out, which
+  // stops the interleaving rather than repeating the same shorts down the page.
+  // The shorts feed is split into consecutive sections of `shortsPerRow`, and slot N
+  // takes section N — so each rail is one exactly-full row and no short repeats down
+  // the page. A partial trailing section is dropped rather than rendering a ragged
+  // half-row; returning null just stops the interleaving there.
+  const renderShortsRail = useCallback((slot) => {
+    if (!shortsPerRow) return null;
+    const start = slot * shortsPerRow;
+    const slice = feedShorts.slice(start, start + shortsPerRow);
+    if (slice.length < shortsPerRow) return null; // don't render a short row
+    return <ShortsRow shorts={slice} columns={shortsPerRow} />;
+  }, [feedShorts, shortsPerRow]);
 
   const renderPanel = (s) => {
     if (!s) return null;
-    if (s.isLoading && (!s.videos || s.videos.length === 0)) {
+    // Wait for the shorts too, not just the videos. Otherwise the grid paints first
+    // and the rails drop in a beat later, shoving everything down. The shorts feed
+    // is actually the FASTER of the two (~0.23s vs 0.3-0.8s), so this costs nothing
+    // in practice — and `retry: 1` means a failing one can't hold the feed hostage.
+    const waitingForShorts = !!shortsMode
+      && s.key === activeSection?.key
+      && shortsQ.isLoading;
+    if (waitingForShorts || (s.isLoading && (!s.videos || s.videos.length === 0))) {
       return <div className="home-tab-skeletons">{Array.from({ length: 12 }).map((_, i) => <CardSkeleton key={i} />)}</div>;
     }
     if (!s.videos || s.videos.length === 0) {
@@ -450,6 +564,12 @@ const HomeGrouped = () => {
           isWatched={isWatched}
           getViewCount={getViewCount}
           priority={s.priority}
+          /* A shorts rail after every 2 REAL rows of videos, on any feed that has a
+             shorts source (see shortsMode). `gridCols` is measured from the live
+             grid, so this lands on a row boundary at every breakpoint (2 cols on
+             mobile, 4-5 on desktop). 0 until measured → no interleave, no jump. */
+          interleaveEvery={shortsMode && s.key === activeSection?.key && gridCols > 0 ? gridCols * 2 : 0}
+          renderInterleave={shortsMode && s.key === activeSection?.key ? renderShortsRail : null}
         />
         {q && (
           <InfiniteSentinel

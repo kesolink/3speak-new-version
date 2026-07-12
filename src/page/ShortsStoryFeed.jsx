@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import ShortsStories, { useShortsStories } from "../components/ShortsStories/ShortsStories";
 import VideoShort from "./Short";
@@ -29,6 +29,48 @@ const ShortsStoryFeed = () => {
   creatorsRef.current = creators;
   const feedUserRef = useRef(feedUser);
   feedUserRef.current = feedUser;
+
+  // The comments panel is `position: fixed` and full-height, so it would run UNDER
+  // the stories bar. Publish the bar's real bottom edge (viewport coords — exactly
+  // what a fixed element's `top` wants) as a CSS var and let the panel start there.
+  //
+  // The var goes on <html>, NOT on this page's root: Short.jsx portals the panel to
+  // <body> (so it can render above the nav), which puts it OUTSIDE this subtree — a
+  // var set here would never reach it. Same reason the CSS rule has to match from
+  // `body:has(.shorts-story-feed)` rather than from inside `.shorts-story-feed`.
+  //
+  // Measured, not hardcoded: the bar's height depends on avatar size, the username
+  // line and the theme's font metrics, and it differs between breakpoints.
+  const rootRef = useRef(null);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+
+    const measure = () => {
+      const bar = root.querySelector(":scope > .shorts-stories");
+      // Hidden (mobile) or not yet mounted → 0, and the panel keeps its own top.
+      const bottom = bar && bar.offsetParent !== null ? bar.getBoundingClientRect().bottom : 0;
+      document.documentElement.style.setProperty("--stories-bar-bottom", `${Math.round(bottom)}px`);
+    };
+    measure();
+
+    const cleanups = [];
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(measure);
+      ro.observe(root);
+      cleanups.push(() => ro.disconnect());
+    }
+    if (typeof MutationObserver !== "undefined") {
+      const mo = new MutationObserver(measure);
+      mo.observe(root, { childList: true, subtree: true }); // stories load in async
+      cleanups.push(() => mo.disconnect());
+    }
+    return () => {
+      cleanups.forEach((fn) => fn());
+      // It's a global now — don't leave it behind for /shorts or /watch.
+      document.documentElement.style.removeProperty("--stories-bar-bottom");
+    };
+  }, []);
 
   // Swipe animation state
   const [swipeDir, setSwipeDir] = useState(null); // 'left' | 'right' | null
@@ -136,6 +178,7 @@ const ShortsStoryFeed = () => {
   return (
     <div
       className="shorts-story-feed"
+      ref={rootRef}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >

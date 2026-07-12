@@ -52,6 +52,11 @@ export const useAppStore = create(
       // space and the comments panel is a tap away.
       shortsCommentBar: false,
       setShortsCommentBar: (val) => a[0]({ shortsCommentBar: !!(typeof val === 'function' ? val(a[1]().shortsCommentBar) : val) }),
+      // Shorts rails interleaved into the video feeds and the watch page's
+      // recommendations. ON by default; turning it off skips the shorts request
+      // entirely, it doesn't just hide the rows.
+      inlineShorts: true,
+      setInlineShorts: (val) => a[0]({ inlineShorts: !!(typeof val === 'function' ? val(a[1]().inlineShorts) : val) }),
       // Land on /shorts instead of the home feed when 3Speak is opened. Off by default.
       openShortsOnStart: false,
       setOpenShortsOnStart: (val) => a[0]({ openShortsOnStart: !!(typeof val === 'function' ? val(a[1]().openShortsOnStart) : val) }),
@@ -97,6 +102,7 @@ export const useAppStore = create(
         shortsFeedMode: state.shortsFeedMode,
         shortsCommentBar: state.shortsCommentBar,
         openShortsOnStart: state.openShortsOnStart,
+        inlineShorts: state.inlineShorts,
         hideWatched: state.hideWatched,
         privateMode: state.privateMode,
         simpleFeed: state.simpleFeed,

@@ -130,7 +130,7 @@ export async function getSubscriptions(account) {
  * Convert hive_body (markdown/HTML) to clean plaintext for display as caption.
  * Strips URLs, HTML tags, markdown syntax, and collapses whitespace.
  */
-function bodyToPlaintext(body) {
+export function bodyToPlaintext(body) {
   if (!body) return "";
   // Preserve markdown links [text](url) by replacing them with placeholders before HTML conversion
   const links = [];

@@ -21,7 +21,30 @@ import ProfileModal from "../modal/ProfileModal";
 import useHoverPreview from "../../hooks/useHoverPreview";
 
 
-function Card3({ videos = [], loading = false, error = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false }) {
+/**
+ * Splice extra nodes into the card grid after every `every` cards — used by the
+ * Discover tab to drop a shorts rail between video rows.
+ *
+ * The inserted node must span the whole grid (`grid-column: 1 / -1`, see
+ * ShortsRow.scss) or it would just occupy one cell and shove the row out of
+ * alignment. `every` is computed from the LIVE column count, not guessed, so the
+ * rail always lands on a row boundary at any breakpoint.
+ */
+function withInterleave(cards, every, render) {
+  if (!every || every < 1 || typeof render !== 'function') return cards;
+  const out = [];
+  cards.forEach((card, i) => {
+    out.push(card);
+    if ((i + 1) % every === 0 && i + 1 < cards.length) {
+      const slot = (i + 1) / every - 1;
+      const node = render(slot);
+      if (node) out.push(<div className="card-interleave" key={`interleave-${slot}`}>{node}</div>);
+    }
+  });
+  return out;
+}
+
+function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
 
@@ -88,7 +111,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
       className={`card-container${shortsGrid ? ' card-container--shorts' : ''}`}
       {...containerProps}
     >
-      {processedVideos.map((video, index) => {
+      {withInterleave(processedVideos.map((video, index) => {
         const postKey = `${video.author?.username || video.author || video.owner}/${
           video.permlink
         }`;
@@ -244,7 +267,7 @@ function Card3({ videos = [], loading = false, error = null, getContentForVideo 
             </div>
           </Link>
         );
-      })}
+      }), interleaveEvery, renderInterleave)}
       {modalUser && (
         <ProfileModal
           username={modalUser}
