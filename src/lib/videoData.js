@@ -165,15 +165,21 @@ export async function fetchTrendingFeed(limit = 20) {
 
 // Sidebar recommendations for a watch page: biased toward the current video's
 // topic, the user's interests, and the same creator (see /feeds/related).
+//
+// Returns `currentTopic` alongside the videos — the winning topic the checker
+// resolved for THIS video. The recommended-shorts rail reuses it to ask for shorts
+// about the same thing, so that costs no extra round trip.
+const EMPTY_RELATED = { videos: [], currentTopic: null };
+
 export async function fetchRelatedFeed(author, permlink, limit = 24) {
-  if (!author || !permlink || author === 'unknown') return [];
+  if (!author || !permlink || author === 'unknown') return EMPTY_RELATED;
   try {
     const r = await fetch(
       `${CHECKER_URL}/feeds/related/${encodeURIComponent(author)}/${encodeURIComponent(permlink)}?limit=${limit}${feedParams()}`
     );
     const j = await r.json();
-    return j?.videos || [];
-  } catch (_) { return []; }
+    return { videos: j?.videos || [], currentTopic: j?.currentTopic || null };
+  } catch (_) { return EMPTY_RELATED; }
 }
 
 export async function fetchAuthorVideos(author, limit = 10) {

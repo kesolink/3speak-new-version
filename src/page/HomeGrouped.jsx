@@ -15,6 +15,7 @@ import ShortsStories from "../components/ShortsStories/ShortsStories";
 import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import ShortsRow from "../components/ShortsRow/ShortsRow";
+import { useGridColumns, useShortsPerRow } from "../hooks/useGridMetrics";
 import { SHORTS_API_URL } from "../utils/config";
 import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
 import { Rocket, Compass, Sparkles, GripVertical } from "lucide-react";
@@ -87,9 +88,15 @@ const SHORTS_PAGE = 60;       // per request
 // on, and the New rail also needs chrono — express would then parse `chrono` as the
 // ARRAY ['1','1'] and `req.query.chrono === '1'` would be false, silently disabling
 // it. So build the params here and emit chrono exactly once.
-const shortsParams = (mode) => {
+// Discover and Interests both draw from the RANKED shorts feed, so without this
+// they'd share a seed and show the identical shorts. Offset the session seed per
+// section so each feed gets its own shuffle (mulberry32 diverges completely for any
+// distinct integer seed). Irrelevant for `new` (date-sorted), harmless there.
+const SHORTS_SEED_OFFSET = { discover: 0, interests: 7919, home: 15733, new: 24917 };
+
+const shortsParams = (mode, sectionKey) => {
   const st = useAppStore.getState();
-  let p = `&seed=${getFeedSeed()}`;
+  let p = `&seed=${getFeedSeed() + (SHORTS_SEED_OFFSET[sectionKey] || 0)}`;
   if (Array.isArray(st.interests) && st.interests.length) p += `&interests=${encodeURIComponent(st.interests.join(','))}`;
   if (st.user) {
     p += `&currentuser=${encodeURIComponent(st.user)}`;
@@ -100,9 +107,28 @@ const shortsParams = (mode) => {
   return p;
 };
 
-const fetchFeedShorts = async (mode, page = 1) => {
-  const res = await axios.get(appendNsfw(`${SHORTS_API_URL}?page=${page}&limit=${SHORTS_PAGE}${shortsParams(mode)}`, useAppStore.getState().showNsfw));
-  return res.data?.shorts || [];
+// A different SEED only reshuffles the same shorts — the shorts ranking is
+// recency-dominated, so the newest float to the top of both feeds regardless. To
+// make Interests show genuinely DIFFERENT shorts from Discover, start it a page in.
+const SHORTS_PAGE_OFFSET = { discover: 0, interests: 1, home: 0, new: 0 };
+
+const fetchFeedShorts = async (mode, sectionKey, page = 1) => {
+  const offset = SHORTS_PAGE_OFFSET[sectionKey] || 0;
+  const url = (p) => appendNsfw(
+    `${SHORTS_API_URL}?page=${p}&limit=${SHORTS_PAGE}${shortsParams(mode, sectionKey)}`,
+    useAppStore.getState().showNsfw,
+  );
+
+  const res = await axios.get(url(page + offset));
+  const shorts = res.data?.shorts || [];
+
+  // A small shorts pool may not HAVE the offset page. Rather than leaving the feed
+  // with no rails at all, fall back to the un-offset page.
+  if (!shorts.length && offset && page === 1) {
+    const fb = await axios.get(url(page));
+    return fb.data?.shorts || [];
+  }
+  return shorts;
 };
 
 const fetchPromoted = async () => {
@@ -169,75 +195,6 @@ const applyTabOrder = (sections, order) => {
   for (const s of sections) if (bySection.has(s.key)) out.push(s);
   return out;
 };
-
-// How many columns the card grid is CURRENTLY rendering. The grid is
-// `repeat(auto-fill, minmax(...))`, so the count is decided by the browser at the
-// live viewport width — we can't infer it from a breakpoint. Read it back off the
-// computed style and re-read on resize, so "every 2 rows" means 2 REAL rows.
-function useGridColumns(rootRef, deps) {
-  const [cols, setCols] = useState(0);
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return undefined;
-    const grid = root.querySelector('.card-container');
-    if (!grid) return undefined;
-    const measure = () => {
-      const tpl = getComputedStyle(grid).gridTemplateColumns || '';
-      // "220px 220px 220px" -> 3. `none` (not yet laid out) -> 0.
-      const n = tpl === 'none' ? 0 : tpl.split(/\s+/).filter(Boolean).length;
-      setCols((prev) => (prev === n ? prev : n));
-    };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(measure);
-    ro.observe(grid);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootRef, deps]);
-  return cols;
-}
-
-// How many shorts fit across the grid at the CURRENT width. The rail is a full row
-// (not a scroller), so we must hand it exactly this many — one too many and it
-// wraps to a second line, one too few and the row is short.
-//
-// Measured off the live container rather than guessed from a breakpoint, and
-// re-measured on resize, so it always matches what the browser is actually doing.
-const SHORT_MIN_W = 150;        // desktop minimum card width
-const SHORT_MIN_W_PHONE = 104;  // phones fit ~3 across instead of 2
-const SHORT_GAP = 16;
-const SHORT_GAP_PHONE = 10;
-
-function useShortsPerRow(rootRef, deps) {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return undefined;
-    const grid = root.querySelector('.card-container');
-    if (!grid) return undefined;
-    const measure = () => {
-      const w = grid.clientWidth;
-      if (!w) return;
-      const phone = window.matchMedia('(max-width: 600px)').matches;
-      const min = phone ? SHORT_MIN_W_PHONE : SHORT_MIN_W;
-      const gap = phone ? SHORT_GAP_PHONE : SHORT_GAP;
-      // How many `min`-wide cards + gaps fit in w. The tracks are 1fr, so whatever
-      // fits then stretches to fill the width exactly.
-      const fit = Math.floor((w + gap) / (min + gap));
-      setN((prev) => {
-        const next = Math.max(2, fit);
-        return prev === next ? prev : next;
-      });
-    };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(measure);
-    ro.observe(grid);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootRef, deps]);
-  return n;
-}
 
 // Bottom-of-list sentinel — fires onLoadMore when it scrolls into view (600px
 // early) so the next page is fetched before the user hits the actual end.
@@ -415,20 +372,32 @@ const HomeGrouped = () => {
   //   home (Follow Feed)   → only creators you follow  (?followedby=)
   //   new                  → newest-first, no retention (?chrono=1)
   // Logged-out has no follow list, so the Home Feed gets no rails.
+  // null = no shorts rails in this section. That single value already gates the
+  // query (`enabled`), the "wait for shorts before painting" check and the
+  // interleave props — so the Settings toggle just feeds into it, and turning it off
+  // skips the shorts request entirely rather than fetching and hiding.
+  const inlineShorts = useAppStore((st) => st.inlineShorts);
   const shortsMode = useMemo(() => {
+    if (inlineShorts === false) return null;
     const k = activeSection?.key;
     if (k === 'discover' || k === 'interests') return 'ranked';
     if (k === 'home' && authenticated && user) return 'follow';
     if (k === 'new') return 'chrono';
     return null;
-  }, [activeSection?.key, authenticated, user]);
+  }, [inlineShorts, activeSection?.key, authenticated, user]);
 
+  const shortsSectionKey = activeSection?.key || null;
   const shortsQ = useInfiniteQuery({
-    queryKey: ["feed-shorts", shortsMode, user || null, showNsfw],
-    queryFn: ({ pageParam = 1 }) => fetchFeedShorts(shortsMode, pageParam),
+    // Keyed by SECTION, not just mode: discover and interests share the 'ranked'
+    // source but must not share a cache entry, or they'd render the same shorts.
+    queryKey: ["feed-shorts", shortsSectionKey, shortsMode, user || null, showNsfw],
+    queryFn: ({ pageParam = 1 }) => fetchFeedShorts(shortsMode, shortsSectionKey, pageParam),
     initialPageParam: 1,
     getNextPageParam: nextPage(),
     enabled: !!shortsMode,
+    // The panel waits for this (see renderPanel), so don't let a failing shorts
+    // request sit on retries and strand the whole feed on skeletons.
+    retry: 1,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -572,7 +541,14 @@ const HomeGrouped = () => {
 
   const renderPanel = (s) => {
     if (!s) return null;
-    if (s.isLoading && (!s.videos || s.videos.length === 0)) {
+    // Wait for the shorts too, not just the videos. Otherwise the grid paints first
+    // and the rails drop in a beat later, shoving everything down. The shorts feed
+    // is actually the FASTER of the two (~0.23s vs 0.3-0.8s), so this costs nothing
+    // in practice — and `retry: 1` means a failing one can't hold the feed hostage.
+    const waitingForShorts = !!shortsMode
+      && s.key === activeSection?.key
+      && shortsQ.isLoading;
+    if (waitingForShorts || (s.isLoading && (!s.videos || s.videos.length === 0))) {
       return <div className="home-tab-skeletons">{Array.from({ length: 12 }).map((_, i) => <CardSkeleton key={i} />)}</div>;
     }
     if (!s.videos || s.videos.length === 0) {
