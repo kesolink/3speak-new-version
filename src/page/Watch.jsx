@@ -12,7 +12,10 @@ import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
 import { Client } from '@hiveio/dhive';
-import { HIVE_API_NODES, PLAYER_URL } from '../utils/config';
+import { HIVE_API_NODES, PLAYER_URL, SHORTS_API_URL, appendNsfw } from '../utils/config';
+import ShortsRow from '../components/ShortsRow/ShortsRow';
+import { useGridColumns, useShortsPerRow } from '../hooks/useGridMetrics';
+import { getFeedSeed } from '../utils/feedSeed';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
@@ -26,6 +29,19 @@ import useSubtitles from '../hooks/useSubtitles';
 import useWatchDuration from '../hooks/useWatchDuration';
 import { fetchScheduledPost, getScheduledEmbedRef } from '../utils/scheduledPosts';
 import EditScheduledModal from '../components/modal/EditScheduledModal';
+
+// Stable identity so `related?.videos || EMPTY_LIST` doesn't hand a NEW [] to the
+// memo on every render.
+const EMPTY_LIST = [];
+
+// A shorts rail every N rows of recommendations. The sidebar is a ONE-column grid,
+// so N here is literally "every N recommended videos" — 3 keeps the rail present
+// without letting it out-number the videos it's sitting between.
+const WATCH_ROWS_PER_SHORTS_RAIL = 3;
+const WATCH_SHORTS_LIMIT = 30;
+// Keeps the watch rail from being the same shorts, in the same order, as the home
+// feed's rails within one session.
+const WATCH_SHORTS_SEED_OFFSET = 4231;
 
 // Build the videoDetails shape PlayVideo expects from a checker scheduled-post
 // doc (the post isn't on Hive yet, so there are no stats/payout/votes).
@@ -98,7 +114,7 @@ function Watch({ v2 = false }) {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, watchHistoryEnabled, setMiniPlayer, clearMiniPlayer } = useAppStore();
+  const { user, watchHistoryEnabled, setMiniPlayer, clearMiniPlayer, showNsfw, inlineShorts } = useAppStore();
   const v = searchParams.get('v'); // Extract the "v" query parameter
   const playlistId = searchParams.get('playlist');
   const posParam = searchParams.get('pos');
@@ -955,12 +971,66 @@ function Watch({ v2 = false }) {
   // Suggestion feeds from the checker (items already match the Card3 shape).
   // The related feed is topic/interest/creator-aware (see /feeds/related); it's
   // keyed by the current video so it re-pulls when you navigate to a new one.
-  const { data: relatedItems = [], isLoading: relatedLoading } = useQuery({
+  const { data: related, isLoading: relatedLoading } = useQuery({
     queryKey: ['watch-related', author, permlink],
     queryFn: () => fetchRelatedFeed(author, permlink, 24),
     enabled: !!author && author !== 'unknown' && !!permlink,
     staleTime: 5 * 60 * 1000,
   });
+  const relatedItems = related?.videos || EMPTY_LIST;
+  // The topic the checker resolved for THIS video — reused by the shorts rail below.
+  const currentTopic = related?.currentTopic || null;
+  // Recommended SHORTS, interleaved into the recommendation list the same way the
+  // home feed does it. Biased to the current video's topic via `?topic=` — a BOOST
+  // on the checker, not a filter, so a narrow topic still returns a full rail
+  // instead of an empty one.
+  //
+  // Gated on the related query so we ask ONCE, with the topic already known,
+  // rather than firing a topic-less request and refetching a moment later.
+  const { data: relatedShorts = EMPTY_LIST } = useQuery({
+    queryKey: ['watch-related-shorts', currentTopic, showNsfw],
+    queryFn: async () => {
+      const topicParam = currentTopic ? `&topic=${encodeURIComponent(currentTopic)}` : '';
+      const url = appendNsfw(
+        `${SHORTS_API_URL}?page=1&limit=${WATCH_SHORTS_LIMIT}&seed=${getFeedSeed() + WATCH_SHORTS_SEED_OFFSET}${topicParam}`,
+        showNsfw,
+      );
+      const r = await fetch(url);
+      const j = await r.json();
+      return j?.shorts || EMPTY_LIST;
+    },
+    // Off in Settings → never requested (not fetched-then-hidden).
+    enabled: inlineShorts !== false && !relatedLoading && !!permlink,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  // The desktop sidebar list and the mobile list are BOTH mounted (CSS picks one),
+  // so each needs its own measurement — a hidden container measures 0 and simply
+  // renders no rails, which is exactly what we want.
+  const desktopRecRef = useRef(null);
+  const mobileRecRef = useRef(null);
+  const desktopCols = useGridColumns(desktopRecRef, relatedShorts.length);
+  const desktopPerRow = useShortsPerRow(desktopRecRef, relatedShorts.length);
+  const mobileCols = useGridColumns(mobileRecRef, relatedShorts.length);
+  const mobilePerRow = useShortsPerRow(mobileRecRef, relatedShorts.length);
+
+  // One rail per slot, each a fresh slice — never a PARTIAL row: the tracks are 1fr
+  // and stretch to fill, so a short slice would render as a few over-wide cards.
+  const renderDesktopRail = useCallback((slot) => {
+    if (!desktopPerRow) return null;
+    const slice = relatedShorts.slice(slot * desktopPerRow, slot * desktopPerRow + desktopPerRow);
+    if (slice.length < desktopPerRow) return null;
+    return <ShortsRow shorts={slice} columns={desktopPerRow} />;
+  }, [relatedShorts, desktopPerRow]);
+
+  const renderMobileRail = useCallback((slot) => {
+    if (!mobilePerRow) return null;
+    const slice = relatedShorts.slice(slot * mobilePerRow, slot * mobilePerRow + mobilePerRow);
+    if (slice.length < mobilePerRow) return null;
+    return <ShortsRow shorts={slice} columns={mobilePerRow} />;
+  }, [relatedShorts, mobilePerRow]);
+
   // Plain trending is only a fallback when the related feed is thin.
   const { data: trendingItems = [], isLoading: trendingLoading } = useQuery({
     queryKey: ['watch-trending'],
@@ -1336,17 +1406,29 @@ function Watch({ v2 = false }) {
         )}
 
         {suggestedVideos.length > 0 && (
-          <div className="right-column-videos">
+          <div className="right-column-videos" ref={desktopRecRef}>
             <h4>More videos</h4>
-            <Card3 videos={suggestedVideos} loading={false} shortTimeAgo={false} />
+            <Card3
+              videos={suggestedVideos}
+              loading={false}
+              shortTimeAgo={false}
+              interleaveEvery={desktopCols > 0 && relatedShorts.length ? desktopCols * WATCH_ROWS_PER_SHORTS_RAIL : 0}
+              renderInterleave={relatedShorts.length ? renderDesktopRail : null}
+            />
           </div>
         )}
       </div>
 
       {suggestedVideos.length > 0 && (
-        <div className="mobile-recommended">
+        <div className="mobile-recommended" ref={mobileRecRef}>
           <h4>More videos</h4>
-          <Card3 videos={suggestedVideos.slice(0, 12)} loading={false} shortTimeAgo={false} />
+          <Card3
+            videos={suggestedVideos.slice(0, 12)}
+            loading={false}
+            shortTimeAgo={false}
+            interleaveEvery={mobileCols > 0 && relatedShorts.length ? mobileCols * WATCH_ROWS_PER_SHORTS_RAIL : 0}
+            renderInterleave={relatedShorts.length ? renderMobileRail : null}
+          />
         </div>
       )}
 
