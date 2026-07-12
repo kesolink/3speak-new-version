@@ -144,7 +144,7 @@ const TABS = [
  * side menu, now grouped with headers + explanations and compact switches.
  */
 export default function SettingsModal({ isOpen, onClose }) {
-  const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled, shortsCommentBar, setShortsCommentBar, openShortsOnStart, setOpenShortsOnStart, hideWatched, setHideWatched, privateMode, setPrivateMode, simpleFeed, setSimpleFeed } = useAppStore();
+  const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled, shortsCommentBar, setShortsCommentBar, openShortsOnStart, setOpenShortsOnStart, inlineShorts, setInlineShorts, hideWatched, setHideWatched, privateMode, setPrivateMode, simpleFeed, setSimpleFeed } = useAppStore();
   const [tab, setTab] = useState('general');
 
   // Lock background page scroll while the modal is open (restore on close).
@@ -292,6 +292,12 @@ export default function SettingsModal({ isOpen, onClose }) {
               desc="Go straight to Shorts when you open 3Speak, instead of the home feed."
               checked={!!openShortsOnStart}
               onChange={(v) => setOpenShortsOnStart(v)}
+            />
+            <Row
+              title="Shorts inside the feeds"
+              desc="Show rows of shorts between the videos in the home feeds and the recommendations on a watch page. Turn off to keep those lists videos-only."
+              checked={inlineShorts !== false}
+              onChange={(v) => setInlineShorts(v)}
             />
           </div>
         )}
