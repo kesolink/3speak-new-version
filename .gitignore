@@ -37,3 +37,6 @@ docs/BACKEND_SCHEDULING_REQUIREMENTS.md
 docs/SCHEDULING_SPEC.md
 internal-docs/server/.env
 .claude/
+
+# Backups of .env — same secrets, and NOT covered by the .env rule above.
+.env.bak*

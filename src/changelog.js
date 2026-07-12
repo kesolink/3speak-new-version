@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.55.0',
+    date: '2026-07-12',
+    summary:
+      'Shorts now also show up between the recommended videos on a watch page, picked to match the topic of the video you\u2019re watching. Don\u2019t want shorts mixed into your lists? Turn off \u201CShorts inside the feeds\u201D in Settings \u2192 Shorts. On the Stories view, the comments panel no longer covers the creators bar and now closes away completely.',
+  },
+  {
     version: '1.54.0',
     date: '2026-07-12',
     summary:
