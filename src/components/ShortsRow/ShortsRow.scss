@@ -1,0 +1,104 @@
+@use "../../mixins.scss" as mix;
+
+/* A shorts rail living INSIDE the video grid.
+   `.card-interleave` is the wrapper Card3 emits, i.e. the actual GRID ITEM — so the
+   column span has to go there. Putting it on `.shorts-row` (a child) would do
+   nothing and the rail would be squeezed into a single cell. */
+.card-interleave {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+/* One full row of shorts — NOT a horizontal scroller. The column count is computed
+   from the live container width (see useShortsPerRow) and passed in as an inline
+   `grid-template-columns`, and the slice handed to this component is exactly that
+   many shorts. So the row always fills the width edge-to-edge with no overflow and
+   no second line. */
+.shorts-row {
+  display: grid;
+  gap: 16px;              /* matches the video grid's column gap */
+  margin: 2px 0 6px;
+  min-width: 0;
+
+  @include mix.respond(phone) {
+    gap: 10px;
+  }
+}
+
+/* Same card treatment as Card3's `.card` (background, radius, shadow, hover lift)
+   — only the thumbnail aspect ratio differs (9:16 instead of 16:9). */
+.shorts-row-card {
+  min-width: 0;           /* let the 1fr track shrink the card, don't overflow */
+  text-decoration: none;
+  color: inherit;
+
+  background-color: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+
+  @include mix.respond(phone) {
+    border-radius: 8px;
+  }
+
+  /* Guarded to hover-capable devices so it doesn't stick on a mobile tap. */
+  @media (hover: hover) {
+    &:hover {
+      transform: scale(1.015);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+    }
+    [data-theme="dark"] &:hover {
+      background-color: #242424;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+    }
+  }
+}
+
+.shorts-row-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 16;   /* the one thing that differs from a video card */
+  overflow: hidden;
+  background: var(--skeleton-bg, rgba(150, 150, 150, 0.14));
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.shorts-row-meta {
+  padding: 6px 8px 8px;
+
+  /* Mirrors the video card's title type. */
+  h2 {
+    font-size: 12.95px;
+    font-weight: 400;
+    color: var(--text-primary);
+    margin: 0 0 3px;
+    line-height: 1.3;
+
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  @include mix.respond(phone) {
+    padding: 5px 6px 6px;
+    h2 { font-size: 12px; }
+  }
+}
+
+.shorts-row-author {
+  font-size: 12px;
+  color: var(--text-secondary, #9aa);
+
+  @include mix.respond(phone) { font-size: 11px; }
+}
