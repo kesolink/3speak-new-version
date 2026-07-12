@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.54.0',
+    date: '2026-07-12',
+    summary:
+      'Shorts now appear inside the home feeds — a row of them every couple of rows of videos. Discover and Interests show the usual shorts, the Follow Feed shows only shorts from people you follow, and New Content shows the newest first. The Trending tab has been removed.',
+  },
+  {
     version: '1.53.0',
     date: '2026-07-12',
     summary:
