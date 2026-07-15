@@ -2,10 +2,10 @@
  * Plain-language, INFORMATIONAL overview of how 3Speak handles user data — grounded
  * in what the code actually does (data flows current as of 2026-07-14).
  *
- * Deliberately NOT a formal/binding privacy policy or Impressum, and it names neither
- * the operator/controller nor any specific vendor — those are owned elsewhere in the
- * project, not by this front-end. The banner at the top says so explicitly, so this
- * page isn't construed as the official legal document. Keep it that way: describe
+ * Deliberately NOT a formal/binding privacy policy or Impressum. 3Speak is framed as
+ * a decentralised collective with no single operating company, so this page names no
+ * operator/controller, no vendor, and no location — it's a good-faith transparency
+ * note only. The banner at the top says so explicitly. Keep it that way: describe
  * data handling generically; don't add company names, addresses, or placeholders.
  */
 import { Helmet } from 'react-helmet-async';
@@ -18,9 +18,10 @@ export default function Legal() {
       <Helmet><title>How 3Speak handles your data · 3Speak</title></Helmet>
 
       <div className="legal-draft" role="note">
-        This is a plain-language overview of how 3Speak handles your data, provided for
-        transparency. It is <strong>not</strong> a formal or binding privacy policy or legal
-        notice — those are provided separately by the operator of 3Speak.
+        3Speak is an open, decentralised project maintained by a collective of contributors,
+        not a single operating company. This is a plain-language overview of how the software
+        handles your data, provided in good faith for transparency. It is <strong>not</strong> a
+        formal or binding privacy policy or legal notice.
       </div>
 
       <h1>How 3Speak handles your data</h1>
@@ -45,15 +46,12 @@ export default function Legal() {
       </section>
 
       <section>
-        <h2>1. Who is responsible</h2>
+        <h2>1. Getting in touch</h2>
         <p>
-          The party responsible for the processing described here (the “controller”) is the
-          operator of 3Speak.
-        </p>
-        <p>
-          For any privacy question or to exercise your rights, contact us at{' '}
-          <a href="mailto:privacy@3speak.tv">privacy@3speak.tv</a>, or use the request form under{' '}
-          <em>Settings → About / Contact</em>.
+          3Speak is maintained by a decentralised collective of contributors rather than a single
+          operating company. For any question about your data, or to ask us to send or delete the
+          data 3Speak holds, contact <a href="mailto:privacy@3speak.tv">privacy@3speak.tv</a> or
+          use the request form under <em>Settings → About / Contact</em>.
         </p>
       </section>
 
