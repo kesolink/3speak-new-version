@@ -20,6 +20,7 @@ import { getFeedSeed } from '../utils/feedSeed';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
+import { batchCheckHidden, isCreatorHidden } from '../utils/hiddenCreators';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
@@ -155,6 +156,17 @@ function Watch({ v2 = false }) {
     () => buildScheduledVideoDetails(scheduledDoc),
     [scheduledDoc],
   );
+
+  // Hidden (moderated) creator — hard-block the watch page. The checker also 404s
+  // /videodetails for these, but this page loads its metadata from Hive directly,
+  // so it needs its own check. Fails open (plays) on a check error.
+  const [authorHidden, setAuthorHidden] = useState(false);
+  useEffect(() => {
+    if (!author || author === 'unknown') { setAuthorHidden(false); return undefined; }
+    let alive = true;
+    isCreatorHidden(author).then((h) => { if (alive) setAuthorHidden(h); });
+    return () => { alive = false; };
+  }, [author]);
 
   // Track which videos we've recorded to avoid duplicate API calls
   const recordedWatchRef = useRef(new Set());
@@ -639,12 +651,16 @@ function Watch({ v2 = false }) {
           });
         }
 
-        // Batch-fetch reputations and mark low-rep authors
+        // Batch-fetch reputations and hidden status; mark low-rep + hidden authors.
         const authors = markers.map(m => m.label);
-        const reputations = await batchGetReputations(authors);
+        const [reputations, hiddenSet] = await Promise.all([
+          batchGetReputations(authors),
+          batchCheckHidden(authors),
+        ]);
         for (const m of markers) {
           const rep = reputations.get(m.label) ?? 25;
           m.isLowReputation = rep < LOW_REP_THRESHOLD;
+          m.isHidden = hiddenSet.has(String(m.label || '').toLowerCase());
         }
 
         // Sort by timestamp: timestamped first (ascending), then no-timestamp at end
@@ -1146,7 +1162,7 @@ function Watch({ v2 = false }) {
   const reactions = useMemo(() => {
     if (!commentMarkers) return [];
     return commentMarkers
-      .filter(m => !m.isLowReputation)
+      .filter(m => !m.isLowReputation && !m.isHidden)
       .map((m, i) => {
         const base = {
           id: `reaction-${i}`,
@@ -1222,6 +1238,15 @@ function Watch({ v2 = false }) {
 
   const isNetworkError = videoIsError && !videoDetails;
   const isLoading = scheduled ? scheduledLoading : videoLoading;
+
+  if (authorHidden) {
+    return (
+      <div className="watch-error">
+        <p>This video is not available.</p>
+        <button className="watch-error-retry" onClick={() => navigate('/')}>Go Home</button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <BarLoader />;

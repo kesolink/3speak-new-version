@@ -82,6 +82,7 @@ import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import ShortsIcon from '../components/icons/ShortsIcon';
 import ShortsLoadingScreen from '../components/ShortsLoadingScreen/ShortsLoadingScreen';
 import { markByReputation } from '../utils/reputation';
+import { markByHidden } from '../utils/hiddenCreators';
 import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
@@ -1456,7 +1457,7 @@ const VideoShort = () => {
 
     try {
       const rawComments = await hiveApi.fetchPostComments(video.author, video.hivePermlink, user);
-      const comments = await markByReputation(rawComments);
+      const comments = await markByHidden(await markByReputation(rawComments));
 
       // Pre-render comment bodies as HTML
       try {
@@ -3431,7 +3432,7 @@ const CommentItem = ({
       .replace(/\n?<sup>replied to \[.*?\]\([^)]*\)<\/sup>/g, '');
   };
 
-  if (comment.isLowReputation) return null;
+  if (comment.isLowReputation || comment.isHidden) return null;
 
   if (collapsed) {
     return (
