@@ -302,10 +302,33 @@ function Watch({ v2 = false }) {
         setPlaybackFailed(true); // swap the player for a "not available" hint
       }
     },
+    // Tuned for 3Speak's reality: older uploads sit on COLD IPFS and a segment can
+    // take 30–45s to serve the first time (then the CDN has it hot). See the HAR
+    // analysis of 2026-07-15.
     hlsConfig: {
-      maxBufferLength: 600,      // buffer up to 10 min ahead
-      maxMaxBufferLength: 600,
+      // Buffer a sane amount ahead. The old 600s (10 min) made hls.js fire dozens of
+      // fragment requests far in advance — against a slow gateway those pile up, time
+      // out and retry in a storm, which also loaded segments wildly out of order. 60s
+      // of runway is plenty without the flood.
+      maxBufferLength: 60,
+      maxMaxBufferLength: 120,
       maxBufferSize: 60 * 1000 * 1000, // 60 MB
+      // Give each fragment room to FINISH instead of aborting at hls.js's 20s default
+      // and re-downloading it — those aborts were the bulk of the wasted/duplicated
+      // requests. Bound the retries so a genuinely dead segment still gives up.
+      fragLoadingTimeOut: 60000,
+      fragLoadingMaxRetry: 3,
+      fragLoadingRetryDelay: 1000,
+      fragLoadingMaxRetryTimeout: 60000,
+      manifestLoadingTimeOut: 20000,
+      levelLoadingTimeOut: 20000,
+      // Don't cold-start at 1080p on a slow gateway (the first segment took ~42s). The
+      // SDK's default startLevel:0 picks the first-listed variant, and 3Speak masters
+      // list highest-first — so it forced 1080p. Let ABR choose from a conservative
+      // bandwidth estimate instead; it ramps up within a segment or two once real
+      // throughput is known.
+      startLevel: -1,
+      abrEwmaDefaultEstimate: 1000000, // ~1 Mbps → starts around 480p, not 1080p
     },
   });
 
