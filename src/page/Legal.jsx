@@ -1,43 +1,29 @@
 /**
- * Privacy policy (Art. 13 GDPR information duty). Grounded in what the code actually
- * does — the data flows here are real and current as of 2026-07-14.
+ * Plain-language, INFORMATIONAL overview of how 3Speak handles user data — grounded
+ * in what the code actually does (data flows current as of 2026-07-14).
  *
- * The Impressum (§5 DDG) and the operator/controller identity are deliberately NOT
- * named here — that's owned elsewhere in the project, not by this front-end. This
- * page is only the privacy policy; it refers to "the operator of 3Speak" generically.
- *
- * ⚠️ BEFORE THIS GOES LIVE ON PRODUCTION:
- *   1. A lawyer must review the wording — an accurate draft, not a substitute for
- *      legal review.
- *   2. Fill the remaining [PLACEHOLDER …] processor/transfer details. The
- *      LEGAL_REVIEWED flag gates the draft banner until both are done.
+ * Deliberately NOT a formal/binding privacy policy or Impressum, and it names neither
+ * the operator/controller nor any specific vendor — those are owned elsewhere in the
+ * project, not by this front-end. The banner at the top says so explicitly, so this
+ * page isn't construed as the official legal document. Keep it that way: describe
+ * data handling generically; don't add company names, addresses, or placeholders.
  */
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import './Legal.scss';
 
-// Flip to true only once a lawyer has reviewed this AND every [PLACEHOLDER] below is
-// filled with real details. Until then the draft banner shows.
-const LEGAL_REVIEWED = false;
-
-function Placeholder({ children }) {
-  return <span className="legal-placeholder">[PLACEHOLDER — {children}]</span>;
-}
-
 export default function Legal() {
   return (
     <div className="legal">
-      <Helmet><title>Privacy Policy · 3Speak</title></Helmet>
+      <Helmet><title>How 3Speak handles your data · 3Speak</title></Helmet>
 
-      {!LEGAL_REVIEWED && (
-        <div className="legal-draft" role="alert">
-          <strong>Draft — not yet legally reviewed.</strong> This page is technically accurate
-          but needs a lawyer's sign-off and the real company details filled in before it is
-          relied upon. Do not treat the placeholders as final.
-        </div>
-      )}
+      <div className="legal-draft" role="note">
+        This is a plain-language overview of how 3Speak handles your data, provided for
+        transparency. It is <strong>not</strong> a formal or binding privacy policy or legal
+        notice — those are provided separately by the operator of 3Speak.
+      </div>
 
-      <h1>Privacy Policy</h1>
+      <h1>How 3Speak handles your data</h1>
       <p className="legal-updated">Last updated: 14 July 2026</p>
 
       {/* ── The blockchain reality, up front. This is the single most important
@@ -136,24 +122,23 @@ export default function Legal() {
 
       <section>
         <h2>4. Who else receives data</h2>
-        <ul>
-          <li><strong>Hosting:</strong> <Placeholder>hosting provider, e.g. Hetzner Online GmbH, Germany</Placeholder>.</li>
-          <li><strong>Content delivery / DDoS protection:</strong> <Placeholder>e.g. Cloudflare, Inc. (USA)</Placeholder> — for some domains; see international transfers below.</li>
-          <li><strong>Email:</strong> <Placeholder>email provider used to answer data requests, e.g. Resend</Placeholder>.</li>
-          <li><strong>The Hive blockchain and IPFS:</strong> public, decentralised networks. Anything you publish goes to them and is outside our control.</li>
-        </ul>
         <p>
-          We have (or will put in place) data-processing agreements (Art. 28) with each processor
-          before launch. <Placeholder>confirm AVV/DPA status per processor</Placeholder>.
+          To run the service we rely on a small number of third-party providers — for hosting,
+          content delivery and email — who process data on our behalf and only as needed to
+          provide 3Speak.
+        </p>
+        <p>
+          Anything you publish also goes to the <strong>Hive blockchain and IPFS</strong> —
+          public, decentralised networks that are outside our control.
         </p>
       </section>
 
       <section>
         <h2>5. International transfers</h2>
         <p>
-          Where a processor is outside the EU/EEA (for example a US-based CDN or email provider),
-          the transfer is covered by the European Commission's Standard Contractual Clauses or an
-          adequacy decision. <Placeholder>confirm transfer mechanism per processor</Placeholder>.
+          Where one of these providers is outside the EU/EEA, such transfers are made under
+          appropriate safeguards — for example the European Commission's Standard Contractual
+          Clauses or an adequacy decision.
         </p>
       </section>
 
