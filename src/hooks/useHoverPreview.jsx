@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { reportVideoUnavailable } from '../lib/reportUnavailable';
 import { ThreeSpeakApi } from "@mantequilla-soft/3speak-player";
 import { PLAYER_URL } from "../utils/config";
 import { createLowResPreviewPlayer } from "../lib/lowResPreviewPlayer";
@@ -35,10 +36,19 @@ function lowestVariantUrl(masterText, base) {
   return best?.url || null;
 }
 
-async function prefetchManifestAbortable(hlsUrl, signal) {
+async function prefetchManifestAbortable(hlsUrl, signal, onGone) {
   const opts = { mode: "cors", credentials: "omit", signal };
   try {
-    const text = await (await fetch(hlsUrl, opts)).text();
+    const res = await fetch(hlsUrl, opts);
+    // The status was never checked here: a 404 just returned the error page as text,
+    // failed the #EXT-X test, and the card went on quietly showing a video that plays
+    // nothing. A hard 404 is the one signal worth acting on — report it (the checker
+    // re-verifies across every gateway before it believes us).
+    if (res.status === 404 || res.status === 410) {
+      if (!signal.aborted && onGone) onGone(hlsUrl);
+      return;
+    }
+    const text = await res.text();
     if (signal.aborted) return;
     if (text.includes("#EXT-X-STREAM-INF")) {
       const variantUrl = lowestVariantUrl(text, baseOf(hlsUrl));
@@ -124,7 +134,10 @@ export default function useHoverPreview({ renderControls } = {}) {
         if (ctrl.signal.aborted) return;
         sources.set(key, src);
         // Warm the manifest + first segment, cancellable via the same controller.
-        return prefetchManifestAbortable(src.url, ctrl.signal);
+        // Every visible card runs this, so it doubles as the dead-video sweep: as
+        // people scroll the feeds, anything whose media has gone gets reported.
+        return prefetchManifestAbortable(src.url, ctrl.signal, (url) =>
+          reportVideoUnavailable(author, permlink, url));
       })
       .catch(() => {})
       .finally(() => { if (inflight.get(key) === ctrl) inflight.delete(key); });

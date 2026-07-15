@@ -59,75 +59,6 @@
   // Lay the two extra buttons out as a 2-column grid directly after the
   // wallet-provider grid so they inherit the exact same parent width —
   // no absolute positioning, no guessing the modal's horizontal padding.
-  .email-login-btn-container {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-    margin-top: 0.5rem;
-    width: 100%;
-
-    @media (max-width: 540px) {
-      grid-template-columns: 1fr;
-      gap: 6px;
-    }
-
-    // ButrAuth + Email login buttons — matched to the wallet-provider tiles
-    // (see index.css #aioha-modal ul li a rules)
-    .butrauth-login-btn,
-    .email-login-btn {
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      width: 100%;
-      padding: 0.5rem 1rem !important;
-      background-color: var(--bg-secondary) !important;
-      color: var(--text-primary) !important;
-      border: 1px solid var(--border-color) !important;
-      border-radius: 0.5rem !important;
-      font-size: 16px;
-      font-weight: 700;
-      text-align: left;
-      cursor: pointer;
-      transition: all 0.2s ease;
-
-      @media (max-width: 540px) {
-        padding: 0.5rem 1rem !important;
-      }
-
-      &:hover {
-        background-color: var(--bg-hover) !important;
-        border-color: var(--accent-primary) !important;
-      }
-
-      // Match the aioha provider icons (see index.css #aioha-modal ul li a svg).
-      // The butter logo PNG has internal transparent padding so we render it
-      // slightly larger than aioha's edge-to-edge SVGs to keep visual parity.
-      img,
-      svg {
-        flex-shrink: 0;
-        width: 32px !important;
-        height: 32px !important;
-        min-width: 32px !important;
-        min-height: 32px !important;
-        margin-right: 0.75rem !important;
-        color: #6b7280;
-
-        @media (max-width: 540px) {
-          width: 28px !important;
-          height: 28px !important;
-          min-width: 28px !important;
-          min-height: 28px !important;
-        }
-      }
-
-      span {
-        flex: 1;
-        text-align: left;
-        color: var(--text-primary) !important;
-      }
-    }
-  }
-
   // ── ButrAuth: the recommended option, a single wide button above the grid ──
   .login-top-section {
     width: 100%;
@@ -193,20 +124,6 @@
 
 // Dark mode support - separate for clarity
 @media (prefers-color-scheme: dark) {
-  #aioha-modal .email-login-btn-container .butrauth-login-btn,
-  #aioha-modal .email-login-btn-container .email-login-btn {
-    color: var(--text-primary) !important;
-    border-color: var(--border-color) !important;
-    background: transparent !important;
-
-    &:hover {
-      background: rgba(75, 85, 99, 0.3) !important;
-    }
-
-    svg {
-      color: #9ca3af;
-    }
-  }
 }
 
 // ── Sign-up / Log-in chooser (shown before the provider list) ──────────────

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { AiohaModal, useAioha } from "@aioha/react-ui";
 import { Providers, KeyTypes } from "@aioha/aioha";
-import { MdEmail } from "react-icons/md";
 import { IoPower } from "react-icons/io5";
 import { createPortal } from "react-dom";
 import { ENABLE_METAMASK_SNAP, ENABLE_BUTRAUTH } from "../../utils/config";
@@ -9,10 +8,9 @@ import { useAppStore } from "../../lib/store";
 import "./LoginModal.scss";
 
 /**
- * Custom login modal wrapper that adds email + MetaMask Snap login options to AiohaModal
+ * Custom login modal wrapper that adds Butter Auth + MetaMask Snap login options to AiohaModal
  */
 function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
-  const [buttonContainer, setButtonContainer] = useState(null);
   const [topContainer, setTopContainer] = useState(null);
   // 'choose' = sign-up / log-in chooser screen; 'providers' = wallet/provider list.
   const [step, setStep] = useState('choose');
@@ -37,11 +35,6 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
     if (!displayed) return;
     setStep(aioha.isLoggedIn() ? 'providers' : 'choose');
   }, [displayed, aioha]);
-
-  const handleEmailLogin = (e) => {
-    e.stopPropagation();
-    window.location.href = "https://legacy.3speak.tv";
-  };
 
   // Start the Butter Auth flow in a popup (state='popup' → ManteAuthCallback
   // signals back via a localStorage 'storage' event handled in App). Falls back
@@ -70,11 +63,10 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
     }
   };
 
-  // Inject email button container into aioha modal after it renders
-  // Only show on provider selection page (has <ul> with wallet providers)
+  // Inject the Butter Auth section into the aioha modal after it renders.
+  // Only on the provider-selection page (has <ul> with wallet providers).
   useEffect(() => {
     if (!displayed || step !== 'providers') {
-      setButtonContainer(null);
       setTopContainer(null);
       return;
     }
@@ -164,17 +156,11 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
         // Only show on provider selection page (check for provider list)
         const providerList = modalContent.querySelector('ul');
         if (!providerList) {
-          // Not on provider selection page, remove containers and class
-          modalContent.classList.remove('has-email-btn');
+          // Not on provider selection page — tear the injected section back down.
           modalContent.querySelector('.login-top-section')?.remove();
-          modalContent.querySelector('.email-login-btn-container')?.remove();
           setTopContainer(null);
-          setButtonContainer(null);
           return;
         }
-
-        // Add class for padding
-        modalContent.classList.add('has-email-btn');
 
         // TOP section (Recommended + ButrAuth + "General Hive Logins" heading)
         // goes ABOVE the wallet-provider list so ButrAuth is the prominent,
@@ -190,15 +176,6 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
           listParent.insertBefore(top, providerList);
         }
         setTopContainer(top);
-
-        // BOTTOM container (E-Mail) stays below the wallet-provider list.
-        let container = modalContent.querySelector('.email-login-btn-container');
-        if (!container) {
-          container = document.createElement('div');
-          container.className = 'email-login-btn-container';
-          modalContent.appendChild(container);
-        }
-        setButtonContainer(container);
       }
     };
 
@@ -225,8 +202,9 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
     };
   }, [displayed, step]);
 
-  // Only show email button when not logged in (showing login options)
-  const showEmailButton = displayed && step === 'providers' && !aioha.isLoggedIn();
+  // Only inject the extra login options when not logged in (i.e. showing the
+  // provider list to pick from).
+  const showLoginExtras = displayed && step === 'providers' && !aioha.isLoggedIn();
 
   return (
     <>
@@ -283,7 +261,7 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
         loginTitle={loginTitle}
         loginOptions={loginOptions}
       />
-      {showEmailButton && topContainer && createPortal(
+      {showLoginExtras && topContainer && createPortal(
         <>
           {ENABLE_BUTRAUTH && (
           <button
@@ -300,17 +278,6 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
           )}
         </>,
         topContainer
-      )}
-      {showEmailButton && buttonContainer && createPortal(
-        <button
-          className="email-login-btn"
-          onClick={handleEmailLogin}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <MdEmail size={32} />
-          <span>E-Mail</span>
-        </button>,
-        buttonContainer
       )}
     </>
   );
