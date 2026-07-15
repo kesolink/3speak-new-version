@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '../../hive-api/api';
-import { isCreatorHidden } from '../../utils/hiddenCreators';
+// Aliased: this component already has a local `isCreatorHidden` boolean (the
+// viewer's PERSONAL "not interested" hide state). This one is the moderation check.
+import { isCreatorHidden as isModeratedCreatorHidden } from '../../utils/hiddenCreators';
 import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import icon from "../../../public/images/stack.png"
@@ -164,7 +166,7 @@ function UserProfilePage() {
     useEffect(() => {
       if (!user || isOwnProfile) { setIsHiddenProfile(false); return; }
       let alive = true;
-      isCreatorHidden(user).then((h) => { if (alive) setIsHiddenProfile(h); });
+      isModeratedCreatorHidden(user).then((h) => { if (alive) setIsHiddenProfile(h); });
       return () => { alive = false; };
     }, [user, isOwnProfile]);
 
