@@ -501,6 +501,11 @@ function Watch({ v2 = false }) {
       // the "no longer available" hint from here instead of leaving a blank player.
       // `active` guards against a stale load rejecting after we've moved to another video.
       if (active) setPlaybackFailed(true);
+      // Also tell the checker (as the fatal path does): a post whose stream can't be
+      // resolved is dead weight in feeds. The checker re-decides from its OWN doc — it
+      // only shadow-bans a settled, published, no-stream archive video, never a
+      // still-encoding one — so this sloppy client report is safe.
+      reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
     });
     return () => { active = false; };
   }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek]);
