@@ -27,13 +27,17 @@ function fmtTime(s) {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-export default function useSeekPreview({ videoId, trackRef, duration }) {
+export default function useSeekPreview({ videoId, trackRef, duration, getPlaybackHeight }) {
   const videoRef = useRef(null);
   const playerRef = useRef(null);
   const readyRef = useRef(false);
   const loadedRef = useRef(false); // lazy: only load the stream on first interaction
   const pendingRef = useRef(null); // latest requested preview time
   const [preview, setPreview] = useState({ visible: false, leftPx: 0, time: 0 });
+  // True when this video has no small rung to preview cheaply — we then show the
+  // timestamp only, instead of spawning a second loader for the SAME 480p segments
+  // the main player is already streaming. See lowResPreviewPlayer requirePreviewRung.
+  const [frameless, setFrameless] = useState(false);
 
   // Apply the pending seek only when the element is idle; the 'seeked' handler
   // re-fires this so we always chase the LATEST requested time without a backlog.
@@ -51,10 +55,18 @@ export default function useSeekPreview({ videoId, trackRef, duration }) {
     readyRef.current = false;
     loadedRef.current = false;
     pendingRef.current = null;
+    setFrameless(false);
     const el = videoRef.current;
     if (!videoId || !el) return undefined;
 
-    const player = createLowResPreviewPlayer(el, { loop: false });
+    const player = createLowResPreviewPlayer(el, {
+      loop: false,
+      // Don't compete with playback: if the video's smallest rung isn't smaller than
+      // the rung the main player is on, skip the frame and show the time only.
+      requirePreviewRung: true,
+      getPlaybackHeight,
+      onNoPreviewRung: () => setFrameless(true),
+    });
     playerRef.current = player;
 
     const onReady = () => { readyRef.current = true; applySeek(); };
@@ -100,5 +112,5 @@ export default function useSeekPreview({ videoId, trackRef, duration }) {
     setPreview((p) => (p.visible ? { ...p, visible: false } : p));
   }, []);
 
-  return { videoRef, preview, previewWidth: PREVIEW_W, showAt, hide, fmtTime };
+  return { videoRef, preview, previewWidth: PREVIEW_W, frameless, showAt, hide, fmtTime };
 }

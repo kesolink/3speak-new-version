@@ -935,6 +935,7 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                     markers={videoControls.markers}
                     replayHeatmap={videoControls.replayHeatmap}
                     previewVideoId={videoControls.previewVideoId}
+                    getPlaybackHeight={videoControls.getPlaybackHeight}
                     onMarkerSelect={videoControls.onMarkerSelect}
                     onReactToMoment={videoControls.onReactToMoment}
                     onCycleReactionSize={videoControls.onCycleReactionSize}

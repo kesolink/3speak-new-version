@@ -332,6 +332,15 @@ function Watch({ v2 = false }) {
     },
   });
 
+  // The main player's CURRENT rung height in px (0 if unknown). The scrubber's low-res
+  // preview reads this to skip loading when its smallest rung isn't smaller than what's
+  // already playing — otherwise it re-downloads the exact segments playback needs.
+  const getPlaybackHeight = useCallback(() => {
+    const hls = player?.hls;
+    if (!hls || hls.currentLevel == null || hls.currentLevel < 0) return 0;
+    return hls.levels?.[hls.currentLevel]?.height || 0;
+  }, [player]);
+
   // Track watch DURATION instead of incrementing a view. On first play we open a
   // server-measured session (POST /api/watch/start) and heartbeat while playing
   // (/api/watch/beat) — the backend records watched seconds + % of duration with
@@ -1361,6 +1370,7 @@ function Watch({ v2 = false }) {
           markers: resolvedMarkers,
           replayHeatmap,
           previewVideoId: playerLoadId,
+          getPlaybackHeight,
           onMarkerSelect: handleSelectReaction,
           onCycleReactionSize: isReactionPlayerVisible && reactions.length > 0 ? cycleReactionSize : null,
           reactionSizeLabel: REACTION_SIZE_LABELS[reactionSize] || reactionSize,
