@@ -66,7 +66,7 @@ export default function Legal() {
         </p>
         <p>
           For any privacy question or to exercise your rights, contact us at{' '}
-          <a href="mailto:tibfox@3speak.tv">tibfox@3speak.tv</a>, or use the request form under{' '}
+          <a href="mailto:privacy@3speak.tv">privacy@3speak.tv</a>, or use the request form under{' '}
           <em>Settings → About / Contact</em>.
         </p>
       </section>
@@ -178,7 +178,7 @@ export default function Legal() {
         </ul>
         <p>
           Use the form under <em>Settings → About / Contact</em> or email{' '}
-          <a href="mailto:tibfox@3speak.tv">tibfox@3speak.tv</a>. We respond within one month. Note
+          <a href="mailto:privacy@3speak.tv">privacy@3speak.tv</a>. We respond within one month. Note
           the blockchain limit explained at the top: we can remove our own copies, but not the
           public ledger.
         </p>
@@ -211,7 +211,7 @@ export default function Legal() {
         </p>
         <p>
           <strong>Contact:</strong> <Placeholder>phone</Placeholder> ·{' '}
-          <a href="mailto:tibfox@3speak.tv">tibfox@3speak.tv</a>
+          <a href="mailto:privacy@3speak.tv">privacy@3speak.tv</a>
         </p>
         <p>
           <strong>Register:</strong> <Placeholder>commercial register + number, if applicable</Placeholder><br />

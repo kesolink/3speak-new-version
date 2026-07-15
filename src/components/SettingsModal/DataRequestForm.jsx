@@ -199,7 +199,7 @@ export default function DataRequestForm() {
 
       <p className="drf-foot">
         We reply within one month. You can also email{' '}
-        <a href="mailto:tibfox@3speak.tv">tibfox@3speak.tv</a> directly.
+        <a href="mailto:privacy@3speak.tv">privacy@3speak.tv</a> directly.
       </p>
     </form>
   );
