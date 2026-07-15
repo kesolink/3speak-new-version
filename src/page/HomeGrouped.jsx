@@ -422,7 +422,7 @@ const HomeGrouped = () => {
   }, [shortsMode, shortsNeeded, feedShorts.length, shortsQ.hasNextPage, shortsQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { getContentForVideo } = useContentBatch(visibleVideos);
-  const { isWatched } = useWatchHistory(visibleVideos);
+  const { isWatched, version: watchedVersion } = useWatchHistory(visibleVideos);
   const { getViewCount } = useViewCounts(visibleVideos);
 
   const handleRefresh = useCallback(async () => {
@@ -529,15 +529,24 @@ const HomeGrouped = () => {
   // stops the interleaving rather than repeating the same shorts down the page.
   // The shorts feed is split into consecutive sections of `shortsPerRow`, and slot N
   // takes section N — so each rail is one exactly-full row and no short repeats down
-  // the page. A partial trailing section is dropped rather than rendering a ragged
-  // half-row; returning null just stops the interleaving there.
+  // the page.
+  //
+  // The LAST rail may be partial. Demanding an exactly-full row meant a pool smaller
+  // than one row rendered NOTHING at all: the follow feed draws from just the people
+  // you follow, so on a wide grid (`shortsPerRow` 9+) a pool of 8 failed the check at
+  // slot 0 and the rails silently vanished — the wider your window, the fewer shorts
+  // you saw. Keep the column count fixed so the cards stay the same size as a full
+  // rail (the row just ends early) and only require enough to not look like a stray.
+  const MIN_RAIL_SHORTS = 3;
   const renderShortsRail = useCallback((slot) => {
     if (!shortsPerRow) return null;
     const start = slot * shortsPerRow;
     const slice = feedShorts.slice(start, start + shortsPerRow);
-    if (slice.length < shortsPerRow) return null; // don't render a short row
+    // Still filling: don't paint a partial rail we're about to have more shorts for.
+    if (slice.length < shortsPerRow && (shortsQ.hasNextPage || shortsQ.isFetchingNextPage)) return null;
+    if (slice.length < Math.min(shortsPerRow, MIN_RAIL_SHORTS)) return null;
     return <ShortsRow shorts={slice} columns={shortsPerRow} />;
-  }, [feedShorts, shortsPerRow]);
+  }, [feedShorts, shortsPerRow, shortsQ.hasNextPage, shortsQ.isFetchingNextPage]);
 
   const renderPanel = (s) => {
     if (!s) return null;
@@ -562,6 +571,8 @@ const HomeGrouped = () => {
           loading={false}
           getContentForVideo={getContentForVideo}
           isWatched={isWatched}
+          hideWatched={hideWatched}
+          watchedVersion={watchedVersion}
           getViewCount={getViewCount}
           priority={s.priority}
           /* A shorts rail after every 2 REAL rows of videos, on any feed that has a

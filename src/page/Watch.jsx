@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchVideoDetails, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
+import { hasConsent } from '../lib/consent';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, PLAYER_URL, SHORTS_API_URL, appendNsfw } from '../utils/config';
@@ -23,6 +24,7 @@ import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
+import { reportVideoUnavailable } from '../lib/reportUnavailable';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
@@ -261,7 +263,19 @@ function Watch({ v2 = false }) {
     muted: storedMuted,
     loop: false,
     poster: false, // we set an optimized poster ourselves — see posterUrl below
-    resume: false,
+    // Resume playhead to the last position — but only if the user consented to the
+    // optional "functional" storage (the SDK persists the position in localStorage
+    // as `3speak_pos_*`). Was hardcoded `false`, which disabled resume entirely.
+    // The storage guard in lib/consent.js enforces the same choice at write time.
+    resume: hasConsent('functional'),
+    // FATAL means the player already tried its alternate CDN sources (it emits a
+    // separate `fallback` event for those) and every one of them failed — so the
+    // media is a real candidate for being gone. Non-fatal errors recover; ignore them.
+    // The checker re-verifies across every gateway before banning anything, so being
+    // wrong here is free.
+    onError: (err) => {
+      if (err?.fatal) reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
+    },
     hlsConfig: {
       maxBufferLength: 600,      // buffer up to 10 min ahead
       maxMaxBufferLength: 600,

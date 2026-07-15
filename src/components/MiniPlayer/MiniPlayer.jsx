@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { MdClose, MdPlayArrow, MdPause } from 'react-icons/md';
 import { useAppStore } from '../../lib/store';
+import { hasConsent } from '../../lib/consent';
 import { PLAYER_URL } from '../../utils/config';
 import './MiniPlayer.scss';
 
@@ -31,7 +32,7 @@ const MiniPlayer = () => {
     muted: false,
     loop: false,
     poster: false,
-    resume: false,
+    resume: hasConsent('functional'),
   });
 
   // Load video when mini player data changes

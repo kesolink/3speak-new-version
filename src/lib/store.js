@@ -63,9 +63,13 @@ export const useAppStore = create(
       // Hide videos the user has already watched from discovery feeds (default ON).
       hideWatched: true,
       setHideWatched: (val) => a[0]({ hideWatched: typeof val === 'function' ? val(a[1]().hideWatched) : val }),
-      // Private mode: when ON, watch-duration tracking sends only the pseudonymous
-      // viewer id and the server does NOT record the IP (so no country demographics
-      // for this viewer). Default OFF.
+      // Private mode: suppresses the COUNTRY on this viewer's watch sessions.
+      //
+      // It is no longer about the IP. As of 2026-07-14 no viewer IP is stored for
+      // ANYONE — the player resolves it to an ISO country on ingest and throws it away
+      // inside the request — and the persistent per-browser viewer id is gone too.
+      // Private mode now drops that last coarse signal as well, so these sessions
+      // appear in no creator's country breakdown. Default OFF.
       privateMode: false,
       setPrivateMode: (val) => a[0]({ privateMode: typeof val === 'function' ? val(a[1]().privateMode) : val }),
       // Simple feeds: when ON, discovery feeds skip the ranking algorithm and are
