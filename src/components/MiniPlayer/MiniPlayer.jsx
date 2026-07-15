@@ -5,7 +5,7 @@ import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { MdClose, MdPlayArrow, MdPause } from 'react-icons/md';
 import { useAppStore } from '../../lib/store';
 import { hasConsent } from '../../lib/consent';
-import { PLAYER_URL } from '../../utils/config';
+import { getPlayerUrl } from '../../utils/playerUrl';
 import './MiniPlayer.scss';
 
 const MiniPlayer = () => {
@@ -28,7 +28,7 @@ const MiniPlayer = () => {
     togglePlay,
     seek,
   } = usePlayer({
-    apiBase: PLAYER_URL,
+    apiBase: getPlayerUrl(),
     muted: false,
     loop: false,
     poster: false,

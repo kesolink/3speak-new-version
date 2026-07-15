@@ -1,6 +1,6 @@
 import { Player } from '@mantequilla-soft/3speak-player';
 import Hls from 'hls.js';
-import { PLAYER_URL } from '../utils/config';
+import { getPlayerUrl } from '../utils/playerUrl';
 
 /**
  * Shared factory for a muted, LOWEST-rendition SDK Player used for cheap video
@@ -34,7 +34,7 @@ import { PLAYER_URL } from '../utils/config';
  */
 export function createLowResPreviewPlayer(videoEl, { loop = false, requirePreviewRung = false, getPlaybackHeight, onNoPreviewRung } = {}) {
   const player = new Player({
-    apiBase: PLAYER_URL,
+    apiBase: getPlayerUrl(),
     muted: true,
     loop,
     poster: false,

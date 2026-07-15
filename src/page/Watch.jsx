@@ -13,7 +13,8 @@ import { useAppStore } from '../lib/store';
 import { hasConsent } from '../lib/consent';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
 import { Client } from '@hiveio/dhive';
-import { HIVE_API_NODES, PLAYER_URL, SHORTS_API_URL, appendNsfw } from '../utils/config';
+import { HIVE_API_NODES, SHORTS_API_URL, appendNsfw } from '../utils/config';
+import { getPlayerUrl } from '../utils/playerUrl';
 import ShortsRow from '../components/ShortsRow/ShortsRow';
 import { useGridColumns, useShortsPerRow } from '../hooks/useGridMetrics';
 import { getFeedSeed } from '../utils/feedSeed';
@@ -282,7 +283,7 @@ function Watch({ v2 = false }) {
     setQuality: sdkSetQuality,
     setPlaybackRate,
   } = usePlayer({
-    apiBase: PLAYER_URL,
+    apiBase: getPlayerUrl(),
     muted: storedMuted,
     loop: false,
     poster: false, // we set an optimized poster ourselves — see posterUrl below
@@ -347,7 +348,7 @@ function Watch({ v2 = false }) {
   // the viewer IP into `view-durations`, WITHOUT bumping the view counter. This
   // is the non-polluting path (mirrors the player's /play route), so preview
   // playback never inflates production view counts. See useWatchDuration.
-  const sdkApiRef = useRef(new ThreeSpeakApi(PLAYER_URL));
+  const sdkApiRef = useRef(new ThreeSpeakApi(getPlayerUrl()));
   useWatchDuration({
     api: sdkApiRef.current,
     author,
@@ -381,7 +382,7 @@ function Watch({ v2 = false }) {
       if (meta?.permlink) viewPermlink = meta.permlink;
       for (const type of ['embed', 'legacy']) {
         try {
-          const res = await fetch(`${PLAYER_URL}/api/view`, {
+          const res = await fetch(`${getPlayerUrl()}/api/view`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ owner, permlink: viewPermlink, type }),
@@ -404,7 +405,7 @@ function Watch({ v2 = false }) {
       // Try embed (matches hive_permlink) then legacy; use whichever has data.
       for (const type of ['embed', 'legacy']) {
         try {
-          const r = await fetch(`${PLAYER_URL}/api/heatmap?v=${author}/${permlink}&type=${type}`);
+          const r = await fetch(`${getPlayerUrl()}/api/heatmap?v=${author}/${permlink}&type=${type}`);
           if (!r.ok) continue;
           const data = await r.json();
           if (!cancelled && data?.tracked && Array.isArray(data.normalized) && data.normalized.some((v) => v > 0)) {

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { reportVideoUnavailable } from '../lib/reportUnavailable';
 import { ThreeSpeakApi } from "@mantequilla-soft/3speak-player";
-import { PLAYER_URL } from "../utils/config";
+import { getPlayerUrl } from "../utils/playerUrl";
 import { createLowResPreviewPlayer } from "../lib/lowResPreviewPlayer";
 import { useAppStore } from "../lib/store";
 import useSubtitles from "./useSubtitles";
@@ -118,7 +118,7 @@ export default function useHoverPreview({ renderControls } = {}) {
 
   // ── Preload visible tiles (lowest-res) + track card nodes for mobile centring ──
   const apiRef = useRef(null);
-  if (!apiRef.current) apiRef.current = new ThreeSpeakApi(PLAYER_URL);
+  if (!apiRef.current) apiRef.current = new ThreeSpeakApi(getPlayerUrl());
   const sourcesRef = useRef(new Map());
   const inflightRef = useRef(new Map()); // key -> AbortController (in-flight preloads)
   const cardNodesRef = useRef(new Set());
