@@ -20,6 +20,21 @@ if (import.meta.env.DEV && typeof navigator !== 'undefined' && 'serviceWorker' i
 import { ensureHealthyNode } from './utils/hiveNode';
 ensureHealthyNode();
 
+// Watch tracking used to persist a per-browser viewer id ('3speak_viewer_id') in
+// localStorage, which made every browser a stable, trackable device across visits.
+// It is gone — sessions are now identified only by the server-issued `sid`, which
+// lives in memory for the duration of one watch. Evict the leftover from browsers
+// that still carry one.
+try { localStorage.removeItem('3speak_viewer_id'); } catch { /* storage disabled */ }
+
+// Enforce the cookie choice. Installs a storage write-guard (so declining actually
+// PREVENTS the player from saving resume positions, not just deletes them later) and
+// clears anything left from a previous session. Runs here, at module load, so the
+// guard is in place before any video can play. Live: switching to Accept lifts it
+// with no reload.
+import { enforceConsentOnStart } from './lib/consent';
+enforceConsentOnStart();
+
 import React from 'react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -31,6 +46,12 @@ import store from '../src/redux/Store'; // Importing the Redux store (replace wi
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+// Roboto, self-hosted. Replaces the fonts.googleapis.com hotlink that used to sit
+// in index.html and disclosed every visitor's IP to Google on page load.
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
 import { AppProviders } from './context/Providers';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AiohaProvider } from '@aioha/react-ui';

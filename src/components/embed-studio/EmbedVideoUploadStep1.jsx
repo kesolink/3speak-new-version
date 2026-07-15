@@ -10,6 +10,8 @@ import { TailChase } from 'ldrs/react'
 import 'ldrs/react/TailChase.css'
 import { getCurrentProvider, Providers } from '../../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
+import { useAppStore } from '../../lib/store';
+import { canUseUploadFaults, getUploadFaults, setUploadFaults, initUploadFaults } from '../../utils/uploadFaults';
 import { checkPostingRc } from '../../utils/rcCheck';
 import RcInsufficientModal from './RcInsufficientModal';
 
@@ -46,6 +48,18 @@ function EmbedVideoUploadStep1() {
   const [rcModalOpen, setRcModalOpen] = useState(false)
   const rcInsufficient = rcStatus ? rcStatus.ok === false : false
   const navigate = useNavigate()
+
+  // Upload fault injection — badadib only. These failure modes (a carrier eating
+  // PATCH, a middlebox black-holing a POST) cannot be reproduced on a healthy
+  // connection, so they get simulated on demand instead.
+  const faultUser = useAppStore((st) => st.user)
+  const faultsAllowed = canUseUploadFaults(faultUser)
+  const [faults, setFaults] = useState(() => getUploadFaults())
+  const applyFault = (patch) => setFaults(setUploadFaults(faultUser, patch))
+  // Re-arm after a reload: the flags survive in sessionStorage, but the XHR patch
+  // has to be re-installed on the fresh page — otherwise a reload mid-upload
+  // silently disarms the harness and the test quietly passes for the wrong reason.
+  useEffect(() => { initUploadFaults(faultUser) }, [faultUser])
 
   const runRcCheck = async ({ openModalIfLow = false } = {}) => {
     if (!user) return null;
@@ -328,6 +342,56 @@ function EmbedVideoUploadStep1() {
                     />
                     <span>Reliable upload — try this if uploads keep failing on your network (works on restrictive/mobile connections; still resumable).</span>
                   </label>
+
+                  {faultsAllowed && (
+                    <div
+                      className="upload-fault-panel"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        marginTop: '10px', padding: '8px 10px', textAlign: 'left',
+                        border: '1px dashed var(--border-light, #888)', borderRadius: '8px',
+                        fontSize: '0.78rem', lineHeight: 1.35,
+                      }}
+                    >
+                      <strong style={{ display: 'block', marginBottom: '6px' }}>🧪 Upload test mode</strong>
+
+                      <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer', marginBottom: '5px' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!faults.blockPatch}
+                          onChange={(e) => applyFault({ blockPatch: e.target.checked })}
+                        />
+                        <span>Block resumable (PATCH) — simulates the carrier that eats TUS. Expect: watchdog trips, &ldquo;switching to a more compatible method&rdquo;, chunked fallback takes over.</span>
+                      </label>
+
+                      <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer', marginBottom: '5px' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!faults.blackholeChunks}
+                          onChange={(e) => applyFault({ blackholeChunks: e.target.checked })}
+                        />
+                        <span>Black-hole the fallback&rsquo;s chunks — the reported bug. Expect: bar stalls, then the 45s stall-watchdog cuts in and retries (before the fix it hung at 0% forever).</span>
+                      </label>
+
+                      <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={faults.chunkFailRate > 0}
+                          onChange={(e) => applyFault({ chunkFailRate: e.target.checked ? 0.5 : 0 })}
+                        />
+                        <span>Flaky link — drop 50% of chunks. Expect: retries + /status resync, upload still completes.</span>
+                      </label>
+
+                      <p style={{ margin: '6px 0 0', opacity: 0.75 }}>
+                        Tick the first two together to reproduce the exact user report. Clears when the tab closes.
+                        <br />
+                        For a genuinely SLOW upload (the 408s), DevTools throttling does <strong>not</strong> work —
+                        browser throttling is request-level, so the request body already went out at full speed.
+                        Throttle the socket instead: <code>sudo scripts/throttle-upload.sh on 50kbit</code> on your own machine.
+                      </p>
+                    </div>
+                  )}
+
                   <img className="arrow-in" src={Arrow} alt="" />
                 </div>
               )}

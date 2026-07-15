@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchVideoDetails, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
+import { hasConsent } from '../lib/consent';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, PLAYER_URL, SHORTS_API_URL, appendNsfw } from '../utils/config';
@@ -19,10 +20,12 @@ import { getFeedSeed } from '../utils/feedSeed';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
+import { batchCheckHidden, isCreatorHidden } from '../utils/hiddenCreators';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
+import { reportVideoUnavailable } from '../lib/reportUnavailable';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
@@ -154,6 +157,17 @@ function Watch({ v2 = false }) {
     [scheduledDoc],
   );
 
+  // Hidden (moderated) creator — hard-block the watch page. The checker also 404s
+  // /videodetails for these, but this page loads its metadata from Hive directly,
+  // so it needs its own check. Fails open (plays) on a check error.
+  const [authorHidden, setAuthorHidden] = useState(false);
+  useEffect(() => {
+    if (!author || author === 'unknown') { setAuthorHidden(false); return undefined; }
+    let alive = true;
+    isCreatorHidden(author).then((h) => { if (alive) setAuthorHidden(h); });
+    return () => { alive = false; };
+  }, [author]);
+
   // Track which videos we've recorded to avoid duplicate API calls
   const recordedWatchRef = useRef(new Set());
 
@@ -261,7 +275,19 @@ function Watch({ v2 = false }) {
     muted: storedMuted,
     loop: false,
     poster: false, // we set an optimized poster ourselves — see posterUrl below
-    resume: false,
+    // Resume playhead to the last position — but only if the user consented to the
+    // optional "functional" storage (the SDK persists the position in localStorage
+    // as `3speak_pos_*`). Was hardcoded `false`, which disabled resume entirely.
+    // The storage guard in lib/consent.js enforces the same choice at write time.
+    resume: hasConsent('functional'),
+    // FATAL means the player already tried its alternate CDN sources (it emits a
+    // separate `fallback` event for those) and every one of them failed — so the
+    // media is a real candidate for being gone. Non-fatal errors recover; ignore them.
+    // The checker re-verifies across every gateway before banning anything, so being
+    // wrong here is free.
+    onError: (err) => {
+      if (err?.fatal) reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
+    },
     hlsConfig: {
       maxBufferLength: 600,      // buffer up to 10 min ahead
       maxMaxBufferLength: 600,
@@ -625,12 +651,16 @@ function Watch({ v2 = false }) {
           });
         }
 
-        // Batch-fetch reputations and mark low-rep authors
+        // Batch-fetch reputations and hidden status; mark low-rep + hidden authors.
         const authors = markers.map(m => m.label);
-        const reputations = await batchGetReputations(authors);
+        const [reputations, hiddenSet] = await Promise.all([
+          batchGetReputations(authors),
+          batchCheckHidden(authors),
+        ]);
         for (const m of markers) {
           const rep = reputations.get(m.label) ?? 25;
           m.isLowReputation = rep < LOW_REP_THRESHOLD;
+          m.isHidden = hiddenSet.has(String(m.label || '').toLowerCase());
         }
 
         // Sort by timestamp: timestamped first (ascending), then no-timestamp at end
@@ -1132,7 +1162,7 @@ function Watch({ v2 = false }) {
   const reactions = useMemo(() => {
     if (!commentMarkers) return [];
     return commentMarkers
-      .filter(m => !m.isLowReputation)
+      .filter(m => !m.isLowReputation && !m.isHidden)
       .map((m, i) => {
         const base = {
           id: `reaction-${i}`,
@@ -1208,6 +1238,15 @@ function Watch({ v2 = false }) {
 
   const isNetworkError = videoIsError && !videoDetails;
   const isLoading = scheduled ? scheduledLoading : videoLoading;
+
+  if (authorHidden) {
+    return (
+      <div className="watch-error">
+        <p>This video is not available.</p>
+        <button className="watch-error-retry" onClick={() => navigate('/')}>Go Home</button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <BarLoader />;

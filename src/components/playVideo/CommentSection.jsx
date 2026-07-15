@@ -18,6 +18,7 @@ import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import {  toast } from 'sonner'
 import { estimate, getVotePower } from '../../utils/hiveUtils';
 import { markByReputation, getUserReputation } from '../../utils/reputation';
+import { markByHidden } from '../../utils/hiddenCreators';
 import Button from '../Button/Button';
 import AuthorBadge from '../AuthorBadge/AuthorBadge';
 import UpvoteCount from '../UpvoteCount/UpvoteCount';
@@ -153,7 +154,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
         const replies = await client.call('condenser_api', 'get_content_replies', [author, permlink]);
         const commentsWithChildren = await loadNestedComments(replies);
         // Mark low-reputation accounts (rep < 15) — also caches reputations
-        const markedComments = await markByReputation(commentsWithChildren);
+        const markedComments = await markByHidden(await markByReputation(commentsWithChildren));
         // Attach cached reputations to comment authors (all cache hits after marking)
         const attachRep = async (comments) => {
           for (const c of comments) {
@@ -458,7 +459,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
   const countComments = (comments) => {
     if (!comments || comments.length === 0) return 0;
     return comments.reduce((sum, c) => {
-      if (c.isLowReputation) return sum + countComments(c.children || []);
+      if (c.isLowReputation || c.isHidden) return sum + countComments(c.children || []);
       return sum + 1 + countComments(c.children || []);
     }, 0);
   };
@@ -661,7 +662,7 @@ function Comment({
     if (isReplying) setReplyTab('comment');
   }, [isReplying]);
 
-  if (comment.isLowReputation) return null;
+  if (comment.isLowReputation || comment.isHidden) return null;
 
   if (collapsed) {
     return (

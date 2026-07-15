@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '../../hive-api/api';
+// Aliased: this component already has a local `isCreatorHidden` boolean (the
+// viewer's PERSONAL "not interested" hide state). This one is the moderation check.
+import { isCreatorHidden as isModeratedCreatorHidden } from '../../utils/hiddenCreators';
 import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import icon from "../../../public/images/stack.png"
@@ -153,6 +156,18 @@ function UserProfilePage() {
       if (!user || isOwnProfile) return;
       setUserExists(null);
       isAccountValid(user).then(setUserExists);
+    }, [user, isOwnProfile]);
+
+    // Hidden (moderated) creator: their whole profile is replaced with a
+    // "not available" state. Only for OTHER users — a hidden viewer looking at their
+    // own URL is redirected to /profile above, and self-moderation is handled by the
+    // app-level gate. Fails open (shows the profile) on any check error.
+    const [isHiddenProfile, setIsHiddenProfile] = useState(false);
+    useEffect(() => {
+      if (!user || isOwnProfile) { setIsHiddenProfile(false); return; }
+      let alive = true;
+      isModeratedCreatorHidden(user).then((h) => { if (alive) setIsHiddenProfile(h); });
+      return () => { alive = false; };
     }, [user, isOwnProfile]);
 
     // Fetch user's public playlists
@@ -358,6 +373,22 @@ const {
           <h2 style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>404</h2>
           <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
             User <strong>@{user}</strong> does not exist
+          </p>
+          <button onClick={() => navigate('/')} style={{ padding: '10px 24px', borderRadius: '8px', background: 'var(--accent-primary, #e53935)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Hidden (moderated) creator — replace the whole profile with a neutral notice.
+  if (isHiddenProfile) {
+    return (
+      <div className="profile-page-container">
+        <div className="empty-wrap" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+          <p style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+            This profile is not available.
           </p>
           <button onClick={() => navigate('/')} style={{ padding: '10px 24px', borderRadius: '8px', background: 'var(--accent-primary, #e53935)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '14px' }}>
             Go Home

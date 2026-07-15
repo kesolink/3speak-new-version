@@ -1,7 +1,11 @@
 import React, { useEffect } from "react";
 import { useQuill } from "react-quilljs";
 // import { useQuill } from "react-quilljs/dist/react-quilljs.esm";
-// import "quill/dist/quill.snow.css";
+// Quill's stylesheet, from the local dep. It used to be hotlinked from
+// cdn.quilljs.com in index.html, which leaked every visitor's IP to a third party
+// and — because the CDN pinned 1.3.6 while we bundle 2.0.3 — shipped the wrong
+// version's CSS.
+import "quill/dist/quill.snow.css";
 
 const TextEditor = ({ description, setDescription }) => {
   const { quill, quillRef } = useQuill({

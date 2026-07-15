@@ -21,6 +21,7 @@ import { useAppStore } from "./lib/store";
 import { useSupportBlock } from "./lib/supportBlockStore";
 import { getCreatorSettings, isBanned } from "./utils/creatorSettings";
 import SupportModal from "./components/SupportModal/SupportModal";
+import CookieConsent from "./components/CookieConsent/CookieConsent";
 import { useEffect } from "react";
 import { readAppVersion } from "./utils/appVersion";
 import ChangelogModal from "./components/Changelog/ChangelogModal";
@@ -46,6 +47,7 @@ import AddAccount_modal from "./components/modal/AddAccount_modal";
 import TestingLogin3 from "./page/Login/TestingLogin3";
 // import TestingLogin from "./page/Login/TestingLogin";
 import AboutPage from "./components/LandingPage/AboutPage";
+import Legal from "./page/Legal";
 import { toast, Toaster } from 'sonner'
 import { CircleCheck, CircleX, TriangleAlert, Info } from 'lucide-react'
 import './toast.css'
@@ -470,6 +472,7 @@ function App() {
       />
       <ChangelogModal />
       <SupportModal />
+      <CookieConsent />
       <ShortsPreloader />
       {!hideNavOnMobile && (
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
@@ -520,6 +523,8 @@ function App() {
             <Route path="/edit-scheduled/:permlink" element={<EditScheduledPost />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/privacy" element={<Legal />} />
+            <Route path="/imprint" element={<Legal />} />
             <Route path="/shorts/stories" element={<ShortsStoryFeed />} />
             <Route path="/shorts" element={<Short />} />
             <Route

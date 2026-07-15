@@ -1,4 +1,5 @@
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
+import { useDeadVideos } from '../../lib/deadVideos';
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import ViewCount from "../ViewCount/ViewCount";
 import dayjs from "dayjs";
@@ -44,7 +45,7 @@ function withInterleave(cards, every, render) {
   return out;
 }
 
-function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false }) {
+function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false, hideWatched = false, watchedVersion = 0 }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
 
@@ -91,17 +92,37 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
     return views.toLocaleString();
   };
 
+  // Videos the checker has confirmed are dead (404 on EVERY gateway). Cards preload
+  // their own manifest, so a dead one is usually found while it's still on screen —
+  // drop it right away instead of leaving a card that plays nothing until the next
+  // feed fetch. Empty on the normal path, so this costs nothing.
+  const deadVideos = useDeadVideos();
+
   // Memoize video processing to prevent re-computing thumbnails on every render
   const processedVideos = useMemo(() => {
     const ownerOf = (v) => String(v.author?.username || v.author || v.owner || "").toLowerCase();
     return videos
       .filter((v) => !dismissed.creators.has(ownerOf(v)))
       .filter((v) => !dismissed.videos.has(`${ownerOf(v)}/${v.permlink}`))
+      .filter((v) => !deadVideos.has(`${ownerOf(v)}/${v.permlink}`))
+      // Already-watched: same reason as `dismissed` above — the checker only drops
+      // watched videos from the NEXT feed fetch, so a just-watched one lingers in the
+      // cached feed until then. When the caller opts in (feeds with "Hide watched"
+      // on), drop it here immediately. Opt-in so profiles/playlists/related — which
+      // pass isWatched only to BADGE — keep showing watched videos.
+      //
+      // NOTE the author here is the NON-lowercased `video.author?.username || …`,
+      // matching exactly how useWatchHistory keys its map and how the badge below
+      // calls isWatched (vcAuthor) — `ownerOf` lowercases and would miss.
+      // watchedVersion is in the deps so this recomputes when watch data arrives
+      // (isWatched is a stable ref-reader and wouldn't trigger it alone).
+      .filter((v) => !(hideWatched && isWatched
+        && isWatched(v.author?.username || v.author || v.owner, v.permlink) === true))
       .map(video => ({
         ...video,
         _processedThumbnail: fixVideoThumbnail(video, shortsGrid)
       }));
-  }, [videos, shortsGrid, dismissed]);
+  }, [videos, shortsGrid, dismissed, deadVideos, hideWatched, isWatched, watchedVersion]);
 
   if (loading && videos.length === 0) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
@@ -286,6 +307,8 @@ Card3.propTypes = {
   error: PropTypes.string,
   getContentForVideo: PropTypes.func,
   isWatched: PropTypes.func,
+  hideWatched: PropTypes.bool,       // opt-in: drop (not just badge) already-watched videos
+  watchedVersion: PropTypes.number,  // bump from useWatchHistory so the filter reacts to new data
   getViewCount: PropTypes.func,
   linkPrefix: PropTypes.string,
 };

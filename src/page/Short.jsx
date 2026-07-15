@@ -68,7 +68,6 @@ const HiveIcon = ({ size = 24, className = '' }) => (
 );
 import hiveApi, { SHORTS_PAGE_SIZE, consumePreloadedShorts, hasShortsPreloaded, preloadShorts, fetchUserShortsWithDetails } from '../hive-api/hiveApi';
 import { useAppStore } from '../lib/store';
-import { getViewerId } from '../utils/viewerId';
 import { recordWatch } from '../utils/watchHistory';
 import { recordReshare, getResharesForVideo, deleteReshare } from '../utils/reshares';
 import axios from 'axios';
@@ -83,6 +82,7 @@ import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import ShortsIcon from '../components/icons/ShortsIcon';
 import ShortsLoadingScreen from '../components/ShortsLoadingScreen/ShortsLoadingScreen';
 import { markByReputation } from '../utils/reputation';
+import { markByHidden } from '../utils/hiddenCreators';
 import { getVotePower, getDynamicProps } from '../utils/hiveUtils';
 import { commentWithAioha, isLoggedIn } from '../hive-api/aioha';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
@@ -191,7 +191,7 @@ async function startShortWatch(video, watchRef, duration, position) {
       const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0, source: '3speak', viewerId: getViewerId(), private: !!useAppStore.getState().privateMode }),
+        body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0, source: '3speak', private: !!useAppStore.getState().privateMode }),
       });
       if (!res.ok) continue;                          // 404 for the wrong collection → try next
       const data = await res.json().catch(() => null);
@@ -1457,7 +1457,7 @@ const VideoShort = () => {
 
     try {
       const rawComments = await hiveApi.fetchPostComments(video.author, video.hivePermlink, user);
-      const comments = await markByReputation(rawComments);
+      const comments = await markByHidden(await markByReputation(rawComments));
 
       // Pre-render comment bodies as HTML
       try {
@@ -3432,7 +3432,7 @@ const CommentItem = ({
       .replace(/\n?<sup>replied to \[.*?\]\([^)]*\)<\/sup>/g, '');
   };
 
-  if (comment.isLowReputation) return null;
+  if (comment.isLowReputation || comment.isHidden) return null;
 
   if (collapsed) {
     return (

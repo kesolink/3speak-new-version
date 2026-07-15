@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { PLAYER_URL } from '../utils/config';
-import { getViewerId } from '../utils/viewerId';
 import { useAppStore } from '../lib/store';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
 
@@ -89,7 +88,7 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
           const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ owner, permlink: vPermlink, type, duration, position: posRef.current, source: '3speak', viewerId: getViewerId(), private: !!useAppStore.getState().privateMode }),
+            body: JSON.stringify({ owner, permlink: vPermlink, type, duration, position: posRef.current, source: '3speak', private: !!useAppStore.getState().privateMode }),
           });
           if (!res.ok) continue;                       // 404 for the wrong collection → try the next
           const data = await res.json().catch(() => null);
