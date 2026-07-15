@@ -74,7 +74,8 @@ import axios from 'axios';
 import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
-import { PLAYER_URL, FEATURE_EDITOR } from '../utils/config';
+import { FEATURE_EDITOR } from '../utils/config';
+import { getPlayerUrl } from '../utils/playerUrl';
 import { Player, ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
@@ -188,7 +189,7 @@ async function startShortWatch(video, watchRef, duration, position) {
   watchRef.current = { sid: null, token: null, beatMs: 5000, lastBeatAt: 0, key, starting: true };
   for (const type of ['embed', 'legacy']) {
     try {
-      const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
+      const res = await fetch(`${getPlayerUrl()}/api/watch/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ owner: video.author, permlink, type, duration: duration || undefined, position: position || 0, source: '3speak', private: !!useAppStore.getState().privateMode }),
@@ -215,7 +216,7 @@ function shortWatchBeat(watchRef, position) {
   if (!W.sid) return;
   W.lastBeatAt = Date.now(); // throttle before the async call
   try {
-    fetch(`${PLAYER_URL}/api/watch/beat`, {
+    fetch(`${getPlayerUrl()}/api/watch/beat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sid: W.sid, token: W.token, position: position || 0 }),
@@ -377,7 +378,7 @@ const VideoShort = () => {
   const playerRef = useRef(null); // Single persistent SDK Player instance
   const videoElRef = useRef(null); // Single persistent <video> element ref
   const handleNextRef = useRef(null); // Ref mirror of handleNext for use in Player event handlers
-  const sdkApiRef = useRef(new ThreeSpeakApi(PLAYER_URL)); // Shared API for prefetching
+  const sdkApiRef = useRef(new ThreeSpeakApi(getPlayerUrl())); // Shared API for prefetching
   const prefetchedSourcesRef = useRef(new Map()); // Cache: videoId -> VideoSource (from prefetch)
   const prefetchingRef = useRef(new Set()); // Track in-flight prefetch requests
   const keyboardRef = useRef(null); // capture keyboard events on mobile when focused
@@ -2214,7 +2215,7 @@ const VideoShort = () => {
     }
 
     const player = new Player({
-      apiBase: PLAYER_URL,
+      apiBase: getPlayerUrl(),
       muted: true,
       loop: playbackModeRef.current === 'auto-replay',
       poster: false,

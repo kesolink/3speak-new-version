@@ -32,6 +32,7 @@ import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import mantequillaLogo from "../../assets/mantequilla-logo.png";
+import threespeakLogo from "../../assets/image/3S_logo.svg";
 import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
 import { displayTag, INTEREST_IDS, saveInterestsToHive } from '../../utils/interests';
@@ -67,7 +68,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -797,6 +798,38 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 }}
                 playsInline
               />
+              {/* Branded preload spinner — half-transparent over the poster while the
+                  player fetches the manifest and buffers the first frame (SDK `loading`
+                  state). Clears the moment the first frame is ready; never blocks the
+                  play button (pointer-events: none). Suppressed once a video is known
+                  unavailable, so the two overlays don't stack. */}
+              {mediaLoading && !mediaUnavailable && (
+                <div className="video-preload-overlay" aria-hidden="true">
+                  <div className="video-preload-badge">
+                    <span className="video-preload-ring" />
+                    <img className="video-preload-logo" src={threespeakLogo} alt="" />
+                  </div>
+                </div>
+              )}
+              {/* Media gone (old upload whose IPFS content is unpinned). The player
+                  exhausted every gateway; show an honest hint over the black frame
+                  instead of a stuck spinner. The post itself still loads below. */}
+              {mediaUnavailable && (
+                <div style={{
+                  position: 'absolute', inset: 0, zIndex: 6, background: '#000',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  justifyContent: 'center', textAlign: 'center', padding: '24px', gap: '10px',
+                }}>
+                  <div style={{ fontSize: '2.2rem', lineHeight: 1 }}>🚫</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#f0f0f0' }}>
+                    This video is no longer available
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#aaa', maxWidth: '440px', lineHeight: 1.5 }}>
+                    The media for this older upload could not be found on the network. The post
+                    still exists on the blockchain, but the video can no longer be played.
+                  </div>
+                </div>
+              )}
               {videoControls?.subtitleCues?.length > 0 && (
                 <SubtitleOverlay
                   currentTime={videoControls.subtitleCurrentTime}
@@ -902,6 +935,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     markers={videoControls.markers}
                     replayHeatmap={videoControls.replayHeatmap}
                     previewVideoId={videoControls.previewVideoId}
+                    getPlaybackHeight={videoControls.getPlaybackHeight}
                     onMarkerSelect={videoControls.onMarkerSelect}
                     onReactToMoment={videoControls.onReactToMoment}
                     onCycleReactionSize={videoControls.onCycleReactionSize}
@@ -1637,6 +1671,8 @@ PlayVideo.propTypes = {
   }),
   author: PropTypes.string.isRequired,
   permlink: PropTypes.string.isRequired,
+  mediaUnavailable: PropTypes.bool,
+  mediaLoading: PropTypes.bool,
   playlistData: PropTypes.shape({
     playlist: PropTypes.object,
     videos: PropTypes.array,

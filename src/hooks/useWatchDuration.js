@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { PLAYER_URL } from '../utils/config';
+import { getPlayerUrl } from '../utils/playerUrl';
 import { useAppStore } from '../lib/store';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
 
 /**
  * Drives the snapievideoplayer watch-duration heartbeat against the player
- * backend (PLAYER_URL) from an SDK usePlayer() instance.
+ * backend (getPlayerUrl()) from an SDK usePlayer() instance.
  *
  *   POST /api/watch/start → opens a server-side session (HMAC token bound to
  *     sid.owner.permlink.ip), returns a beat interval.
@@ -52,7 +52,7 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
     // with a JSON body (not CORS-safelisted), which a beacon can drop. keepalive
     // survives unload and does a proper CORS request.
     try {
-      fetch(`${PLAYER_URL}/api/watch/beat`, {
+      fetch(`${getPlayerUrl()}/api/watch/beat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sid: s.sid, token: s.token, position: posRef.current, rate: rateRef.current }),
@@ -85,7 +85,7 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
       // hive_permlink) then legacy; whichever owns it opens the session.
       for (const type of ['embed', 'legacy']) {
         try {
-          const res = await fetch(`${PLAYER_URL}/api/watch/start`, {
+          const res = await fetch(`${getPlayerUrl()}/api/watch/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ owner, permlink: vPermlink, type, duration, position: posRef.current, source: '3speak', private: !!useAppStore.getState().privateMode }),

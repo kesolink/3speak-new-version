@@ -13,7 +13,8 @@ import { useAppStore } from '../lib/store';
 import { hasConsent } from '../lib/consent';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
 import { Client } from '@hiveio/dhive';
-import { HIVE_API_NODES, PLAYER_URL, SHORTS_API_URL, appendNsfw } from '../utils/config';
+import { HIVE_API_NODES, SHORTS_API_URL, appendNsfw } from '../utils/config';
+import { getPlayerUrl } from '../utils/playerUrl';
 import ShortsRow from '../components/ShortsRow/ShortsRow';
 import { useGridColumns, useShortsPerRow } from '../hooks/useGridMetrics';
 import { getFeedSeed } from '../utils/feedSeed';
@@ -26,6 +27,7 @@ import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
 import { reportVideoUnavailable } from '../lib/reportUnavailable';
+import { useDeadVideos, videoKey } from '../lib/deadVideos';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
@@ -168,6 +170,16 @@ function Watch({ v2 = false }) {
     return () => { alive = false; };
   }, [author]);
 
+  // Media unavailable: the player exhausted every CDN source (a FATAL error) or the
+  // checker already confirmed this video's media is gone (deadVideos store). Feeds
+  // already hide dead videos, but a direct link from a creator's profile can still
+  // land here — show an honest hint instead of a stuck/black player. Reset per video.
+  const [playbackFailed, setPlaybackFailed] = useState(false);
+  useEffect(() => { setPlaybackFailed(false); }, [author, permlink]);
+  const deadVideos = useDeadVideos();
+  const mediaUnavailable = playbackFailed
+    || (!!author && !!permlink && deadVideos.has(videoKey(author, permlink)));
+
   // Track which videos we've recorded to avoid duplicate API calls
   const recordedWatchRef = useRef(new Set());
 
@@ -271,7 +283,7 @@ function Watch({ v2 = false }) {
     setQuality: sdkSetQuality,
     setPlaybackRate,
   } = usePlayer({
-    apiBase: PLAYER_URL,
+    apiBase: getPlayerUrl(),
     muted: storedMuted,
     loop: false,
     poster: false, // we set an optimized poster ourselves — see posterUrl below
@@ -286,14 +298,49 @@ function Watch({ v2 = false }) {
     // The checker re-verifies across every gateway before banning anything, so being
     // wrong here is free.
     onError: (err) => {
-      if (err?.fatal) reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
+      if (err?.fatal) {
+        reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
+        setPlaybackFailed(true); // swap the player for a "not available" hint
+      }
     },
+    // Tuned for 3Speak's reality: older uploads sit on COLD IPFS and a segment can
+    // take 30–45s to serve the first time (then the CDN has it hot). See the HAR
+    // analysis of 2026-07-15.
     hlsConfig: {
-      maxBufferLength: 600,      // buffer up to 10 min ahead
-      maxMaxBufferLength: 600,
+      // Buffer a sane amount ahead. The old 600s (10 min) made hls.js fire dozens of
+      // fragment requests far in advance — against a slow gateway those pile up, time
+      // out and retry in a storm, which also loaded segments wildly out of order. 60s
+      // of runway is plenty without the flood.
+      maxBufferLength: 60,
+      maxMaxBufferLength: 120,
       maxBufferSize: 60 * 1000 * 1000, // 60 MB
+      // Give each fragment room to FINISH instead of aborting at hls.js's 20s default
+      // and re-downloading it — those aborts were the bulk of the wasted/duplicated
+      // requests. Bound the retries so a genuinely dead segment still gives up.
+      fragLoadingTimeOut: 60000,
+      fragLoadingMaxRetry: 3,
+      fragLoadingRetryDelay: 1000,
+      fragLoadingMaxRetryTimeout: 60000,
+      manifestLoadingTimeOut: 20000,
+      levelLoadingTimeOut: 20000,
+      // Don't cold-start at 1080p on a slow gateway (the first segment took ~42s). The
+      // SDK's default startLevel:0 picks the first-listed variant, and 3Speak masters
+      // list highest-first — so it forced 1080p. Let ABR choose from a conservative
+      // bandwidth estimate instead; it ramps up within a segment or two once real
+      // throughput is known.
+      startLevel: -1,
+      abrEwmaDefaultEstimate: 1000000, // ~1 Mbps → starts around 480p, not 1080p
     },
   });
+
+  // The main player's CURRENT rung height in px (0 if unknown). The scrubber's low-res
+  // preview reads this to skip loading when its smallest rung isn't smaller than what's
+  // already playing — otherwise it re-downloads the exact segments playback needs.
+  const getPlaybackHeight = useCallback(() => {
+    const hls = player?.hls;
+    if (!hls || hls.currentLevel == null || hls.currentLevel < 0) return 0;
+    return hls.levels?.[hls.currentLevel]?.height || 0;
+  }, [player]);
 
   // Track watch DURATION instead of incrementing a view. On first play we open a
   // server-measured session (POST /api/watch/start) and heartbeat while playing
@@ -301,7 +348,7 @@ function Watch({ v2 = false }) {
   // the viewer IP into `view-durations`, WITHOUT bumping the view counter. This
   // is the non-polluting path (mirrors the player's /play route), so preview
   // playback never inflates production view counts. See useWatchDuration.
-  const sdkApiRef = useRef(new ThreeSpeakApi(PLAYER_URL));
+  const sdkApiRef = useRef(new ThreeSpeakApi(getPlayerUrl()));
   useWatchDuration({
     api: sdkApiRef.current,
     author,
@@ -335,7 +382,7 @@ function Watch({ v2 = false }) {
       if (meta?.permlink) viewPermlink = meta.permlink;
       for (const type of ['embed', 'legacy']) {
         try {
-          const res = await fetch(`${PLAYER_URL}/api/view`, {
+          const res = await fetch(`${getPlayerUrl()}/api/view`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ owner, permlink: viewPermlink, type }),
@@ -358,7 +405,7 @@ function Watch({ v2 = false }) {
       // Try embed (matches hive_permlink) then legacy; use whichever has data.
       for (const type of ['embed', 'legacy']) {
         try {
-          const r = await fetch(`${PLAYER_URL}/api/heatmap?v=${author}/${permlink}&type=${type}`);
+          const r = await fetch(`${getPlayerUrl()}/api/heatmap?v=${author}/${permlink}&type=${type}`);
           if (!r.ok) continue;
           const data = await r.json();
           if (!cancelled && data?.tracked && Array.isArray(data.normalized) && data.normalized.some((v) => v > 0)) {
@@ -440,7 +487,8 @@ function Watch({ v2 = false }) {
 
   // Load video when the target changes (wait for video element to be attached)
   useEffect(() => {
-    if (!playerLoadId || author === 'unknown' || !player || !videoAttached) return;
+    if (!playerLoadId || author === 'unknown' || !player || !videoAttached) return undefined;
+    let active = true;
     setVideoEnded(false);
     // Record this video as played in the current session
     playedVideosRef.current.add(`${author}/${permlink}`);
@@ -448,7 +496,19 @@ function Watch({ v2 = false }) {
     seek(0);
     loadVideo(playerLoadId).catch(err => {
       console.error('[Watch] Failed to load video:', err);
+      // The player backend couldn't resolve ANY playable stream — e.g. /api/embed
+      // and /api/watch both 404 for a very old post whose media isn't indexed. No
+      // hls source is ever created, so the player's fatal onError never fires — show
+      // the "no longer available" hint from here instead of leaving a blank player.
+      // `active` guards against a stale load rejecting after we've moved to another video.
+      if (active) setPlaybackFailed(true);
+      // Also tell the checker (as the fatal path does): a post whose stream can't be
+      // resolved is dead weight in feeds. The checker re-decides from its OWN doc — it
+      // only shadow-bans a settled, published, no-stream archive video, never a
+      // still-encoding one — so this sloppy client report is safe.
+      reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
     });
+    return () => { active = false; };
   }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek]);
 
   // Subscribe to player events (stable effect — uses refs for mutable values)
@@ -1282,6 +1342,8 @@ function Watch({ v2 = false }) {
         videoDetails={videoDetails}
         author={author}
         permlink={permlink}
+        mediaUnavailable={mediaUnavailable}
+        mediaLoading={!!playerState?.loading && !mediaUnavailable}
         videoRef={videoRef}
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
@@ -1322,6 +1384,7 @@ function Watch({ v2 = false }) {
           markers: resolvedMarkers,
           replayHeatmap,
           previewVideoId: playerLoadId,
+          getPlaybackHeight,
           onMarkerSelect: handleSelectReaction,
           onCycleReactionSize: isReactionPlayerVisible && reactions.length > 0 ? cycleReactionSize : null,
           reactionSizeLabel: REACTION_SIZE_LABELS[reactionSize] || reactionSize,

@@ -112,6 +112,29 @@
       visibility: visible;
       transform: none;
     }
+
+    // Frameless: no cheap preview rung, so we skipped the low-res stream (it would
+    // have re-downloaded the segments playback already streams). Collapse the box to
+    // just the centred timestamp pill — the 168px box stays centred on the cursor,
+    // so the pill lands under it.
+    &.frameless {
+      height: auto;
+      background: none;
+      border: none;
+      box-shadow: none;
+      overflow: visible;
+      text-align: center;
+
+      .vc-seek-preview-video { display: none; }
+
+      .vc-seek-preview-time {
+        position: static;
+        display: inline-block;
+        padding: 3px 8px;
+        background: rgba(0, 0, 0, 0.85);
+        border-radius: 6px;
+      }
+    }
   }
 
   // Fill the fixed-size box; vertical videos are letterboxed (object-fit: contain).

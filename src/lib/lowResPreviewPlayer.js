@@ -1,6 +1,6 @@
 import { Player } from '@mantequilla-soft/3speak-player';
 import Hls from 'hls.js';
-import { PLAYER_URL } from '../utils/config';
+import { getPlayerUrl } from '../utils/playerUrl';
 
 /**
  * Shared factory for a muted, LOWEST-rendition SDK Player used for cheap video
@@ -17,12 +17,24 @@ import { PLAYER_URL } from '../utils/config';
  * are known we lock `currentLevel`/`autoLevelCapping` to the lowest-bitrate one.
  *
  * @param {HTMLVideoElement} videoEl  element to attach the player to
- * @param {{ loop?: boolean }} opts    loop (cards) vs one-shot (scrubber)
+ * @param {object} opts
+ * @param {boolean} [opts.loop]                loop (cards) vs one-shot (scrubber)
+ * @param {boolean} [opts.requirePreviewRung]  when true, ABORT the stream if the
+ *   preview's smallest rung isn't smaller than the rung the MAIN player is already
+ *   streaming — a preview there would just re-download the exact segments playback
+ *   needs (old 3Speak/embed videos bottom out at 480p). Used by the scrubber preview
+ *   so it never duplicates playback.
+ * @param {() => number} [opts.getPlaybackHeight]  returns the main player's current
+ *   rung height (px), or 0 if unknown. The skip test compares against it; with no
+ *   getter (or 0) it falls back to a static "≤360p is the only rung worth a separate
+ *   stream" cutoff.
+ * @param {() => void} [opts.onNoPreviewRung]  called when the stream is aborted
+ *   for the reason above, so the caller can fall back (e.g. timestamp-only scrub).
  * @returns {import('@mantequilla-soft/3speak-player').Player}
  */
-export function createLowResPreviewPlayer(videoEl, { loop = false } = {}) {
+export function createLowResPreviewPlayer(videoEl, { loop = false, requirePreviewRung = false, getPlaybackHeight, onNoPreviewRung } = {}) {
   const player = new Player({
-    apiBase: PLAYER_URL,
+    apiBase: getPlayerUrl(),
     muted: true,
     loop,
     poster: false,
@@ -45,13 +57,32 @@ export function createLowResPreviewPlayer(videoEl, { loop = false } = {}) {
     const res = await origLoad(refOrSource);
     const hls = player.hls;
     if (hls) {
+      // A rung is a real "preview rung" only if it's genuinely small — a 240p/360p
+      // ladder step. A 480p+ lowest rung costs about as much as playback itself.
+      const isCheapRung = (lvl) =>
+        !lvl ? false : lvl.height ? lvl.height <= 360 : (lvl.bitrate || Infinity) <= 500000;
       const pinLowest = () => {
         const levels = hls.levels || [];
-        if (levels.length < 2) return; // single rendition — nothing to choose
+        if (!levels.length) return;
         let lo = 0;
         for (let i = 1; i < levels.length; i++) {
           if ((levels[i].bitrate || Infinity) < (levels[lo].bitrate || Infinity)) lo = i;
         }
+        // Would this preview just re-download what playback already streams? Skip if
+        // the smallest rung isn't smaller than the main player's CURRENT rung. When
+        // that height is unknown (native HLS, not yet settled), fall back to a static
+        // cutoff: only a genuinely-small rung (≤360p) earns a separate stream.
+        if (requirePreviewRung) {
+          const playH = (typeof getPlaybackHeight === 'function' ? getPlaybackHeight() : 0) || 0;
+          const lowH = levels[lo].height || 0;
+          const wouldDuplicate = playH > 0 ? lowH >= playH : !isCheapRung(levels[lo]);
+          if (wouldDuplicate) {
+            try { hls.stopLoad(); } catch { /* noop */ }
+            if (onNoPreviewRung) onNoPreviewRung();
+            return;
+          }
+        }
+        if (levels.length < 2) return; // single rendition — nothing to choose
         hls.autoLevelCapping = lo; // ABR may never climb above the smallest
         hls.currentLevel = lo;     // and start there immediately
       };

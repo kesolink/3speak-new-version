@@ -1642,3 +1642,65 @@
     color: var(--text-primary, #f1f1f1);
   }
 }
+
+/* ── Branded preload / buffering overlay ─────────────────────────────────────
+   Half-transparent scrim over the poster while the player fetches the manifest
+   and buffers the first frame (driven by the SDK `loading` state in Watch.jsx).
+   Sits inside .video-iframe-wrapper (position: relative). pointer-events: none
+   so it never intercepts the play button or controls underneath. */
+.video-preload-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  animation: video-preload-fade 0.18s ease both;
+}
+
+.video-preload-badge {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-preload-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.16);
+  border-top-color: var(--accent-primary, #e53935);
+  animation: video-preload-spin 0.85s linear infinite;
+}
+
+.video-preload-logo {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  animation: video-preload-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes video-preload-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes video-preload-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.92); }
+  50%      { opacity: 1;   transform: scale(1); }
+}
+
+@keyframes video-preload-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Respect reduced-motion: keep the scrim + logo, drop the spin/pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .video-preload-ring { animation: none; }
+  .video-preload-logo { animation: none; opacity: 0.9; }
+}

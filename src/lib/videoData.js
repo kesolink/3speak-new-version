@@ -4,6 +4,7 @@
 // the rest of the app and the player SDK already use. Shapes mirror what the
 // old `socialPost` / `profile` / feed queries returned so callers are unchanged.
 import { getHiveClient } from '../utils/hiveNode';
+import { getPlayerUrl } from '../utils/playerUrl';
 import { useAppStore } from './store';
 
 // Extra feed params: interests (checker weights the feed toward them), currentuser
@@ -25,7 +26,8 @@ function feedParams() {
 
 const hiveClient = getHiveClient();
 const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://checker.3speak.tv';
-const PLAYER_URL = import.meta.env.VITE_PLAYER_URL || 'https://play.3speak.tv';
+// Read the player backend at USE-time (getPlayerUrl) so it reflects the health-picked
+// fallback, not the primary captured at module load.
 
 function parseMeta(jm) {
   if (!jm) return {};
@@ -65,7 +67,7 @@ export async function fetchPlaySource(author, permlink) {
   if (!author || author === 'unknown' || !permlink) return null;
   const tryPath = async (path) => {
     try {
-      const r = await fetch(`${PLAYER_URL}${path}?v=${author}/${permlink}`);
+      const r = await fetch(`${getPlayerUrl()}${path}?v=${author}/${permlink}`);
       if (!r.ok) return null;
       const j = await r.json();
       if (!j || j.success === false || !j.videoUrl) return null;
