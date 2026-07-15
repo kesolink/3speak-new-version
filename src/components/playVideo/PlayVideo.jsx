@@ -67,7 +67,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -797,6 +797,25 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 }}
                 playsInline
               />
+              {/* Media gone (old upload whose IPFS content is unpinned). The player
+                  exhausted every gateway; show an honest hint over the black frame
+                  instead of a stuck spinner. The post itself still loads below. */}
+              {mediaUnavailable && (
+                <div style={{
+                  position: 'absolute', inset: 0, zIndex: 6, background: '#000',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  justifyContent: 'center', textAlign: 'center', padding: '24px', gap: '10px',
+                }}>
+                  <div style={{ fontSize: '2.2rem', lineHeight: 1 }}>🚫</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#f0f0f0' }}>
+                    This video is no longer available
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#aaa', maxWidth: '440px', lineHeight: 1.5 }}>
+                    The media for this older upload could not be found on the network. The post
+                    still exists on the blockchain, but the video can no longer be played.
+                  </div>
+                </div>
+              )}
               {videoControls?.subtitleCues?.length > 0 && (
                 <SubtitleOverlay
                   currentTime={videoControls.subtitleCurrentTime}
@@ -1637,6 +1656,7 @@ PlayVideo.propTypes = {
   }),
   author: PropTypes.string.isRequired,
   permlink: PropTypes.string.isRequired,
+  mediaUnavailable: PropTypes.bool,
   playlistData: PropTypes.shape({
     playlist: PropTypes.object,
     videos: PropTypes.array,

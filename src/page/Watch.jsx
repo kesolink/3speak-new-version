@@ -26,6 +26,7 @@ import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
 import { reportVideoUnavailable } from '../lib/reportUnavailable';
+import { useDeadVideos, videoKey } from '../lib/deadVideos';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
@@ -168,6 +169,16 @@ function Watch({ v2 = false }) {
     return () => { alive = false; };
   }, [author]);
 
+  // Media unavailable: the player exhausted every CDN source (a FATAL error) or the
+  // checker already confirmed this video's media is gone (deadVideos store). Feeds
+  // already hide dead videos, but a direct link from a creator's profile can still
+  // land here — show an honest hint instead of a stuck/black player. Reset per video.
+  const [playbackFailed, setPlaybackFailed] = useState(false);
+  useEffect(() => { setPlaybackFailed(false); }, [author, permlink]);
+  const deadVideos = useDeadVideos();
+  const mediaUnavailable = playbackFailed
+    || (!!author && !!permlink && deadVideos.has(videoKey(author, permlink)));
+
   // Track which videos we've recorded to avoid duplicate API calls
   const recordedWatchRef = useRef(new Set());
 
@@ -286,7 +297,10 @@ function Watch({ v2 = false }) {
     // The checker re-verifies across every gateway before banning anything, so being
     // wrong here is free.
     onError: (err) => {
-      if (err?.fatal) reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
+      if (err?.fatal) {
+        reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
+        setPlaybackFailed(true); // swap the player for a "not available" hint
+      }
     },
     hlsConfig: {
       maxBufferLength: 600,      // buffer up to 10 min ahead
@@ -1282,6 +1296,7 @@ function Watch({ v2 = false }) {
         videoDetails={videoDetails}
         author={author}
         permlink={permlink}
+        mediaUnavailable={mediaUnavailable}
         videoRef={videoRef}
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
