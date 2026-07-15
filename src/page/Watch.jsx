@@ -486,7 +486,8 @@ function Watch({ v2 = false }) {
 
   // Load video when the target changes (wait for video element to be attached)
   useEffect(() => {
-    if (!playerLoadId || author === 'unknown' || !player || !videoAttached) return;
+    if (!playerLoadId || author === 'unknown' || !player || !videoAttached) return undefined;
+    let active = true;
     setVideoEnded(false);
     // Record this video as played in the current session
     playedVideosRef.current.add(`${author}/${permlink}`);
@@ -494,7 +495,14 @@ function Watch({ v2 = false }) {
     seek(0);
     loadVideo(playerLoadId).catch(err => {
       console.error('[Watch] Failed to load video:', err);
+      // The player backend couldn't resolve ANY playable stream — e.g. /api/embed
+      // and /api/watch both 404 for a very old post whose media isn't indexed. No
+      // hls source is ever created, so the player's fatal onError never fires — show
+      // the "no longer available" hint from here instead of leaving a blank player.
+      // `active` guards against a stale load rejecting after we've moved to another video.
+      if (active) setPlaybackFailed(true);
     });
+    return () => { active = false; };
   }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek]);
 
   // Subscribe to player events (stable effect — uses refs for mutable values)
