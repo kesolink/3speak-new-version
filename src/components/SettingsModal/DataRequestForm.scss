@@ -6,6 +6,21 @@
   gap: 10px;
 }
 
+.drf-account {
+  font-size: 0.82rem;
+  color: var(--text-muted, #666);
+  strong { color: var(--text-color, #222); }
+}
+
+.drf-signin {
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--hover-bg, rgba(127, 127, 127, 0.08));
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-color, #222);
+}
+
 /* Segmented "Get my data" / "Delete my account data" switch. */
 .drf-choice {
   display: flex;

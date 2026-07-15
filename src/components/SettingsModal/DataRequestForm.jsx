@@ -19,7 +19,6 @@ export default function DataRequestForm() {
   const user = useAppStore((s) => s.user);
 
   const [type, setType] = useState('export');
-  const [username, setUsername] = useState(user || '');
   const [contact, setContact] = useState('');
   const [message, setMessage] = useState('');
   const [confirmed, setConfirmed] = useState(false);
@@ -27,9 +26,10 @@ export default function DataRequestForm() {
   const [done, setDone] = useState(null);
   const [scope, setScope] = useState([]);
 
-  // Keep the account field in step with the login (it stays editable — a request
-  // may well come from someone who can no longer log in).
-  useEffect(() => { if (user) setUsername(user); }, [user]);
+  // The request is always for the logged-in account — no free-text username field.
+  // A request is tied to who you're signed in as, which stops anyone filing a
+  // deletion/export against an account that isn't theirs.
+  const username = user || '';
 
   // The scope list is served by the same module that fulfils the requests, so what
   // the user is promised here cannot drift from what the script actually touches.
@@ -46,7 +46,7 @@ export default function DataRequestForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!username.trim()) { toast.error('Enter your Hive account name'); return; }
+    if (!username) { toast.error('Please log in first'); return; }
     if (!contact.trim()) { toast.error('Enter an email address so we can reply'); return; }
     if (isDelete && !confirmed) { toast.error('Please confirm you understand what can and cannot be deleted'); return; }
 
@@ -84,8 +84,22 @@ export default function DataRequestForm() {
     );
   }
 
+  // Login-gated: a data request is always about the signed-in account, so there's
+  // nothing to fill in until you're logged in.
+  if (!username) {
+    return (
+      <div className="drf-signin">
+        <p>Please log in to request or delete your data — a request applies to the account you're signed in as.</p>
+      </div>
+    );
+  }
+
   return (
     <form className="drf" onSubmit={handleSubmit}>
+      <div className="drf-account">
+        Request for <strong>@{username}</strong>
+      </div>
+
       <div className="drf-choice" role="radiogroup" aria-label="Request type">
         <button
           type="button"
@@ -142,16 +156,6 @@ export default function DataRequestForm() {
         </p>
       </div>
 
-      <label className="drf-label" htmlFor="drf-user">Hive account</label>
-      <input
-        id="drf-user"
-        className="drf-input"
-        type="text"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="your-hive-account"
-        autoComplete="off"
-      />
 
       <label className="drf-label" htmlFor="drf-contact">Email to reply to</label>
       <input
