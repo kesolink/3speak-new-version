@@ -2,13 +2,14 @@
  * Privacy policy (Art. 13 GDPR information duty). Grounded in what the code actually
  * does — the data flows here are real and current as of 2026-07-14.
  *
- * The Impressum (§5 DDG) is deliberately NOT here — it's owned elsewhere in the
- * project, not by this front-end. This page is only the privacy policy.
+ * The Impressum (§5 DDG) and the operator/controller identity are deliberately NOT
+ * named here — that's owned elsewhere in the project, not by this front-end. This
+ * page is only the privacy policy; it refers to "the operator of 3Speak" generically.
  *
  * ⚠️ BEFORE THIS GOES LIVE ON PRODUCTION:
  *   1. A lawyer must review the wording — an accurate draft, not a substitute for
  *      legal review.
- *   2. Fill every [PLACEHOLDER …] with the real controller/processor details. The
+ *   2. Fill the remaining [PLACEHOLDER …] processor/transfer details. The
  *      LEGAL_REVIEWED flag gates the draft banner until both are done.
  */
 import { Helmet } from 'react-helmet-async';
@@ -60,8 +61,8 @@ export default function Legal() {
       <section>
         <h2>1. Who is responsible</h2>
         <p>
-          The controller for the processing described here is <Placeholder>legal entity name</Placeholder>,{' '}
-          <Placeholder>street address</Placeholder>, <Placeholder>postal code, city</Placeholder>, Germany.
+          The party responsible for the processing described here (the “controller”) is the
+          operator of 3Speak.
         </p>
         <p>
           For any privacy question or to exercise your rights, contact us at{' '}
@@ -182,9 +183,9 @@ export default function Legal() {
           public ledger.
         </p>
         <p>
-          You also have the right to complain to a supervisory authority. For us that is the{' '}
-          <strong>Hessischer Beauftragter für Datenschutz und Informationsfreiheit (HBDI)</strong>,
-          Wiesbaden. <Placeholder>confirm competent authority</Placeholder>
+          You also have the right to lodge a complaint with a data protection supervisory
+          authority — in particular in the EU member state where you live or work, or where you
+          believe the issue occurred.
         </p>
       </section>
 
