@@ -355,10 +355,10 @@ export default function SettingsModal({ isOpen, onClose }) {
             <div className="settings-section">
               <div className="settings-modal-row">
                 <div className="settings-row-text">
-                  <span className="settings-row-title">Privacy &amp; imprint</span>
+                  <span className="settings-row-title">Privacy policy</span>
                   <span className="settings-row-desc">
                     <a href="/privacy" target="_blank" rel="noopener noreferrer">
-                      How we handle your data, and legal information
+                      How we handle your data
                     </a>
                   </span>
                 </div>

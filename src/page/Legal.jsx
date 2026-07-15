@@ -1,16 +1,15 @@
 /**
- * Privacy policy + imprint (Art. 13 GDPR information duty + §5 DDG Impressum).
+ * Privacy policy (Art. 13 GDPR information duty). Grounded in what the code actually
+ * does — the data flows here are real and current as of 2026-07-14.
  *
- * The app had NEITHER of these, which are both legally required for an EU/German
- * video service. This page is grounded in what the code actually does — the data
- * flows here are real and current as of 2026-07-14.
+ * The Impressum (§5 DDG) is deliberately NOT here — it's owned elsewhere in the
+ * project, not by this front-end. This page is only the privacy policy.
  *
- * ⚠️ TWO THINGS BEFORE THIS GOES LIVE ON PRODUCTION:
- *   1. A lawyer must review the wording. This is a solid, honest, technically
- *      accurate draft, not a substitute for legal review.
- *   2. Every [PLACEHOLDER …] must be filled with the real controller details.
- *      A DEFECTIVE Impressum is Abmahnung bait — worse than a marked draft. Do not
- *      ship it with placeholders still in it; the LAST_REVIEWED banner is the guard.
+ * ⚠️ BEFORE THIS GOES LIVE ON PRODUCTION:
+ *   1. A lawyer must review the wording — an accurate draft, not a substitute for
+ *      legal review.
+ *   2. Fill every [PLACEHOLDER …] with the real controller/processor details. The
+ *      LEGAL_REVIEWED flag gates the draft banner until both are done.
  */
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
@@ -27,7 +26,7 @@ function Placeholder({ children }) {
 export default function Legal() {
   return (
     <div className="legal">
-      <Helmet><title>Privacy & Imprint · 3Speak</title></Helmet>
+      <Helmet><title>Privacy Policy · 3Speak</title></Helmet>
 
       {!LEGAL_REVIEWED && (
         <div className="legal-draft" role="alert">
@@ -194,32 +193,6 @@ export default function Legal() {
         <p>
           Our feeds rank videos by popularity and your chosen interests, but this does not produce
           any decision with a legal or similarly significant effect on you (Art. 22).
-        </p>
-      </section>
-
-      {/* ── §5 DDG Impressum. ── */}
-      <h1 id="imprint" className="legal-imprint-title">Imprint (Impressum)</h1>
-      <section>
-        <p>Information pursuant to § 5 DDG:</p>
-        <p>
-          <Placeholder>legal entity / provider name</Placeholder><br />
-          <Placeholder>street address</Placeholder><br />
-          <Placeholder>postal code, city</Placeholder>, Germany
-        </p>
-        <p>
-          <strong>Represented by:</strong> <Placeholder>managing director / responsible person</Placeholder>
-        </p>
-        <p>
-          <strong>Contact:</strong> <Placeholder>phone</Placeholder> ·{' '}
-          <a href="mailto:privacy@3speak.tv">privacy@3speak.tv</a>
-        </p>
-        <p>
-          <strong>Register:</strong> <Placeholder>commercial register + number, if applicable</Placeholder><br />
-          <strong>VAT ID:</strong> <Placeholder>USt-IdNr., if applicable</Placeholder>
-        </p>
-        <p>
-          <strong>Responsible for content</strong> per § 18(2) MStV:{' '}
-          <Placeholder>name + address of the person responsible for content</Placeholder>
         </p>
       </section>
 
