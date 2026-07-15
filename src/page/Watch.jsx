@@ -1297,6 +1297,7 @@ function Watch({ v2 = false }) {
         author={author}
         permlink={permlink}
         mediaUnavailable={mediaUnavailable}
+        mediaLoading={!!playerState?.loading && !mediaUnavailable}
         videoRef={videoRef}
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
