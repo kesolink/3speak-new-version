@@ -6,11 +6,12 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { toast } from 'sonner';
 import { BiCommentDetail } from 'react-icons/bi';
-import { MdMoreVert } from 'react-icons/md';
+import { MdMoreVert, MdEdit, MdClose } from 'react-icons/md';
 import {
-  fetchSnaps, SNAP_TAG, recordSnapInteraction,
+  fetchSnaps, SNAP_TAG, MAX_USER_TAGS, recordSnapInteraction, updateSnap,
   hideSnap, unhideSnap, hideSnapCreator, unhideSnapCreator,
 } from '../../lib/snaps';
+import MarkdownComposer from '../studio/MarkdownComposer';
 import { getHiveRenderer } from '../../lib/hiveRenderer';
 import { getHiveClient } from '../../utils/hiveNode';
 import { getVotePower, getDynamicProps } from '../../utils/hiveUtils';
@@ -79,7 +80,9 @@ function SnapBody({ body, maxVh = 0.33 }) {
 }
 
 // Reply composer — reused for the snap itself and for any comment (nested replies).
-function ReplyBox({ parentAuthor, parentPermlink, onPosted, autoFocus = false }) {
+// onSigned fires the moment the broadcast succeeds (for instant counters);
+// onPosted fires ~3s later, when the RPC can actually return the new reply.
+function ReplyBox({ parentAuthor, parentPermlink, onPosted, onSigned, autoFocus = false }) {
   const user = useAppStore((s) => s.user);
   const [reply, setReply] = useState('');
   const [posting, setPosting] = useState(false);
@@ -93,6 +96,7 @@ function ReplyBox({ parentAuthor, parentPermlink, onPosted, autoFocus = false })
       const rp = `re-${parentPermlink}-${Date.now() % 1000000}`.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 250);
       await commentWithAioha(parentAuthor, parentPermlink, rp, '', text, { app: '3speak/snap', format: 'markdown' }, null);
       toast.success('Comment posted!');
+      onSigned?.(); // instant — counters bump right after signing
       setReply('');
       setTimeout(() => onPosted?.(), 3000);
     } catch (e) {
@@ -182,7 +186,7 @@ function SnapComments({ owner, permlink, onCommented }) {
 
   return (
     <div className="snap-comments">
-      <ReplyBox parentAuthor={owner} parentPermlink={permlink} onPosted={() => { refetch(); onCommented?.(); }} />
+      <ReplyBox parentAuthor={owner} parentPermlink={permlink} onSigned={onCommented} onPosted={refetch} />
       {isLoading ? (
         <div className="snap-comments-status">Loading comments…</div>
       ) : comments.length === 0 ? (
@@ -259,10 +263,124 @@ function SnapOptionsMenu({ owner, permlink, onHidden }) {
   );
 }
 
+// Inline editor for the owner's own snap — body + tags + NSFW, reusing the composer
+// styles. Rewards and beneficiaries stay as originally posted (Hive only allows
+// changing comment_options before the first vote), so they're not shown here.
+function SnapEditForm({ owner, permlink, initialBody, initialTags, initialNsfw, onCancel, onSaved }) {
+  const user = useAppStore((s) => s.user);
+  const [body, setBody] = useState(initialBody || '');
+  const [tags, setTags] = useState(initialTags || []);
+  const [tagInput, setTagInput] = useState('');
+  const [nsfw, setNsfw] = useState(!!initialNsfw);
+  const [saving, setSaving] = useState(false);
+
+  const addTag = (raw) => {
+    const t = String(raw || '').toLowerCase().replace(/^#/, '').trim();
+    if (!t || t === SNAP_TAG || tags.includes(t)) return;
+    if (tags.length >= MAX_USER_TAGS) { toast.error(`Up to ${MAX_USER_TAGS} tags`); return; }
+    setTags((prev) => [...prev, t]);
+  };
+  const onTagKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === ',') { e.preventDefault(); addTag(tagInput); setTagInput(''); }
+    else if (e.key === 'Backspace' && !tagInput && tags.length) setTags(tags.slice(0, -1));
+  };
+  const removeTag = (t) => setTags(tags.filter((x) => x !== t));
+
+  const save = async () => {
+    const text = body.trim();
+    if (!text) { toast.error('Write something first'); return; }
+    if (!user || user !== owner) { toast.error('Only the author can edit this post'); return; }
+    setSaving(true);
+    try {
+      // Don't lose a half-typed tag left in the input.
+      const pending = tagInput.trim() ? [...tags, tagInput.trim().toLowerCase().replace(/^#/, '')] : tags;
+      await updateSnap({ user, permlink, body: text, tags: pending, nsfw });
+      toast.success('Post updated!');
+      onSaved({ body: text, tags: [SNAP_TAG, ...pending, ...(nsfw ? ['nsfw'] : [])] });
+    } catch (e) {
+      toast.error(e?.message || 'Could not update the post');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="snap-composer snap-edit-form">
+      <MarkdownComposer value={body} onChange={setBody} placeholder="Edit your community post…" />
+      <div className="snap-composer-row">
+        <input
+          className="snap-tags-input"
+          placeholder={tags.length >= MAX_USER_TAGS ? 'Tag limit reached' : 'Add a tag, then space or enter…'}
+          value={tagInput}
+          onChange={(e) => setTagInput(e.target.value)}
+          onKeyDown={onTagKeyDown}
+          disabled={tags.length >= MAX_USER_TAGS}
+        />
+        <label className="snap-toggle">
+          <input type="checkbox" checked={nsfw} onChange={(e) => setNsfw(e.target.checked)} />
+          <span>NSFW</span>
+        </label>
+      </div>
+      <div className="snap-tag-chips">
+        <span className="snap-tag-chip built-in" title="Added to every community post">{SNAP_TAG}</span>
+        {tags.map((t) => (
+          <span key={t} className="snap-tag-chip">
+            {t}
+            <button type="button" onClick={() => removeTag(t)} aria-label={`Remove ${t}`}><MdClose /></button>
+          </span>
+        ))}
+        <span className="snap-tag-count">{tags.length}/{MAX_USER_TAGS}</span>
+      </div>
+      <div className="snap-composer-actions">
+        <button type="button" className="snap-cancel-btn" onClick={onCancel} disabled={saving}>Cancel</button>
+        <button type="button" className="snap-post-btn" disabled={saving || !body.trim()} onClick={save}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Comments in a popup — used in the home feed, where expanding the thread inline
+// would stretch the grid row. Centered dialog on desktop, bottom sheet on mobile
+// (the app-wide popup convention). The community-snaps/snap-card classes are only
+// there so the nested .snap-comments styles apply inside the portal.
+function SnapCommentsModal({ owner, permlink, onClose, onCommented }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden'; // don't scroll the feed behind the sheet
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div className="snap-comments-modal-backdrop" onClick={onClose}>
+      <div className="community-snaps snap-comments-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="snap-comments-modal-head">
+          <span>Comments on @{owner}’s post</span>
+          <button type="button" onClick={onClose} aria-label="Close"><MdClose /></button>
+        </div>
+        <div className="snap-card snap-comments-modal-scroll">
+          <SnapComments owner={owner} permlink={permlink} onCommented={onCommented} />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export function SnapCard({ snap, feedMode = false, onRemove }) {
   const user = useAppStore((s) => s.user);
   const client = getHiveClient();
+  const queryClient = useQueryClient();
   const [showComments, setShowComments] = useState(false);
+  const [commentsPopup, setCommentsPopup] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [localEdit, setLocalEdit] = useState(null); // optimistic body/tags after an edit
 
   // Vote-dialog state (the reused CommentVoteTooltip owns the actual vote).
   const [showVote, setShowVote] = useState(false);
@@ -297,10 +415,38 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
     staleTime: 60_000,
   });
 
+  // Bump the counters the moment the signed transaction succeeds — a chain read
+  // right after broadcast usually still returns the OLD counts, which made the
+  // numbers look frozen. The cached meta is patched instantly; a delayed refetch
+  // reconciles with the chain once it has caught up.
+  const metaKey = ['snap-meta', snap.owner, snap.permlink];
+  const onVoted = () => {
+    queryClient.setQueryData(metaKey, (old) => ({
+      votes: (old?.votes ?? 0) + (old?.voted ? 0 : 1),
+      comments: old?.comments ?? 0,
+      voted: true,
+    }));
+    recordSnapInteraction(user, snap.owner, snap.permlink);
+    setTimeout(() => refetch(), 8000);
+  };
+  const onCommented = () => {
+    queryClient.setQueryData(metaKey, (old) => ({
+      votes: old?.votes ?? 0,
+      comments: (old?.comments ?? 0) + 1,
+      voted: old?.voted ?? false,
+    }));
+    recordSnapInteraction(user, snap.owner, snap.permlink);
+    setTimeout(() => refetch(), 8000);
+  };
+
+  const isOwn = !!user && user === snap.owner;
+  const effBody = localEdit?.body ?? snap.body;
+  const effTags = localEdit?.tags ?? snap.tags ?? [];
+
   const votes = meta?.votes ?? 0;
   const voted = meta?.voted ?? false;
   const comments = meta?.comments ?? 0;
-  const tags = (snap.tags || []).filter((t) => t && t !== 'nsfw' && t !== SNAP_TAG);
+  const tags = effTags.filter((t) => t && t !== 'nsfw' && t !== SNAP_TAG);
 
   return (
     <article className="snap-card">
@@ -319,14 +465,31 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
         >
           {hiveTime(snap.created)}
         </Link>
+        {isOwn && !editing && (
+          <button type="button" className="snap-menu-btn snap-edit-btn" onClick={() => setEditing(true)} title="Edit post" aria-label="Edit post">
+            <MdEdit />
+          </button>
+        )}
         {feedMode && (
           <SnapOptionsMenu owner={snap.owner} permlink={snap.permlink} onHidden={() => onRemove?.(snap)} />
         )}
       </div>
 
-      <SnapBody body={snap.body} maxVh={feedMode ? 0.15 : 0.33} />
+      {editing ? (
+        <SnapEditForm
+          owner={snap.owner}
+          permlink={snap.permlink}
+          initialBody={effBody}
+          initialTags={effTags.filter((t) => t && t !== SNAP_TAG && t !== 'nsfw')}
+          initialNsfw={effTags.includes('nsfw') || !!snap.nsfw}
+          onCancel={() => setEditing(false)}
+          onSaved={(edit) => { setLocalEdit(edit); setEditing(false); }}
+        />
+      ) : (
+        <SnapBody body={effBody} maxVh={feedMode ? 0.15 : 0.33} />
+      )}
 
-      {tags.length > 0 && (
+      {!editing && tags.length > 0 && (
         <div className="snap-tags">
           {tags.map((t) => <Link key={t} to={`/t/${t}`} className="snap-tag">{t}</Link>)}
         </div>
@@ -349,7 +512,7 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
               setAccountData={setAccountData}
               cachedDynamicProps={voteData?.dynProps || null}
               setActiveTooltipPermlink={() => {}}
-              onVoteSuccess={() => { refetch(); recordSnapInteraction(user, snap.owner, snap.permlink); }}
+              onVoteSuccess={onVoted}
               enableViewerTag={false}
               postCreatedAt={snap.created}
             />
@@ -357,19 +520,25 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
         </div>
         <button
           type="button"
-          className={`snap-action${showComments ? ' active' : ''}`}
-          onClick={() => setShowComments((v) => !v)}
+          className={`snap-action${showComments || commentsPopup ? ' active' : ''}`}
+          onClick={() => (feedMode ? setCommentsPopup(true) : setShowComments((v) => !v))}
         >
           <BiCommentDetail />
           <span>{comments}</span>
         </button>
       </div>
 
-      {showComments && (
-        <SnapComments
+      {/* Profile tab expands the thread inline; the feed opens a popup so the
+          grid row doesn't stretch. */}
+      {showComments && !feedMode && (
+        <SnapComments owner={snap.owner} permlink={snap.permlink} onCommented={onCommented} />
+      )}
+      {commentsPopup && (
+        <SnapCommentsModal
           owner={snap.owner}
           permlink={snap.permlink}
-          onCommented={() => { refetch(); recordSnapInteraction(user, snap.owner, snap.permlink); }}
+          onClose={() => setCommentsPopup(false)}
+          onCommented={onCommented}
         />
       )}
     </article>
