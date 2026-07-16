@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.56.0',
+    date: '2026-07-15',
+    summary:
+      'Playback polish, especially for older videos: a new 3Speak loading animation while a video starts up, plus smoother, steadier playback.',
+  },
+  {
     version: '1.55.0',
     date: '2026-07-12',
     summary:
