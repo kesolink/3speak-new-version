@@ -180,6 +180,15 @@ function Watch({ v2 = false }) {
   const mediaUnavailable = playbackFailed
     || (!!author && !!permlink && deadVideos.has(videoKey(author, permlink)));
 
+  // Show the branded loader OVER the player until it's actually ready to paint a
+  // frame (SDK `onReady`). We can't drive this off playerState.loading: the SDK's
+  // react hook never re-renders on its "loading" event, and the poster stays black
+  // until the Hive metadata arrives — so without this the user just sees a black
+  // box while the source loads. Reset per video.
+  const [videoReady, setVideoReady] = useState(false);
+  useEffect(() => { setVideoReady(false); }, [author, permlink]);
+  const mediaLoading = !videoReady && !mediaUnavailable && !scheduled;
+
   // Track which videos we've recorded to avoid duplicate API calls
   const recordedWatchRef = useRef(new Set());
 
@@ -303,6 +312,8 @@ function Watch({ v2 = false }) {
         setPlaybackFailed(true); // swap the player for a "not available" hint
       }
     },
+    // First frame decoded — drop the branded loader and reveal the player.
+    onReady: () => setVideoReady(true),
     // Tuned for 3Speak's reality: older uploads sit on COLD IPFS and a segment can
     // take 30–45s to serve the first time (then the CDN has it hot). See the HAR
     // analysis of 2026-07-15.
@@ -1343,7 +1354,7 @@ function Watch({ v2 = false }) {
         author={author}
         permlink={permlink}
         mediaUnavailable={mediaUnavailable}
-        mediaLoading={!!playerState?.loading && !mediaUnavailable}
+        mediaLoading={mediaLoading}
         videoRef={videoRef}
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
