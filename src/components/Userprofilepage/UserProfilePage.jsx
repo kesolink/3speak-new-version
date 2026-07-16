@@ -502,7 +502,7 @@ const {
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
           {canSeeStats && (
-            <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Stats</span>
+            <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Analytics</span>
           )}
         </div>
         <span className="followers" onClick={()=>{handleWalletNavigate(user)}}>wallet</span>

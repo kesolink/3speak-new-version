@@ -474,7 +474,7 @@ function ProfilePage() {
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists
           </span>
-          <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Stats</span>
+          <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Analytics</span>
         </div>
 
         <div className="wrap-in">

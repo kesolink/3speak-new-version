@@ -1219,11 +1219,11 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                     type="button"
                     className={`pv-btn stats-btn${videoStatsOpen ? ' active' : ''}`}
                     onClick={() => setVideoStatsOpen((o) => !o)}
-                    title="Video stats"
+                    title="Video analytics"
                     aria-expanded={videoStatsOpen}
                   >
                     <MdBarChart size={16} />
-                    <span>Stats</span>
+                    <span>Analytics</span>
                   </button>
                 )}
                 <button
@@ -1521,7 +1521,7 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
             <div className="fab-actions">
               {canSeeVideoStats && (
                 <div className="fab-action">
-                  <span className="fab-action-label">Stats</span>
+                  <span className="fab-action-label">Analytics</span>
                   <button
                     className={`fab-action-btn${videoStatsOpen ? ' fab-action-btn--active' : ''}`}
                     onClick={() => {
