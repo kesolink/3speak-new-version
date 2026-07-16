@@ -453,8 +453,12 @@ const HomeGrouped = () => {
     setRemovedSnaps((prev) => new Set(prev).add(`${snap.owner}/${snap.permlink}`));
   }, []);
   const feedCommunity = useMemo(
-    () => (communityQ.data?.pages || []).flat().filter((s) => !removedSnaps.has(`${s.owner}/${s.permlink}`)),
-    [communityQ.data, removedSnaps],
+    () => (communityQ.data?.pages || []).flat().filter(
+      // Own snaps never show in your own feed (the checker also filters them
+      // server-side — this covers pages cached before login/logout).
+      (s) => s.owner !== user && !removedSnaps.has(`${s.owner}/${s.permlink}`),
+    ),
+    [communityQ.data, removedSnaps, user],
   );
 
   // A community post roughly every 3 rows (offset from the shorts' every-2-rows).
