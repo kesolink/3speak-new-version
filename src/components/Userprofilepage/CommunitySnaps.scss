@@ -242,12 +242,29 @@
       }
     }
 
+    .snap-body-wrap { position: relative; }
     .snap-body {
+      position: relative;
       font-size: 15px;
       line-height: 1.55;
       color: var(--text-primary, #f1f1f1);
       word-break: break-word;
       overflow-wrap: anywhere;
+
+      // A very long post is capped at ~10% of the viewport until "Read more".
+      max-height: 10vh;
+      overflow: hidden;
+      &.expanded { max-height: none; overflow: visible; }
+      &:not(.expanded)::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 40px;
+        background: linear-gradient(to bottom, transparent, var(--bg-secondary, #1a1a1a));
+        pointer-events: none;
+      }
 
       p { margin: 0 0 10px; &:last-child { margin-bottom: 0; } }
       a { color: var(--accent-primary, #e53935); }
@@ -259,6 +276,17 @@
         border-left: 3px solid var(--border-color, rgba(255, 255, 255, 0.2));
         color: var(--text-secondary, #9aa0a6);
       }
+    }
+    .snap-readmore {
+      display: inline-block;
+      margin-top: 6px;
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--accent-primary, #e53935);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
     }
 
     .snap-tags {
@@ -272,6 +300,114 @@
         color: var(--accent-primary, #e53935);
         text-decoration: none;
         &:hover { text-decoration: underline; }
+      }
+    }
+
+    .snap-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+
+      .snap-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+        background: transparent;
+        color: var(--text-secondary, #9aa0a6);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: color 0.15s ease, border-color 0.15s ease;
+
+        svg { font-size: 16px; }
+        &:hover:not(:disabled) { color: var(--text-primary, #f1f1f1); border-color: var(--border-color, rgba(255, 255, 255, 0.28)); }
+        &.voted { color: var(--accent-primary, #e53935); border-color: var(--accent-primary, #e53935); }
+        &.active { color: var(--text-primary, #f1f1f1); }
+      }
+    }
+
+    .snap-comments {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+
+      .snap-reply-box {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+
+        textarea {
+          flex: 1;
+          min-width: 0;
+          resize: vertical;
+          padding: 8px 10px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+          background: var(--bg-primary, #0f0f0f);
+          color: var(--text-primary, #f1f1f1);
+          font-size: 14px;
+          font-family: inherit;
+        }
+        button {
+          flex: none;
+          align-self: flex-end;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 999px;
+          background: var(--accent-primary, #e53935);
+          color: #fff;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          &:disabled { opacity: 0.5; cursor: not-allowed; }
+        }
+      }
+
+      .snap-comments-status {
+        font-size: 13px;
+        color: var(--text-secondary, #9aa0a6);
+        padding: 4px 0;
+      }
+
+      .snap-comment-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .snap-comment {
+        .snap-comment-head {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+          margin-bottom: 3px;
+
+          .snap-comment-author {
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--text-primary, #f1f1f1);
+            text-decoration: none;
+            &:hover { color: var(--accent-primary, #e53935); }
+          }
+          .snap-comment-time { font-size: 11px; color: var(--text-secondary, #9aa0a6); }
+        }
+        .snap-comment-body {
+          font-size: 14px;
+          line-height: 1.5;
+          color: var(--text-primary, #f1f1f1);
+          word-break: break-word;
+          overflow-wrap: anywhere;
+
+          p { margin: 0 0 6px; &:last-child { margin-bottom: 0; } }
+          a { color: var(--accent-primary, #e53935); }
+          img { max-width: 100%; height: auto; border-radius: 6px; }
+        }
       }
     }
   }
