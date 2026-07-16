@@ -36,6 +36,7 @@ import { fetchUserShortsWithDetails } from '../../hive-api/hiveApi';
 import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
 import UserAudioList from './UserAudioList';
+import CommunitySnaps from './CommunitySnaps';
 import SocialLinks from './SocialLinks';
 import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
@@ -57,6 +58,7 @@ function UserProfilePage() {
       if (tab === 'playlists') return 'playlists';
       if (tab === 'shorts') return 'shorts';
       if (tab === 'audio') return 'audio';
+      if (tab === 'community') return 'community';
       if (tab === 'stats') return 'stats';
       return 'video';
     });
@@ -67,6 +69,7 @@ function UserProfilePage() {
       if (tab === 'playlists') setShow('playlists');
       else if (tab === 'shorts') setShow('shorts');
       else if (tab === 'audio') setShow('audio');
+      else if (tab === 'community') setShow('community');
       else if (tab === 'stats') setShow('stats');
       else if (!tab) setShow('video');
     }, [searchParams]);
@@ -494,6 +497,7 @@ const {
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          <span className={show === "community" ? "active" : ""} onClick={() => selectTab("community")}>Community</span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
@@ -528,6 +532,8 @@ const {
     )
   ) : show === "audio" ? (
     <UserAudioList user={user} />
+  ) : show === "community" ? (
+    <CommunitySnaps user={user} canPost={false} />
   ) : show === "stats" ? (
     canSeeStats ? <CreatorStats user={user} /> : null
   ) : show === "playlists" ? (

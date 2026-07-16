@@ -1,0 +1,234 @@
+.community-snaps {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 0 40px;
+
+  // ── Composer ──────────────────────────────────────────────────────────────
+  .snap-composer {
+    background: var(--bg-secondary, #1a1a1a);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 22px;
+
+    .snap-composer-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+
+      .snap-tags-input {
+        flex: 1;
+        min-width: 0;
+        padding: 9px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+        background: var(--bg-primary, #0f0f0f);
+        color: var(--text-primary, #f1f1f1);
+        font-size: 14px;
+      }
+      .snap-options-toggle {
+        flex: none;
+        background: none;
+        border: none;
+        color: var(--accent-primary, #e53935);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+    }
+
+    .snap-options {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+
+      .snap-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        .snap-field-label {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-secondary, #9aa0a6);
+        }
+        select {
+          padding: 9px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+          background: var(--bg-primary, #0f0f0f);
+          color: var(--text-primary, #f1f1f1);
+          font-size: 14px;
+        }
+      }
+
+      .snap-benefic-add {
+        display: flex;
+        gap: 8px;
+
+        input {
+          padding: 8px 10px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+          background: var(--bg-primary, #0f0f0f);
+          color: var(--text-primary, #f1f1f1);
+          font-size: 14px;
+          &:first-child { flex: 1; min-width: 0; }
+          &[type='number'] { width: 72px; }
+        }
+        button {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 8px 12px;
+          border: none;
+          border-radius: 8px;
+          background: var(--accent-primary, #e53935);
+          color: #fff;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+      }
+      .snap-benefic-list {
+        list-style: none;
+        margin: 8px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        li {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 13px;
+          color: var(--text-primary, #f1f1f1);
+          background: var(--bg-primary, #0f0f0f);
+          border-radius: 6px;
+          padding: 6px 10px;
+
+          button {
+            background: none;
+            border: none;
+            color: var(--text-secondary, #9aa0a6);
+            cursor: pointer;
+            display: inline-flex;
+          }
+        }
+      }
+
+      .snap-toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: var(--text-primary, #f1f1f1);
+        cursor: pointer;
+        input { width: 16px; height: 16px; accent-color: var(--accent-primary, #e53935); }
+      }
+    }
+
+    .snap-composer-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 12px;
+
+      .snap-post-btn {
+        padding: 10px 22px;
+        border: none;
+        border-radius: 999px;
+        background: var(--accent-primary, #e53935);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.15s ease;
+        &:disabled { opacity: 0.5; cursor: not-allowed; }
+      }
+    }
+  }
+
+  // ── List + cards ──────────────────────────────────────────────────────────
+  .snap-empty {
+    text-align: center;
+    color: var(--text-secondary, #9aa0a6);
+    padding: 40px 16px;
+    font-size: 15px;
+  }
+
+  .snap-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .snap-card {
+    background: var(--bg-secondary, #1a1a1a);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 12px;
+    padding: 14px 16px;
+
+    .snap-card-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+
+      .snap-author {
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--text-primary, #f1f1f1);
+        text-decoration: none;
+        &:hover { color: var(--accent-primary, #e53935); }
+      }
+      .snap-time {
+        font-size: 12px;
+        color: var(--text-secondary, #9aa0a6);
+        text-decoration: none;
+        white-space: nowrap;
+        &:hover { text-decoration: underline; }
+      }
+    }
+
+    .snap-body {
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--text-primary, #f1f1f1);
+      word-break: break-word;
+      overflow-wrap: anywhere;
+
+      p { margin: 0 0 10px; &:last-child { margin-bottom: 0; } }
+      a { color: var(--accent-primary, #e53935); }
+      img { max-width: 100%; height: auto; border-radius: 8px; }
+      pre { overflow-x: auto; background: var(--bg-primary, #0f0f0f); padding: 10px; border-radius: 8px; }
+      blockquote {
+        margin: 8px 0;
+        padding-left: 12px;
+        border-left: 3px solid var(--border-color, rgba(255, 255, 255, 0.2));
+        color: var(--text-secondary, #9aa0a6);
+      }
+    }
+
+    .snap-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+
+      .snap-tag {
+        font-size: 12px;
+        color: var(--accent-primary, #e53935);
+        text-decoration: none;
+        &:hover { text-decoration: underline; }
+      }
+    }
+  }
+}

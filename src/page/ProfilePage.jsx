@@ -12,6 +12,7 @@ import Card3 from "../components/Cards/Card3";
 import Follower from "../components/Userprofilepage/Follower";
 import BarLoader from "../components/Loader/BarLoader";
 import CreatorStats from "../components/CreatorStats/CreatorStats";
+import CommunitySnaps from "../components/Userprofilepage/CommunitySnaps";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -60,6 +61,7 @@ function ProfilePage() {
     if (tab === 'playlists') return 'playlists';
     if (tab === 'shorts') return 'shorts';
     if (tab === 'audio') return 'audio';
+    if (tab === 'community') return 'community';
     if (tab === 'stats') return 'stats';
     return 'video';
   });
@@ -69,6 +71,7 @@ function ProfilePage() {
     if (tab === 'playlists') setShow('playlists');
     else if (tab === 'shorts') setShow('shorts');
     else if (tab === 'audio') setShow('audio');
+    else if (tab === 'community') setShow('community');
     else if (tab === 'stats') setShow('stats');
     else if (!tab) setShow('video');
   }, [searchParams]);
@@ -467,6 +470,7 @@ function ProfilePage() {
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          <span className={show === "community" ? "active" : ""} onClick={() => selectTab("community")}>Community</span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists
           </span>
@@ -542,6 +546,8 @@ function ProfilePage() {
           )
         ) : show === "audio" ? (
           <UserAudioList user={user} />
+        ) : show === "community" ? (
+          <CommunitySnaps user={user} canPost={!!user} />
         ) : show === "stats" ? (
           <CreatorStats user={user} />
         ) : show === "playlists" ? (
