@@ -302,9 +302,13 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
   return (
     <article className="snap-card">
       <div className="snap-card-head">
-        {/* In the home feed the snap is from any creator, so name them; on a profile
+        {/* In the home feed the snap is from any creator, so title it; on a profile
             Community tab it's always that profile, so we omit it. */}
-        {feedMode && <Link to={`/p/${snap.owner}`} className="snap-author">@{snap.owner}</Link>}
+        {feedMode && (
+          <span className="snap-feed-title">
+            Community snap by <Link to={`/p/${snap.owner}`} className="snap-author">@{snap.owner}</Link>
+          </span>
+        )}
         <a
           className="snap-time"
           href={`https://peakd.com/@${snap.owner}/${snap.permlink}`}

@@ -227,6 +227,13 @@
       gap: 10px;
       margin-bottom: 8px;
 
+      // Feed-only header: "Community snap by @author".
+      .snap-feed-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary, #9aa0a6);
+        .snap-author { font-size: inherit; }
+      }
       .snap-author {
         font-weight: 700;
         font-size: 14px;
