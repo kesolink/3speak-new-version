@@ -8,6 +8,7 @@ import { BiCommentDetail } from 'react-icons/bi';
 import { fetchSnaps, SNAP_TAG } from '../../lib/snaps';
 import { getHiveRenderer } from '../../lib/hiveRenderer';
 import { getHiveClient } from '../../utils/hiveNode';
+import { getVotePower, getDynamicProps } from '../../utils/hiveUtils';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
 import SnapComposer from './SnapComposer';
@@ -45,7 +46,7 @@ function SnapBody({ body }) {
     const measure = () => {
       const el = ref.current;
       // scrollHeight is the full content height regardless of the max-height clamp.
-      if (el) setOverflowing(el.scrollHeight > window.innerHeight * 0.1 + 8);
+      if (el) setOverflowing(el.scrollHeight > window.innerHeight * 0.33 + 8);
     };
     measure();
     window.addEventListener('resize', measure);
@@ -198,6 +199,19 @@ function SnapCard({ snap }) {
   const [voteValue, setVoteValue] = useState('0.00');
   const [accountData, setAccountData] = useState(null);
 
+  // Pre-fetch the viewer's vote power + chain props (shared across all cards via the
+  // query key) so the vote dialog gets its fast path — otherwise it flips `initializing`
+  // and re-renders the estimate back to the stale value until the slider moves.
+  const { data: voteData } = useQuery({
+    queryKey: ['snap-vote-data', user],
+    queryFn: async () => {
+      const [acctRes, dyn] = await Promise.all([getVotePower(user), getDynamicProps()]);
+      return { account: acctRes?.account || null, dynProps: dyn || null };
+    },
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+  });
+
   const { data: meta, refetch } = useQuery({
     queryKey: ['snap-meta', snap.owner, snap.permlink],
     queryFn: async () => {
@@ -252,8 +266,9 @@ function SnapCard({ snap }) {
               setWeight={setWeight}
               voteValue={voteValue}
               setVoteValue={setVoteValue}
-              accountData={accountData}
+              accountData={voteData?.account || accountData}
               setAccountData={setAccountData}
+              cachedDynamicProps={voteData?.dynProps || null}
               setActiveTooltipPermlink={() => {}}
               onVoteSuccess={() => refetch()}
               enableViewerTag={false}

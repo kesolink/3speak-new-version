@@ -254,7 +254,7 @@
       // Clamp ONLY when the post actually overflows (JS adds `.clamped`) — a short
       // post keeps its natural height with no fade.
       &.clamped {
-        max-height: 10vh;
+        max-height: 33vh;
         overflow: hidden;
         &::after {
           content: '';
