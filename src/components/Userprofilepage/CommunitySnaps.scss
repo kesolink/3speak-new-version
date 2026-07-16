@@ -3,6 +3,8 @@
   margin: 0 auto;
   padding: 8px 0 40px;
 
+  &--feed { padding: 0; }
+
   // ── Composer ──────────────────────────────────────────────────────────────
   .snap-composer {
     background: var(--bg-secondary, #1a1a1a);
@@ -221,8 +223,7 @@
 
     .snap-card-head {
       display: flex;
-      align-items: baseline;
-      justify-content: space-between;
+      align-items: center;
       gap: 10px;
       margin-bottom: 8px;
 
@@ -238,7 +239,20 @@
         color: var(--text-secondary, #9aa0a6);
         text-decoration: none;
         white-space: nowrap;
+        margin-right: auto; // push the ⋮ menu to the far right
         &:hover { text-decoration: underline; }
+      }
+      .snap-menu-btn {
+        flex: none;
+        background: none;
+        border: none;
+        padding: 4px;
+        border-radius: 6px;
+        color: var(--text-secondary, #9aa0a6);
+        cursor: pointer;
+        display: inline-flex;
+        &:hover { color: var(--text-primary, #f1f1f1); background: var(--bg-primary, #0f0f0f); }
+        svg { font-size: 18px; }
       }
     }
 
@@ -444,5 +458,37 @@
         }
       }
     }
+  }
+}
+
+// Portaled to <body> (from SnapOptionsMenu) → must be top-level, not nested.
+.snap-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+.snap-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+
+  button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 10px 12px;
+    border-radius: 6px;
+    color: var(--text-primary, #f1f1f1);
+    font-size: 14px;
+    cursor: pointer;
+    &:hover { background: var(--bg-primary, #0f0f0f); }
   }
 }

@@ -1,11 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { toast } from 'sonner';
 import { BiCommentDetail } from 'react-icons/bi';
-import { fetchSnaps, SNAP_TAG } from '../../lib/snaps';
+import { MdMoreVert } from 'react-icons/md';
+import {
+  fetchSnaps, SNAP_TAG, recordSnapInteraction,
+  hideSnap, unhideSnap, hideSnapCreator, unhideSnapCreator,
+} from '../../lib/snaps';
 import { getHiveRenderer } from '../../lib/hiveRenderer';
 import { getHiveClient } from '../../utils/hiveNode';
 import { getVotePower, getDynamicProps } from '../../utils/hiveUtils';
@@ -188,7 +193,70 @@ function SnapComments({ owner, permlink, onCommented }) {
   );
 }
 
-function SnapCard({ snap }) {
+// Card3-style ⋮ menu, but hides go to the SNAP hide list only (not video hides).
+function SnapOptionsMenu({ owner, permlink, onHidden }) {
+  const user = useAppStore((s) => s.user);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = () => setOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+
+  if (!user) return null;
+
+  const toggle = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, left: Math.min(r.left - 150, window.innerWidth - 220) });
+    setOpen((v) => !v);
+  };
+  const hidePost = async () => {
+    setOpen(false);
+    onHidden?.();
+    try {
+      await hideSnap(user, owner, permlink);
+      toast('Post hidden', { action: { label: 'Undo', onClick: () => unhideSnap(user, owner, permlink).catch(() => {}) } });
+    } catch { toast.error('Could not hide the post'); }
+  };
+  const hideCreator = async () => {
+    setOpen(false);
+    onHidden?.();
+    try {
+      await hideSnapCreator(user, owner);
+      toast(`Hiding @${owner}'s community posts`, { action: { label: 'Undo', onClick: () => unhideSnapCreator(user, owner).catch(() => {}) } });
+    } catch { toast.error('Could not hide the creator'); }
+  };
+
+  return (
+    <>
+      <button ref={btnRef} type="button" className="snap-menu-btn" onClick={toggle} aria-label="Post options">
+        <MdMoreVert />
+      </button>
+      {open && createPortal(
+        <>
+          <div className="snap-menu-backdrop" onClick={() => setOpen(false)} />
+          <div className="snap-menu" style={{ top: pos.top, left: pos.left }}>
+            <button type="button" onClick={hidePost}>Not interested</button>
+            <button type="button" onClick={hideCreator}>Don’t show this creator</button>
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+export function SnapCard({ snap, feedMode = false, onRemove }) {
   const user = useAppStore((s) => s.user);
   const client = getHiveClient();
   const [showComments, setShowComments] = useState(false);
@@ -234,6 +302,9 @@ function SnapCard({ snap }) {
   return (
     <article className="snap-card">
       <div className="snap-card-head">
+        {/* In the home feed the snap is from any creator, so name them; on a profile
+            Community tab it's always that profile, so we omit it. */}
+        {feedMode && <Link to={`/p/${snap.owner}`} className="snap-author">@{snap.owner}</Link>}
         <a
           className="snap-time"
           href={`https://peakd.com/@${snap.owner}/${snap.permlink}`}
@@ -243,6 +314,9 @@ function SnapCard({ snap }) {
         >
           {hiveTime(snap.created)}
         </a>
+        {feedMode && (
+          <SnapOptionsMenu owner={snap.owner} permlink={snap.permlink} onHidden={() => onRemove?.(snap)} />
+        )}
       </div>
 
       <SnapBody body={snap.body} />
@@ -270,7 +344,7 @@ function SnapCard({ snap }) {
               setAccountData={setAccountData}
               cachedDynamicProps={voteData?.dynProps || null}
               setActiveTooltipPermlink={() => {}}
-              onVoteSuccess={() => refetch()}
+              onVoteSuccess={() => { refetch(); recordSnapInteraction(user, snap.owner, snap.permlink); }}
               enableViewerTag={false}
               postCreatedAt={snap.created}
             />
@@ -287,7 +361,11 @@ function SnapCard({ snap }) {
       </div>
 
       {showComments && (
-        <SnapComments owner={snap.owner} permlink={snap.permlink} onCommented={() => refetch()} />
+        <SnapComments
+          owner={snap.owner}
+          permlink={snap.permlink}
+          onCommented={() => { refetch(); recordSnapInteraction(user, snap.owner, snap.permlink); }}
+        />
       )}
     </article>
   );

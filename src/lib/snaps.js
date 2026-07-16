@@ -27,6 +27,38 @@ export async function fetchSnaps(owner, page = 1, limit = 20) {
   return data; // { success, snaps, page, limit, total, hasMore }
 }
 
+/**
+ * Cross-author community-post feed for the home sections (fresh <7d, excludes the
+ * viewer's hidden + already-engaged snaps server-side).
+ * @param {{ scope?: 'all'|'following', currentuser?: string, page?: number, limit?: number }} opts
+ */
+export async function fetchCommunityFeed({ scope = 'all', currentuser = '', page = 1, limit = 10 } = {}) {
+  const params = new URLSearchParams({ scope, page: String(page), limit: String(limit) });
+  if (currentuser) params.set('currentuser', currentuser);
+  const { data } = await axios.get(`${CHECKER_URL}/snaps-feed?${params.toString()}`);
+  return data; // { success, snaps, page, limit, hasMore }
+}
+
+/** Fire-and-forget: mark that `user` voted/commented on a snap (drops it from their feed). */
+export function recordSnapInteraction(user, author, permlink) {
+  if (!user || !author || !permlink) return;
+  axios.post(`${CHECKER_URL}/snaps/interaction`, { user, author, permlink }).catch(() => {});
+}
+
+// Per-user snap hides (separate from video hides). Undo-able.
+export function hideSnap(user, author, permlink) {
+  return axios.post(`${CHECKER_URL}/snaps/hide`, { user, author, permlink });
+}
+export function unhideSnap(user, author, permlink) {
+  return axios.delete(`${CHECKER_URL}/snaps/hide`, { data: { user, author, permlink } });
+}
+export function hideSnapCreator(user, author) {
+  return axios.post(`${CHECKER_URL}/snaps/hide-creator`, { user, author });
+}
+export function unhideSnapCreator(user, author) {
+  return axios.delete(`${CHECKER_URL}/snaps/hide-creator`, { data: { user, author } });
+}
+
 // The @peak.snaps container is one long-running "daily" post; we reply under its
 // newest one, exactly like the shorts uploader does.
 async function getSnapsContainer() {
