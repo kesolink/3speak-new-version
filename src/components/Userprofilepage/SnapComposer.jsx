@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { MdPeopleAlt, MdClose } from 'react-icons/md';
 import MarkdownComposer from '../studio/MarkdownComposer';
 import { useAppStore } from '../../lib/store';
-import { publishSnap } from '../../lib/snaps';
+import { publishSnap, SNAP_TAG, MAX_USER_TAGS } from '../../lib/snaps';
 
 /**
  * Owner-only composer for a written "snap" — same fields as the shorts description
@@ -15,7 +15,8 @@ export default function SnapComposer({ onPosted }) {
   const user = useAppStore((s) => s.user);
 
   const [body, setBody] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
+  const [tags, setTags] = useState([]);        // user tags (the built-in `community` is added on top)
+  const [tagInput, setTagInput] = useState('');
   const [rewards, setRewards] = useState('default');
   const [nsfw, setNsfw] = useState(false);
   const [beneficiaries, setBeneficiaries] = useState([]); // { account, weight } (weight: 10000 = 100%)
@@ -39,15 +40,31 @@ export default function SnapComposer({ onPosted }) {
   };
   const removeBeneficiary = (account) => setBeneficiaries(beneficiaries.filter((b) => b.account !== account));
 
+  const addTag = (raw) => {
+    const t = String(raw || '').toLowerCase().replace(/^#/, '').replace(/[^a-z0-9-]/g, '');
+    if (!t) { setTagInput(''); return; }
+    if (t === SNAP_TAG || tags.includes(t)) { setTagInput(''); return; } // built-in / duplicate
+    if (tags.length >= MAX_USER_TAGS) { toast.error(`Up to ${MAX_USER_TAGS} tags`); return; }
+    setTags([...tags, t]);
+    setTagInput('');
+  };
+  const removeTag = (t) => setTags(tags.filter((x) => x !== t));
+  const onTagKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === ',') { e.preventDefault(); addTag(tagInput); }
+    else if (e.key === 'Backspace' && !tagInput && tags.length) { removeTag(tags[tags.length - 1]); }
+  };
+
   const handlePost = async () => {
     if (!user) { toast.error('Please log in'); return; }
     const text = body.trim();
     if (!text) { toast.error('Write something first'); return; }
 
-    const tags = tagsInput.split(/[\s,]+/).map((t) => t.replace(/^#/, '')).filter(Boolean);
+    // Include a tag still being typed, dedupe, and cap.
+    const pending = tagInput.trim().toLowerCase().replace(/^#/, '').replace(/[^a-z0-9-]/g, '');
+    const userTags = [...new Set([...tags, ...(pending && pending !== SNAP_TAG ? [pending] : [])])].slice(0, MAX_USER_TAGS);
     setPosting(true);
     try {
-      const res = await publishSnap({ user, body: text, tags, rewards, beneficiaries, nsfw });
+      const res = await publishSnap({ user, body: text, tags: userTags, rewards, beneficiaries, nsfw });
       toast.success('Snap posted!');
       const snap = res.indexed || {
         _id: `${user}/${res.permlink}`,
@@ -55,12 +72,12 @@ export default function SnapComposer({ onPosted }) {
         permlink: res.permlink,
         title: '',
         body: text,
-        tags,
+        tags: [SNAP_TAG, ...userTags, ...(nsfw ? ['nsfw'] : [])],
         nsfw,
         created: new Date().toISOString(),
       };
       // reset
-      setBody(''); setTagsInput(''); setRewards('default'); setNsfw(false);
+      setBody(''); setTags([]); setTagInput(''); setRewards('default'); setNsfw(false);
       setBeneficiaries([]); setShowOptions(false);
       onPosted?.(snap);
     } catch (e) {
@@ -83,13 +100,26 @@ export default function SnapComposer({ onPosted }) {
       <div className="snap-composer-row">
         <input
           className="snap-tags-input"
-          placeholder="tags (space separated)"
-          value={tagsInput}
-          onChange={(e) => setTagsInput(e.target.value)}
+          placeholder={tags.length >= MAX_USER_TAGS ? 'Tag limit reached' : 'Add a tag, then space or enter…'}
+          value={tagInput}
+          onChange={(e) => setTagInput(e.target.value)}
+          onKeyDown={onTagKeyDown}
+          disabled={tags.length >= MAX_USER_TAGS}
         />
         <button type="button" className="snap-options-toggle" onClick={() => setShowOptions((v) => !v)}>
           {showOptions ? 'Hide options' : 'More options'}
         </button>
+      </div>
+
+      <div className="snap-tag-chips">
+        <span className="snap-tag-chip built-in" title="Added to every community post">#{SNAP_TAG}</span>
+        {tags.map((t) => (
+          <span key={t} className="snap-tag-chip">
+            #{t}
+            <button type="button" onClick={() => removeTag(t)} aria-label={`Remove ${t}`}><MdClose /></button>
+          </span>
+        ))}
+        <span className="snap-tag-count">{tags.length}/{MAX_USER_TAGS}</span>
       </div>
 
       {showOptions && (

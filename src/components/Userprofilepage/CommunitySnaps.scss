@@ -39,6 +39,50 @@
       }
     }
 
+    // Tag chips shown UNDER the tag input (built-in `community` pinned first).
+    .snap-tag-chips {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+
+      .snap-tag-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: var(--bg-primary, #0f0f0f);
+        border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+        color: var(--text-primary, #f1f1f1);
+
+        button {
+          display: inline-flex;
+          background: none;
+          border: none;
+          padding: 0;
+          color: var(--text-secondary, #9aa0a6);
+          cursor: pointer;
+          &:hover { color: var(--accent-primary, #e53935); }
+        }
+
+        &.built-in {
+          background: var(--accent-light, rgba(229, 57, 53, 0.12));
+          border-color: transparent;
+          color: var(--accent-primary, #e53935);
+          font-weight: 600;
+        }
+      }
+
+      .snap-tag-count {
+        font-size: 11px;
+        color: var(--text-secondary, #9aa0a6);
+        margin-left: auto;
+      }
+    }
+
     .snap-options {
       margin-top: 12px;
       padding-top: 12px;

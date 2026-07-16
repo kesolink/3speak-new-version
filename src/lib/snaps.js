@@ -15,6 +15,9 @@ import { commentWithAioha } from '../hive-api/aioha';
 // apart from any other comment the account has under @peak.snaps.
 const SNAP_APP = '3speak/snap';
 const SNAP_CONTAINER = 'peak.snaps';
+// Built-in tag on every community snap (in addition to the user's own tags).
+export const SNAP_TAG = 'community';
+export const MAX_USER_TAGS = 9; // + the built-in `community` = Hive's practical 10-tag limit
 
 /** The owner's snaps, newest first (for the Community tab). */
 export async function fetchSnaps(owner, page = 1, limit = 20) {
@@ -83,15 +86,21 @@ export async function publishSnap({ user, body, tags = [], rewards = 'default', 
   const parent = await getSnapsContainer();
   const permlink = makePermlink(text);
 
-  const cleanTags = [...new Set(
-    (tags || []).map((t) => String(t).toLowerCase().replace(/^#/, '').trim()).filter(Boolean),
-  )].slice(0, 8);
-  if (nsfw && !cleanTags.includes('nsfw')) cleanTags.push('nsfw');
+  // Every snap carries the built-in `community` tag, so users get at most 9 of their
+  // own — 1 + 9 = 10, Hive's practical tag limit. `nsfw` is a content flag on top.
+  const userTags = [...new Set(
+    (tags || [])
+      .map((t) => String(t).toLowerCase().replace(/^#/, '').trim())
+      .filter((t) => t && t !== SNAP_TAG),
+  )].slice(0, 9);
+  const cleanTags = [SNAP_TAG, ...userTags];
+  if (nsfw) cleanTags.push('nsfw');
+  const finalTags = cleanTags.slice(0, 10);
 
   const jsonMetadata = {
     app: SNAP_APP,
     format: 'markdown',
-    tags: cleanTags,
+    tags: finalTags,
     type: 'snap',
   };
 

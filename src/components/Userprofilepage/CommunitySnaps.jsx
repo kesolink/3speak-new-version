@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { fetchSnaps } from '../../lib/snaps';
+import { fetchSnaps, SNAP_TAG } from '../../lib/snaps';
 import { getHiveRenderer } from '../../lib/hiveRenderer';
 import SnapComposer from './SnapComposer';
 import BarLoader from '../Loader/BarLoader';
@@ -25,7 +25,7 @@ function SnapBody({ body }) {
 
 function SnapCard({ snap }) {
   const when = snap.created ? dayjs(snap.created).fromNow() : '';
-  const tags = (snap.tags || []).filter((t) => t && t !== 'nsfw');
+  const tags = (snap.tags || []).filter((t) => t && t !== 'nsfw' && t !== SNAP_TAG);
   return (
     <article className="snap-card">
       <div className="snap-card-head">
@@ -89,7 +89,7 @@ export default function CommunitySnaps({ user, canPost = false }) {
         <BarLoader />
       ) : snaps.length === 0 ? (
         <div className="snap-empty">
-          {canPost ? 'No snaps yet — share your first update above.' : 'No snaps here yet.'}
+          {canPost ? 'No community posts yet — share your first update above.' : 'No community posts yet.'}
         </div>
       ) : (
         <div className="snap-list">
