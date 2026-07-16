@@ -13,7 +13,7 @@
   max-width: calc(100vw - 32px);
   border-radius: 14px;
   background: var(--card-bg, #fff);
-  color: var(--text-color, #222);
+  color: var(--text-primary, #222);
   border: 1px solid var(--border-color, rgba(127, 127, 127, 0.25));
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
   animation: cookie-consent-in 0.32s ease forwards;
@@ -67,14 +67,14 @@
     color: var(--text-muted, #555);
   }
 
-  strong { color: var(--text-color, #222); }
+  strong { color: var(--text-primary, #222); }
 }
 
 .cookie-consent-link {
   padding: 0;
   border: none;
   background: none;
-  color: var(--accent-color, #e23a3a);
+  color: var(--accent-primary, #e23a3a);
   font-size: 0.76rem;
   font-weight: 600;
   cursor: pointer;
@@ -85,7 +85,7 @@
   margin: 10px 0;
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--hover-bg, rgba(127, 127, 127, 0.08));
+  background: var(--bg-hover, rgba(127, 127, 127, 0.08));
 
   ul {
     margin: 4px 0 0;
@@ -104,7 +104,7 @@
 .cookie-consent-cat-title {
   font-size: 0.76rem;
   font-weight: 700;
-  color: var(--text-color, #222);
+  color: var(--text-primary, #222);
 }
 
 .cookie-consent-note {
@@ -142,15 +142,15 @@
 
   /* Accept — accent fill. */
   &.primary {
-    background: var(--accent-color, #e23a3a);
+    background: var(--accent-primary, #e23a3a);
     color: #fff;
   }
 
   /* Decline the optional category — a solid neutral fill of equal prominence, NOT a
      transparent outline. Same visual weight as Accept; only the colour differs. */
   &.secondary {
-    background: var(--hover-bg, rgba(127, 127, 127, 0.16));
-    color: var(--text-color, #222);
+    background: var(--bg-hover, rgba(127, 127, 127, 0.16));
+    color: var(--text-primary, #222);
     border-color: var(--border-color, rgba(127, 127, 127, 0.35));
   }
 }
