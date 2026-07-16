@@ -18,6 +18,7 @@ import { commentWithAioha } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
 import SnapComposer from './SnapComposer';
 import UpvoteCount from '../UpvoteCount/UpvoteCount';
+import AuthorBadge from '../AuthorBadge/AuthorBadge';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import BarLoader from '../Loader/BarLoader';
 import './CommunitySnaps.scss';
@@ -31,9 +32,10 @@ async function fetchReplies(author, permlink) {
   return (replies || []).sort((a, b) => new Date(a.created) - new Date(b.created));
 }
 
-// Body with "read more"/"show less" — a very long snap is capped at ~10% of the
-// viewport, but only when it actually overflows (no fade on short posts).
-function SnapBody({ body }) {
+// Body with "read more"/"show less" — a very long snap is capped at a fraction of
+// the viewport (`maxVh`), but only when it actually overflows (no fade on short
+// posts). The feed uses a tighter cap than the profile tab.
+function SnapBody({ body, maxVh = 0.33 }) {
   const [html, setHtml] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -51,12 +53,12 @@ function SnapBody({ body }) {
     const measure = () => {
       const el = ref.current;
       // scrollHeight is the full content height regardless of the max-height clamp.
-      if (el) setOverflowing(el.scrollHeight > window.innerHeight * 0.33 + 8);
+      if (el) setOverflowing(el.scrollHeight > window.innerHeight * maxVh + 8);
     };
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [html]);
+  }, [html, maxVh]);
 
   const clamped = overflowing && !expanded;
   return (
@@ -64,6 +66,7 @@ function SnapBody({ body }) {
       <div
         ref={ref}
         className={`snap-body markdown-body${clamped ? ' clamped' : ''}`}
+        style={{ '--snap-clamp': `${maxVh * 100}vh` }}
         dangerouslySetInnerHTML={{ __html: html }}
       />
       {overflowing && (
@@ -301,29 +304,27 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
 
   return (
     <article className="snap-card">
-      <div className="snap-card-head">
-        {/* In the home feed the snap is from any creator, so title it; on a profile
-            Community tab it's always that profile, so we omit it. */}
+      <div className={`snap-card-head${feedMode ? ' snap-card-head--feed' : ''}`}>
+        {/* In the home feed the snap is from any creator — show the author badge so
+            the viewer can follow them right there; on a profile Community tab it's
+            always that profile, so we omit it. */}
         {feedMode && (
-          <span className="snap-feed-title">
-            Community snap by <Link to={`/p/${snap.owner}`} className="snap-author">@{snap.owner}</Link>
-          </span>
+          <AuthorBadge author={snap.owner} showFollow compact tabHint="community" />
         )}
-        <a
+        {feedMode && <span className="snap-feed-title">Community snap</span>}
+        <Link
           className="snap-time"
-          href={`https://peakd.com/@${snap.owner}/${snap.permlink}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="View on Hive"
+          to={feedMode ? `/p/${snap.owner}?tab=community` : `/post/${snap.owner}/${snap.permlink}`}
+          title={feedMode ? `View @${snap.owner}'s community` : 'View post'}
         >
           {hiveTime(snap.created)}
-        </a>
+        </Link>
         {feedMode && (
           <SnapOptionsMenu owner={snap.owner} permlink={snap.permlink} onHidden={() => onRemove?.(snap)} />
         )}
       </div>
 
-      <SnapBody body={snap.body} />
+      <SnapBody body={snap.body} maxVh={feedMode ? 0.15 : 0.33} />
 
       {tags.length > 0 && (
         <div className="snap-tags">

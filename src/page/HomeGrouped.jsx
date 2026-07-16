@@ -458,26 +458,32 @@ const HomeGrouped = () => {
   );
 
   // A community post roughly every 3 rows (offset from the shorts' every-2-rows).
+  // Each interleave slot packs up to a full grid-row of snaps (one per column) so
+  // several creators' posts share one line when there's room.
   const communityEvery = gridCols > 0 ? gridCols * 3 : 0;
+  const communityPerRow = gridCols > 0 ? gridCols : 1;
   const communityNeeded = communityEvery ? Math.floor(activeVideos.length / communityEvery) : 0;
   useEffect(() => {
     if (!communityMode) return;
-    if (feedCommunity.length >= communityNeeded) return;
+    if (feedCommunity.length >= communityNeeded * communityPerRow) return;
     if (!communityQ.hasNextPage || communityQ.isFetchingNextPage) return;
     communityQ.fetchNextPage();
-  }, [communityMode, communityNeeded, feedCommunity.length, communityQ.hasNextPage, communityQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [communityMode, communityNeeded, communityPerRow, feedCommunity.length, communityQ.hasNextPage, communityQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderCommunityRow = useCallback((slot) => {
-    const snap = feedCommunity[slot];
-    if (!snap) return null;
-    // Wrap in .community-snaps so the SnapCard's (nested) styles apply; the feed
-    // modifier drops the tab padding.
+    const start = slot * communityPerRow;
+    const group = feedCommunity.slice(start, start + communityPerRow);
+    if (!group.length) return null;
+    // Wrap in .community-snaps so the SnapCards' (nested) styles apply; --row makes
+    // it a full-width grid that mirrors the video columns.
     return (
-      <div className="community-snaps community-snaps--feed">
-        <SnapCard snap={snap} feedMode onRemove={removeSnap} />
+      <div className="community-snaps community-snaps--feed community-snaps--row">
+        {group.map((snap) => (
+          <SnapCard key={`${snap.owner}/${snap.permlink}`} snap={snap} feedMode onRemove={removeSnap} />
+        ))}
       </div>
     );
-  }, [feedCommunity, removeSnap]);
+  }, [feedCommunity, removeSnap, communityPerRow]);
 
   const { getContentForVideo } = useContentBatch(visibleVideos);
   const { isWatched, version: watchedVersion } = useWatchHistory(visibleVideos);

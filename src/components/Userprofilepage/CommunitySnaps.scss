@@ -5,6 +5,34 @@
 
   &--feed { padding: 0; }
 
+  // Feed mode: pack several creators' snaps into ONE full-width row when there's
+  // room, mirroring the video grid's columns so the widths line up. Falls back to
+  // a single column on phones (one snap per line).
+  &--row {
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center; // a partial row (fewer snaps than columns) sits centered
+    align-items: flex-start; // each snap keeps its own height; no stretch-to-tallest
+    gap: 16px;
+
+    // Cap each snap at one video-column width and DON'T grow, so e.g. two snaps in
+    // a four-wide feed keep their natural width and center as a group instead of
+    // each stretching to half the row.
+    .snap-card {
+      margin: 0;
+      min-width: 0; // allow shrinking instead of overflowing
+      flex: 0 1 var(--card-min-w, 460px);
+      max-width: 100%;
+    }
+
+    @media screen and (max-width: 767px) {
+      gap: 10px;
+      .snap-card { flex-basis: 100%; } // one full-width snap per line on phones
+    }
+  }
+
   // ── Composer ──────────────────────────────────────────────────────────────
   .snap-composer {
     background: var(--bg-secondary, #1a1a1a);
@@ -227,7 +255,14 @@
       gap: 10px;
       margin-bottom: 8px;
 
-      // Feed-only header: "Community snap by @author".
+      // Feed header carries the author badge (+ follow) + label + time + menu, which
+      // is a lot on a narrow card — let it wrap instead of overflowing.
+      &--feed {
+        flex-wrap: wrap;
+        row-gap: 6px;
+      }
+
+      // Small muted "Community snap" caption next to the author badge in the feed.
       .snap-feed-title {
         font-size: 13px;
         font-weight: 600;
@@ -275,7 +310,7 @@
       // Clamp ONLY when the post actually overflows (JS adds `.clamped`) — a short
       // post keeps its natural height with no fade.
       &.clamped {
-        max-height: 33vh;
+        max-height: var(--snap-clamp, 33vh); // feed = 20vh, profile tab = 33vh (set inline)
         overflow: hidden;
         &::after {
           content: '';

@@ -85,17 +85,19 @@ function makePermlink(body) {
   return `${slug || 'snap'}-${Date.now() % 100000}`;
 }
 
-// Build comment_options from the rewards choice + user beneficiaries. Returns null
-// for the default (no beneficiaries), so we skip the op entirely in that case.
-function buildOptions(rewards, beneficiaries) {
+// Build comment_options from the rewards choice + user beneficiaries. MUST include
+// author + permlink: the client-side (Keychain) path hands this object straight to
+// aioha.comment, which serializes it — a missing author/permlink there surfaces as
+// "can't access property toString, y is undefined". (Matches the shorts uploader.)
+function buildOptions(author, permlink, rewards, beneficiaries) {
   const benes = (beneficiaries || [])
     .filter((b) => b && b.account && Number(b.weight) > 0)
     .map((b) => ({ account: String(b.account).toLowerCase().replace(/^@/, '').trim(), weight: Math.round(Number(b.weight)) }))
     .sort((a, b) => a.account.localeCompare(b.account)); // chain requires ascending account order
 
-  if (rewards === 'default' && benes.length === 0) return null;
-
   return {
+    author,
+    permlink,
     max_accepted_payout: rewards === 'decline' ? '0.000 HBD' : '1000000.000 HBD',
     percent_hbd: rewards === 'powerup' ? 0 : 10000, // 0 = 100% power-up, 10000 = default 50/50
     allow_votes: true,
@@ -136,7 +138,7 @@ export async function publishSnap({ user, body, tags = [], rewards = 'default', 
     type: 'snap',
   };
 
-  const options = buildOptions(rewards, beneficiaries);
+  const options = buildOptions(user, permlink, rewards, beneficiaries);
 
   const result = await commentWithAioha(parent.author, parent.permlink, permlink, '', text, jsonMetadata, options);
   if (result && result.success === false) throw new Error('Publishing the snap was rejected');
