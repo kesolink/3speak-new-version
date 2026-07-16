@@ -251,19 +251,21 @@
       word-break: break-word;
       overflow-wrap: anywhere;
 
-      // A very long post is capped at ~10% of the viewport until "Read more".
-      max-height: 10vh;
-      overflow: hidden;
-      &.expanded { max-height: none; overflow: visible; }
-      &:not(.expanded)::after {
-        content: '';
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 40px;
-        background: linear-gradient(to bottom, transparent, var(--bg-secondary, #1a1a1a));
-        pointer-events: none;
+      // Clamp ONLY when the post actually overflows (JS adds `.clamped`) — a short
+      // post keeps its natural height with no fade.
+      &.clamped {
+        max-height: 10vh;
+        overflow: hidden;
+        &::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 40px;
+          background: linear-gradient(to bottom, transparent, var(--bg-secondary, #1a1a1a));
+          pointer-events: none;
+        }
       }
 
       p { margin: 0 0 10px; &:last-child { margin-bottom: 0; } }
@@ -297,9 +299,13 @@
 
       .snap-tag {
         font-size: 12px;
-        color: var(--accent-primary, #e53935);
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: var(--bg-primary, #0f0f0f);
+        border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+        color: var(--text-secondary, #9aa0a6);
         text-decoration: none;
-        &:hover { text-decoration: underline; }
+        &:hover { color: var(--accent-primary, #e53935); border-color: var(--accent-primary, #e53935); }
       }
     }
 
@@ -308,6 +314,8 @@
       align-items: center;
       gap: 8px;
       margin-top: 12px;
+
+      .snap-vote { position: relative; display: inline-flex; }
 
       .snap-action {
         display: inline-flex;
@@ -407,6 +415,32 @@
           p { margin: 0 0 6px; &:last-child { margin-bottom: 0; } }
           a { color: var(--accent-primary, #e53935); }
           img { max-width: 100%; height: auto; border-radius: 6px; }
+        }
+
+        .snap-comment-actions {
+          display: flex;
+          gap: 14px;
+          margin-top: 4px;
+
+          button {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary, #9aa0a6);
+            cursor: pointer;
+            &:hover { color: var(--accent-primary, #e53935); }
+          }
+        }
+
+        // Nested replies — indent + a guide line down the thread.
+        .snap-comment-list.nested {
+          margin-top: 10px;
+          margin-left: 12px;
+          padding-left: 12px;
+          border-left: 2px solid var(--border-color, rgba(255, 255, 255, 0.1));
+          gap: 10px;
         }
       }
     }

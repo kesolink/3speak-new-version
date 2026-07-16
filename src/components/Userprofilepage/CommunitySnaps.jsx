@@ -4,13 +4,15 @@ import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { toast } from 'sonner';
-import { BiUpvote, BiSolidUpvote, BiCommentDetail } from 'react-icons/bi';
+import { BiCommentDetail } from 'react-icons/bi';
 import { fetchSnaps, SNAP_TAG } from '../../lib/snaps';
 import { getHiveRenderer } from '../../lib/hiveRenderer';
 import { getHiveClient } from '../../utils/hiveNode';
-import { voteWithAioha, commentWithAioha } from '../../hive-api/aioha';
+import { commentWithAioha } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
 import SnapComposer from './SnapComposer';
+import UpvoteCount from '../UpvoteCount/UpvoteCount';
+import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
 import BarLoader from '../Loader/BarLoader';
 import './CommunitySnaps.scss';
 
@@ -18,8 +20,13 @@ dayjs.extend(relativeTime);
 
 const hiveTime = (t) => (t ? dayjs(/Z$/.test(String(t)) ? t : `${t}Z`).fromNow() : '');
 
-// Body with "read more" — a very long snap is capped at ~10% of the viewport height
-// until expanded.
+async function fetchReplies(author, permlink) {
+  const replies = await getHiveClient().call('condenser_api', 'get_content_replies', [author, permlink]);
+  return (replies || []).sort((a, b) => new Date(a.created) - new Date(b.created));
+}
+
+// Body with "read more"/"show less" — a very long snap is capped at ~10% of the
+// viewport, but only when it actually overflows (no fade on short posts).
 function SnapBody({ body }) {
   const [html, setHtml] = useState('');
   const [expanded, setExpanded] = useState(false);
@@ -35,68 +42,50 @@ function SnapBody({ body }) {
   }, [body]);
 
   useEffect(() => {
-    const el = ref.current;
-    if (el && !expanded) setOverflowing(el.scrollHeight > el.clientHeight + 4);
-  }, [html, expanded]);
+    const measure = () => {
+      const el = ref.current;
+      // scrollHeight is the full content height regardless of the max-height clamp.
+      if (el) setOverflowing(el.scrollHeight > window.innerHeight * 0.1 + 8);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [html]);
 
+  const clamped = overflowing && !expanded;
   return (
     <div className="snap-body-wrap">
       <div
         ref={ref}
-        className={`snap-body markdown-body${expanded ? ' expanded' : ''}`}
+        className={`snap-body markdown-body${clamped ? ' clamped' : ''}`}
         dangerouslySetInnerHTML={{ __html: html }}
       />
-      {overflowing && !expanded && (
-        <button type="button" className="snap-readmore" onClick={() => setExpanded(true)}>Read more</button>
+      {overflowing && (
+        <button type="button" className="snap-readmore" onClick={() => setExpanded((e) => !e)}>
+          {expanded ? 'Show less' : 'Read more'}
+        </button>
       )}
     </div>
   );
 }
 
-function SnapComment({ comment }) {
-  const [html, setHtml] = useState('');
-  useEffect(() => {
-    let alive = true;
-    getHiveRenderer().then((render) => { if (alive) { try { setHtml(render(comment.body || '')); } catch { setHtml(''); } } });
-    return () => { alive = false; };
-  }, [comment.body]);
-  return (
-    <li className="snap-comment">
-      <div className="snap-comment-head">
-        <Link to={`/p/${comment.author}`} className="snap-comment-author">@{comment.author}</Link>
-        <span className="snap-comment-time">{hiveTime(comment.created)}</span>
-      </div>
-      <div className="snap-comment-body markdown-body" dangerouslySetInnerHTML={{ __html: html }} />
-    </li>
-  );
-}
-
-function SnapComments({ owner, permlink, onCommented }) {
+// Reply composer — reused for the snap itself and for any comment (nested replies).
+function ReplyBox({ parentAuthor, parentPermlink, onPosted, autoFocus = false }) {
   const user = useAppStore((s) => s.user);
-  const client = getHiveClient();
   const [reply, setReply] = useState('');
   const [posting, setPosting] = useState(false);
+  if (!user) return null;
 
-  const { data: comments = [], isLoading, refetch } = useQuery({
-    queryKey: ['snap-comments', owner, permlink],
-    queryFn: async () => {
-      const replies = await client.call('condenser_api', 'get_content_replies', [owner, permlink]);
-      return (replies || []).sort((a, b) => new Date(a.created) - new Date(b.created));
-    },
-    staleTime: 30_000,
-  });
-
-  const handleReply = async () => {
-    if (!user) { toast.error('Log in to comment'); return; }
+  const submit = async () => {
     const text = reply.trim();
     if (!text) return;
     setPosting(true);
     try {
-      const rp = `re-${permlink}-${Date.now() % 1000000}`.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 250);
-      await commentWithAioha(owner, permlink, rp, '', text, { app: '3speak/snap', format: 'markdown' }, null);
+      const rp = `re-${parentPermlink}-${Date.now() % 1000000}`.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 250);
+      await commentWithAioha(parentAuthor, parentPermlink, rp, '', text, { app: '3speak/snap', format: 'markdown' }, null);
       toast.success('Comment posted!');
       setReply('');
-      setTimeout(() => { refetch(); onCommented?.(); }, 3000);
+      setTimeout(() => onPosted?.(), 3000);
     } catch (e) {
       toast.error(e?.message || 'Could not post the comment');
     } finally {
@@ -105,20 +94,86 @@ function SnapComments({ owner, permlink, onCommented }) {
   };
 
   return (
-    <div className="snap-comments">
-      {user && (
-        <div className="snap-reply-box">
-          <textarea
-            placeholder="Write a comment…"
-            value={reply}
-            onChange={(e) => setReply(e.target.value)}
-            rows={2}
-          />
-          <button type="button" onClick={handleReply} disabled={posting || !reply.trim()}>
-            {posting ? 'Posting…' : 'Reply'}
+    <div className="snap-reply-box">
+      <textarea
+        placeholder="Write a comment…"
+        value={reply}
+        onChange={(e) => setReply(e.target.value)}
+        rows={2}
+        autoFocus={autoFocus}
+      />
+      <button type="button" onClick={submit} disabled={posting || !reply.trim()}>
+        {posting ? 'Posting…' : 'Reply'}
+      </button>
+    </div>
+  );
+}
+
+// A single comment — recursive, so replies-on-replies work.
+function SnapComment({ comment }) {
+  const user = useAppStore((s) => s.user);
+  const [html, setHtml] = useState('');
+  const [replying, setReplying] = useState(false);
+  const [showReplies, setShowReplies] = useState(false);
+  const childCount = comment.children ?? 0;
+
+  useEffect(() => {
+    let alive = true;
+    getHiveRenderer().then((render) => { if (alive) { try { setHtml(render(comment.body || '')); } catch { setHtml(''); } } });
+    return () => { alive = false; };
+  }, [comment.body]);
+
+  const { data: children = [], refetch } = useQuery({
+    queryKey: ['snap-replies', comment.author, comment.permlink],
+    queryFn: () => fetchReplies(comment.author, comment.permlink),
+    enabled: showReplies,
+    staleTime: 30_000,
+  });
+
+  return (
+    <li className="snap-comment">
+      <div className="snap-comment-head">
+        <Link to={`/p/${comment.author}`} className="snap-comment-author">@{comment.author}</Link>
+        <span className="snap-comment-time">{hiveTime(comment.created)}</span>
+      </div>
+      <div className="snap-comment-body markdown-body" dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="snap-comment-actions">
+        {user && (
+          <button type="button" onClick={() => setReplying((v) => !v)}>{replying ? 'Cancel' : 'Reply'}</button>
+        )}
+        {childCount > 0 && (
+          <button type="button" onClick={() => setShowReplies((v) => !v)}>
+            {showReplies ? 'Hide replies' : `${childCount} ${childCount > 1 ? 'replies' : 'reply'}`}
           </button>
-        </div>
+        )}
+      </div>
+      {replying && (
+        <ReplyBox
+          parentAuthor={comment.author}
+          parentPermlink={comment.permlink}
+          autoFocus
+          onPosted={() => { setReplying(false); setShowReplies(true); refetch(); }}
+        />
       )}
+      {showReplies && children.length > 0 && (
+        <ul className="snap-comment-list nested">
+          {children.map((c) => <SnapComment key={`${c.author}/${c.permlink}`} comment={c} />)}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function SnapComments({ owner, permlink, onCommented }) {
+  const { data: comments = [], isLoading, refetch } = useQuery({
+    queryKey: ['snap-comments', owner, permlink],
+    queryFn: () => fetchReplies(owner, permlink),
+    staleTime: 30_000,
+  });
+
+  return (
+    <div className="snap-comments">
+      <ReplyBox parentAuthor={owner} parentPermlink={permlink} onPosted={() => { refetch(); onCommented?.(); }} />
       {isLoading ? (
         <div className="snap-comments-status">Loading comments…</div>
       ) : comments.length === 0 ? (
@@ -136,10 +191,13 @@ function SnapCard({ snap }) {
   const user = useAppStore((s) => s.user);
   const client = getHiveClient();
   const [showComments, setShowComments] = useState(false);
-  const [voting, setVoting] = useState(false);
-  const [optimistic, setOptimistic] = useState(null); // { votes, voted }
 
-  // Live votes/comment counts from the chain (the checker only stores the text).
+  // Vote-dialog state (the reused CommentVoteTooltip owns the actual vote).
+  const [showVote, setShowVote] = useState(false);
+  const [weight, setWeight] = useState(100);
+  const [voteValue, setVoteValue] = useState('0.00');
+  const [accountData, setAccountData] = useState(null);
+
   const { data: meta, refetch } = useQuery({
     queryKey: ['snap-meta', snap.owner, snap.permlink],
     queryFn: async () => {
@@ -154,27 +212,9 @@ function SnapCard({ snap }) {
     staleTime: 60_000,
   });
 
-  const votes = optimistic?.votes ?? meta?.votes ?? 0;
-  const voted = optimistic?.voted ?? meta?.voted ?? false;
+  const votes = meta?.votes ?? 0;
+  const voted = meta?.voted ?? false;
   const comments = meta?.comments ?? 0;
-
-  const handleVote = async () => {
-    if (!user) { toast.error('Log in to vote'); return; }
-    if (voted || voting) return;
-    setVoting(true);
-    setOptimistic({ votes: votes + 1, voted: true });
-    try {
-      await voteWithAioha(snap.owner, snap.permlink, 10000);
-      toast.success('Upvoted!');
-      setTimeout(() => refetch(), 3000);
-    } catch (e) {
-      setOptimistic(null);
-      toast.error(e?.message || 'Vote failed');
-    } finally {
-      setVoting(false);
-    }
-  };
-
   const tags = (snap.tags || []).filter((t) => t && t !== 'nsfw' && t !== SNAP_TAG);
 
   return (
@@ -200,23 +240,34 @@ function SnapCard({ snap }) {
       )}
 
       <div className="snap-actions">
-        <button
-          type="button"
-          className={`snap-action${voted ? ' voted' : ''}`}
-          onClick={handleVote}
-          disabled={voting || voted}
-          title={voted ? 'Upvoted' : 'Upvote'}
-        >
-          {voted ? <BiSolidUpvote /> : <BiUpvote />}
-          {votes > 0 && <span>{votes}</span>}
-        </button>
+        <div className="snap-vote">
+          <UpvoteCount count={votes} voted={voted} onClick={() => setShowVote((v) => !v)} size={13} />
+          {showVote && (
+            <CommentVoteTooltip
+              author={snap.owner}
+              permlink={snap.permlink}
+              showTooltip={showVote}
+              setShowTooltip={setShowVote}
+              weight={weight}
+              setWeight={setWeight}
+              voteValue={voteValue}
+              setVoteValue={setVoteValue}
+              accountData={accountData}
+              setAccountData={setAccountData}
+              setActiveTooltipPermlink={() => {}}
+              onVoteSuccess={() => refetch()}
+              enableViewerTag={false}
+              postCreatedAt={snap.created}
+            />
+          )}
+        </div>
         <button
           type="button"
           className={`snap-action${showComments ? ' active' : ''}`}
           onClick={() => setShowComments((v) => !v)}
         >
           <BiCommentDetail />
-          <span>{comments > 0 ? comments : ''} {showComments ? 'Hide' : 'Comments'}</span>
+          <span>{comments}</span>
         </button>
       </div>
 
