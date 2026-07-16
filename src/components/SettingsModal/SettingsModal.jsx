@@ -6,6 +6,7 @@ import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { getHiveUrl } from '../../utils/hiveNode';
 import { INTERESTS, fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import DataRequestForm from './DataRequestForm';
 import './SettingsModal.scss';
 
 const sameSet = (a, b) =>
@@ -136,7 +137,7 @@ const TABS = [
   { id: 'shorts', label: 'Shorts' },
   { id: 'content', label: 'Content' },
   { id: 'interests', label: 'Interests' },
-  { id: 'version', label: 'Version' },
+  { id: 'about', label: 'About / Contact' },
 ];
 
 /**
@@ -319,7 +320,7 @@ export default function SettingsModal({ isOpen, onClose }) {
             />
             <Row
               title="Private mode"
-              desc="Don't record your IP address with watch statistics — only an anonymous per-browser id is used. Turning this on means your views won't appear in creators' country stats."
+              desc="Keep your country out of creators' statistics. We never store your IP address — for anyone. It's turned into a country code the moment you press play and then discarded. With this on, not even that country is recorded for your views."
               checked={!!privateMode}
               onChange={(v) => setPrivateMode(v)}
             />
@@ -328,22 +329,42 @@ export default function SettingsModal({ isOpen, onClose }) {
 
         {tab === 'interests' && <InterestsSection />}
 
-        {tab === 'version' && (
-          <div className="settings-section">
-            <h4 className="settings-section-title">Version</h4>
-            <div className="settings-modal-row">
-              <div className="settings-row-text">
-                <span className="settings-row-title">App version</span>
-                <span className="settings-row-desc">v{APP_VERSION}</span>
+        {tab === 'about' && (
+          <>
+            <div className="settings-section">
+              <h4 className="settings-section-title">About</h4>
+              <div className="settings-modal-row">
+                <div className="settings-row-text">
+                  <span className="settings-row-title">App version</span>
+                  <span className="settings-row-desc">v{APP_VERSION}</span>
+                </div>
+              </div>
+              <div className="settings-modal-row">
+                <div className="settings-row-text">
+                  <span className="settings-row-title">Hive RPC node</span>
+                  <span className="settings-row-desc">{getHiveUrl()}</span>
+                </div>
               </div>
             </div>
-            <div className="settings-modal-row">
-              <div className="settings-row-text">
-                <span className="settings-row-title">Hive RPC node</span>
-                <span className="settings-row-desc">{getHiveUrl()}</span>
+
+            <div className="settings-section">
+              <h4 className="settings-section-title">Your data</h4>
+              <DataRequestForm />
+            </div>
+
+            <div className="settings-section">
+              <div className="settings-modal-row">
+                <div className="settings-row-text">
+                  <span className="settings-row-title">Your data</span>
+                  <span className="settings-row-desc">
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer">
+                      How 3Speak handles your data
+                    </a>
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>,

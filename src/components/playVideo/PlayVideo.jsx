@@ -32,6 +32,8 @@ import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import mantequillaLogo from "../../assets/mantequilla-logo.png";
+import threespeakLogo from "../../assets/image/3S_logo.svg";
+import threespeakLogoDark from "../../assets/image/3S_logodark.png";
 import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
 import { displayTag, INTEREST_IDS, saveInterestsToHive } from '../../utils/interests';
@@ -67,10 +69,12 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
+  const theme = useAppStore((s) => s.theme);
+  const isDarkTheme = theme !== 'light'; // dark is the default (matches EmergencyScreen)
 
   // Add a topic to the user's interests (from the topic popup), persisting to Hive.
   const addToInterests = useCallback(async (tag) => {
@@ -797,6 +801,40 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                 }}
                 playsInline
               />
+              {/* Branded preload cover — the SAME splash as the site's initial load
+                  (EmergencyScreen "checking": 3Speak logo + TailChase). Opaque, so it
+                  HIDES the black player until the first frame is ready (driven by the
+                  onReady gate in Watch.jsx). Cleared the moment playback is ready, and
+                  suppressed once a video is known unavailable so the overlays don't stack. */}
+              {mediaLoading && !mediaUnavailable && (
+                <div className="video-preload-overlay" aria-hidden="true">
+                  <img
+                    className="video-preload-logo"
+                    src={isDarkTheme ? threespeakLogoDark : threespeakLogo}
+                    alt="3Speak"
+                  />
+                  <TailChase size="42" speed="1.75" color="var(--accent-primary, #e0594b)" />
+                </div>
+              )}
+              {/* Media gone (old upload whose IPFS content is unpinned). The player
+                  exhausted every gateway; show an honest hint over the black frame
+                  instead of a stuck spinner. The post itself still loads below. */}
+              {mediaUnavailable && (
+                <div style={{
+                  position: 'absolute', inset: 0, zIndex: 6, background: '#000',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  justifyContent: 'center', textAlign: 'center', padding: '24px', gap: '10px',
+                }}>
+                  <div style={{ fontSize: '2.2rem', lineHeight: 1 }}>🚫</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#f0f0f0' }}>
+                    This video is no longer available
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#aaa', maxWidth: '440px', lineHeight: 1.5 }}>
+                    The media for this older upload could not be found on the network. The post
+                    still exists on the blockchain, but the video can no longer be played.
+                  </div>
+                </div>
+              )}
               {videoControls?.subtitleCues?.length > 0 && (
                 <SubtitleOverlay
                   currentTime={videoControls.subtitleCurrentTime}
@@ -902,6 +940,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     markers={videoControls.markers}
                     replayHeatmap={videoControls.replayHeatmap}
                     previewVideoId={videoControls.previewVideoId}
+                    getPlaybackHeight={videoControls.getPlaybackHeight}
                     onMarkerSelect={videoControls.onMarkerSelect}
                     onReactToMoment={videoControls.onReactToMoment}
                     onCycleReactionSize={videoControls.onCycleReactionSize}
@@ -1180,11 +1219,11 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
                     type="button"
                     className={`pv-btn stats-btn${videoStatsOpen ? ' active' : ''}`}
                     onClick={() => setVideoStatsOpen((o) => !o)}
-                    title="Video stats"
+                    title="Video analytics"
                     aria-expanded={videoStatsOpen}
                   >
                     <MdBarChart size={16} />
-                    <span>Stats</span>
+                    <span>Analytics</span>
                   </button>
                 )}
                 <button
@@ -1482,7 +1521,7 @@ const PlayVideo = ({ videoDetails, author, permlink, playlistData, onClosePlayli
             <div className="fab-actions">
               {canSeeVideoStats && (
                 <div className="fab-action">
-                  <span className="fab-action-label">Stats</span>
+                  <span className="fab-action-label">Analytics</span>
                   <button
                     className={`fab-action-btn${videoStatsOpen ? ' fab-action-btn--active' : ''}`}
                     onClick={() => {
@@ -1637,6 +1676,8 @@ PlayVideo.propTypes = {
   }),
   author: PropTypes.string.isRequired,
   permlink: PropTypes.string.isRequired,
+  mediaUnavailable: PropTypes.bool,
+  mediaLoading: PropTypes.bool,
   playlistData: PropTypes.shape({
     playlist: PropTypes.object,
     videos: PropTypes.array,

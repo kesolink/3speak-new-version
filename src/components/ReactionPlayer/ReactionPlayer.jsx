@@ -8,6 +8,7 @@ import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES } from '../../utils/config';
 import './ReactionPlayer.scss';
 import { markByReputation } from '../../utils/reputation';
+import { markByHidden } from '../../utils/hiddenCreators';
 import { translateText, getTargetLanguage } from '../../utils/translate';
 import TranslateButton from '../TranslateButton/TranslateButton';
 
@@ -66,7 +67,7 @@ function CommentNode({ comment, depth, collapsible = true }) {
     finally { setIsTranslating(false); }
   };
 
-  if (comment.isLowReputation) return null;
+  if (comment.isLowReputation || comment.isHidden) return null;
 
   if (collapsible && collapsed) {
     return (
@@ -277,7 +278,7 @@ function ReactionPlayer({
         };
 
         const tree = await buildTree(current.author, current.permlink, 0);
-        const markedTree = await markByReputation(tree);
+        const markedTree = await markByHidden(await markByReputation(tree));
         if (!cancelled) {
           setNestedComments(markedTree);
           setLoadingComments(false);
@@ -546,7 +547,7 @@ function ReactionPlayer({
         {!isVideo && (
           <div className="rct-comment-panel">
             <div className="rct-comment-thread">
-              <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} collapsible={false} />
+              <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, isHidden: current.isHidden, children: [] }} depth={0} collapsible={false} />
               {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
               {nestedComments.map((reply, i) => (
                 <CommentNode key={i} comment={reply} depth={1} />
@@ -625,7 +626,7 @@ function ReactionPlayer({
       {isVideo && current.permlink && (
         <div className="rct-comment-panel rct-comment-panel--below">
           <div className="rct-comment-thread">
-            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, children: [] }} depth={0} collapsible={false} />
+            <CommentNode comment={{ author: current.author, avatar: current.avatar, body: current.body, isLowReputation: current.isLowReputation, isHidden: current.isHidden, children: [] }} depth={0} collapsible={false} />
             {loadingComments && <div className="rct-thread-loading">Loading replies...</div>}
             {nestedComments.map((reply, i) => (
               <CommentNode key={i} comment={reply} depth={1} />
@@ -638,7 +639,7 @@ function ReactionPlayer({
       {/* Horizontal scrollable list */}
       <div className="reaction-list" ref={scrollRef}>
         {reactions.map((reaction, i) => {
-          if (reaction.isLowReputation) return null;
+          if (reaction.isLowReputation || reaction.isHidden) return null;
           // Insert divider before the first non-timestamped reaction
           const showDivider = reaction.pct === null && (i === 0 || reactions[i - 1].pct !== null);
           return (

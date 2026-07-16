@@ -444,7 +444,27 @@ export function EmbedUploadProvider({ children }) {
   // skips the CORS preflight — the whole point of the fallback. Tracks the XHR
   // so an explicit reset can abort it; resolves the parsed JSON body, rejects
   // with an Error carrying { status, body } on non-2xx.
-  const postForm = useCallback((url, fields, files) => {
+  //
+  // Three things here are what make the fallback survivable, and all three were
+  // missing — which is why a fallback upload could sit at 0% forever:
+  //
+  //  - onProgress: without xhr.upload.onprogress the caller can only move the bar
+  //    when a WHOLE chunk lands. On the slow links this fallback exists for, that
+  //    is minutes of a frozen bar, and if the first chunk never lands the bar
+  //    never moves at all.
+  //
+  //  - stallMs: a NO-BYTES-MOVED watchdog. The exact failure this fallback is for
+  //    is a network that accepts the request and then black-holes it — no error,
+  //    no response, forever. An XHR in that state never fires load/error/timeout,
+  //    so the promise never settles and the retry loop below never runs. We watch
+  //    the upload's own progress events and abort if nothing moves. Crucially this
+  //    is byte-based, NOT wall-clock: a slow-but-moving upload keeps ticking and is
+  //    never killed.
+  //
+  //  - timeoutMs: a hard backstop kept just UNDER nginx's client_body_timeout
+  //    (300s) so a too-slow chunk fails as OUR retryable timeout instead of coming
+  //    back as an opaque 408 after the fact (24 of those yesterday, ~all Android).
+  const postForm = useCallback((url, fields, files, opts = {}) => {
     return new Promise((resolve, reject) => {
       const form = new FormData();
       Object.entries(fields || {}).forEach(([k, v]) => form.append(k, v));
@@ -453,8 +473,39 @@ export function EmbedUploadProvider({ children }) {
 
       const xhr = new XMLHttpRequest();
       uploadXhrsRef.current.add(xhr);
-      const done = () => uploadXhrsRef.current.delete(xhr);
+
+      // Distinguishes OUR abort (retryable) from the user hitting reset (fatal).
+      let selfAborted = null;
+      let lastByteAt = Date.now();
+      let stallTimer = null;
+      const done = () => {
+        if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
+        uploadXhrsRef.current.delete(xhr);
+      };
+
+      if (xhr.upload) {
+        xhr.upload.onprogress = (e) => {
+          lastByteAt = Date.now();
+          if (opts.onProgress && e.lengthComputable) opts.onProgress(e.loaded, e.total);
+        };
+      }
+      if (opts.stallMs) {
+        stallTimer = setInterval(() => {
+          if (Date.now() - lastByteAt > opts.stallMs) {
+            selfAborted = 'STALLED';
+            try { xhr.abort(); } catch { /* already gone */ }
+          }
+        }, 2000);
+      }
+
       xhr.open('POST', url);
+      if (opts.timeoutMs) {
+        xhr.timeout = opts.timeoutMs;
+        xhr.ontimeout = () => {
+          done();
+          reject(Object.assign(new Error('Request timed out'), { code: 'TIMEOUT', retryable: true }));
+        };
+      }
       xhr.onload = () => {
         done();
         let body = {};
@@ -462,8 +513,18 @@ export function EmbedUploadProvider({ children }) {
         if (xhr.status >= 200 && xhr.status < 300) resolve(body);
         else reject(Object.assign(new Error(body.error || `HTTP ${xhr.status}`), { status: xhr.status, body }));
       };
-      xhr.onerror = () => { done(); reject(new Error('Network error')); };
-      xhr.onabort = () => { done(); reject(Object.assign(new Error('Aborted'), { code: 'ABORTED' })); };
+      xhr.onerror = () => {
+        done();
+        reject(Object.assign(new Error('Network error'), { code: 'NETWORK', retryable: true }));
+      };
+      xhr.onabort = () => {
+        done();
+        if (selfAborted) {
+          reject(Object.assign(new Error('Upload stalled — no data moved'), { code: selfAborted, retryable: true }));
+        } else {
+          reject(Object.assign(new Error('Aborted'), { code: 'ABORTED' }));
+        }
+      };
       xhr.send(form);
     });
   }, []);
@@ -475,8 +536,11 @@ export function EmbedUploadProvider({ children }) {
   // reload it re-queries /status and re-sends only the missing chunks. Returns
   // the embed URL.
   //
-  // Pinned to EMBED_API_URL (not pickEmbedEndpoint): only that host currently
-  // exposes /upload/chunk. Other pool hosts may run older code.
+  // Pinned to EMBED_API_URL (not pickEmbedEndpoint). This is no longer because the
+  // other hosts lack /upload/chunk — as of 2026-07-14 every pool host exposes it —
+  // but because a chunk SESSION is host-bound: the server keeps it in memory and
+  // writes into one temp file, so a mid-upload host switch would lose the session.
+  // The host is therefore chosen once, up front, and kept.
   const runChunkedUpload = useCallback(async () => {
     const base = (EMBED_API_URL || '').replace(/\/+$/, '');
     if (!base) throw new Error('No embed host configured');
@@ -486,14 +550,22 @@ export function EmbedUploadProvider({ children }) {
 
     const MB = 1024 * 1024;
     const conn = getConnectionProfile();
-    // Mirror the TUS profile: small sequential on weak links, modest parallel on
-    // fat pipes. chunkSize is only used when we CREATE a session (a resumed
-    // session keeps the size it was created with).
+    // Chunks are deliberately SMALLER than the TUS profile's. This is the
+    // bad-network path by definition, and chunkSize is fixed for the life of the
+    // session (the server pre-sizes the file and demands each chunk be exactly
+    // chunkSize bytes), so it cannot be renegotiated once we're wrong.
+    //
+    // The binding constraint is nginx's client_body_timeout (300s): a chunk that
+    // can't be pushed inside that window is a 408, no matter how many times we
+    // retry it — so the upload dead-ends. Sizing for a genuinely slow uplink:
+    // 512KB needs only ~14 kbit/s to land in 300s, 2MB needs ~56 kbit/s. The cost
+    // is more round trips on a fast link, which is a trade the fallback should
+    // happily make. Server floor is CHUNK_MIN_SIZE = 256KB.
     let chunkSize, parallel;
-    if (conn.weak) { chunkSize = 2 * MB; parallel = 1; }
-    else if (size > 500 * MB) { chunkSize = 8 * MB; parallel = 2; }
-    else if (size > 50 * MB) { chunkSize = 5 * MB; parallel = 2; }
-    else { chunkSize = 5 * MB; parallel = 1; }
+    if (conn.weak) { chunkSize = 512 * 1024; parallel = 1; }
+    else if (size > 500 * MB) { chunkSize = 4 * MB; parallel = 2; }
+    else if (size > 50 * MB) { chunkSize = 2 * MB; parallel = 2; }
+    else { chunkSize = 1 * MB; parallel = 1; }
 
     const fpKey = `chunked::${base}::${file.name}::${size}`;
     let sessionId = null;
@@ -541,18 +613,30 @@ export function EmbedUploadProvider({ children }) {
       try { localStorage.setItem(fpKey, sessionId); } catch { /* ignore */ }
     }
 
-    const reportProgress = (serverBytes) => {
-      const pct = size ? Math.min(100, Math.round((serverBytes / size) * 100)) : 0;
+    // Progress = bytes the SERVER has confirmed + bytes currently in flight. The
+    // in-flight half is what keeps the bar alive: without it the bar can only step
+    // once per completed chunk, which on a slow link means it looks frozen for
+    // minutes — and looks broken forever if the first chunk keeps failing.
+    let serverBytes = received.size * chunkSize;
+    const inflight = new Map();   // chunk index -> bytes uploaded so far
+    const paint = () => {
+      const live = serverBytes + [...inflight.values()].reduce((a, b) => a + b, 0);
+      const pct = size ? Math.min(99, Math.floor((live / size) * 100)) : 0;
       setUploadProgress(pct);
       setStatusText(`Uploading video... ${pct}%`);
     };
-    reportProgress(received.size * chunkSize);
+    paint();
 
     // Work queue = the indices the server doesn't have yet.
     const queue = [];
     for (let i = 0; i < totalChunks; i++) if (!received.has(i)) queue.push(i);
 
-    const RETRY_DELAYS = [0, 2000, 5000, 10000, 20000, 30000];
+    // Long tail on purpose: these are the networks that drop for a minute at a
+    // time. Total patience per chunk ~5min of backoff, and each attempt is itself
+    // stall-guarded, so a dead attempt costs STALL_MS, not forever.
+    const RETRY_DELAYS = [0, 2000, 5000, 10000, 20000, 30000, 45000, 60000, 60000, 60000];
+    const STALL_MS = 45000;    // no bytes moved at all -> abort this attempt, retry
+    const HARD_MS = 280000;    // just under nginx client_body_timeout (300s)
     let failed = null;
 
     const worker = async () => {
@@ -562,16 +646,56 @@ export function EmbedUploadProvider({ children }) {
         const blob = file.slice(start, Math.min(start + chunkSize, size));
         let ok = false;
         let lastErr;
+
         for (let attempt = 0; attempt < RETRY_DELAYS.length && !ok && !failed; attempt++) {
-          if (attempt > 0) { setStatusText('Connection unstable — retrying…'); await sleep(RETRY_DELAYS[attempt]); }
+          if (attempt > 0) {
+            setStatusText('Connection unstable — retrying…');
+            await sleep(RETRY_DELAYS[attempt]);
+            if (failed) break;
+          }
           try {
-            const r = await postForm(`${base}/upload/chunk`, { sessionId, index: String(index) }, { chunk: blob });
+            const r = await postForm(
+              `${base}/upload/chunk`,
+              { sessionId, index: String(index) },
+              { chunk: blob },
+              {
+                stallMs: STALL_MS,
+                timeoutMs: HARD_MS,
+                onProgress: (loaded) => { inflight.set(index, loaded); paint(); },
+              },
+            );
             ok = true;
-            if (Number.isFinite(r.receivedBytes)) reportProgress(r.receivedBytes);
+            inflight.delete(index);
+            if (Number.isFinite(r.receivedBytes)) serverBytes = r.receivedBytes;
+            paint();
           } catch (e) {
+            inflight.delete(index);
+            paint();
             if (e?.code === 'ABORTED') { failed = e; return; }   // user reset — stop
+
+            // The session is gone (host restarted, or idle past CHUNK_SESSION_TTL).
+            // Retrying this chunk can only 404 forever, so surface it and let the
+            // caller start a fresh session rather than spinning.
+            if (e?.status === 404) {
+              try { localStorage.removeItem(fpKey); } catch { /* ignore */ }
+              failed = Object.assign(new Error('Upload session expired — please retry'), { code: 'SESSION_GONE' });
+              return;
+            }
             lastErr = e;
           }
+        }
+
+        if (!ok) {
+          // Last word goes to the server: the chunk may actually have landed and
+          // only the ACK was lost (a stalled/aborted POST looks identical to us).
+          // Re-syncing also picks up chunks a sibling worker completed.
+          try {
+            const st = await postForm(`${base}/upload/chunk/status`, { sessionId }, null, { timeoutMs: 30000 });
+            if (st && Array.isArray(st.received)) {
+              if (Number.isFinite(st.receivedBytes)) { serverBytes = st.receivedBytes; paint(); }
+              if (st.received.includes(index)) ok = true;   // it did land — move on
+            }
+          } catch { /* status unreachable — fall through to the failure below */ }
         }
         if (!ok) { failed = lastErr || new Error(`Chunk ${index} failed`); return; }
       }

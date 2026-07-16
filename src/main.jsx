@@ -20,7 +20,26 @@ if (import.meta.env.DEV && typeof navigator !== 'undefined' && 'serviceWorker' i
 import { ensureHealthyNode } from './utils/hiveNode';
 ensureHealthyNode();
 
-import React from 'react';
+// Pick the healthy player backend before first render (see utils/playerUrl.js): try
+// the primary, fall back to the next if it's down. Awaited at boot below so every
+// player/preview the app creates reads the resolved URL via getPlayerUrl().
+import { ensurePlayerUrl } from './utils/playerUrl';
+
+// Watch tracking used to persist a per-browser viewer id ('3speak_viewer_id') in
+// localStorage, which made every browser a stable, trackable device across visits.
+// It is gone — sessions are now identified only by the server-issued `sid`, which
+// lives in memory for the duration of one watch. Evict the leftover from browsers
+// that still carry one.
+try { localStorage.removeItem('3speak_viewer_id'); } catch { /* storage disabled */ }
+
+// Enforce the cookie choice. Installs a storage write-guard (so declining actually
+// PREVENTS the player from saving resume positions, not just deletes them later) and
+// clears anything left from a previous session. Runs here, at module load, so the
+// guard is in place before any video can play. Live: switching to Accept lifts it
+// with no reload.
+import { enforceConsentOnStart } from './lib/consent';
+enforceConsentOnStart();
+
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -31,6 +50,12 @@ import store from '../src/redux/Store'; // Importing the Redux store (replace wi
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+// Roboto, self-hosted. Replaces the fonts.googleapis.com hotlink that used to sit
+// in index.html and disclosed every visitor's IP to Google on page load.
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
 import { AppProviders } from './context/Providers';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AiohaProvider } from '@aioha/react-ui';
@@ -40,7 +65,8 @@ import { HelmetProvider } from 'react-helmet-async';
 // import { Buffer } from 'buffer';
 // window.Buffer = Buffer;
 const queryClient = new QueryClient();
-createRoot(document.getElementById('root')).render(
+
+const boot = () => createRoot(document.getElementById('root')).render(
   <StrictMode>
     <HelmetProvider>
       <BrowserRouter>
@@ -58,3 +84,12 @@ createRoot(document.getElementById('root')).render(
     </HelmetProvider>
   </StrictMode>
 );
+
+// Resolve the player backend first (fast + sticky per session; falls back to the next
+// URL when the primary is down), but HARD-cap it so a dead/hanging primary can never
+// block boot — after the cap we render anyway and the resolution finishes in the
+// background for later use.
+Promise.race([
+  ensurePlayerUrl(),
+  new Promise((resolve) => setTimeout(resolve, 3000)),
+]).finally(boot);

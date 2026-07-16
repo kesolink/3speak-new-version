@@ -7,7 +7,8 @@
 import axios from "axios";
 import { getHiveUrl } from '../utils/hiveNode';
 import { convert } from "html-to-text";
-import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL, PLAYER_URL, appendNsfw } from "../utils/config";
+import { HIVE_API_URL, CHECKER_URL, SHORTS_API_URL, USER_SHORTS_API_URL, appendNsfw } from "../utils/config";
+import { getPlayerUrl } from "../utils/playerUrl";
 import { getFeedSeed, regenerateFeedSeed } from "../utils/feedSeed";
 import { useAppStore } from "../lib/store";
 
@@ -816,9 +817,10 @@ export async function fetchUserShortsWithDetails(username, page = 1, limit = 20,
    3Speak helpers
 ------------------------------ */
 
-// Player backend that serves the embeddable iframe player. Falls back to the
-// production pool if VITE_PLAYER_URL is unset.
-const PLAYER_BASE = PLAYER_URL || 'https://play.3speak.tv';
+// Player backend that serves the embeddable iframe player — resolved at USE-time so
+// it reflects the health-picked fallback (getPlayerUrl), not the primary captured at
+// module load. Falls back to the production player if nothing is configured.
+const playerBase = () => getPlayerUrl() || 'https://play.3speak.tv';
 
 // NOTE: uses the /play route (not /embed) — /play never increments the view
 // counter but still runs the server-measured watch-duration tracking. This
@@ -828,14 +830,14 @@ export function get3SpeakEmbedUrl(embedUrl, layout = "mobile", controls = true) 
 
   const cleanedPath = embedUrl.startsWith('@') ? embedUrl.slice(1) : embedUrl;
   const controlsParam = controls ? '' : '&controls=0';
-  return `${PLAYER_BASE}/play?v=${cleanedPath}&mode=iframe&layout=${layout}${controlsParam}`;
+  return `${playerBase()}/play?v=${cleanedPath}&mode=iframe&layout=${layout}${controlsParam}`;
 }
 
 export function build3SpeakEmbedUrl(author, permlink, layout = "mobile", controls = true) {
   if (!author || !permlink) return null;
 
   const controlsParam = controls ? '' : '&controls=0';
-  return `${PLAYER_BASE}/play?v=${author}/${permlink}&mode=iframe&layout=${layout}${controlsParam}`;
+  return `${playerBase()}/play?v=${author}/${permlink}&mode=iframe&layout=${layout}${controlsParam}`;
 }
 
 /* -----------------------------

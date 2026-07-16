@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.57.0',
+    date: '2026-07-16',
+    summary:
+      'New Community tab on creator profiles: post short written updates ("snaps") to your followers, with tags, images and links. Community posts also show up between the videos in your home feeds, where you can like, comment, and follow the creator right there. Discover and New Content show the latest from everyone; your Interests and Follow Feed show posts from the people you follow.',
+  },
+  {
+    version: '1.56.0',
+    date: '2026-07-15',
+    summary:
+      'Playback polish, especially for older videos: a new 3Speak loading animation while a video starts up, plus smoother, steadier playback.',
+  },
+  {
     version: '1.55.0',
     date: '2026-07-12',
     summary:

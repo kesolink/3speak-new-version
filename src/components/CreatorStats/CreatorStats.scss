@@ -113,6 +113,10 @@
     .cs-item-title {
       font-size: 13.5px; font-weight: 600; color: var(--text-primary, #111);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      // It's a link now (opens the video in a new tab) — keep the row look, add a
+      // hover affordance so it's clear the title itself is clickable.
+      text-decoration: none; display: block; width: fit-content; max-width: 100%;
+      &:hover { color: var(--accent-primary, #e53935); text-decoration: underline; }
     }
     .cs-item-date { font-size: 11.5px; color: var(--text-muted, #999); }
     .cs-item-metric { font-size: 13.5px; font-weight: 800; color: var(--text-primary, #111); }

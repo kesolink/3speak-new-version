@@ -94,5 +94,9 @@ export function useWatchHistory(videos) {
     isWatched,
     getWatchData,
     loading,
+    // Bumps whenever new watch-history results land. `isWatched` is a stable
+    // useCallback reading a ref, so a memo that only depends on it never recomputes
+    // when data arrives — depend on `version` too to react to fresh results.
+    version,
   };
 }

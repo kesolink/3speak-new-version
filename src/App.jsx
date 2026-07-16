@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation, useNavigate, Navigate, useParams } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { useRef, lazy, Suspense } from "react";
 import "./App.css";
 // import Home from './page/Home'
@@ -21,6 +21,7 @@ import { useAppStore } from "./lib/store";
 import { useSupportBlock } from "./lib/supportBlockStore";
 import { getCreatorSettings, isBanned } from "./utils/creatorSettings";
 import SupportModal from "./components/SupportModal/SupportModal";
+import CookieConsent from "./components/CookieConsent/CookieConsent";
 import { useEffect } from "react";
 import { readAppVersion } from "./utils/appVersion";
 import ChangelogModal from "./components/Changelog/ChangelogModal";
@@ -34,7 +35,6 @@ import TagFeed from "./page/TagFeed";
 import Leaderboard from "./page/Leaderboard";
 import ProfilePage from "./page/ProfilePage";
 import Wallet from "./page/Wallet";
-import Testing from "./components/Testingfile/Testing";
 import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
 import DraftStudio from "./components/studio/DraftStudio";
 import EditVideo from "./page/EditVideo";
@@ -43,9 +43,9 @@ import ScrollToTop from "./components/ScrollToTop";
 import RouteTitle from "./components/RouteTitle";
 import OpenShortsOnStart from "./components/OpenShortsOnStart";
 import AddAccount_modal from "./components/modal/AddAccount_modal";
-import TestingLogin3 from "./page/Login/TestingLogin3";
 // import TestingLogin from "./page/Login/TestingLogin";
 import AboutPage from "./components/LandingPage/AboutPage";
+import Legal from "./page/Legal";
 import { toast, Toaster } from 'sonner'
 import { CircleCheck, CircleX, TriangleAlert, Info } from 'lucide-react'
 import './toast.css'
@@ -56,7 +56,6 @@ import { fetchNewerVersion, reloadForUpdate } from './utils/checkLatestVersion'
 // import Thumbnail from "./components/legacy-studio/Thumbnail";
 // import Details from "./components/legacy-studio/Details";
 // import Preview from "./components/legacy-studio/Preview";
-import Test from "./page/Test";
 import Short from "./page/Short";
 import ShortsStoryFeed from "./page/ShortsStoryFeed";
 import ShortsPreloader from "./components/ShortsPreloader";
@@ -164,7 +163,7 @@ const LoginRedirect = ({ openLoginModal }) => {
 
 function App() {
   const location = useLocation();
-  const { initializeAuth, initializeTheme, authenticated, LogOut, switchAccount, setUser, user: appUser } = useAppStore();
+  const { initializeAuth, initializeTheme, authenticated, LogOut, setUser, user: appUser } = useAppStore();
   const sessionExpired = useAppStore((s) => s.sessionExpired);
   const homeCardSize = useAppStore((s) => s.homeCardSize);
 
@@ -182,7 +181,6 @@ function App() {
 
   const [globalCloseRender, setGlobalCloseRender] = useState(false)
   const [toggle, setToggle] = useState(false);
-  const [reloadSwitch, setRelaodSwitch] = useState(false)
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
   const [editorModalOpen, setEditorModalOpen] = useState(false);
@@ -298,7 +296,7 @@ function App() {
     if (path.startsWith('/login') || path.startsWith('/auth/callback') || path.startsWith('/newlogin')) return;
     try {
       sessionStorage.setItem('preLoginPath', path);
-    } catch (err) {
+    } catch {
       // ignore storage errors
     }
   }, [location]);
@@ -470,6 +468,7 @@ function App() {
       />
       <ChangelogModal />
       <SupportModal />
+      <CookieConsent />
       <ShortsPreloader />
       {!hideNavOnMobile && (
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
@@ -520,6 +519,8 @@ function App() {
             <Route path="/edit-scheduled/:permlink" element={<EditScheduledPost />} />
             <Route path="/communities" element={<CommunitiesRender />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/privacy" element={<Legal />} />
+            <Route path="/imprint" element={<Legal />} />
             <Route path="/shorts/stories" element={<ShortsStoryFeed />} />
             <Route path="/shorts" element={<Short />} />
             <Route
