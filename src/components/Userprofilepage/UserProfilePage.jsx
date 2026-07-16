@@ -36,6 +36,8 @@ import { fetchUserShortsWithDetails } from '../../hive-api/hiveApi';
 import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
 import UserAudioList from './UserAudioList';
+import CommunitySnaps from './CommunitySnaps';
+import { fetchSnaps } from '../../lib/snaps';
 import SocialLinks from './SocialLinks';
 import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
@@ -57,6 +59,7 @@ function UserProfilePage() {
       if (tab === 'playlists') return 'playlists';
       if (tab === 'shorts') return 'shorts';
       if (tab === 'audio') return 'audio';
+      if (tab === 'community') return 'community';
       if (tab === 'stats') return 'stats';
       return 'video';
     });
@@ -67,6 +70,7 @@ function UserProfilePage() {
       if (tab === 'playlists') setShow('playlists');
       else if (tab === 'shorts') setShow('shorts');
       else if (tab === 'audio') setShow('audio');
+      else if (tab === 'community') setShow('community');
       else if (tab === 'stats') setShow('stats');
       else if (!tab) setShow('video');
     }, [searchParams]);
@@ -105,6 +109,15 @@ function UserProfilePage() {
     const isCreatorHidden = !!hiddenData?.creators?.some(
       (c) => String(c.creator).toLowerCase() === String(user).toLowerCase()
     );
+
+    // Community-post count for the tab header (like Playlists shows its count).
+    const { data: snapCountData } = useQuery({
+      queryKey: ['community-snaps-count', user],
+      queryFn: () => fetchSnaps(user, 1, 1),
+      enabled: !!user && user !== 'unknown',
+      staleTime: 60 * 1000,
+    });
+    const snapCount = snapCountData?.total || 0;
 
     const handleHideToggle = useCallback(async () => {
       if (!authenticatedUser || !user || isOwnProfile) return;
@@ -494,11 +507,14 @@ const {
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          <span className={show === "community" ? "active" : ""} onClick={() => selectTab("community")}>
+            Community {snapCount > 0 && `(${snapCount})`}
+          </span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
           {canSeeStats && (
-            <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Stats</span>
+            <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Analytics</span>
           )}
         </div>
         <span className="followers" onClick={()=>{handleWalletNavigate(user)}}>wallet</span>
@@ -528,6 +544,8 @@ const {
     )
   ) : show === "audio" ? (
     <UserAudioList user={user} />
+  ) : show === "community" ? (
+    <CommunitySnaps user={user} canPost={false} />
   ) : show === "stats" ? (
     canSeeStats ? <CreatorStats user={user} /> : null
   ) : show === "playlists" ? (

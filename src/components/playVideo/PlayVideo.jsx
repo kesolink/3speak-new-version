@@ -33,6 +33,7 @@ import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
 import axios from "axios";
 import mantequillaLogo from "../../assets/mantequilla-logo.png";
 import threespeakLogo from "../../assets/image/3S_logo.svg";
+import threespeakLogoDark from "../../assets/image/3S_logodark.png";
 import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
 import { displayTag, INTEREST_IDS, saveInterestsToHive } from '../../utils/interests';
@@ -72,6 +73,8 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
+  const theme = useAppStore((s) => s.theme);
+  const isDarkTheme = theme !== 'light'; // dark is the default (matches EmergencyScreen)
 
   // Add a topic to the user's interests (from the topic popup), persisting to Hive.
   const addToInterests = useCallback(async (tag) => {
@@ -798,17 +801,19 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                 }}
                 playsInline
               />
-              {/* Branded preload spinner — half-transparent over the poster while the
-                  player fetches the manifest and buffers the first frame (SDK `loading`
-                  state). Clears the moment the first frame is ready; never blocks the
-                  play button (pointer-events: none). Suppressed once a video is known
-                  unavailable, so the two overlays don't stack. */}
+              {/* Branded preload cover — the SAME splash as the site's initial load
+                  (EmergencyScreen "checking": 3Speak logo + TailChase). Opaque, so it
+                  HIDES the black player until the first frame is ready (driven by the
+                  onReady gate in Watch.jsx). Cleared the moment playback is ready, and
+                  suppressed once a video is known unavailable so the overlays don't stack. */}
               {mediaLoading && !mediaUnavailable && (
                 <div className="video-preload-overlay" aria-hidden="true">
-                  <div className="video-preload-badge">
-                    <span className="video-preload-ring" />
-                    <img className="video-preload-logo" src={threespeakLogo} alt="" />
-                  </div>
+                  <img
+                    className="video-preload-logo"
+                    src={isDarkTheme ? threespeakLogoDark : threespeakLogo}
+                    alt="3Speak"
+                  />
+                  <TailChase size="42" speed="1.75" color="var(--accent-primary, #e0594b)" />
                 </div>
               )}
               {/* Media gone (old upload whose IPFS content is unpinned). The player
@@ -1214,11 +1219,11 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                     type="button"
                     className={`pv-btn stats-btn${videoStatsOpen ? ' active' : ''}`}
                     onClick={() => setVideoStatsOpen((o) => !o)}
-                    title="Video stats"
+                    title="Video analytics"
                     aria-expanded={videoStatsOpen}
                   >
                     <MdBarChart size={16} />
-                    <span>Stats</span>
+                    <span>Analytics</span>
                   </button>
                 )}
                 <button
@@ -1516,7 +1521,7 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
             <div className="fab-actions">
               {canSeeVideoStats && (
                 <div className="fab-action">
-                  <span className="fab-action-label">Stats</span>
+                  <span className="fab-action-label">Analytics</span>
                   <button
                     className={`fab-action-btn${videoStatsOpen ? ' fab-action-btn--active' : ''}`}
                     onClick={() => {

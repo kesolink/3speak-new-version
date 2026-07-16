@@ -374,21 +374,39 @@ export default function CreatorStats({ user }) {
                   ))}
                 </div>
                 <div className="cs-list">
-                {list.map((v, i) => (
-                  <button
-                    key={v.permlink}
-                    className={`cs-item${selected?.permlink === v.permlink ? ' selected' : ''}`}
-                    onClick={() => setSelected(selected?.permlink === v.permlink ? null : v)}
-                  >
-                    <span className="cs-rank">{i + 1}</span>
-                    <img className="cs-item-thumb" src={v.thumbnail} alt="" loading="lazy" />
-                    <span className="cs-item-info">
-                      <span className="cs-item-title">{v.short ? '⏱ ' : ''}{v.title || v.permlink}</span>
-                      {v.created && <span className="cs-item-date">{timeAgo(v.created)}</span>}
-                    </span>
-                    <span className="cs-item-metric">{sortDef.fmt(v[sort])}</span>
-                  </button>
-                ))}
+                {list.map((v, i) => {
+                  const toggle = () => setSelected(selected?.permlink === v.permlink ? null : v);
+                  // Clicking the TITLE opens the video/short in a new tab; clicking the
+                  // rest of the row shows its analytics below.
+                  const watchUrl = `/${v.short ? 'shorts' : 'watch'}?v=${user}/${v.permlink}`;
+                  return (
+                    <div
+                      key={v.permlink}
+                      className={`cs-item${selected?.permlink === v.permlink ? ' selected' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={toggle}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
+                    >
+                      <span className="cs-rank">{i + 1}</span>
+                      <img className="cs-item-thumb" src={v.thumbnail} alt="" loading="lazy" />
+                      <span className="cs-item-info">
+                        <a
+                          className="cs-item-title"
+                          href={watchUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Open the video in a new tab"
+                        >
+                          {v.short ? '⏱ ' : ''}{v.title || v.permlink}
+                        </a>
+                        {v.created && <span className="cs-item-date">{timeAgo(v.created)}</span>}
+                      </span>
+                      <span className="cs-item-metric">{sortDef.fmt(v[sort])}</span>
+                    </div>
+                  );
+                })}
                 </div>
               </div>
 

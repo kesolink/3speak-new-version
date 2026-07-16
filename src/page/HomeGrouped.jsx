@@ -16,6 +16,8 @@ import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import ShortsRow from "../components/ShortsRow/ShortsRow";
 import { useGridColumns, useShortsPerRow } from "../hooks/useGridMetrics";
+import { fetchCommunityFeed } from "../lib/snaps";
+import { SnapCard } from "../components/Userprofilepage/CommunitySnaps";
 import { SHORTS_API_URL } from "../utils/config";
 import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
 import { Rocket, Compass, Sparkles, GripVertical } from "lucide-react";
@@ -421,6 +423,68 @@ const HomeGrouped = () => {
     shortsQ.fetchNextPage();
   }, [shortsMode, shortsNeeded, feedShorts.length, shortsQ.hasNextPage, shortsQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Community posts interspersed in the feed (mirrors the shorts rails) ──────
+  // Discover + New → any fresh community post; Interests + Follow → only from people
+  // you follow. null = none for this section.
+  const communityMode = useMemo(() => {
+    const k = activeSection?.key;
+    if (k === 'discover' || k === 'new') return 'all';
+    if ((k === 'interests' || k === 'home') && authenticated && user) return 'following';
+    return null;
+  }, [activeSection?.key, authenticated, user]);
+
+  const communityQ = useInfiniteQuery({
+    queryKey: ['feed-community', activeSection?.key, communityMode, user || null],
+    queryFn: async ({ pageParam = 1 }) => {
+      const data = await fetchCommunityFeed({ scope: communityMode, currentuser: user, page: pageParam });
+      return data?.snaps || [];
+    },
+    initialPageParam: 1,
+    getNextPageParam: nextPage(),
+    enabled: !!communityMode,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  // Locally removed (hidden via the ⋮ menu) — the checker also records the hide, so
+  // it won't come back on the next fetch; this drops it from the current view instantly.
+  const [removedSnaps, setRemovedSnaps] = useState(() => new Set());
+  const removeSnap = useCallback((snap) => {
+    setRemovedSnaps((prev) => new Set(prev).add(`${snap.owner}/${snap.permlink}`));
+  }, []);
+  const feedCommunity = useMemo(
+    () => (communityQ.data?.pages || []).flat().filter((s) => !removedSnaps.has(`${s.owner}/${s.permlink}`)),
+    [communityQ.data, removedSnaps],
+  );
+
+  // A community post roughly every 3 rows (offset from the shorts' every-2-rows).
+  // Each interleave slot packs up to a full grid-row of snaps (one per column) so
+  // several creators' posts share one line when there's room.
+  const communityEvery = gridCols > 0 ? gridCols * 3 : 0;
+  const communityPerRow = gridCols > 0 ? gridCols : 1;
+  const communityNeeded = communityEvery ? Math.floor(activeVideos.length / communityEvery) : 0;
+  useEffect(() => {
+    if (!communityMode) return;
+    if (feedCommunity.length >= communityNeeded * communityPerRow) return;
+    if (!communityQ.hasNextPage || communityQ.isFetchingNextPage) return;
+    communityQ.fetchNextPage();
+  }, [communityMode, communityNeeded, communityPerRow, feedCommunity.length, communityQ.hasNextPage, communityQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const renderCommunityRow = useCallback((slot) => {
+    const start = slot * communityPerRow;
+    const group = feedCommunity.slice(start, start + communityPerRow);
+    if (!group.length) return null;
+    // Wrap in .community-snaps so the SnapCards' (nested) styles apply; --row makes
+    // it a full-width grid that mirrors the video columns.
+    return (
+      <div className="community-snaps community-snaps--feed community-snaps--row">
+        {group.map((snap) => (
+          <SnapCard key={`${snap.owner}/${snap.permlink}`} snap={snap} feedMode onRemove={removeSnap} />
+        ))}
+      </div>
+    );
+  }, [feedCommunity, removeSnap, communityPerRow]);
+
   const { getContentForVideo } = useContentBatch(visibleVideos);
   const { isWatched, version: watchedVersion } = useWatchHistory(visibleVideos);
   const { getViewCount } = useViewCounts(visibleVideos);
@@ -581,6 +645,9 @@ const HomeGrouped = () => {
              mobile, 4-5 on desktop). 0 until measured → no interleave, no jump. */
           interleaveEvery={shortsMode && s.key === activeSection?.key && gridCols > 0 ? gridCols * 2 : 0}
           renderInterleave={shortsMode && s.key === activeSection?.key ? renderShortsRail : null}
+          /* Community posts on the same feeds, ~every 3 rows (see communityMode). */
+          communityEvery={communityMode && s.key === activeSection?.key && gridCols > 0 ? communityEvery : 0}
+          renderCommunity={communityMode && s.key === activeSection?.key ? renderCommunityRow : null}
         />
         {q && (
           <InfiniteSentinel

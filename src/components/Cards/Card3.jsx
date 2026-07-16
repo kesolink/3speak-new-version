@@ -31,21 +31,27 @@ import useHoverPreview from "../../hooks/useHoverPreview";
  * alignment. `every` is computed from the LIVE column count, not guessed, so the
  * rail always lands on a row boundary at any breakpoint.
  */
-function withInterleave(cards, every, render) {
-  if (!every || every < 1 || typeof render !== 'function') return cards;
+// Supports MULTIPLE full-width interleave streams (e.g. shorts rails + community
+// posts), each `{ every, render, key }`. Both can land after the same card.
+function withInterleave(cards, channels) {
+  const active = (channels || []).filter((c) => c && c.every >= 1 && typeof c.render === 'function');
+  if (!active.length) return cards;
   const out = [];
   cards.forEach((card, i) => {
     out.push(card);
-    if ((i + 1) % every === 0 && i + 1 < cards.length) {
-      const slot = (i + 1) / every - 1;
-      const node = render(slot);
-      if (node) out.push(<div className="card-interleave" key={`interleave-${slot}`}>{node}</div>);
-    }
+    const n = i + 1;
+    if (n >= cards.length) return; // never append after the last card
+    active.forEach((ch) => {
+      if (n % ch.every !== 0) return;
+      const slot = n / ch.every - 1;
+      const node = ch.render(slot);
+      if (node) out.push(<div className="card-interleave" key={`${ch.key || 'il'}-${slot}`}>{node}</div>);
+    });
   });
   return out;
 }
 
-function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false, hideWatched = false, watchedVersion = 0 }) {
+function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, communityEvery = 0, renderCommunity = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false, hideWatched = false, watchedVersion = 0 }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
 
@@ -288,7 +294,10 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
             </div>
           </Link>
         );
-      }), interleaveEvery, renderInterleave)}
+      }), [
+        { every: interleaveEvery, render: renderInterleave, key: 'shorts' },
+        { every: communityEvery, render: renderCommunity, key: 'community' },
+      ])}
       {modalUser && (
         <ProfileModal
           username={modalUser}
