@@ -44,7 +44,7 @@ function SnapCard({ snap }) {
       {tags.length > 0 && (
         <div className="snap-tags">
           {tags.map((t) => (
-            <Link key={t} to={`/t/${t}`} className="snap-tag">#{t}</Link>
+            <Link key={t} to={`/t/${t}`} className="snap-tag">{t}</Link>
           ))}
         </div>
       )}

@@ -112,10 +112,10 @@ export default function SnapComposer({ onPosted }) {
       </div>
 
       <div className="snap-tag-chips">
-        <span className="snap-tag-chip built-in" title="Added to every community post">#{SNAP_TAG}</span>
+        <span className="snap-tag-chip built-in" title="Added to every community post">{SNAP_TAG}</span>
         {tags.map((t) => (
           <span key={t} className="snap-tag-chip">
-            #{t}
+            {t}
             <button type="button" onClick={() => removeTag(t)} aria-label={`Remove ${t}`}><MdClose /></button>
           </span>
         ))}
