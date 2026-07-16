@@ -63,6 +63,7 @@ function VideoControls({
   markers,
   replayHeatmap,
   previewVideoId,
+  getPlaybackHeight,
   onMarkerSelect,
   onReactToMoment,
   onCycleReactionSize,
@@ -168,10 +169,11 @@ function VideoControls({
     videoRef: previewVideoRef,
     preview,
     previewWidth,
+    frameless: previewFrameless,
     showAt: showSeekPreview,
     hide: hideSeekPreview,
     fmtTime: fmtPreviewTime,
-  } = useSeekPreview({ videoId: previewVideoId, trackRef, duration });
+  } = useSeekPreview({ videoId: previewVideoId, trackRef, duration, getPlaybackHeight });
 
   // Drag/scrub support — visual progress updates instantly, seeks throttled to ~150ms
   const isDraggingRef = useRef(false);
@@ -366,7 +368,7 @@ function VideoControls({
           {/* Scrub-preview thumbnail (low-res HLS, no storyboard) */}
           {previewVideoId && (
             <div
-              className={`vc-seek-preview${preview.visible ? ' visible' : ''}`}
+              className={`vc-seek-preview${preview.visible ? ' visible' : ''}${previewFrameless ? ' frameless' : ''}`}
               style={{ left: `${preview.leftPx}px`, width: `${previewWidth}px` }}
             >
               <video ref={previewVideoRef} className="vc-seek-preview-video" muted playsInline disablePictureInPicture />

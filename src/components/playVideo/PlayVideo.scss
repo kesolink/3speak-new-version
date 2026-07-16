@@ -1642,3 +1642,34 @@
     color: var(--text-primary, #f1f1f1);
   }
 }
+
+/* ── Branded preload cover ───────────────────────────────────────────────────
+   The SAME splash as the site's initial load (EmergencyScreen "checking"): the
+   3Speak logo above a TailChase spinner, on an OPAQUE --bg-primary background — so
+   the player is fully HIDDEN behind it until the first frame is ready (the onReady
+   gate in Watch.jsx). Sits inside .video-iframe-wrapper (position: relative). z-index
+   is above the <video>, the click overlay (z 5) AND the controls (z 10) so nothing
+   peeks through while loading; it's mutually exclusive with the "unavailable" overlay. */
+.video-preload-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  background: var(--bg-primary, #0f0f0f);
+  pointer-events: none;
+  animation: video-preload-fade 0.18s ease both;
+}
+
+.video-preload-logo {
+  width: min(220px, 50%);
+  height: auto;
+}
+
+@keyframes video-preload-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

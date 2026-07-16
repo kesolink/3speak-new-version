@@ -12,6 +12,8 @@ import Card3 from "../components/Cards/Card3";
 import Follower from "../components/Userprofilepage/Follower";
 import BarLoader from "../components/Loader/BarLoader";
 import CreatorStats from "../components/CreatorStats/CreatorStats";
+import CommunitySnaps from "../components/Userprofilepage/CommunitySnaps";
+import { fetchSnaps } from "../lib/snaps";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
@@ -60,6 +62,7 @@ function ProfilePage() {
     if (tab === 'playlists') return 'playlists';
     if (tab === 'shorts') return 'shorts';
     if (tab === 'audio') return 'audio';
+    if (tab === 'community') return 'community';
     if (tab === 'stats') return 'stats';
     return 'video';
   });
@@ -69,6 +72,7 @@ function ProfilePage() {
     if (tab === 'playlists') setShow('playlists');
     else if (tab === 'shorts') setShow('shorts');
     else if (tab === 'audio') setShow('audio');
+    else if (tab === 'community') setShow('community');
     else if (tab === 'stats') setShow('stats');
     else if (!tab) setShow('video');
   }, [searchParams]);
@@ -294,6 +298,15 @@ function ProfilePage() {
     staleTime: 30 * 1000,
   });
 
+  // Community-post count for the tab header (like Playlists shows its count).
+  const { data: snapCountData } = useQuery({
+    queryKey: ["community-snaps-count", user],
+    queryFn: () => fetchSnaps(user, 1, 1),
+    enabled: !!user,
+    staleTime: 60 * 1000,
+  });
+  const snapCount = snapCountData?.total || 0;
+
   const scheduledCards = useMemo(() => {
     return (scheduledData || [])
       .map(normalizeScheduledForCard)
@@ -467,10 +480,13 @@ function ProfilePage() {
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          <span className={show === "community" ? "active" : ""} onClick={() => selectTab("community")}>
+            Community {snapCount > 0 && `(${snapCount})`}
+          </span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists
           </span>
-          <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Stats</span>
+          <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Analytics</span>
         </div>
 
         <div className="wrap-in">
@@ -542,6 +558,8 @@ function ProfilePage() {
           )
         ) : show === "audio" ? (
           <UserAudioList user={user} />
+        ) : show === "community" ? (
+          <CommunitySnaps user={user} canPost={!!user} />
         ) : show === "stats" ? (
           <CreatorStats user={user} />
         ) : show === "playlists" ? (

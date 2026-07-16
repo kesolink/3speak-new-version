@@ -2,7 +2,15 @@ const API_URL_FROM_WEST = import.meta.env.VITE_API_URL_FROM_WEST;
 const VIDEO_CDN_DOMAIN = import.meta.env.VITE_APP_VIDEO_CDN_DOMAIN;
 const UPLOAD_TOKEN = import.meta.env.VITE_UPLOAD_TOKEN;
 const UPLOAD_URL = import.meta.env.VITE_UPLOAD_URL;
-const PLAYER_URL = import.meta.env.VITE_PLAYER_URL;
+// Ordered player backends (primary first). VITE_PLAYER_URLS is a comma-separated list
+// used for automatic fallback (see utils/playerUrl.js); a single VITE_PLAYER_URL still
+// works. PLAYER_URL is the provisional primary — prefer getPlayerUrl() at use-time so
+// callers pick up the health-resolved backend.
+const PLAYER_URLS = (import.meta.env.VITE_PLAYER_URLS || import.meta.env.VITE_PLAYER_URL || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const PLAYER_URL = PLAYER_URLS[0] || '';
 
 const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://api.hive.blog';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
@@ -173,6 +181,7 @@ export {
   MY_VIDEOS_URL,
   CHECKER_URL,
   PLAYER_URL,
+  PLAYER_URLS,
   PLAYLISTS_API_URL,
   WATCH_HISTORY_THRESHOLD_DAYS,
   POST_RC_COST,

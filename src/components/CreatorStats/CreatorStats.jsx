@@ -13,7 +13,6 @@ const CONTENTS = [{ k: 'all', l: 'All' }, { k: 'videos', l: 'Videos' }, { k: 'sh
 const SORTS = [
   { key: 'watchSeconds', label: 'Watch time', fmt: fmtDuration },
   { key: 'sessions', label: 'Views', fmt: fmtCount },
-  { key: 'viewers', label: 'Viewers', fmt: fmtCount },
   { key: 'avgPct', label: 'Avg %', fmt: (v) => `${v}%` },
   { key: 'votes', label: 'Votes', fmt: fmtCount },
   { key: 'comments', label: 'Comments', fmt: fmtCount },
@@ -92,7 +91,7 @@ function MiniBars({ items, labelKey, renderLabel }) {
   );
 }
 
-// ── World bubble map (country centroids sized by viewers). ──
+// ── World bubble map (country centroids sized by watch sessions). ──
 const WorldMap = memo(function WorldMap({ byCountry }) {
   const pts = (byCountry || []).map((c) => ({ ...c, ll: countryLatLng(c.country) })).filter((c) => c.ll);
   if (!pts.length) return null;
@@ -110,7 +109,7 @@ const WorldMap = memo(function WorldMap({ byCountry }) {
           const r = 2 + Math.sqrt(c.viewers / max) * 10;
           return (
             <circle key={c.country} cx={cx} cy={cy} r={r} className="cs-map-bubble">
-              <title>{`${countryName(c.country)} — ${c.viewers} viewer${c.viewers === 1 ? '' : 's'}`}</title>
+              <title>{`${countryName(c.country)} — ${c.viewers} session${c.viewers === 1 ? '' : 's'}`}</title>
             </circle>
           );
         })}
@@ -152,6 +151,9 @@ const Demographics = memo(function Demographics({ demo }) {
   if (!demo || (!demo.byCountry?.length && !demo.byDevice?.length)) {
     return <div className="cs-chart-empty">No viewer data in this range yet.</div>;
   }
+  // New vs returning is null since we stopped tracking viewers across visits — it
+  // simply isn't derivable any more. nr === 0 hides the chart entirely, which is the
+  // point: better an absent metric than one that silently reports "100% new".
   const nr = (demo.newViewers || 0) + (demo.returningViewers || 0);
   return (
     <div className="cs-demo">
@@ -205,8 +207,14 @@ const Demographics = memo(function Demographics({ demo }) {
         </div>
       </div>
 
+      {/* "Sessions", not "viewers": we no longer identify people across visits, so a
+          reload is a fresh session. Saying "viewers" here would overstate what the
+          number means. Unlocated = private mode, an IP we couldn't place, or a
+          country too small to show without singling someone out. */}
       {demo.unknownViewers > 0 && (
-        <p className="cs-demo-note">{demo.locatedViewers} of {demo.totalViewers} viewers located.</p>
+        <p className="cs-demo-note">
+          {demo.locatedViewers} of {demo.totalSessions ?? demo.totalViewers} watch sessions located.
+        </p>
       )}
     </div>
   );
@@ -333,7 +341,9 @@ export default function CreatorStats({ user }) {
           <div className="cs-tiles">
             <div className="cs-tile"><span>{fmtDuration(t.watchSeconds)}</span><label>Watch time</label></div>
             <div className="cs-tile"><span>{fmtCount(t.sessions)}</span><label>Views</label></div>
-            <div className="cs-tile"><span>{fmtCount(t.viewers)}</span><label>Unique viewers</label></div>
+            {/* The "Unique viewers" tile is gone. We no longer identify a viewer across
+                visits, so it counted the same thing as Views — a duplicate number under a
+                label that promised distinct people. Dropped rather than left to mislead. */}
             <div className="cs-tile"><span>{fmtDuration(t.avgViewDuration)}</span><label>Avg view duration</label></div>
             <div className="cs-tile"><span>{t.avgPct}%</span><label>Avg watched</label></div>
             <div className="cs-tile"><span>{(Number(t.engagementRate || 0) / 100).toFixed(1)}</span><label>Reactions / view</label></div>
@@ -364,21 +374,39 @@ export default function CreatorStats({ user }) {
                   ))}
                 </div>
                 <div className="cs-list">
-                {list.map((v, i) => (
-                  <button
-                    key={v.permlink}
-                    className={`cs-item${selected?.permlink === v.permlink ? ' selected' : ''}`}
-                    onClick={() => setSelected(selected?.permlink === v.permlink ? null : v)}
-                  >
-                    <span className="cs-rank">{i + 1}</span>
-                    <img className="cs-item-thumb" src={v.thumbnail} alt="" loading="lazy" />
-                    <span className="cs-item-info">
-                      <span className="cs-item-title">{v.short ? '⏱ ' : ''}{v.title || v.permlink}</span>
-                      {v.created && <span className="cs-item-date">{timeAgo(v.created)}</span>}
-                    </span>
-                    <span className="cs-item-metric">{sortDef.fmt(v[sort])}</span>
-                  </button>
-                ))}
+                {list.map((v, i) => {
+                  const toggle = () => setSelected(selected?.permlink === v.permlink ? null : v);
+                  // Clicking the TITLE opens the video/short in a new tab; clicking the
+                  // rest of the row shows its analytics below.
+                  const watchUrl = `/${v.short ? 'shorts' : 'watch'}?v=${user}/${v.permlink}`;
+                  return (
+                    <div
+                      key={v.permlink}
+                      className={`cs-item${selected?.permlink === v.permlink ? ' selected' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={toggle}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
+                    >
+                      <span className="cs-rank">{i + 1}</span>
+                      <img className="cs-item-thumb" src={v.thumbnail} alt="" loading="lazy" />
+                      <span className="cs-item-info">
+                        <a
+                          className="cs-item-title"
+                          href={watchUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Open the video in a new tab"
+                        >
+                          {v.short ? '⏱ ' : ''}{v.title || v.permlink}
+                        </a>
+                        {v.created && <span className="cs-item-date">{timeAgo(v.created)}</span>}
+                      </span>
+                      <span className="cs-item-metric">{sortDef.fmt(v[sort])}</span>
+                    </div>
+                  );
+                })}
                 </div>
               </div>
 

@@ -95,7 +95,7 @@ function Feed() {
     const { getContentForVideo } = useContentBatch(videos);
 
     // Batch check watch history for all videos
-    const { isWatched } = useWatchHistory(videos);
+    const { isWatched, version: watchedVersion } = useWatchHistory(videos);
 
     // Batch fetch view counts
     const { getViewCount } = useViewCounts(videos);
@@ -115,7 +115,7 @@ function Feed() {
     <>
     <CommunitiesTags />
 
-    {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />}
+    {isLoading ? <CardSkeleton /> :  <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} hideWatched={hideWatched} watchedVersion={watchedVersion} getViewCount={getViewCount} />}
     {isError && <p>Error fetching videos</p>}
       {isFetchingNextPage && (
         <p style={{ textAlign: "center" }}>Loading more...</p>
