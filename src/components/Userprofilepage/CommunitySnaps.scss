@@ -17,14 +17,15 @@
     align-items: flex-start; // each snap keeps its own height; no stretch-to-tallest
     gap: 16px;
 
-    // Cap each snap at one video-column width and DON'T grow, so e.g. two snaps in
-    // a four-wide feed keep their natural width and center as a group instead of
-    // each stretching to half the row.
+    // Base width = one video column, but let a card GROW a bit (capped) so the
+    // header row (badge + follow + label + time + ⋮ menu) fits on ONE line instead
+    // of wrapping the menu underneath. Once cards hit the cap the group still
+    // centers, so a partial row doesn't stretch edge-to-edge.
     .snap-card {
       margin: 0;
       min-width: 0; // allow shrinking instead of overflowing
-      flex: 0 1 var(--card-min-w, 460px);
-      max-width: 100%;
+      flex: 1 1 var(--card-min-w, 460px);
+      max-width: min(560px, 100%);
     }
 
     @media screen and (max-width: 767px) {
@@ -66,6 +67,19 @@
         font-weight: 600;
         cursor: pointer;
         white-space: nowrap;
+      }
+
+      // Compact NSFW checkbox next to the tag input (used by the edit form).
+      .snap-toggle {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-secondary, #9aa0a6);
+        cursor: pointer;
+        white-space: nowrap;
+        input { width: 15px; height: 15px; accent-color: var(--accent-primary, #e53935); }
       }
     }
 
@@ -212,6 +226,7 @@
     .snap-composer-actions {
       display: flex;
       justify-content: flex-end;
+      gap: 10px;
       margin-top: 12px;
 
       .snap-post-btn {
@@ -226,7 +241,26 @@
         transition: opacity 0.15s ease;
         &:disabled { opacity: 0.5; cursor: not-allowed; }
       }
+
+      .snap-cancel-btn {
+        padding: 10px 18px;
+        border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-secondary, #9aa0a6);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        &:hover { color: var(--text-primary, #f1f1f1); background: var(--bg-primary, #0f0f0f); }
+        &:disabled { opacity: 0.5; cursor: not-allowed; }
+      }
     }
+  }
+
+  // The composer reused as the in-card edit form: the card supplies the frame, so
+  // drop the composer's outer margin.
+  .snap-edit-form {
+    margin: 4px 0 8px;
   }
 
   // ── List + cards ──────────────────────────────────────────────────────────
@@ -255,11 +289,23 @@
       gap: 10px;
       margin-bottom: 8px;
 
-      // Feed header carries the author badge (+ follow) + label + time + menu, which
-      // is a lot on a narrow card — let it wrap instead of overflowing.
+      // Feed header carries the author badge (+ follow) + label + time + menu.
+      // The middle pieces shrink/ellipsize first so the ⋮ menu stays on the same
+      // row; wrapping only remains as a last resort on very narrow screens.
       &--feed {
         flex-wrap: wrap;
         row-gap: 6px;
+
+        .author-badge { min-width: 0; } // its name already truncates with …
+        .snap-feed-title {
+          flex: 0 1 auto;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .snap-time { flex: none; }
+        .snap-menu-btn { flex: none; }
       }
 
       // Small muted "Community snap" caption next to the author badge in the feed.
@@ -533,4 +579,89 @@
     cursor: pointer;
     &:hover { background: var(--bg-primary, #0f0f0f); }
   }
+}
+
+// ── Feed comments popup (portaled to <body>) ─────────────────────────────────
+// Centered dialog on desktop, bottom sheet on mobile (app-wide popup convention).
+// The dialog carries .community-snaps/.snap-card only so the nested comment styles
+// apply — the overrides below strip those wrappers' page-layout chrome.
+.snap-comments-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  @media screen and (max-width: 767px) {
+    align-items: flex-end; // bottom sheet
+    padding: 0;
+  }
+}
+
+.snap-comments-modal {
+  // neutralise .community-snaps page-layout defaults
+  max-width: none;
+  margin: 0;
+  padding: 0;
+
+  width: min(560px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  overflow: hidden;
+
+  @media screen and (max-width: 767px) {
+    width: 100%;
+    max-height: 75vh;
+    border-radius: 14px 14px 0 0; // bottom sheet: rounded top only
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    animation: snap-sheet-up 0.25s ease;
+  }
+
+  .snap-comments-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary, #f1f1f1);
+    flex: none;
+
+    button {
+      background: none;
+      border: none;
+      color: var(--text-secondary, #9aa0a6);
+      cursor: pointer;
+      display: inline-flex;
+      padding: 4px;
+      border-radius: 6px;
+      svg { font-size: 20px; }
+      &:hover { color: var(--text-primary, #f1f1f1); background: var(--bg-primary, #0f0f0f); }
+    }
+  }
+
+  // the .snap-card wrapper only exists for the nested comment styles — the modal
+  // supplies its own frame
+  .snap-comments-modal-scroll {
+    overflow-y: auto;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
+@keyframes snap-sheet-up {
+  from { transform: translateY(40%); opacity: 0.6; }
+  to { transform: none; opacity: 1; }
 }
