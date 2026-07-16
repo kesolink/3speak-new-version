@@ -37,6 +37,7 @@ import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
 import UserAudioList from './UserAudioList';
 import CommunitySnaps from './CommunitySnaps';
+import { fetchSnaps } from '../../lib/snaps';
 import SocialLinks from './SocialLinks';
 import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
@@ -108,6 +109,15 @@ function UserProfilePage() {
     const isCreatorHidden = !!hiddenData?.creators?.some(
       (c) => String(c.creator).toLowerCase() === String(user).toLowerCase()
     );
+
+    // Community-post count for the tab header (like Playlists shows its count).
+    const { data: snapCountData } = useQuery({
+      queryKey: ['community-snaps-count', user],
+      queryFn: () => fetchSnaps(user, 1, 1),
+      enabled: !!user && user !== 'unknown',
+      staleTime: 60 * 1000,
+    });
+    const snapCount = snapCountData?.total || 0;
 
     const handleHideToggle = useCallback(async () => {
       if (!authenticatedUser || !user || isOwnProfile) return;
@@ -497,7 +507,9 @@ const {
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
-          <span className={show === "community" ? "active" : ""} onClick={() => selectTab("community")}>Community</span>
+          <span className={show === "community" ? "active" : ""} onClick={() => selectTab("community")}>
+            Community {snapCount > 0 && `(${snapCount})`}
+          </span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>

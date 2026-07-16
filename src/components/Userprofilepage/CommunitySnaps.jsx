@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -299,6 +299,7 @@ function SnapCard({ snap }) {
  */
 export default function CommunitySnaps({ user, canPost = false }) {
   const [optimistic, setOptimistic] = useState([]);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['community-snaps', user],
@@ -317,7 +318,11 @@ export default function CommunitySnaps({ user, canPost = false }) {
   const onPosted = (snap) => {
     setOptimistic((prev) => [snap, ...prev.filter((s) => s.permlink !== snap.permlink)]);
     setTimeout(() => refetch(), 4000);
-    setTimeout(() => refetch(), 12000);
+    setTimeout(() => {
+      refetch();
+      // Refresh the tab-header count once the checker has indexed it.
+      queryClient.invalidateQueries({ queryKey: ['community-snaps-count', user] });
+    }, 12000);
   };
 
   return (
