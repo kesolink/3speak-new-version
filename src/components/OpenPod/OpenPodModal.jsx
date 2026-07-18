@@ -6,7 +6,7 @@ import { useAppStore } from '../../lib/store';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { getCreatorSettings, isUploadBlocked } from '../../utils/creatorSettings';
 import { useSupportBlock } from '../../lib/supportBlockStore';
-import { firePendingAnnouncement } from '../../utils/openpodAnnounce';
+import { firePendingAnnouncement, getAnnounceConfig } from '../../utils/openpodAnnounce';
 import { publishStreamVod } from '../../utils/streamVod';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
 import AnnounceOptions from '../openpods/AnnounceOptions';
@@ -49,6 +49,9 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
   const hhTheme = useAppStore((s) => s.getEffectiveTheme());
   const premiumStatus = usePremiumStatus(username);
   const isPremium = !!premiumStatus?.premium;
+  // Owned here so the studio can react: with no announcement there's no post
+  // for a VOD to replace, so that option is hidden and inert.
+  const [announceEnabled, setAnnounceEnabled] = useState(() => getAnnounceConfig().announceEnabled !== false);
 
   // React fires child effects before parent effects. Without this flag,
   // HangoutsRoom.useEffect (join) fires before HangoutsProvider.useEffect
@@ -160,7 +163,16 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
                   thumbnailUrl: draft.thumbnail,
                 });
               }}
-              renderPostExtras={<AnnounceOptions announceType="post" isPremium={isPremium} showAnnounceToggle />}
+              canPublishVod={announceEnabled}
+              renderPostExtras={(
+                <AnnounceOptions
+                  announceType="post"
+                  isPremium={isPremium}
+                  showAnnounceToggle
+                  announceEnabled={announceEnabled}
+                  onAnnounceEnabledChange={setAnnounceEnabled}
+                />
+              )}
               video
               embedded
               guestFallback
