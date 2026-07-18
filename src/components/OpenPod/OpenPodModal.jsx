@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
 import { HangoutsProvider, HangoutsRoom } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
+import logoDark from '../../assets/image/3S_logodark.png';
+import { useAppStore } from '../../lib/store';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { getCreatorSettings, isUploadBlocked } from '../../utils/creatorSettings';
 import { useSupportBlock } from '../../lib/supportBlockStore';
+import { firePendingAnnouncement } from '../../utils/openpodAnnounce';
+import { publishStreamVod } from '../../utils/streamVod';
+import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import AnnounceOptions from '../openpods/AnnounceOptions';
 import './OpenPodModal.scss';
 
 // Strip any trailing slash — useHangoutsRoom builds `${apiBaseUrl}/rooms` with a
@@ -17,6 +23,18 @@ const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
 // else falls back to the standalone hangout site.
 const THREE_SPEAK_HOSTS = new Set(['3speak.tv', 'preview.3speak.tv', '3speak.okinoko.io']);
 
+// The studio persists its post composer to localStorage under this key; we
+// reuse it to title/describe/thumbnail the published VOD.
+const POST_DRAFT_KEY = 'hh-studio-post-draft';
+function readPostDraft() {
+  try {
+    const raw = window.localStorage.getItem(POST_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 function buildOpenPodShareUrl(roomName, origin) {
   if (origin && THREE_SPEAK_HOSTS.has(origin)) {
     return `https://3speak.tv/openpods/${roomName}`;
@@ -26,6 +44,11 @@ function buildOpenPodShareUrl(roomName, origin) {
 
 export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, username, isAuthenticated }) {
   useWakeLock(isOpen);
+  // Follow the 3speak-selected theme (light/dark/system) instead of
+  // forcing the SDK widgets dark.
+  const hhTheme = useAppStore((s) => s.getEffectiveTheme());
+  const premiumStatus = usePremiumStatus(username);
+  const isPremium = !!premiumStatus?.premium;
 
   // React fires child effects before parent effects. Without this flag,
   // HangoutsRoom.useEffect (join) fires before HangoutsProvider.useEffect
@@ -105,7 +128,7 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
         }
       }}
     >
-      <div className="openpod-modal" data-hh-theme="dark">
+      <div className="openpod-modal" data-hh-theme={hhTheme}>
         <HangoutsProvider
           apiBaseUrl={API_URL}
           livekitServerUrl={LK_URL}
@@ -119,10 +142,30 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
               onLeave={onClose}
               onVideoHandoff={handleVideoHandoff}
               onAudioHandoff={handleAudioHandoff}
+              onStreamStart={(post) => firePendingAnnouncement(roomName, post)}
+              // Pro auto-VOD: publish the finished recording as this session's
+              // video. Fire-and-forget into a module-level publisher so the
+              // upload survives this modal unmounting when the room ends.
+              onStreamVod={(file) => {
+                const draft = readPostDraft();
+                void publishStreamVod({
+                  blob: file.blob,
+                  filename: file.filename,
+                  duration: file.duration,
+                  roomName: file.roomName || roomName,
+                  owner: username,
+                  title: draft.title,
+                  description: draft.description,
+                  tags: draft.tags,
+                  thumbnailUrl: draft.thumbnail,
+                });
+              }}
+              renderPostExtras={<AnnounceOptions announceType="post" isPremium={isPremium} showAnnounceToggle />}
               video
               embedded
               guestFallback
               getShareUrl={buildOpenPodShareUrl}
+              watermarkLogoUrl={new URL(logoDark, window.location.origin).href}
             />
           ) : (
             <div className="openpod-connecting">

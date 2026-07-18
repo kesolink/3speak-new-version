@@ -264,7 +264,7 @@ function CommunitieModal({ isOpen, data, close, setCommunity, selected }) {
       <div className={`modal-content community-modal ${isOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Select a Community</h2>
-          <button className="close-btn" onClick={close}>×</button>
+          <button type="button" className="close-btn" onClick={close}>×</button>
         </div>
 
         <div className="modal-body">

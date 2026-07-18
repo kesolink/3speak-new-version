@@ -43,6 +43,18 @@
     flex-direction: column;
   }
 
+  // The one-man stream studio needs room: let it fill the viewport (minus the
+  // overlay's 1rem padding, which is the margin) instead of the compact
+  // 16:9 / 1280px conference box. Scoped with :has() so conference rooms keep
+  // their original sizing.
+  &:has(.hh-studio) {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    aspect-ratio: auto;
+  }
+
   @media (max-width: 768px) {
     width: 100%;
     height: 100%;

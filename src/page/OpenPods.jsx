@@ -6,15 +6,11 @@ import { useAioha } from '@aioha/react-ui';
 import { Providers } from '@aioha/aioha';
 import { useHangout } from '../context/HangoutContext';
 import { useAppStore } from '../lib/store';
-import { commentWithAioha } from '../hive-api/aioha';
-import { toast } from 'sonner';
-import {
-  fetchLatestSnapsPost,
-  buildOpenPodSnapBody,
-  buildOpenPodPermlink,
-  buildOpenPodSnapMetadata,
-} from '../utils/openpodUtils';
+import { usePremiumStatus } from '../hooks/usePremiumStatus';
 import { providerSignPrompt } from '../utils/aiohaProviderUi';
+import { postOpenPodAnnouncement, setPendingAnnouncement, setAnnounceConfig } from '../utils/openpodAnnounce';
+import AnnounceOptions from '../components/openpods/AnnounceOptions';
+import MarkdownComposer from '../components/studio/MarkdownComposer';
 import './OpenPods.scss';
 
 // Strip any trailing slash — useHangoutsRoom builds `${apiBaseUrl}/rooms` with a
@@ -22,14 +18,17 @@ import './OpenPods.scss';
 const API_URL = (import.meta.env.VITE_HANGOUTS_API_URL || '').replace(/\/$/, '');
 const LK_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://livekit.3speak.tv';
 const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
-const HANGOUT_BASE_URL = 'https://3speak.tv/openpods';
 
 export default function OpenPods() {
   const { openRoom, sessionToken, sessionLoading, hangoutsUser, retryLogin } = useHangout();
   const { authenticated, user } = useAppStore();
+  // Follow the 3speak-selected theme (light/dark/system) for the SDK lobby.
+  const hhTheme = useAppStore((s) => s.getEffectiveTheme());
   const { aioha, provider, user: aiohaUser } = useAioha();
   const navigate = useNavigate();
   const { roomName: roomNameFromUrl } = useParams();
+  const premiumStatus = usePremiumStatus(user);
+  const isPremium = !!premiumStatus?.premium;
 
   // A session we can actually hand over to OpenPods: the user is signed in on
   // 3Speak with a wallet that can sign a challenge. HiveSigner can't sign
@@ -60,37 +59,34 @@ export default function OpenPods() {
   }, [roomNameFromUrl, openRoom]);
 
   const handleRoomCreated = async (room, options) => {
-    // Open the modal immediately — don't wait for the snap post
+    // Open the modal immediately — don't wait for the Hive post
     openRoom(room.name);
 
-    // Honor the host's "Announce on Hive" checkbox from the create
-    // dialog — when unchecked, skip the snap so private/test rooms
-    // don't litter the user's blog.
-    if (options && options.notifyOnHive === false) return;
+    // Carry the create dialog's "Announce on Hive" choice into the shared
+    // config, so the studio's own toggle opens matching it. Without this the
+    // studio showed announcing as ON (its persisted default) for a room that
+    // was deliberately created with announcements off.
+    setAnnounceConfig({ announceEnabled: options?.notifyOnHive !== false });
 
-    // Post a snap announcement to Hive in the background
+    // Honor that choice — when unchecked, skip the announcement so
+    // private/test rooms don't litter the user's blog.
+    if (options && options.notifyOnHive === false) return;
     if (!authenticated || !user) return;
 
-    try {
-      const snapPost = await fetchLatestSnapsPost();
-      const roomUrl = `${HANGOUT_BASE_URL}/${room.name}`;
-      const body = buildOpenPodSnapBody(room.title, roomUrl, room.backgroundImage);
-      const permlink = buildOpenPodPermlink();
-      const metadata = buildOpenPodSnapMetadata(room.name);
+    // community/payout/beneficiaries come from the shared announce config
+    // (edited in the dialog AND the studio post tab), read at post time.
+    const payload = { room, options, user, isPremium };
 
-      await commentWithAioha(
-        snapPost.author,
-        snapPost.permlink,
-        permlink,
-        '',
-        body,
-        metadata,
-      );
-    } catch (err) {
-      // Non-blocking — the pod is live regardless of whether the snap posted
-      console.error('OpenPod snap announcement failed:', err);
-      toast.error('OpenPod started, but the Hive announcement could not be posted.');
+    // A standalone stream must ONLY announce once the host actually hits
+    // "Start Stream" in the studio — not when the room is created. Stash the
+    // intent; OpenPodModal fires it (room-scoped) on the start signal.
+    if (room.mode === 'standalone') {
+      setPendingAnnouncement(payload);
+      return;
     }
+
+    // Conference rooms have no separate "start" step — announce right away.
+    await postOpenPodAnnouncement(payload);
   };
 
   const handleJoinRoom = (roomName) => {
@@ -103,7 +99,7 @@ export default function OpenPods() {
   // `sessionToken` — handed over from the user's 3Speak wallet session — simply
   // unlocks hosting and speaking on top of that. We never block on it.
   return (
-    <div className="openpods-page" data-hh-theme="dark">
+    <div className="openpods-page" data-hh-theme={hhTheme}>
       <HangoutsProvider
         apiBaseUrl={API_URL}
         livekitServerUrl={LK_URL}
@@ -116,6 +112,17 @@ export default function OpenPods() {
           onJoinRoom={handleJoinRoom}
           onRoomCreated={handleRoomCreated}
           allowGuestBrowse
+          allowStandalone
+          renderAnnounceOptions={(announceType) => (
+            <AnnounceOptions announceType={announceType} isPremium={isPremium} />
+          )}
+          renderDescriptionEditor={(value, onChange) => (
+            <MarkdownComposer
+              value={value}
+              onChange={onChange}
+              placeholder="What's this session about? Add show notes, links, or a summary…"
+            />
+          )}
         />
       </HangoutsProvider>
 

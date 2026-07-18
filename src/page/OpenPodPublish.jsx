@@ -114,9 +114,14 @@ export default function OpenPodPublish() {
 
     // Build beneficiaries — threespeakfund 10% is locked for non-Pro
     // hosts; Pro hosts skip the platform split entirely.
+    // Beneficiary_modal hands back {account, percent}; Hive wants WEIGHT
+    // (1/100th of a percent). Reading b.weight straight off the list silently
+    // produced undefined weights, so added beneficiaries never applied.
     const beneMap = new Map();
     for (const b of beneList) {
-      beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, b.weight));
+      const weight = Number.isFinite(b.weight) ? b.weight : Math.round((Number(b.percent) || 0) * 100);
+      if (!b.account || weight <= 0) continue;
+      beneMap.set(b.account, Math.max(beneMap.get(b.account) || 0, weight));
     }
     enforceLockedBeneficiaries(beneMap, { isPremium, originalAuthor: null });
     const allBeneficiaries = [...beneMap.entries()]
