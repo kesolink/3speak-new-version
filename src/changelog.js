@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.61.0',
+    date: '2026-07-18',
+    summary:
+      'Signed in with Butter Auth? Change account in the profile menu now works for you too, so you can switch to a Hive wallet account without logging out first.',
+  },
+  {
     version: '1.60.0',
     date: '2026-07-18',
     summary:

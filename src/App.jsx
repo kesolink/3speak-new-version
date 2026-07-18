@@ -6,6 +6,7 @@ import "./App.css";
 import Nav from "./components/nav/Nav";
 import { useState } from "react";
 import Watch from "./page/Watch";
+import WatchStream from "./page/WatchStream";
 import Sidebar from "./components/Sidebar/Sidebar";
 import Feed from "./components/Feed/Feed";
 import FirstUploads from "./page/FirstUploads";
@@ -315,12 +316,34 @@ function App() {
       // Only sync aiohaUser when modal is open — when closed, handleAiohaLogin
       // is the sole authority, preventing aioha's stale user reports from overriding
       console.log("Aioha account switched:", aiohaUser);
+      localStorage.removeItem('manteauth_login'); // switching to a wallet account clears any prior Butter Auth flag
       localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, aiohaUser);
       setUser(aiohaUser);
       setLoginModalOpen(false);
       toast.success("Login successful!");
     }
   }, [aiohaUser]);
+
+  // Reconcile a Butter Auth (ManteAuth) session that's sitting on top of a still-
+  // active aioha WALLET session for a different account. Butter Auth login does
+  // not log aioha out, so `appUser` can be the Butter Auth name while aioha's
+  // current user is still e.g. a Keychain account. In that state "Change account"
+  // opens straight into aioha's modal with the wallet account already selected —
+  // clicking it is a no-op (aiohaUser never changes) and nothing switches. When
+  // the modal is opened in this mismatch, adopt the wallet session so the switch
+  // actually lands (and tear down the now-unused Butter Auth backend session).
+  useEffect(() => {
+    if (!loginModalOpen) return;
+    if (localStorage.getItem('manteauth_login') !== 'true') return;
+    if (aiohaUser && aiohaUser !== appUser) {
+      localStorage.removeItem('manteauth_login');
+      localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, aiohaUser);
+      setUser(aiohaUser);
+      setLoginModalOpen(false);
+      fetch('/api/manteauth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+      toast.success(`Switched to @${aiohaUser}`);
+    }
+  }, [loginModalOpen, aiohaUser]);
 
   // Finalize a Butter Auth popup login. The popup (ManteAuthCallback) does the
   // token exchange, then writes `butrauth_login_result` to localStorage and
@@ -430,6 +453,12 @@ function App() {
       return;
     }
 
+    // Switching in from a Butter Auth session → tear it down so the new wallet
+    // account isn't still treated as a Butter Auth login (stale manteauth flag).
+    if (localStorage.getItem('manteauth_login') === 'true') {
+      localStorage.removeItem('manteauth_login');
+      fetch('/api/manteauth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+    }
     localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, loginResult.username);
     setUser(loginResult.username);
     setLoginModalOpen(false);
@@ -487,6 +516,9 @@ function App() {
             <Route path="/home-feed" element={<Feed />} />
             <Route path="/follow-feed" element={<FollowFeed />} />
             <Route path="/watch" element={<Watch v2 />} />
+            {/* Live OpenPods stream at /watch/<roomName> (path param, distinct
+                from the ?v= VOD route above). */}
+            <Route path="/watch/:streamId" element={<WatchStream />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/post/:author/:permlink" element={<PostView />} />
             <Route path="/upload" element={<UploadVideo />} />

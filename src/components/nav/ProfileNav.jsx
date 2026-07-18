@@ -109,7 +109,7 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           </Link> */}
           <div className="upload-dropdown">
             <div className="wrap" onClick={() => setUploadOpen(!uploadOpen)}>
-              <MdCloudUpload className="icon" /> <span>Upload</span>
+              <MdCloudUpload className="icon" /> <span>Share</span>
               {uploadOpen ? <BiChevronUp className="upload-chevron" /> : <BiChevronDown className="upload-chevron" />}
             </div>
             {uploadOpen && (
@@ -131,13 +131,12 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           <Link to="/about" className="wrap" onClick={onclose}>
             <HiInformationCircle className="icon" /> <span>About 3Speak</span>
           </Link>
-          {isManteAuth ? (
+          <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
+            <IoPower className="icon" /> <span>Change account</span>
+          </a>
+          {isManteAuth && (
             <a className="wrap" onClick={() => { LogOut(user); onclose(); navigate('/'); }}>
               <IoPower className="icon" /> <span>Logout</span>
-            </a>
-          ) : (
-            <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
-              <IoPower className="icon" /> <span>Change account</span>
             </a>
           )}
 
