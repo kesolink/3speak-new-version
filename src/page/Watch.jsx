@@ -7,7 +7,7 @@ import SEOHead from '../components/SEOHead';
 import Card3 from '../components/Cards/Card3';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchVideoDetails, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
+import { fetchVideoDetails, fetchPlaySource, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
 import { hasConsent } from '../lib/consent';
@@ -268,6 +268,12 @@ function Watch({ v2 = false }) {
     updateStyle: updateSubtitleStyle,
   } = useSubtitles(author, permlink);
 
+  // True once the loaded post is a live OpenPods stream (video.live). A ref so
+  // the player's onError / load-failure callbacks read the latest value — a
+  // live post has NO VOD source, so we must NOT report it "unavailable" (that
+  // would flag the stream post as a dead video).
+  const isLiveRef = useRef(false);
+
   // Persist mute/volume preference across video navigations
   const MUTE_STORAGE_KEY = '3speak-muted';
   const VOLUME_STORAGE_KEY = '3speak-volume';
@@ -307,7 +313,9 @@ function Watch({ v2 = false }) {
     // The checker re-verifies across every gateway before banning anything, so being
     // wrong here is free.
     onError: (err) => {
-      if (err?.fatal) {
+      // A live post has no VOD source — an error here is expected, not a dead
+      // video. Never report it unavailable or show the "not available" hint.
+      if (err?.fatal && !isLiveRef.current) {
         reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
         setPlaybackFailed(true); // swap the player for a "not available" hint
       }
@@ -506,6 +514,10 @@ function Watch({ v2 = false }) {
     // Reset playhead to 0 immediately so the UI doesn't show the old video's position
     seek(0);
     loadVideo(playerLoadId).catch(err => {
+      // A live OpenPods post has no VOD source to resolve — the live player
+      // handles playback separately, so a load failure here is expected. Don't
+      // show "unavailable" or report the stream post as a dead video.
+      if (isLiveRef.current) return;
       console.error('[Watch] Failed to load video:', err);
       // The player backend couldn't resolve ANY playable stream — e.g. /api/embed
       // and /api/watch both 404 for a very old post whose media isn't indexed. No
@@ -987,6 +999,26 @@ function Watch({ v2 = false }) {
     return merged;
   }, [baseVideoDetails, editOverride]);
 
+  // A finished OpenPods stream publishes its recording as a VOD under the SAME
+  // owner/permlink, but the Hive post keeps `video.live: true` forever (we
+  // never rewrite the post). So "is this still live?" = the post says live AND
+  // no published video exists yet — otherwise we'd show "Connecting to the
+  // stream…" over a room that ended hours ago.
+  const [liveVodReady, setLiveVodReady] = useState(false);
+  useEffect(() => {
+    setLiveVodReady(false);
+    if (!videoDetails?.live || !author || !permlink) return undefined;
+    let alive = true;
+    fetchPlaySource(author, permlink)
+      .then((src) => { if (alive && src?.published) setLiveVodReady(true); })
+      .catch(() => { /* stay live */ });
+    return () => { alive = false; };
+  }, [videoDetails?.live, author, permlink]);
+
+  // Mirror the live flag into the ref the player callbacks read.
+  const isLive = !!videoDetails?.live && !liveVodReady;
+  useEffect(() => { isLiveRef.current = isLive; }, [isLive]);
+
   // Poster: the SDK's `poster: true` would set <video poster> straight from the
   // RAW metadata thumbnail — for legacy uploads that's the full-resolution
   // original (one is a 12MB JPEG), downloaded just to show a still frame. We turn
@@ -1353,8 +1385,10 @@ function Watch({ v2 = false }) {
         videoDetails={videoDetails}
         author={author}
         permlink={permlink}
-        mediaUnavailable={mediaUnavailable}
-        mediaLoading={mediaLoading}
+        isLive={isLive}
+        streamRoom={videoDetails?.roomName}
+        mediaUnavailable={!isLive && mediaUnavailable}
+        mediaLoading={!isLive && mediaLoading}
         videoRef={videoRef}
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
