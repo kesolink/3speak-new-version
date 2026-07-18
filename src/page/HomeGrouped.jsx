@@ -13,11 +13,14 @@ import { useAppStore } from "../lib/store";
 import { getFeedSeed, regenerateFeedSeed } from "../utils/feedSeed";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
 import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
+import { useLiveStreams } from "../hooks/useLiveStreams";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import ShortsRow from "../components/ShortsRow/ShortsRow";
 import { useGridColumns, useShortsPerRow } from "../hooks/useGridMetrics";
 import { fetchCommunityFeed } from "../lib/snaps";
 import { SnapCard } from "../components/Userprofilepage/CommunitySnaps";
+import { fetchPlaylistsFeed } from "../lib/playlistsFeed";
+import PlaylistFeedCard from "../components/Cards/PlaylistFeedCard";
 import { SHORTS_API_URL } from "../utils/config";
 import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
 import { Rocket, Compass, Sparkles, GripVertical } from "lucide-react";
@@ -331,15 +334,21 @@ const HomeGrouped = () => {
     [promotedData],
   );
 
+  // Live OpenPods streams, prepended into the grids as regular cards. "all"
+  // for public feeds; "following" for the follow feed / personalised tabs.
+  const liveAll = useLiveStreams();
+  const liveFollowing = useLiveStreams({ following: true });
+  const withLive = (live, vids) => (live.length ? [...live, ...vids] : vids);
+
   // ── Build the section list (natural order), then apply the user's saved order ──
   const baseSections = [
-    { key: 'discover', title: 'Discover', videos: leadWithPromoted(discoverData), isLoading: discoverLoading, priority: true },
-    { key: 'home', title: authenticated ? 'Follow Feed' : 'Home Feed', videos: leadWithPromoted(homeData), linkTo: authenticated ? '/follow-feed' : '/home-feed', isLoading: homeLoading, priority: true },
-    { key: 'new', title: 'New Content', videos: leadWithPromoted(deduplicateVideos(newContentData || [])), linkTo: '/new', isLoading: newContentLoading },
+    { key: 'discover', title: 'Discover', videos: withLive(liveAll, leadWithPromoted(discoverData)), isLoading: discoverLoading, priority: true },
+    { key: 'home', title: authenticated ? 'Follow Feed' : 'Home Feed', videos: withLive(authenticated ? liveFollowing : liveAll, leadWithPromoted(homeData)), linkTo: authenticated ? '/follow-feed' : '/home-feed', isLoading: homeLoading, priority: true },
+    { key: 'new', title: 'New Content', videos: withLive(liveAll, leadWithPromoted(deduplicateVideos(newContentData || []))), linkTo: '/new', isLoading: newContentLoading },
   ];
   // Interests row (logged-in + has interests): between the follow feed and New.
   if (authenticated && hasInterests) {
-    baseSections.splice(2, 0, { key: 'interests', title: 'Interests', videos: leadWithPromoted(interestsData), isLoading: interestsLoading, priority: true });
+    baseSections.splice(2, 0, { key: 'interests', title: 'Interests', videos: withLive(liveFollowing, leadWithPromoted(interestsData)), isLoading: interestsLoading, priority: true });
   }
   if (authenticated) {
   }
@@ -461,33 +470,86 @@ const HomeGrouped = () => {
     [communityQ.data, removedSnaps, user],
   );
 
-  // A community post roughly every 3 rows (offset from the shorts' every-2-rows).
-  // Each interleave slot packs up to a full grid-row of snaps (one per column) so
-  // several creators' posts share one line when there's room.
+  // ── Recently-changed public playlists, MIXED INTO the community-snaps stream ──
+  // Same scope model as the snaps feed (communityMode): Discover + New → any
+  // public playlist changed in the last 7d; Interests + Follow → only from people
+  // you follow. They ride the community interleave, so a row can show a couple of
+  // snaps and a fresh playlist together instead of playlists getting their own row.
+  const playlistsQ = useInfiniteQuery({
+    queryKey: ['feed-playlists', activeSection?.key, communityMode, user || null],
+    queryFn: async ({ pageParam = 1 }) => {
+      const data = await fetchPlaylistsFeed({ scope: communityMode, currentuser: user, page: pageParam });
+      return data?.playlists || [];
+    },
+    initialPageParam: 1,
+    getNextPageParam: nextPage(),
+    enabled: !!communityMode,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const feedPlaylists = useMemo(
+    // Your own playlists never show in your own feed (the checker also filters
+    // them server-side — this covers pages cached before login/logout).
+    () => (playlistsQ.data?.pages || []).flat().filter((p) => p.owner !== user),
+    [playlistsQ.data, user],
+  );
+
+  // Blend the two streams into ONE list so playlists and snaps genuinely
+  // ALTERNATE rather than playlists tacking on at the end. At each step we emit
+  // from whichever stream is furthest "behind" its share, which spreads them
+  // proportionally at ANY ratio: 3 snaps + 4 playlists → p,s,p,s,p,s,p;
+  // 20 snaps + 4 → a playlist roughly every 5th card. One-sided lists pass through.
+  const feedCommunityMixed = useMemo(() => {
+    const snaps = feedCommunity.map((s) => ({ kind: 'snap', data: s }));
+    const pls = feedPlaylists.map((p) => ({ kind: 'playlist', data: p }));
+    if (!snaps.length) return pls;
+    if (!pls.length) return snaps;
+    const out = [];
+    let si = 0;
+    let pi = 0;
+    const S = snaps.length;
+    const P = pls.length;
+    while (si < S || pi < P) {
+      // Fractional progress each list would reach by advancing (+1 avoids /0).
+      const snapAhead = (si + 1) / (S + 1);
+      const plAhead = (pi + 1) / (P + 1);
+      if (pi >= P || (si < S && snapAhead <= plAhead)) out.push(snaps[si++]);
+      else out.push(pls[pi++]);
+    }
+    return out;
+  }, [feedCommunity, feedPlaylists]);
+
+  // A mixed community row roughly every 3 rows (offset from the shorts' every-2).
+  // Each slot packs up to a full grid-row of cards (snaps + playlists) that mirror
+  // the video columns.
   const communityEvery = gridCols > 0 ? gridCols * 3 : 0;
   const communityPerRow = gridCols > 0 ? gridCols : 1;
   const communityNeeded = communityEvery ? Math.floor(activeVideos.length / communityEvery) : 0;
+  // Keep BOTH source streams supplied so the mixed list can fill the needed rows.
   useEffect(() => {
     if (!communityMode) return;
-    if (feedCommunity.length >= communityNeeded * communityPerRow) return;
-    if (!communityQ.hasNextPage || communityQ.isFetchingNextPage) return;
-    communityQ.fetchNextPage();
-  }, [communityMode, communityNeeded, communityPerRow, feedCommunity.length, communityQ.hasNextPage, communityQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (feedCommunityMixed.length >= communityNeeded * communityPerRow) return;
+    if (communityQ.hasNextPage && !communityQ.isFetchingNextPage) communityQ.fetchNextPage();
+    if (playlistsQ.hasNextPage && !playlistsQ.isFetchingNextPage) playlistsQ.fetchNextPage();
+  }, [communityMode, communityNeeded, communityPerRow, feedCommunityMixed.length, communityQ.hasNextPage, communityQ.isFetchingNextPage, playlistsQ.hasNextPage, playlistsQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderCommunityRow = useCallback((slot) => {
     const start = slot * communityPerRow;
-    const group = feedCommunity.slice(start, start + communityPerRow);
+    const group = feedCommunityMixed.slice(start, start + communityPerRow);
     if (!group.length) return null;
     // Wrap in .community-snaps so the SnapCards' (nested) styles apply; --row makes
-    // it a full-width grid that mirrors the video columns.
+    // it a full-width grid that mirrors the video columns. Playlist cards ride the
+    // same row (sized to match via .community-snaps--row .playlist-feed-card).
     return (
       <div className="community-snaps community-snaps--feed community-snaps--row">
-        {group.map((snap) => (
-          <SnapCard key={`${snap.owner}/${snap.permlink}`} snap={snap} feedMode onRemove={removeSnap} />
+        {group.map((el) => (el.kind === 'playlist'
+          ? <PlaylistFeedCard key={`pl-${el.data.id}`} playlist={el.data} />
+          : <SnapCard key={`${el.data.owner}/${el.data.permlink}`} snap={el.data} feedMode onRemove={removeSnap} />
         ))}
       </div>
     );
-  }, [feedCommunity, removeSnap, communityPerRow]);
+  }, [feedCommunityMixed, removeSnap, communityPerRow]);
 
   const { getContentForVideo } = useContentBatch(visibleVideos);
   const { isWatched, version: watchedVersion } = useWatchHistory(visibleVideos);
@@ -649,7 +711,8 @@ const HomeGrouped = () => {
              mobile, 4-5 on desktop). 0 until measured → no interleave, no jump. */
           interleaveEvery={shortsMode && s.key === activeSection?.key && gridCols > 0 ? gridCols * 2 : 0}
           renderInterleave={shortsMode && s.key === activeSection?.key ? renderShortsRail : null}
-          /* Community posts on the same feeds, ~every 3 rows (see communityMode). */
+          /* Community posts + fresh playlists share this stream, ~every 3 rows
+             (see communityMode / feedCommunityMixed). */
           communityEvery={communityMode && s.key === activeSection?.key && gridCols > 0 ? communityEvery : 0}
           renderCommunity={communityMode && s.key === activeSection?.key ? renderCommunityRow : null}
         />

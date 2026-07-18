@@ -4,6 +4,7 @@ import { useEffect, useCallback } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
+import { useLiveStreams } from "../hooks/useLiveStreams";
 import { NEW_CONTENT_URL, appendNsfw } from "../utils/config";
 import { useAppStore } from "../lib/store";
 import { useContentBatch } from "../hooks/useContentBatch";
@@ -59,6 +60,7 @@ const NewVideos = () => {
 
   // Flatten all pages into one list
   const videos = data?.pages.flatMap(page => page.videos || []) || [];
+  const liveStreams = useLiveStreams(); // live OpenPods streams as regular tiles
 
   // Batch fetch content data
   const { getContentForVideo } = useContentBatch(videos);
@@ -84,7 +86,7 @@ const NewVideos = () => {
       {isLoading ? (
         <CardSkeleton />
       ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+        <Card3 videos={[...liveStreams, ...videos]} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
       )}
 
       {isError && <p>Error fetching videos</p>}

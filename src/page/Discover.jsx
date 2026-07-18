@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
+import { useLiveStreams } from "../hooks/useLiveStreams";
 import { TRENDING_SORTED_URL, CHECKER_URL, appendNsfw } from '../utils/config';
 import { feedParams } from '../utils/feedParams';
 import { useAppStore } from "../lib/store";
@@ -250,6 +251,7 @@ const Discover = () => {
   }, [isFetchingNextPage, hasNextPage, fetchNextPage, debouncedTerm]);
 
   const videos = data?.pages.flatMap(page => page.videos || []) || [];
+  const liveStreams = useLiveStreams(); // live OpenPods streams as regular tiles
   const { getContentForVideo } = useContentBatch(videos);
   const { isWatched } = useWatchHistory(videos);
   const { getViewCount } = useViewCounts(videos);
@@ -737,7 +739,7 @@ const Discover = () => {
           {isLoading ? (
             <CardSkeleton />
           ) : (
-            <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+            <Card3 videos={[...liveStreams, ...videos]} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
           )}
           {isError && <p>Error fetching videos</p>}
           {isFetchingNextPage && (

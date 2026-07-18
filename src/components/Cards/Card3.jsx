@@ -126,7 +126,7 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
         && isWatched(v.author?.username || v.author || v.owner, v.permlink) === true))
       .map(video => ({
         ...video,
-        _processedThumbnail: fixVideoThumbnail(video, shortsGrid)
+        _processedThumbnail: video._liveStream ? video.thumbnail : fixVideoThumbnail(video, shortsGrid)
       }));
   }, [videos, shortsGrid, dismissed, deadVideos, hideWatched, isWatched, watchedVersion]);
 
@@ -147,13 +147,17 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
 
         return (
           <Link
-            to={`${linkPrefix}?v=${cardAuthor}/${
-              video.permlink
-            }${linkQuery}${video._scheduled ? '&scheduled=1' : ''}`}
+            to={video._liveStream
+              ? `/watch/${video.roomName}`
+              : `${linkPrefix}?v=${cardAuthor}/${
+                video.permlink
+              }${linkQuery}${video._scheduled ? '&scheduled=1' : ''}`}
             className="card"
             key={postKey}
             data-vidkey={postKey}
-            {...getCardProps(postKey, cardAuthor, video.permlink, video._processedThumbnail, video.status, video.title)}
+            {...(video._liveStream
+              ? {}
+              : getCardProps(postKey, cardAuthor, video.permlink, video._processedThumbnail, video.status, video.title))}
           >
             {/* Thumbnail — fast fallback so a dead image host can't leave the
                 card blank for ~a minute (see CardThumbnail). */}
@@ -163,7 +167,7 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 fallback={img}
                 eager={priority && index < 6}
               />
-              {!shortsGrid && (
+              {!shortsGrid && !video._liveStream && (
                 <div className="wrap">
                   <span className="play">
                     {Math.floor((video.spkvideo?.duration || video.duration) / 60)}:
@@ -172,6 +176,11 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                       .padStart(2, "0")}
                   </span>
                 </div>
+              )}
+
+              {/* Live stream tile → LIVE badge (top-right); links to /watch/<room>. */}
+              {video._liveStream && (
+                <div className="card-live-badge">● LIVE</div>
               )}
 
               {/* Options menu (playlist / not interested / hide creator).

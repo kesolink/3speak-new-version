@@ -605,3 +605,20 @@ html[data-card-size="large"] { --card-min-w: 420px; }
   pointer-events: none;
   z-index: 1;
 }
+
+/* Live-stream tile badge (top-right) — streams rendered as regular cards */
+.card .img-wrap .card-live-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  background: linear-gradient(135deg, #ff2a4a, #c00e2c);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(227, 19, 55, 0.5);
+  pointer-events: none;
+}
