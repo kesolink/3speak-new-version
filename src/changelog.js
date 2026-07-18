@@ -10,25 +10,19 @@ export const CHANGELOG = [
     version: '1.64.0',
     date: '2026-07-18',
     summary:
-      'Recently updated public playlists now show up as their own card in the home feeds, and the feeds respect a creator\\u2019s choice to keep a video out of them.',
+      'Recently updated public playlists now show up as their own card in the home feeds, and the feeds respect a creator’s choice to keep a video out of them.',
   },
   {
     version: '1.63.0',
     date: '2026-07-18',
     summary:
-      'You can now go live on 3Speak with standalone streams. Start one from Share \\u2192 Go Live, watch a stream on its own page, catch live streams from people you follow in the home feed, and find a creator\\u2019s streams on their profile. Finished streams can be kept as a video.',
+      'You can now go live on 3Speak with standalone streams. Start one from Share → Go Live, watch a stream on its own page, catch live streams from people you follow in the home feed, and find a creator’s streams on their profile. Finished streams can be kept as a video.',
   },
   {
     version: '1.62.0',
     date: '2026-07-18',
     summary:
       'New topic picker when you vote: choose a broad category (Entertainment, Tech & Science, …) and then, if you like, a specific topic. The leaderboard groups its topics the same way, and picking a category there now covers all the topics under it. The vote dialog also remembers your last vote weight, kept separately for videos, shorts and comments.',
-  },
-  {
-    version: '1.61.0',
-    date: '2026-07-18',
-    summary:
-      'Signed in with Butter Auth? Change account in the profile menu now works for you too, so you can switch to a Hive wallet account without logging out first.',
   },
   {
     version: '1.60.0',
@@ -64,7 +58,7 @@ export const CHANGELOG = [
     version: '1.55.0',
     date: '2026-07-12',
     summary:
-      'Shorts now also show up between the recommended videos on a watch page, picked to match the topic of the video you\u2019re watching. Don\u2019t want shorts mixed into your lists? Turn off \u201CShorts inside the feeds\u201D in Settings \u2192 Shorts. On the Stories view, the comments panel no longer covers the creators bar and now closes away completely.',
+      'Shorts now also show up between the recommended videos on a watch page, picked to match the topic of the video you’re watching. Don’t want shorts mixed into your lists? Turn off \u201CShorts inside the feeds\u201D in Settings → Shorts. On the Stories view, the comments panel no longer covers the creators bar and now closes away completely.',
   },
   {
     version: '1.54.0',
