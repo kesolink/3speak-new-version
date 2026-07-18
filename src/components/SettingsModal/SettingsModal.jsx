@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { getHiveUrl } from '../../utils/hiveNode';
-import { INTERESTS, fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import { TAG_OPTIONS } from '../../utils/tagsV2';
 import DataRequestForm from './DataRequestForm';
 import './SettingsModal.scss';
 
@@ -72,7 +73,7 @@ function InterestsSection() {
         {!user && ' Log in to choose your interests.'}
       </p>
       <div className="settings-interests-grid">
-        {INTERESTS.map(({ id, label, emoji }) => (
+        {TAG_OPTIONS.map(({ id, label, emoji }) => (
           <button
             key={id}
             type="button"

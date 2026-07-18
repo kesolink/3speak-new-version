@@ -13,6 +13,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import BlogContent from "./BlogContent";
 import CommentSection from "./CommentSection";
+import LiveStreamPlayer from "./LiveStreamPlayer";
 import VideoStats from "../CreatorStats/VideoStats";
 import { fetchVideoHasStats } from "../../lib/creatorStats";
 import ShareChooserModal from "../Chat/ShareChooserModal";
@@ -30,13 +31,15 @@ import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
 import CommentVoteTooltip from "../tooltip/CommentVoteTooltip";
+import { prefetchVideoTagsV2 } from '../../utils/tagsV2';
 import axios from "axios";
 import mantequillaLogo from "../../assets/mantequilla-logo.png";
 import threespeakLogo from "../../assets/image/3S_logo.svg";
 import threespeakLogoDark from "../../assets/image/3S_logodark.png";
 import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
-import { displayTag, INTEREST_IDS, saveInterestsToHive } from '../../utils/interests';
+import { displayTag, saveInterestsToHive } from '../../utils/interests';
+import { ALL_TOPIC_SLUGS } from '../../utils/tagsV2';
 
 // Show the crowd topic consensus (viewer votes + auto/transcription tags, each
 // with its % share) under the author tags. Set VITE_SHOW_TOPIC_TAGS=false to hide.
@@ -69,7 +72,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -79,7 +82,7 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
   // Add a topic to the user's interests (from the topic popup), persisting to Hive.
   const addToInterests = useCallback(async (tag) => {
     if (!user) { toast.error('Login to save interests'); return; }
-    if (!INTEREST_IDS.includes(tag)) return;
+    if (!ALL_TOPIC_SLUGS.includes(tag)) return;
     const cur = useAppStore.getState().interests || [];
     if (cur.includes(tag)) return;
     const next = [...cur, tag];
@@ -204,6 +207,12 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
   useEffect(() => {
     tipNudgeShownRef.current = false;
     setTipNudgeVisible(false);
+  }, [author, permlink]);
+
+  // Warm the v2-tag lookup while the page loads, so the vote dialog already knows
+  // which tag picker to draw when it opens (otherwise the wrong one flashes).
+  useEffect(() => {
+    prefetchVideoTagsV2(author, permlink);
   }, [author, permlink]);
 
   // Report popup open state to parent (blocks autoplay)
@@ -788,6 +797,10 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
         <div className="top-container">
           {(author && permlink) ? (
             <div className="video-iframe-wrapper" ref={wrapperRef}>
+              {/* Live OpenPods stream: the WebRTC live player takes the player
+                  slot in place of the (idle) VOD <video>. Everything around it —
+                  title, description, voting, comments — is the real post. */}
+              {isLive && streamRoom && <LiveStreamPlayer roomName={streamRoom} />}
               <video
                 ref={videoRef}
                 style={{
@@ -1082,7 +1095,7 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                 pinnedTitle={`“${label}” · ${voters.length} viewer${voters.length === 1 ? '' : 's'}`}
                 emptyText={c?.auto ? 'Auto-tagged — no viewer votes yet' : 'No viewer votes yet'}
                 footer={(() => {
-                  const isInterest = INTEREST_IDS.includes(activeTagTip.tag);
+                  const isInterest = ALL_TOPIC_SLUGS.includes(activeTagTip.tag);
                   const already = (interests || []).includes(activeTagTip.tag);
                   return (
                     <>

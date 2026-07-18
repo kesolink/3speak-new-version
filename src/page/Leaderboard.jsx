@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { MdOutlineLeaderboard, MdInfoOutline } from 'react-icons/md';
 import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
 import { useAppStore } from '../lib/store';
+import { TAG_CATEGORIES, getCategoryOf } from '../utils/tagsV2';
 import {
   WINDOWS,
   METRICS,
@@ -137,7 +138,10 @@ function Leaderboard() {
   // Empty topic = the overall board. Trust the server's list rather than a
   // hardcoded one, so a new topic works without a frontend change.
   const rawTopic = searchParams.get('topic') || '';
-  const topic = topics.includes(rawTopic) ? rawTopic : '';
+  // Category slugs are valid boards too (they roll up to their topics server-side)
+  // even though the server's topic list only contains slugs that have their own rows.
+  const CATEGORY_SLUGS = TAG_CATEGORIES.map((c) => c.slug);
+  const topic = (topics.includes(rawTopic) || CATEGORY_SLUGS.includes(rawTopic)) ? rawTopic : '';
 
   // One metric list, always. The tabs never change under the user; a topic only
   // re-points the query at the per-topic board for the same metric.
@@ -149,6 +153,42 @@ function Leaderboard() {
   // Tags aren't tracked per topic, so that metric has no topic board at all.
   const topicsAvailable = metricSupportsTopics(metricId);
   const activeTopic = topicsAvailable ? topic : '';
+
+  // Topics as a 2-LEVEL tree (same taxonomy as the vote dialog): the 7 broad
+  // categories, each holding the topics the server actually has a board for.
+  // A category is only selectable itself when the tagger emitted it AS a tag
+  // (it's a valid coarse tag), otherwise it just expands its topics. Anything
+  // the taxonomy doesn't know (legacy slugs) falls into "Other" so no board
+  // silently disappears from the UI.
+  const topicSet = useMemo(() => new Set(topics), [topics]);
+  const groups = useMemo(() => {
+    const gs = TAG_CATEGORIES.map((c) => ({
+      slug: c.slug,
+      label: c.label,
+      emoji: c.emoji,
+      self: topicSet.has(c.slug),
+      topics: c.topics.filter((t) => topicSet.has(t.slug)),
+    })).filter((g) => g.self || g.topics.length > 0);
+
+    const known = new Set(TAG_CATEGORIES.flatMap((c) => [c.slug, ...c.topics.map((t) => t.slug)]));
+    const other = topics.filter((t) => !known.has(t));
+    if (other.length) {
+      gs.push({
+        slug: '__other', label: 'Other', emoji: '🏷️', self: false,
+        topics: other.map((t) => ({ slug: t, label: t })),
+      });
+    }
+    return gs;
+  }, [topics, topicSet]);
+
+  // Which category is expanded. Follows the active topic so a deep-linked board
+  // opens on the right branch; the user can override by clicking another.
+  const [openCat, setOpenCat] = useState(null);
+  const activeCat = getCategoryOf(activeTopic)
+    || groups.find((g) => g.topics.some((t) => t.slug === activeTopic))?.slug
+    || null;
+  const shownCat = openCat || activeCat;
+  const openGroup = groups.find((g) => g.slug === shownCat) || null;
 
   // The creator whose profile badge brought us here — highlighted and scrolled to.
   const focusUser = searchParams.get('user') || null;
@@ -257,26 +297,47 @@ function Leaderboard() {
       </div>
 
       {/* Hidden entirely for Tags, which isn't tracked per topic. */}
-      {topicsAvailable && topics.length > 0 && (
-        <div className="lb-tabs lb-topics">
-          <button
-            type="button"
-            className={`lb-tab lb-topic${!activeTopic ? ' active' : ''}`}
-            onClick={() => setTopic('')}
-          >
-            All topics
-          </button>
-          {topics.map((t) => (
+      {topicsAvailable && groups.length > 0 && (
+        <>
+          <div className="lb-tabs lb-topics">
             <button
-              key={t}
               type="button"
-              className={`lb-tab lb-topic${activeTopic === t ? ' active' : ''}`}
-              onClick={() => setTopic(t)}
+              className={`lb-tab lb-topic${!activeTopic ? ' active' : ''}`}
+              onClick={() => { setTopic(''); setOpenCat(null); }}
             >
-              {t}
+              All topics
             </button>
-          ))}
-        </div>
+            {groups.map((g) => (
+              <button
+                key={g.slug}
+                type="button"
+                className={`lb-tab lb-topic${shownCat === g.slug ? ' open' : ''}${activeTopic === g.slug ? ' active' : ''}`}
+                onClick={() => {
+                  setOpenCat(g.slug);
+                  // '__other' is a UI bucket, not a real board — it only expands.
+                  if (g.slug !== '__other') setTopic(g.slug);
+                }}
+              >
+                {g.emoji} {g.label}
+              </button>
+            ))}
+          </div>
+
+          {openGroup && (
+            <div className="lb-tabs lb-topics lb-subtopics">
+              {openGroup.topics.map((t) => (
+                <button
+                  key={t.slug}
+                  type="button"
+                  className={`lb-tab lb-topic${activeTopic === t.slug ? ' active' : ''}`}
+                  onClick={() => setTopic(t.slug)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {partialWatch && trackedSince && (

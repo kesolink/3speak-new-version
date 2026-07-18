@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.62.0',
+    date: '2026-07-18',
+    summary:
+      'New topic picker when you vote: choose a broad category (Entertainment, Tech & Science, …) and then, if you like, a specific topic. The leaderboard groups its topics the same way, and picking a category there now covers all the topics under it. The vote dialog also remembers your last vote weight, kept separately for videos, shorts and comments.',
+  },
+  {
     version: '1.61.0',
     date: '2026-07-18',
     summary:

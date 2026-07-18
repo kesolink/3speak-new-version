@@ -110,6 +110,26 @@
         border-color: var(--text-primary);
         color: var(--bg-secondary);
       }
+
+      // Expanded category — outlined only, so it reads weaker than `.active`
+      // (which marks the board actually being shown).
+      &.open:not(.active) {
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+      }
+    }
+
+    // Second level: the topics inside the expanded category. Tucked under the
+    // category row and slightly smaller so the hierarchy is obvious.
+    &.lb-subtopics {
+      margin-top: -8px;
+      padding-left: 10px;
+      border-left: 2px solid var(--border-light);
+
+      .lb-topic {
+        font-size: 13px;
+        padding: 5px 12px;
+      }
     }
   }
 
