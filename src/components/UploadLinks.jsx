@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { Clapperboard } from "lucide-react";
-import { MdGraphicEq } from "react-icons/md";
+import { MdGraphicEq, MdMic } from "react-icons/md";
+import { BiCommentDetail } from "react-icons/bi";
 import ShortsIcon from "./icons/ShortsIcon";
 import { FEATURE_EDITOR } from "../utils/config";
 import { getCreatorSettings, isUploadBlocked } from "../utils/creatorSettings";
@@ -22,6 +23,11 @@ function pauseAllMedia() {
 
 export default function UploadLinks({ linkClass, iconClass = "icon", onClick }) {
   const navigate = useNavigate();
+  const user = useAppStore((s) => s.user);
+
+  // Plain navigation entries (Go Live, Community Snap) — no upload gate, just
+  // pause any playing media and close the dropdown, then let the Link navigate.
+  const go = (e) => { pauseAllMedia(); if (onClick) onClick(e); };
 
   // Gate every upload entry at click: a creator with canUpload === false sees
   // the "contact support" modal immediately instead of opening the studio /
@@ -49,6 +55,14 @@ export default function UploadLinks({ linkClass, iconClass = "icon", onClick }) 
       <a href="#" className={linkClass} title="Audio" onClick={(e) => gatedGo(e, () => window.dispatchEvent(new CustomEvent('open-audio-upload')))}>
         <MdGraphicEq className={iconClass} /> <span>Audio</span>
       </a>
+      <Link to="/openpods" className={linkClass} title="Go Live" onClick={go}>
+        <MdMic className={iconClass} /> <span>Go Live</span>
+      </Link>
+      {user && (
+        <Link to={`/p/${user}?tab=community`} className={linkClass} title="Community Snap" onClick={go}>
+          <BiCommentDetail className={iconClass} /> <span>Community Snap</span>
+        </Link>
+      )}
       {FEATURE_EDITOR && (
         <a href="#" className={linkClass} title="Shorts Editor" onClick={(e) => gatedGo(e, () => window.dispatchEvent(new CustomEvent('open-shorts-editor')))}>
           <Clapperboard className={iconClass} size={18} /> <span>Shorts Editor</span>

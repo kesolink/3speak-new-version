@@ -1,8 +1,12 @@
 @use "../../mixins.scss" as *;
+
+// About / landing page — styled with 3Speak's design tokens (theme-aware,
+// red accent on neutral surfaces) so it matches the rest of the app in both
+// light and dark mode instead of the old hard-coded navy/blue palette.
 .landing-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-  color: white;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   overflow-x: hidden;
 
   // Hero Section
@@ -37,10 +41,7 @@
           display: block;
           font-size: clamp(3rem, 8vw, 5rem);
           font-weight: 900;
-          background: linear-gradient(135deg, #ef4444, #60a5fa);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
+          color: var(--accent-primary);
           margin-bottom: 1rem;
           filter: drop-shadow(0 25px 25px rgba(0, 0, 0, 0.15));
         }
@@ -49,7 +50,7 @@
           display: block;
           font-size: clamp(1.25rem, 3vw, 1.5rem);
           font-weight: 600;
-          color: #d1d5db;
+          color: var(--text-secondary);
           margin-bottom: 0.5rem;
           letter-spacing: 0.1em;
         }
@@ -59,15 +60,15 @@
         font-size: clamp(1rem, 2.5vw, 1.25rem);
         line-height: 1.6;
         margin-bottom: 3rem;
-        color: #d1d5db;
+        color: var(--text-secondary);
         max-width: 48rem;
         margin-left: auto;
         margin-right: auto;
       }
 
       .cta-button {
-        background: linear-gradient(135deg, #ef4444, #2563eb);
-        color: white;
+        background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
+        color: #fff;
         padding: 1rem 3rem;
         font-size: 1.125rem;
         font-weight: 600;
@@ -77,13 +78,14 @@
         transition: all 0.3s ease;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        box-shadow: 0 25px 50px -12px rgba(239, 68, 68, 0.3);
+        box-shadow: 0 20px 45px -12px var(--accent-light);
         @include respond(phone) {
           font-size: 16px;
         }
 
         &:hover {
           transform: scale(1.05);
+          box-shadow: 0 24px 50px -10px var(--accent-light);
         }
       }
     }
@@ -94,16 +96,15 @@
     padding: 6rem 0;
 
     &.dark-bg {
-      background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(4px);
+      background: var(--bg-secondary);
     }
 
     &.darker-bg {
-      background: rgba(15, 23, 42, 0.5);
+      background: var(--bg-tertiary);
     }
 
     &.gradient-bg {
-      background: linear-gradient(135deg, #2563eb, #0f172a);
+      background: var(--bg-tertiary);
     }
 
     .container-ab {
@@ -120,7 +121,7 @@
         font-size: clamp(2.5rem, 5vw, 3rem);
         font-weight: 700;
         margin-bottom: 1rem;
-        background: linear-gradient(135deg, #ef4444, #60a5fa);
+        background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
@@ -128,7 +129,7 @@
 
       .section-subtitle {
         font-size: 1.25rem;
-        color: #d1d5db;
+        color: var(--text-secondary);
         max-width: 48rem;
         margin: 0 auto;
         text-align: center;
@@ -142,7 +143,7 @@
       // margin-bottom: 1rem;
 
       &.red-text {
-        color: #ef4444;
+        color: var(--accent-primary);
       }
     }
   }
@@ -163,26 +164,28 @@
 
   // Feature cards
   .feature-card {
-    background: rgba(30, 41, 59, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: var(--card-bg);
+    border: 1px solid var(--border-light);
     border-radius: 1.5rem;
     padding: 2rem;
     text-align: center;
-    backdrop-filter: blur(4px);
+    box-shadow: var(--shadow-sm);
     transition: all 0.3s ease;
 
     &:hover {
       transform: scale(1.05);
-      border-color: #ef4444;
-      box-shadow: 0 25px 50px -12px rgba(239, 68, 68, 0.2);
+      border-color: var(--accent-primary);
+      box-shadow: var(--shadow-lg);
     }
 
+    // The old blue variant now shares the brand accent — kept as a hook so the
+    // markup doesn't need to change.
     &.blue-accent {
-      border-color: rgba(96, 165, 250, 0.2);
+      border-color: var(--border-light);
 
       &:hover {
-        border-color: #60a5fa;
-        box-shadow: 0 25px 50px -12px rgba(96, 165, 250, 0.2);
+        border-color: var(--accent-primary);
+        box-shadow: var(--shadow-lg);
       }
     }
 
@@ -194,8 +197,8 @@
       .icon-container-ab {
         width: 5rem;
         height: 5rem;
-        background: rgba(30, 41, 59, 0.2);
-        border: 2px solid rgba(239, 68, 68, 0.2);
+        background: var(--bg-tertiary);
+        border: 2px solid var(--border-light);
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -203,7 +206,13 @@
         transition: all 0.3s ease;
 
         &.blue-border {
-          border-color: rgba(96, 165, 250, 0.2);
+          border-color: var(--border-light);
+        }
+
+        // Icons stay neutral — only headline text carries the brand red.
+        // (The old text-red-400/text-blue-400 utility classes were never defined.)
+        svg {
+          color: var(--text-secondary);
         }
 
         svg,
@@ -221,16 +230,16 @@
       margin-bottom: 1rem;
 
       &.red-text {
-        color: #ef4444;
+        color: var(--accent-primary);
       }
 
       &.blue-text {
-        color: #60a5fa;
+        color: var(--accent-primary);
       }
     }
 
     .feature-description {
-      color: #d1d5db;
+      color: var(--text-secondary);
       line-height: 1.6;
     }
   }
@@ -242,13 +251,14 @@
     gap: 2rem;
 
     .guideline-card {
-      background: rgba(30, 41, 59, 0.2);
-      border-left: 4px solid #ef4444;
+      background: var(--card-bg);
+      border: 1px solid var(--border-light);
+      border-left: 4px solid var(--border-light);
       border-radius: 1rem;
       padding: 2rem;
 
       &.blue-border {
-        border-left-color: #60a5fa;
+        border-left-color: var(--border-light);
       }
 
       .guideline-title {
@@ -257,11 +267,11 @@
         margin-bottom: 1rem;
 
         &.red-text {
-          color: #ef4444;
+          color: var(--accent-primary);
         }
 
         &.blue-text {
-          color: #60a5fa;
+          color: var(--accent-primary);
         }
       }
 
@@ -273,16 +283,16 @@
           display: flex;
           align-items: flex-start;
           margin-bottom: 0.75rem;
-          color: #d1d5db;
+          color: var(--text-secondary);
 
           &::before {
             content: "•";
             margin-right: 0.5rem;
-            color: #ef4444;
+            color: var(--text-secondary);
           }
 
           &.blue-bullet::before {
-            color: #60a5fa;
+            color: var(--text-secondary);
           }
         }
       }
@@ -296,8 +306,8 @@
     padding: 0 2rem;
 
     .faq-item {
-      background: rgba(30, 41, 59, 0.2);
-      border: 1px solid #374151;
+      background: var(--card-bg);
+      border: 1px solid var(--border-light);
       border-radius: 1rem;
       margin-bottom: 1rem;
       overflow: hidden;
@@ -311,12 +321,12 @@
         align-items: center;
         background: none;
         border: none;
-        color: white;
+        color: var(--text-primary);
         cursor: pointer;
         transition: all 0.3s ease;
 
         &:hover {
-          background: rgba(30, 41, 59, 0.3);
+          background: var(--bg-hover);
         }
 
         .faq-question {
@@ -325,7 +335,7 @@
         }
 
         .faq-icon {
-          color: #ef4444;
+          color: var(--text-secondary);
           transition: transform 0.3s ease;
 
           &.rotated {
@@ -336,7 +346,7 @@
 
       .faq-answer {
         padding: 0 2rem 1.5rem;
-        color: #d1d5db;
+        color: var(--text-secondary);
         line-height: 1.6;
       }
     }
@@ -349,15 +359,16 @@
     gap: 2rem;
 
     .quote-card {
-      background: rgba(30, 41, 59, 0.2);
-      border-left: 4px solid #ef4444;
+      background: var(--card-bg);
+      border: 1px solid var(--border-light);
+      border-left: 4px solid var(--border-light);
       border-radius: 1rem;
       padding: 2rem;
       transition: all 0.3s ease;
 
       &:hover {
         transform: translateX(0.5rem);
-        background: rgba(30, 41, 59, 0.3);
+        background: var(--bg-hover);
       }
 
       .quote-text {
@@ -365,11 +376,11 @@
         font-style: italic;
         line-height: 1.6;
         margin-bottom: 1rem;
-        color: white;
+        color: var(--text-primary);
       }
 
       .quote-author {
-        color: #60a5fa;
+        color: var(--text-secondary);
         font-weight: 600;
         font-size: 0.875rem;
       }
@@ -385,15 +396,14 @@
       margin-bottom: 2rem;
 
       .logo-box {
-        background: rgba(30, 41, 59, 0.2);
-        border: 2px solid rgba(239, 68, 68, 0.2);
+        background: var(--card-bg);
+        border: 2px solid var(--border-light);
         border-radius: 1.5rem;
         padding: 2rem;
         transition: all 0.3s ease;
-        backdrop-filter: blur(4px);
 
         &:hover {
-          border-color: #ef4444;
+          border-color: var(--accent-primary);
         }
 
         .logo-content {
@@ -410,13 +420,13 @@
           .times-symbol {
             font-size: 2.5rem;
             font-weight: 700;
-            color: #ef4444;
+            color: var(--text-secondary);
           }
 
           .hive-logo {
             width: 4rem;
             height: 4rem;
-            background: linear-gradient(135deg, #ef4444, #60a5fa);
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -424,11 +434,11 @@
             overflow: hidden;
 
             span {
-              color: white;
+              color: #fff;
               font-weight: 700;
               font-size: 1.25rem;
             }
-            
+
           }
         }
       }
@@ -439,7 +449,7 @@
       line-height: 29px;
       margin-bottom: 20px;
       font-size: 18px;
-      color: grey;
+      color: var(--text-secondary);
     }
   }
 
@@ -453,18 +463,19 @@
         }
 
     .social-link {
-      background: rgba(30, 41, 59, 0.2);
-      border: 2px solid rgba(96, 165, 250, 0.2);
+      background: var(--card-bg);
+      border: 2px solid var(--border-light);
       border-radius: 50%;
       padding: 1rem;
+      color: var(--text-primary);
       transition: all 0.3s ease;
-      backdrop-filter: blur(4px);
       @include respond(phone) {
           padding: 10px;
         }
 
       &:hover {
-        border-color: #60a5fa;
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
         transform: scale(1.1);
       }
       &.spk{
@@ -473,13 +484,13 @@
       }
 
       }
-      
+
 
       &.red-accent {
-        border-color: rgba(239, 68, 68, 0.2);
+        border-color: var(--border-light);
 
         &:hover {
-          border-color: #ef4444;
+          border-color: var(--accent-primary);
         }
       }
 

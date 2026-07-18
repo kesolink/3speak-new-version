@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.60.0',
+    date: '2026-07-18',
+    summary:
+      'The Upload menu is now called Share, with two new entries: Go Live (opens OpenPods) and Community Snap (your profile\'s Community tab). Logged-out visitors get an About 3Speak button next to Log in, and the About page now follows the app\'s light and dark theme.',
+  },
+  {
     version: '1.59.0',
     date: '2026-07-18',
     summary:

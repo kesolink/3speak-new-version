@@ -78,9 +78,9 @@ function NavUploadDropdown() {
 
   return (
     <div className="nav-upload-wrapper" ref={ref}>
-      <div className="nav-upload-btn" onClick={() => setOpen(!open)} title="Upload">
+      <div className="nav-upload-btn" onClick={() => setOpen(!open)} title="Share">
         <IoCloudUploadSharp size={18} />
-        <span className="nav-upload-label">Upload</span>
+        <span className="nav-upload-label">Share</span>
       </div>
       {open && (
         <div className="nav-upload-flyout" onClick={() => setOpen(false)}>
@@ -219,17 +219,18 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           </Link>
           <ChatButton />
           <NotificationBell />
+          <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
           <span className="nav-avatar-wrap" onClick={toggleProfileNav}>
             <img src={`https://images.hive.blog/u/${user}/avatar/small`} alt="" />
             <PremiumBadge username={user} size={10} className="nav-avatar-premium" />
           </span>
-          <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
         </div>
       ) : (
         <div className="nav-right flex-div">
           <Link to="/discover" className="nav-mobile-discover" title="Discover">
             <MdOutlineSearch size={19} />
           </Link>
+          <Link to="/about" className="nav-guest-about">About 3Speak</Link>
           <button className="nav-guest-login" onClick={openLoginModal}><FiLogIn /> LOG IN</button>
           <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
         </div>

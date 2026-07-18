@@ -82,7 +82,7 @@ const Sidebar = ({ sidebar, onNavigate }) => {
           <MdGraphicEq className="icon" /> <span>Audio</span>
         </Link>
        {authenticated && (
-          <SidebarDropdown icon={IoCloudUploadSharp} label="Upload" sidebar={sidebar}>
+          <SidebarDropdown icon={IoCloudUploadSharp} label="Share" sidebar={sidebar}>
             <UploadLinks linkClass="side-link" onClick={nav} />
           </SidebarDropdown>
         )}
