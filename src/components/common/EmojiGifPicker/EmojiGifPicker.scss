@@ -1,0 +1,117 @@
+@use "../../../mixins.scss" as mix;
+
+/* Emoji + GIF picker for comment composers. Mirrors the chat composer tools
+   (see components/Chat/chat.scss) but self-contained so it works anywhere. */
+
+.egp-spin { animation: egp-spin 0.8s linear infinite; }
+@keyframes egp-spin { to { transform: rotate(360deg); } }
+
+.egp-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.egp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  transition: color 0.12s ease, background 0.12s ease;
+  &:hover { background: var(--bg-hover); color: var(--text-primary); }
+  &.active { color: var(--accent-primary); }
+}
+
+.egp-popover {
+  position: absolute;
+  z-index: 1000;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  padding: 8px;
+
+  &.egp-open-up { bottom: calc(100% + 8px); }
+  &.egp-open-down { top: calc(100% + 8px); }
+  &.egp-left { left: 0; }
+  &.egp-right { right: 0; }
+
+  // On phones every popup is a bottom sheet (app-wide convention).
+  @include mix.respond(phone) {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    top: auto;
+    z-index: 3000;
+  }
+}
+
+// emoji-picker-react brings its own chrome (search, tabs, scroll) — strip our frame.
+.egp-emoji-popover {
+  width: 340px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  @include mix.respond(phone) { width: auto; }
+  .EmojiPickerReact { width: 100% !important; }
+}
+
+.egp-gif-popover {
+  width: 360px;
+  @include mix.respond(phone) { width: auto; }
+}
+.egp-gif-search {
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  outline: none;
+  margin-bottom: 8px;
+  &:focus { border-color: var(--accent-primary); }
+}
+.egp-gif-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+  @include mix.respond(phone) { max-height: 44vh; }
+}
+.egp-gif-item {
+  border: none;
+  padding: 0;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  width: 100%;
+  img { width: 100%; height: auto; display: block; border-radius: 8px; }
+  &:hover { outline: 2px solid var(--accent-primary); }
+}
+.egp-gif-loading, .egp-gif-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.egp-gif-attribution { text-align: center; font-size: 10px; color: var(--text-muted); margin-top: 6px; letter-spacing: 0.5px; }

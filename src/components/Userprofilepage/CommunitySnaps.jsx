@@ -18,6 +18,8 @@ import { getVotePower, getDynamicProps } from '../../utils/hiveUtils';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
 import SnapComposer from './SnapComposer';
+import EmojiGifPicker from '../common/EmojiGifPicker/EmojiGifPicker';
+import { insertAtCursor, gifMarkdown } from '../../utils/composerInsert';
 import UpvoteCount from '../UpvoteCount/UpvoteCount';
 import AuthorBadge from '../AuthorBadge/AuthorBadge';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
@@ -86,6 +88,7 @@ function ReplyBox({ parentAuthor, parentPermlink, onPosted, onSigned, autoFocus 
   const user = useAppStore((s) => s.user);
   const [reply, setReply] = useState('');
   const [posting, setPosting] = useState(false);
+  const replyRef = useRef(null);
   if (!user) return null;
 
   const submit = async () => {
@@ -109,15 +112,22 @@ function ReplyBox({ parentAuthor, parentPermlink, onPosted, onSigned, autoFocus 
   return (
     <div className="snap-reply-box">
       <textarea
+        ref={replyRef}
         placeholder="Write a comment…"
         value={reply}
         onChange={(e) => setReply(e.target.value)}
         rows={2}
         autoFocus={autoFocus}
       />
-      <button type="button" onClick={submit} disabled={posting || !reply.trim()}>
-        {posting ? 'Posting…' : 'Reply'}
-      </button>
+      <div className="snap-reply-actions">
+        <EmojiGifPicker
+          onPickEmoji={(em) => insertAtCursor(replyRef.current, reply, em, setReply)}
+          onPickGif={(url) => insertAtCursor(replyRef.current, reply, gifMarkdown(url), setReply)}
+        />
+        <button type="button" onClick={submit} disabled={posting || !reply.trim()}>
+          {posting ? 'Posting…' : 'Reply'}
+        </button>
+      </div>
     </div>
   );
 }

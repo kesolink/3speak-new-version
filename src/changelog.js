@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.59.0',
+    date: '2026-07-18',
+    summary:
+      'GIFs and emojis in comments and posts, using the same pickers as chat. Look for the smiley and GIF buttons under the comment box on the watch page, shorts and community posts, and in the video and community post editors.',
+  },
+  {
     version: '1.58.0',
     date: '2026-07-16',
     summary:

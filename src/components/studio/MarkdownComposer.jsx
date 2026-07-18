@@ -12,6 +12,8 @@ import { uploadImageToHive } from '../Editor/uploadImageToHiv';
 import { toast } from 'sonner';
 import './MarkdownComposer.scss';
 import { useAppStore } from '../../lib/store';
+import useGiphySearch, { normalizeGifUrl } from '../../hooks/useGiphySearch';
+import { gifMarkdown } from '../../utils/composerInsert';
 
 // Lazy-loaded renderer
 let rendererPromise = null;
@@ -40,7 +42,9 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
   const textareaRef = useRef(null);
   const [viewMode, setViewMode] = useState('editor'); // 'editor' | 'preview' | 'split'
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const { query: gifQuery, setQuery: setGifQuery, gifs, loading: gifLoading } = useGiphySearch(showGifPicker);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [renderedContent, setRenderedContent] = useState('');
@@ -198,6 +202,16 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
     setShowEmojiPicker(false);
   };
 
+  // GIF handler — insert as inline markdown image so the Hive renderer embeds it.
+  const handleGifSelect = (g) => {
+    const url = normalizeGifUrl(g);
+    if (url) insertText(gifMarkdown(url));
+    setShowGifPicker(false);
+  };
+
+  const toggleEmojiPicker = () => { setShowGifPicker(false); setShowEmojiPicker((v) => !v); };
+  const toggleGifPicker = () => { setShowEmojiPicker(false); setShowGifPicker((v) => !v); };
+
   // Image upload
   const handleImageUpload = async (file) => {
     if (!file || !file.type.startsWith('image/')) {
@@ -352,9 +366,9 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
 
         <div className="toolbar-group">
           <div className="dropdown-wrapper">
-            <button 
-              type="button" 
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)} 
+            <button
+              type="button"
+              onClick={toggleEmojiPicker}
               title="Emoji"
               className={showEmojiPicker ? 'active' : ''}
             >
@@ -362,12 +376,44 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
             </button>
             {showEmojiPicker && (
               <div className="emoji-picker-container">
-                <EmojiPicker 
-                  data={data} 
+                <EmojiPicker
+                  data={data}
                   onEmojiSelect={handleEmojiSelect}
                   theme={theme}
                   previewPosition="none"
                 />
+              </div>
+            )}
+          </div>
+          <div className="dropdown-wrapper">
+            <button
+              type="button"
+              onClick={toggleGifPicker}
+              title="GIF"
+              className={`gif-toggle-btn${showGifPicker ? ' active' : ''}`}
+            >
+              GIF
+            </button>
+            {showGifPicker && (
+              <div className="gif-picker-container">
+                <input
+                  className="gif-picker-search"
+                  type="text"
+                  placeholder="Search GIFs…"
+                  value={gifQuery}
+                  onChange={(e) => setGifQuery(e.target.value)}
+                  autoFocus
+                />
+                <div className="gif-picker-grid">
+                  {gifLoading && <div className="gif-picker-status">Loading…</div>}
+                  {!gifLoading && gifs.length === 0 && <div className="gif-picker-status">No GIFs found.</div>}
+                  {!gifLoading && gifs.map((g) => (
+                    <button key={g.id} type="button" className="gif-picker-item" onClick={() => handleGifSelect(g)}>
+                      <img src={g.images?.fixed_height?.url || g.images?.fixed_height_small?.url} alt={g.title || 'gif'} loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+                <div className="gif-picker-attribution">Powered by GIPHY</div>
               </div>
             )}
           </div>

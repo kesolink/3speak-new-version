@@ -27,6 +27,8 @@ import { commentWithAioha } from '../../hive-api/aioha';
 import { HIVE_API_NODES } from '../../utils/config';
 import TimeAgo from '../TimeAgo/TimeAgo';
 import { Link } from 'react-router-dom';
+import EmojiGifPicker from '../common/EmojiGifPicker/EmojiGifPicker';
+import { insertAtCursor, gifMarkdown } from '../../utils/composerInsert';
 
 const client = getHiveClient();
 
@@ -86,6 +88,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
       const [accountData, setAccountData] = useState(null);
   // Cache for rendered comment bodies
   const [renderedBodies, setRenderedBodies] = useState({});
+  const commentInputRef = useRef(null);
 
   // Timeline position state — auto-follows playhead unless manually edited
   const [timelineInput, setTimelineInput] = useState('0:00');
@@ -383,6 +386,14 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
           children: [],
         };
 
+        // Pre-render the optimistic comment body so images/GIFs/markdown show
+        // immediately — without it, processedBody falls back to the raw markdown
+        // (e.g. a literal `![gif](url)`) until the next fetch/reload.
+        try {
+          const render = await getRenderer();
+          setRenderedBodies(prev => ({ ...prev, [new_permlink]: render(textToPost) }));
+        } catch (_) { /* fall back to raw body until refetch */ }
+
         if (isReplyingToMainPost) {
           setCommentList(prev => [newComment, ...prev]);
         } else {
@@ -503,6 +514,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
       {activeTab === 'comment' && (
         <div className="add-comment-wrap">
           <textarea
+            ref={commentInputRef}
             placeholder="Write your comment here..."
             className="textarea-box"
             value={commentInfo}
@@ -514,6 +526,10 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
             onFocus={handleTextareaFocus}
           />
           <div className="comment-form-row">
+            <EmojiGifPicker
+              onPickEmoji={(em) => insertAtCursor(commentInputRef.current, commentInfo, em, setCommentInfo)}
+              onPickGif={(url) => insertAtCursor(commentInputRef.current, commentInfo, gifMarkdown(url), setCommentInfo)}
+            />
             <div className="btn-wrap">
               <Button text="Cancel" onClick={() => {
                 setCommentInfo('');
@@ -632,6 +648,7 @@ function Comment({
       translating,
 }) {
   const isReplying = activeReply === comment.permlink;
+  const replyInputRef = useRef(null);
   const [replyTab, setReplyTab] = useState('comment');
   const [collapsed, setCollapsed] = useState(false);
   const [translatedText, setTranslatedText] = useState(null);
@@ -746,6 +763,7 @@ function Comment({
               target={{ author: comment.author?.username, permlink: comment.permlink }}
             />
             <CommentVoteTooltip
+             voteKind="comment"
              author={comment?.author?.username}
              permlink={comment.permlink}
              showTooltip={showTooltip && activeTooltipPermlink === comment.permlink}
@@ -795,6 +813,7 @@ function Comment({
           {replyTab === 'comment' && (
             <>
               <textarea
+                ref={replyInputRef}
                 placeholder="Write your reply here..."
                 className="textarea-box sub"
                 value={replyText}
@@ -804,9 +823,15 @@ function Comment({
                   e.target.style.height = e.target.scrollHeight + 'px';
                 }}
               />
-              <div className="btn-wrap">
-                <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />
-                <Button text="Comment" prominent onClick={() => handlePostComment(replyTimestamp)} />
+              <div className="comment-form-row">
+                <EmojiGifPicker
+                  onPickEmoji={(em) => insertAtCursor(replyInputRef.current, replyText, em, setReplyText)}
+                  onPickGif={(url) => insertAtCursor(replyInputRef.current, replyText, gifMarkdown(url), setReplyText)}
+                />
+                <div className="btn-wrap">
+                  <Button text="Cancel" onClick={() => {setReplyText(""); setActiveReply(null)}} />
+                  <Button text="Comment" prominent onClick={() => handlePostComment(replyTimestamp)} />
+                </div>
               </div>
             </>
           )}

@@ -51,6 +51,9 @@ import TranslateButton from '../components/TranslateButton/TranslateButton';
 import useSubtitles from '../hooks/useSubtitles';
 import SubtitleOverlay from '../components/SubtitleOverlay/SubtitleOverlay';
 import { SUPPORTED_LANGUAGES } from '../utils/translate';
+import EmojiGifPicker from '../components/common/EmojiGifPicker/EmojiGifPicker';
+import { insertAtCursor, gifMarkdown } from '../utils/composerInsert';
+import { prefetchVideoTagsV2 } from '../utils/tagsV2';
 
 // Custom Hive Icon Component
 const HiveIcon = ({ size = 24, className = '' }) => (
@@ -250,6 +253,8 @@ const VideoShort = () => {
   // (it's a full-screen bottom sheet there).
   const [showComments, setShowComments] = useState(() => typeof window !== 'undefined' && window.innerWidth > 768);
   const [newComment, setNewComment] = useState('');
+  const mainCommentRef = useRef(null);
+  const bottomCommentRef = useRef(null);
   const [shareChooserOpen, setShareChooserOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1496,6 +1501,12 @@ const VideoShort = () => {
   }, [showComments, currentIndex, videos, fetchComments]);
 
   const currentVideo = videos[currentIndex];
+
+  // Warm the v2-tag lookup for the visible short so the vote dialog knows which
+  // tag picker to draw the moment it opens (otherwise the wrong one flashes).
+  useEffect(() => {
+    prefetchVideoTagsV2(currentVideo?.author, currentVideo?.hivePermlink);
+  }, [currentVideo?.author, currentVideo?.hivePermlink]);
 
   /* ---------- SUBTITLES ---------- */
   const {
@@ -3107,6 +3118,7 @@ const VideoShort = () => {
             </div>
             <span className="actionLabel">{formatNumber(currentVideo.stats.likes)}</span>
             <CommentVoteTooltip
+              voteKind="short"
               author={currentVideo.author}
               permlink={currentVideo.hivePermlink}
               showTooltip={showTooltip && activeTooltipPermlink === currentVideo.hivePermlink}
@@ -3299,6 +3311,7 @@ const VideoShort = () => {
             <HiveAvatar username={user || 'guest'} size={null} alt="" badgeSize={11} />
           </div>
           <textarea
+            ref={mainCommentRef}
             rows={1}
             placeholder={user ? "Add a comment..." : "Login to comment"}
             value={newComment}
@@ -3311,6 +3324,14 @@ const VideoShort = () => {
             // Enter always inserts a newline (multi-line comments); posting is
             // handled only by the Send button.
           />
+          {user && !currentVideo.hivePostMissing && (
+            <EmojiGifPicker
+              align="right"
+              openDirection="up"
+              onPickEmoji={(em) => insertAtCursor(mainCommentRef.current, newComment, em, setNewComment)}
+              onPickGif={(url) => insertAtCursor(mainCommentRef.current, newComment, gifMarkdown(url), setNewComment)}
+            />
+          )}
           <button
             className="sendCommentBtn"
             onClick={() => handlePostComment(currentVideo.author, currentVideo.hivePermlink, newComment, false)}
@@ -3341,6 +3362,7 @@ const VideoShort = () => {
       {!showComments && shortsCommentBar && (
         <div className="shortsBottomComment">
           <textarea
+            ref={bottomCommentRef}
             rows={1}
             placeholder={user ? 'Add a comment…' : 'Login to comment'}
             value={newComment}
@@ -3351,6 +3373,14 @@ const VideoShort = () => {
             }}
             disabled={!user || currentVideo.hivePostMissing}
           />
+          {user && !currentVideo.hivePostMissing && (
+            <EmojiGifPicker
+              align="right"
+              openDirection="up"
+              onPickEmoji={(em) => insertAtCursor(bottomCommentRef.current, newComment, em, setNewComment)}
+              onPickGif={(url) => insertAtCursor(bottomCommentRef.current, newComment, gifMarkdown(url), setNewComment)}
+            />
+          )}
           <button
             className="sendCommentBtn"
             onClick={() => handlePostComment(currentVideo.author, currentVideo.hivePermlink, newComment, false)}
@@ -3411,6 +3441,7 @@ const CommentItem = ({
   const [translatedText, setTranslatedText] = useState(null);
   const [translateError, setTranslateError] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const replyInputRef = useRef(null);
   const maxDepth = 3;
 
   const handleTranslate = async (langCode) => {
@@ -3504,6 +3535,7 @@ const CommentItem = ({
               Reply
             </button>
             <CommentVoteTooltip
+              voteKind="comment"
               author={comment.author}
               permlink={comment.permlink}
               showTooltip={showTooltip && activeTooltipPermlink === comment.permlink}
@@ -3526,6 +3558,7 @@ const CommentItem = ({
           {isReplying && (
             <div className="replyInputWrapper">
               <input
+                ref={replyInputRef}
                 type="text"
                 placeholder="Write a reply..."
                 value={replyText}
@@ -3537,15 +3570,23 @@ const CommentItem = ({
                   }
                 }}
               />
-              <div className="replyActions">
-                <button onClick={() => setActiveReply(null)}>Cancel</button>
-                <button
-                  className="submitReply"
-                  onClick={() => handlePostComment(comment.author, comment.permlink, replyText, true)}
-                  disabled={!replyText.trim() || postingComment}
-                >
-                  {postingComment ? <Loader2 size={14} className="spinner" /> : 'Reply'}
-                </button>
+              <div className="replyBottomRow">
+                <EmojiGifPicker
+                  align="left"
+                  openDirection="up"
+                  onPickEmoji={(em) => insertAtCursor(replyInputRef.current, replyText, em, setReplyText)}
+                  onPickGif={(url) => insertAtCursor(replyInputRef.current, replyText, gifMarkdown(url), setReplyText)}
+                />
+                <div className="replyActions">
+                  <button onClick={() => setActiveReply(null)}>Cancel</button>
+                  <button
+                    className="submitReply"
+                    onClick={() => handlePostComment(comment.author, comment.permlink, replyText, true)}
+                    disabled={!replyText.trim() || postingComment}
+                  >
+                    {postingComment ? <Loader2 size={14} className="spinner" /> : 'Reply'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -2251,6 +2251,16 @@
       }
     }
 
+    .replyBottomRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+
+      .replyActions { margin-top: 0; }
+    }
+
     .replyActions {
       display: flex;
       justify-content: flex-end;
