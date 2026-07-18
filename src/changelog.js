@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.64.0',
+    date: '2026-07-18',
+    summary:
+      'Recently updated public playlists now show up as their own card in the home feeds, and the feeds respect a creator\\u2019s choice to keep a video out of them.',
+  },
+  {
+    version: '1.63.0',
+    date: '2026-07-18',
+    summary:
+      'You can now go live on 3Speak with standalone streams. Start one from Share \\u2192 Go Live, watch a stream on its own page, catch live streams from people you follow in the home feed, and find a creator\\u2019s streams on their profile. Finished streams can be kept as a video.',
+  },
+  {
     version: '1.62.0',
     date: '2026-07-18',
     summary:
