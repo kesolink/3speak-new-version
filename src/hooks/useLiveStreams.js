@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../lib/store';
 import { getFollowing } from '../utils/hiveUtils';
 
-const API_URL = (import.meta.env.VITE_HANGOUTS_API_URL || '').replace(/\/$/, '');
+import { fetchAllEndpoints } from '../utils/hangoutsEndpoints';
 
 /**
  * Currently-live OpenPods standalone streams, mapped to Card3-compatible
@@ -30,10 +30,10 @@ export function useLiveStreams({ following = false } = {}) {
 
   useEffect(() => {
     let alive = true;
-    if (!API_URL) return undefined;
     const load = () => {
-      fetch(`${API_URL}/streams`, { cache: 'no-store' })
-        .then((res) => (res.ok ? res.json() : []))
+      // Aggregated across every configured OpenPods deployment, so the feeds
+      // show live sessions wherever they're hosted.
+      fetchAllEndpoints('/streams')
         .then((list) => { if (alive) setStreams((Array.isArray(list) ? list : []).filter((s) => s.live)); })
         .catch(() => { if (alive) setStreams([]); });
     };

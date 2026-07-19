@@ -179,6 +179,11 @@ const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
 // never attach the PPL beneficiary op.
 const ENABLE_PPL = import.meta.env.VITE_ENABLE_PPL !== 'false';
 
+// The standalone livestream studio as an OpenPods mode. Enabled by default;
+// set VITE_OPENPODS_STANDALONE=false to hide the Room/Standalone tiles in the
+// create dialog entirely, leaving OpenPods as conference rooms only.
+const OPENPODS_STANDALONE = import.meta.env.VITE_OPENPODS_STANDALONE !== 'false';
+
 export {
   appendNsfw,
   API_URL_FROM_WEST,
@@ -229,6 +234,7 @@ export {
   ENABLE_METAMASK_SNAP,
   ENABLE_BUTRAUTH,
   ENABLE_SUBS,
+  OPENPODS_STANDALONE,
   ENABLE_PPL,
   THREESPEAK_AUDIO_API_URL,
   THREESPEAK_API_KEY,

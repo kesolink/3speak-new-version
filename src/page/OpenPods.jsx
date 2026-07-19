@@ -1,13 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { HangoutsProvider, RoomLobby } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAioha } from '@aioha/react-ui';
-import { Providers } from '@aioha/aioha';
 import { useHangout } from '../context/HangoutContext';
 import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
 import { providerSignPrompt } from '../utils/aiohaProviderUi';
+import { OPENPODS_STANDALONE } from '../utils/config';
+import { defaultEndpoint, pickLeastLoadedEndpoint, fetchAllEndpoints } from '../utils/hangoutsEndpoints';
 import { postOpenPodAnnouncement, setPendingAnnouncement, setAnnounceConfig } from '../utils/openpodAnnounce';
 import AnnounceOptions from '../components/openpods/AnnounceOptions';
 import MarkdownComposer from '../components/studio/MarkdownComposer';
@@ -26,25 +27,50 @@ export default function OpenPods() {
   const hhTheme = useAppStore((s) => s.getEffectiveTheme());
   const { aioha, provider, user: aiohaUser } = useAioha();
   const navigate = useNavigate();
+  const location = useLocation();
   const { roomName: roomNameFromUrl } = useParams();
   const premiumStatus = usePremiumStatus(user);
   const isPremium = !!premiumStatus?.premium;
 
-  // A session we can actually hand over to OpenPods: the user is signed in on
-  // 3Speak with a wallet that can sign a challenge. HiveSigner can't sign
-  // messages, and a stale `authenticated` flag with no live provider can't
-  // either — neither counts.
-  const canHandover = !!provider && provider !== Providers.HiveSigner && !!aiohaUser;
+  // New sessions go to whichever deployment reports the lightest load
+  // (fewest sessions, then fewest viewers) via its /health.
+  const [endpoint, setEndpoint] = useState(() => defaultEndpoint());
+  useEffect(() => {
+    let alive = true;
+    pickLeastLoadedEndpoint().then((ep) => { if (alive) setEndpoint(ep); });
+    return () => { alive = false; };
+  }, []);
+
+  // A session we can hand over to OpenPods. Deliberately NOT limited to wallets
+  // that can sign client-side: the challenge is signed server-side by
+  // @threespeak's DELEGATED posting authority, which works for every login type
+  // — including HiveSigner and ManteAuth, neither of which can sign a buffer in
+  // the browser. loginToHangouts tries that delegated signer FIRST and only
+  // falls back to a client-side signature. Gating on a signable provider (as
+  // this used to) meant mobile users, who have no Keychain extension, never got
+  // a handover at all and were told to sign in again.
+  const handoverUser = aiohaUser || user;
+  const canHandover = !!authenticated && !!handoverUser;
 
   // If they're genuinely signed in on 3Speak, hand that session over in the
   // background so hosting/speaking lights up automatically. Otherwise do
   // nothing — they browse as a guest and sign on demand (button below).
   // Either way the lobby renders immediately and never blocks.
+  const handoverTriedRef = useRef(null);
+  const [handoverFailed, setHandoverFailed] = useState(false);
   useEffect(() => {
-    if (canHandover && !sessionToken && !sessionLoading) {
-      retryLogin(aiohaUser || user);
-    }
-  }, [canHandover, aiohaUser, user, sessionToken, sessionLoading, retryLogin]);
+    if (!canHandover || sessionToken || sessionLoading) return;
+    // Exactly ONE automatic attempt per user. A failed handover clears
+    // sessionLoading, which re-triggers this effect — without this guard a user
+    // who hasn't granted @threespeak posting authority would sit in a tight
+    // retry loop hammering /openpods/sign-challenge with 403s.
+    if (handoverTriedRef.current === handoverUser) return;
+    handoverTriedRef.current = handoverUser;
+    setHandoverFailed(false);
+    Promise.resolve(retryLogin(handoverUser)).then((token) => {
+      if (!token) setHandoverFailed(true);
+    });
+  }, [canHandover, handoverUser, sessionToken, sessionLoading, retryLogin]);
 
   // Deep-link: /openpods/:roomName auto-opens the modal once. We track the
   // last-opened name so closing the modal doesn't immediately reopen on the
@@ -89,6 +115,11 @@ export default function OpenPods() {
     await postOpenPodAnnouncement(payload);
   };
 
+  // List rooms from EVERY deployment, not just the one we'd create on.
+  // Joining still works by name — OpenPodModal resolves the owning host.
+  // useCallback keeps the identity stable so the lobby's 10s poll survives.
+  const fetchAllRooms = useCallback(() => fetchAllEndpoints('/rooms'), []);
+
   const handleJoinRoom = (roomName) => {
     openRoom(roomName);
   };
@@ -101,18 +132,25 @@ export default function OpenPods() {
   return (
     <div className="openpods-page" data-hh-theme={hhTheme}>
       <HangoutsProvider
-        apiBaseUrl={API_URL}
-        livekitServerUrl={LK_URL}
+        apiBaseUrl={endpoint.api}
+        livekitServerUrl={endpoint.lk}
         imageServerApiKey={IMAGE_KEY || undefined}
         sessionToken={sessionToken || undefined}
         username={hangoutsUser || undefined}
         aioha={aioha}
       >
         <RoomLobby
+          /* "Go Live" links to /openpods?create=1 — open the create form
+             straight away instead of making the host find the button. The
+             dialog itself stays gated on being authenticated, so it appears
+             as soon as the handover lands. */
+          defaultCreateOpen={new URLSearchParams(location.search).get('create') === '1'}
           onJoinRoom={handleJoinRoom}
           onRoomCreated={handleRoomCreated}
+          fetchRooms={fetchAllRooms}
           allowGuestBrowse
-          allowStandalone
+          allowStandalone={OPENPODS_STANDALONE}
+          isPremium={isPremium}
           renderAnnounceOptions={(announceType) => (
             <AnnounceOptions announceType={announceType} isPremium={isPremium} />
           )}
@@ -133,9 +171,24 @@ export default function OpenPods() {
           {sessionLoading ? (
             <span className="openpods-connecting__action">{providerSignPrompt(provider)}</span>
           ) : canHandover ? (
-            <button className="openpods-login-btn" onClick={() => retryLogin(aiohaUser || user)}>
-              Enable hosting &amp; speaking
-            </button>
+            <>
+              <button
+                className="openpods-login-btn"
+                onClick={() => {
+                  handoverTriedRef.current = null;
+                  setHandoverFailed(false);
+                  retryLogin(handoverUser);
+                }}
+              >
+                Enable hosting &amp; speaking
+              </button>
+              {handoverFailed && (
+                <p className="openpods-guest-cta__hint">
+                  Couldn’t enable hosting automatically. OpenPods posts on your behalf via
+                  @threespeak — check that you’ve granted it posting authority, then try again.
+                </p>
+              )}
+            </>
           ) : (
             <button className="openpods-login-btn" onClick={() => navigate('/login')}>
               Sign in with Hive to host or speak

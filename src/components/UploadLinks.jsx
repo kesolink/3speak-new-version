@@ -55,7 +55,7 @@ export default function UploadLinks({ linkClass, iconClass = "icon", onClick }) 
       <a href="#" className={linkClass} title="Audio" onClick={(e) => gatedGo(e, () => window.dispatchEvent(new CustomEvent('open-audio-upload')))}>
         <MdGraphicEq className={iconClass} /> <span>Audio</span>
       </a>
-      <Link to="/openpods" className={linkClass} title="Go Live" onClick={go}>
+      <Link to="/openpods?create=1" className={linkClass} title="Go Live" onClick={go}>
         <MdMic className={iconClass} /> <span>Go Live</span>
       </Link>
       {user && (
