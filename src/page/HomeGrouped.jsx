@@ -442,10 +442,17 @@ const HomeGrouped = () => {
     return null;
   }, [activeSection?.key, authenticated, user]);
 
+  // Discover is a browse surface, so it gets a TIGHTER freshness window than the
+  // other sections: community posts from the last 3 days, playlist changes from
+  // the last 24h. Other feeds keep the server default.
+  const isDiscover = activeSection?.key === 'discover';
+  const snapsMaxAgeHours = isDiscover ? 72 : undefined;
+  const playlistsMaxAgeHours = isDiscover ? 24 : undefined;
+
   const communityQ = useInfiniteQuery({
-    queryKey: ['feed-community', activeSection?.key, communityMode, user || null],
+    queryKey: ['feed-community', activeSection?.key, communityMode, user || null, snapsMaxAgeHours || 0],
     queryFn: async ({ pageParam = 1 }) => {
-      const data = await fetchCommunityFeed({ scope: communityMode, currentuser: user, page: pageParam });
+      const data = await fetchCommunityFeed({ scope: communityMode, currentuser: user, page: pageParam, maxAgeHours: snapsMaxAgeHours });
       return data?.snaps || [];
     },
     initialPageParam: 1,
@@ -476,9 +483,9 @@ const HomeGrouped = () => {
   // you follow. They ride the community interleave, so a row can show a couple of
   // snaps and a fresh playlist together instead of playlists getting their own row.
   const playlistsQ = useInfiniteQuery({
-    queryKey: ['feed-playlists', activeSection?.key, communityMode, user || null],
+    queryKey: ['feed-playlists', activeSection?.key, communityMode, user || null, playlistsMaxAgeHours || 0],
     queryFn: async ({ pageParam = 1 }) => {
-      const data = await fetchPlaylistsFeed({ scope: communityMode, currentuser: user, page: pageParam });
+      const data = await fetchPlaylistsFeed({ scope: communityMode, currentuser: user, page: pageParam, maxAgeHours: playlistsMaxAgeHours });
       return data?.playlists || [];
     },
     initialPageParam: 1,

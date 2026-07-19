@@ -6,9 +6,11 @@
 import axios from 'axios';
 import { CHECKER_URL } from '../utils/config';
 
-export async function fetchPlaylistsFeed({ scope = 'all', currentuser = '', page = 1, limit = 10 } = {}) {
+// `maxAgeHours` narrows the window below the server default (it can never widen it).
+export async function fetchPlaylistsFeed({ scope = 'all', currentuser = '', page = 1, limit = 10, maxAgeHours } = {}) {
   const params = new URLSearchParams({ scope, page: String(page), limit: String(limit) });
   if (currentuser) params.set('currentuser', currentuser);
+  if (maxAgeHours) params.set('maxAgeHours', String(maxAgeHours));
   const { data } = await axios.get(`${CHECKER_URL}/playlists-feed?${params.toString()}`);
   return data; // { success, playlists, page, limit, hasMore }
 }
