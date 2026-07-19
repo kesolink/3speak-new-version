@@ -31,6 +31,18 @@ const DISCOVER_FEED_URL = `${CHECKER_URL}/feeds/discover`;
 const INTERESTS_FEED_URL = `${CHECKER_URL}/feeds/interests`;
 const NEW_CONTENT_URL = `${CHECKER_URL}/feeds/new`;
 const FIRST_UPLOADS_URL = `${CHECKER_URL}/feeds/firstUploads`;
+// Max length of a Short, in seconds. Every encoder node supports 2 minutes; keep
+// this as the single source of truth for the upload gate, the react-video
+// classifier and the user-facing hints so they can never drift apart.
+const SHORTS_MAX_DURATION_SEC = parseInt(import.meta.env.VITE_SHORTS_MAX_DURATION_SEC, 10) || 120;
+
+/** "2 minutes" / "90 seconds" — for hint + error copy. */
+const shortsMaxDurationLabel = () => (
+  SHORTS_MAX_DURATION_SEC % 60 === 0
+    ? `${SHORTS_MAX_DURATION_SEC / 60} minute${SHORTS_MAX_DURATION_SEC === 60 ? '' : 's'}`
+    : `${SHORTS_MAX_DURATION_SEC} seconds`
+);
+
 const SHORTS_STORIES_URL = `${CHECKER_URL}/shorts/stories`;
 const SHORTS_API_URL = `${CHECKER_URL}/shortssorted`;
 const USER_SHORTS_API_URL = `${CHECKER_URL}/shorts`;
@@ -197,6 +209,8 @@ export {
   INTERESTS_FEED_URL,
   NEW_CONTENT_URL,
   FIRST_UPLOADS_URL,
+  SHORTS_MAX_DURATION_SEC,
+  shortsMaxDurationLabel,
   SHORTS_STORIES_URL,
   SHORTS_API_URL,
   USER_SHORTS_API_URL,

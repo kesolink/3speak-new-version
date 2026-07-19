@@ -10,7 +10,7 @@ import Card3 from '../components/Cards/Card3';
 import icon from '../../public/images/stack.png';
 import { useAppStore } from '../lib/store';
 import { getWatchHistory, getWatchHistoryCount, deleteWatchHistoryEntry } from '../utils/watchHistory';
-import { HIVE_API_URL } from '../utils/config';
+import { HIVE_API_URL, SHORTS_MAX_DURATION_SEC } from '../utils/config';
 import { toast } from 'sonner';
 import { fixVideoThumbnail, fallbackImg } from '../utils/fixThumbnails';
 import { getSinceTimestamp, formatRelativeDate } from '../utils/dateFilters';
@@ -51,7 +51,7 @@ async function fetchVideosFromHistory(items) {
 
       const isShort = item.short === true
         || (metadata.tags || []).includes('shorts')
-        || (!!metadata.video?.platform && duration > 0 && duration <= 60);
+        || (!!metadata.video?.platform && duration > 0 && duration <= SHORTS_MAX_DURATION_SEC);
 
       let embedPermlink = null;
       if (isShort) {

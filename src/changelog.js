@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.65.0',
+    date: '2026-07-19',
+    summary:
+      'Shorts can now be up to 2 minutes long, instead of 60 seconds. The upload limit and the hints in the Short uploader and the React-video box have been raised to match.',
+  },
+  {
     version: '1.64.0',
     date: '2026-07-18',
     summary:

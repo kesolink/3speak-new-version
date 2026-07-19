@@ -14,6 +14,7 @@ import { useAppStore } from '../../lib/store';
 import { canUseUploadFaults, getUploadFaults, setUploadFaults, initUploadFaults } from '../../utils/uploadFaults';
 import { checkPostingRc } from '../../utils/rcCheck';
 import RcInsufficientModal from './RcInsufficientModal';
+import { SHORTS_MAX_DURATION_SEC, shortsMaxDurationLabel } from '../../utils/config';
 
 function EmbedVideoUploadStep1() {
   const {
@@ -212,8 +213,8 @@ function EmbedVideoUploadStep1() {
 
       // Shorts checks only run when we could actually read the metadata — a
       // metadata-less file shouldn't be blocked here (the server validates too).
-      if (fromStories && hasDuration && duration > 60) {
-        toast.error("Shorts must be 60 seconds or less. Your video is " + Math.round(duration) + "s.");
+      if (fromStories && hasDuration && duration > SHORTS_MAX_DURATION_SEC) {
+        toast.error(`Shorts must be ${shortsMaxDurationLabel()} or less. Your video is ${Math.round(duration)}s.`);
         setLoading(false);
         return;
       }
@@ -317,7 +318,7 @@ function EmbedVideoUploadStep1() {
                   </p>
                   {fromStories && (
                     <p className="formats short-hint">
-                      Shorts must be under 60 seconds and recorded vertically.
+                      Shorts must be under {shortsMaxDurationLabel()} and recorded vertically.
                     </p>
                   )}
                 </div>
