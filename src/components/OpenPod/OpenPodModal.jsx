@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { HangoutsProvider, HangoutsRoom } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import logoDark from '../../assets/image/3S_logodark.png';
@@ -9,6 +9,7 @@ import { useSupportBlock } from '../../lib/supportBlockStore';
 import { firePendingAnnouncement, getAnnounceConfig } from '../../utils/openpodAnnounce';
 import { publishStreamVod } from '../../utils/streamVod';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import { defaultEndpoint, findRoomEndpoint } from '../../utils/hangoutsEndpoints';
 import AnnounceOptions from '../openpods/AnnounceOptions';
 import './OpenPodModal.scss';
 
@@ -35,9 +36,19 @@ function readPostDraft() {
   }
 }
 
-function buildOpenPodShareUrl(roomName, origin) {
+function buildOpenPodShareUrl(roomName, origin, mode) {
+  // Where the link should DROP the recipient depends on what kind of session
+  // it is. A standalone stream has a spectator-facing watch page; a conference
+  // room has no such thing — you either join it or you see nothing — so its
+  // link has to be the room route itself. Sharing /watch for a conference sent
+  // people to a page with no stream on it.
+  //
+  // Built from the CURRENT host so a preview session shares a preview link
+  // instead of a prod one that doesn't exist yet.
   if (origin && THREE_SPEAK_HOSTS.has(origin)) {
-    return `https://3speak.tv/openpods/${roomName}`;
+    return mode === 'standalone'
+      ? `https://${origin}/watch/${roomName}`
+      : `https://${origin}/openpods/${roomName}`;
   }
   return `https://hangout.3speak.tv/room/${roomName}`;
 }
@@ -52,6 +63,36 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
   // Owned here so the studio can react: with no announcement there's no post
   // for a VOD to replace, so that option is hidden and inert.
   const [announceEnabled, setAnnounceEnabled] = useState(() => getAnnounceConfig().announceEnabled !== false);
+  // A room lives on exactly ONE hangouts deployment — resolve which before
+  // connecting, otherwise we'd join the wrong server and 404.
+  const [endpoint, setEndpoint] = useState(() => defaultEndpoint());
+  // An UNLISTED session is link-only, so announcing it on Hive is a
+  // contradiction — the create dialog already hides the option, and this keeps
+  // the studio's own toggle consistent (which also hides the VOD option, since
+  // there'd be no post to replace).
+  const [isUnlisted, setIsUnlisted] = useState(false);
+  // Decides which share link the room hands out — see buildOpenPodShareUrl.
+  const [roomMode, setRoomMode] = useState(null);
+  useEffect(() => {
+    if (!roomName) return;
+    let alive = true;
+    findRoomEndpoint(roomName).then(async (ep) => {
+      if (!alive) return;
+      setEndpoint(ep);
+      try {
+        const res = await fetch(`${ep.api}/rooms/${encodeURIComponent(roomName)}`);
+        const room = res.ok ? await res.json() : null;
+        if (!alive) return;
+        // Set explicitly both ways: only ever setting `true` meant the flag
+        // stuck after opening an unlisted room and then a public one.
+        const unlisted = room?.visibility === 'unlisted';
+        setIsUnlisted(unlisted);
+        setRoomMode(room?.mode || null);
+        if (unlisted) setAnnounceEnabled(false);
+      } catch { /* leave defaults */ }
+    });
+    return () => { alive = false; };
+  }, [roomName]);
 
   // React fires child effects before parent effects. Without this flag,
   // HangoutsRoom.useEffect (join) fires before HangoutsProvider.useEffect
@@ -70,6 +111,11 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
     // Unauthenticated visitor → guest path; nothing to wait for.
     setRoomReady(isAuthenticated ? !!sessionToken : true);
   }, [sessionToken, isOpen, roomName, isAuthenticated]);
+
+  const getShareUrl = useCallback(
+    (name, origin) => buildOpenPodShareUrl(name, origin, roomMode),
+    [roomMode],
+  );
 
   if (!isOpen || !roomName) return null;
 
@@ -133,8 +179,8 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
     >
       <div className="openpod-modal" data-hh-theme={hhTheme}>
         <HangoutsProvider
-          apiBaseUrl={API_URL}
-          livekitServerUrl={LK_URL}
+          apiBaseUrl={endpoint.api}
+          livekitServerUrl={endpoint.lk}
           imageServerApiKey={IMAGE_KEY || undefined}
           sessionToken={sessionToken}
           username={username || undefined}
@@ -163,12 +209,13 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
                   thumbnailUrl: draft.thumbnail,
                 });
               }}
-              canPublishVod={announceEnabled}
+              canPublishVod={announceEnabled && !isUnlisted}
+              isUnlisted={isUnlisted}
               renderPostExtras={(
                 <AnnounceOptions
                   announceType="post"
                   isPremium={isPremium}
-                  showAnnounceToggle
+                  showAnnounceToggle={!isUnlisted}
                   announceEnabled={announceEnabled}
                   onAnnounceEnabledChange={setAnnounceEnabled}
                 />
@@ -176,7 +223,7 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
               video
               embedded
               guestFallback
-              getShareUrl={buildOpenPodShareUrl}
+              getShareUrl={getShareUrl}
               watermarkLogoUrl={new URL(logoDark, window.location.origin).href}
             />
           ) : (

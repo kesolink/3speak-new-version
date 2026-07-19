@@ -1,0 +1,69 @@
+// Shorts-style vertical action rail — the SINGLE source of truth for the look.
+//
+// Used by the shorts player (`.actionSidebar`) and by the mobile OpenPods
+// studio rail, which reuses the exact same treatment so the two can't drift.
+// Values lifted verbatim from the shorts mobile rail so this is a refactor,
+// not a second implementation.
+
+// The column itself: floats over the video, bottom-right.
+@mixin rail-sidebar($right: 0.75rem, $bottom: 2rem) {
+  position: absolute;
+  right: $right;
+  bottom: $bottom;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+// One button: a translucent CIRCLE wrapping the icon AND its label.
+// `border-radius: 50%` only yields a circle on a SQUARE box — left to size
+// itself the item is as wide as its label ("Saved", "Share", "1.2K") and as
+// tall as icon+label, so every button comes out a differently-shaped ellipse.
+// Pin a fixed square and centre the content inside it.
+@mixin rail-item {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 3.4rem;
+  height: 3.4rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  cursor: pointer;
+}
+
+// The glyph. Always white with a drop shadow — the rail sits over live video,
+// so it can't rely on theme colours.
+@mixin rail-icon {
+  width: auto;
+  height: 1.5rem;
+  flex: 0 0 auto;
+  background-color: transparent !important;
+  backdrop-filter: none;
+  font-size: 22px;
+  line-height: 1;
+  color: #fff;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+}
+
+// The caption under the glyph.
+@mixin rail-label {
+  margin: 0;
+  max-width: 100%;
+  font-size: 0.68rem;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

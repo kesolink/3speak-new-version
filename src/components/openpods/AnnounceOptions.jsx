@@ -114,8 +114,10 @@ export default function AnnounceOptions({ announceType, isPremium = false, onCha
 
   return (
     <div className="hh-announce-opts">
-      {/* Studio only: let the host still call off the Hive announcement before
-          they hit Start. Hides the rest of the controls when switched off. */}
+      {/* Studio only — and the studio is always a standalone stream, so the
+          wording matches the create dialog's standalone label. Lets the host
+          still call off the post before they hit Start; hides the rest of the
+          controls when switched off. */}
       {showAnnounceToggle && (
         <label className="hh-announce-opts__toggle">
           <input
@@ -123,7 +125,7 @@ export default function AnnounceOptions({ announceType, isPremium = false, onCha
             checked={announceEnabled}
             onChange={(e) => setAnnounceEnabled(e.target.checked)}
           />
-          <span>📣 Announce this session on Hive when the stream starts</span>
+          <span>📣 Share this stream on Hive and 3Speak when it starts</span>
         </label>
       )}
 

@@ -1,3 +1,4 @@
+@use '../../styles/shorts-action-rail' as rail;
 .openpod-modal-overlay {
   position: fixed;
   inset: 0;
@@ -22,9 +23,10 @@
   background: var(--bg-primary, #0d0d0d);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  width: min(96vw, 1280px);
-  aspect-ratio: 16 / 9;
-  max-height: 92vh;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -41,18 +43,6 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-  }
-
-  // The one-man stream studio needs room: let it fill the viewport (minus the
-  // overlay's 1rem padding, which is the margin) instead of the compact
-  // 16:9 / 1280px conference box. Scoped with :has() so conference rooms keep
-  // their original sizing.
-  &:has(.hh-studio) {
-    width: 100%;
-    max-width: none;
-    height: 100%;
-    max-height: none;
-    aspect-ratio: auto;
   }
 
   @media (max-width: 768px) {
@@ -97,3 +87,42 @@
   font-size: 14px;
 }
 
+// ── Mobile studio: skin the SDK's rail with the SAME shorts treatment ──
+// The SDK ships structure only; the look comes from the shared mixins that the
+// shorts player itself uses, so the two can never drift apart. Scoped under
+// .openpod-modal so these win over the SDK's unskinned defaults.
+.openpod-modal {
+  // Both rails share the shorts treatment; the SDK positions them left/right.
+  .hh-studio__rail {
+    @include rail.rail-sidebar($right: 0.6rem, $bottom: 1rem);
+    right: auto;              // the SDK sets the side
+    gap: 0.35rem;             // tighter than the shorts feed
+    // Guaranteed clearance from the Android gesture bar, which reports no
+    // safe-area inset — see the SDK rule this mirrors.
+    bottom: max(3.75rem, calc(0.75rem + env(safe-area-inset-bottom, 0px)));
+  }
+  .hh-studio__rail--left { left: 0.6rem; }
+  .hh-studio__rail--right { right: 0.6rem; }
+
+  .hh-studio__rbtn {
+    @include rail.rail-item;
+
+    // The glyph is an inline <svg> (was an emoji span before the icon set
+    // landed — match BOTH so the treatment can't silently stop applying).
+    // The status dot is ALSO an aria-hidden span, and rail-icon's
+    // `background-color: transparent !important` + `width: auto` made it a
+    // zero-width invisible nothing — hence the exclusion.
+    > svg,
+    > span[aria-hidden]:not(.hh-studio__rbtn-dot) { @include rail.rail-icon; }
+    .hh-studio__rbtn-label { @include rail.rail-label; }
+
+    // The rail always sits over live video, so it ignores the light theme.
+    // The go/start glyph keeps its own colour — hence the :not().
+    color: #fff;
+    > svg:not(.hh-studio__rbtn-go-icon) { color: #fff !important; }
+
+    &--on {
+      background-color: color-mix(in srgb, var(--accent-primary, #e53935) 55%, rgba(0, 0, 0, 0.22));
+    }
+  }
+}
