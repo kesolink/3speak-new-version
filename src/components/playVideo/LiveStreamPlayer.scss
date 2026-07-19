@@ -20,3 +20,36 @@
     font-weight: 600;
   }
 }
+
+/* "The recording is processing" — covers the dead live player after the host
+   leaves, until Watch.jsx sees the VOD published and swaps in the real one. */
+.live-stream-player__vod {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.5rem;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.88);
+  color: #fff;
+
+  strong { font-size: 1.05rem; }
+  span { font-size: 0.85rem; opacity: 0.75; max-width: 32ch; line-height: 1.45; }
+}
+
+.live-stream-player__vod-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-top-color: var(--accent-primary, #e0594b);
+  animation: live-stream-player-spin 0.9s linear infinite;
+}
+
+@keyframes live-stream-player-spin {
+  to { transform: rotate(360deg); }
+}

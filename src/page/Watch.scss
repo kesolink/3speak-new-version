@@ -204,3 +204,55 @@
     }
 }
 
+
+/* ---------------------------------------------------------------------------
+   Live chat in the right column
+   While a post is a live stream, the chat occupies the reaction panel's slot
+   (see Watch.jsx). The panel itself is portalled in from <LiveStreamPlayer> so
+   it shares the player's LiveKit connection — this is just the frame around it,
+   matching the reaction panel's card treatment so the column doesn't jump when
+   the recording publishes and reactions take over.
+--------------------------------------------------------------------------- */
+.live-chat-column {
+  display: flex;
+  flex-direction: column;
+  height: 460px;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: 14px;
+  overflow: hidden;
+
+  &__head {
+    flex-shrink: 0;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+
+    &::before {
+      content: "● ";
+      color: #e0594b;
+    }
+  }
+
+  /* The portal target. Empty until the room connects. */
+  &__body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .hh-chat {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* The SDK panel draws its own "Chat" header; we already have one above it. */
+  .hh-chat__header {
+    display: none;
+  }
+}

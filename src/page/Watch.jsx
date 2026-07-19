@@ -17,6 +17,7 @@ import { HIVE_API_NODES, SHORTS_API_URL, appendNsfw } from '../utils/config';
 import { getPlayerUrl } from '../utils/playerUrl';
 import ShortsRow from '../components/ShortsRow/ShortsRow';
 import { useGridColumns, useShortsPerRow } from '../hooks/useGridMetrics';
+import { useStreamChatMirror } from '../hooks/useStreamChatMirror';
 import { getFeedSeed } from '../utils/feedSeed';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
@@ -1005,19 +1006,58 @@ function Watch({ v2 = false }) {
   // no published video exists yet — otherwise we'd show "Connecting to the
   // stream…" over a room that ended hours ago.
   const [liveVodReady, setLiveVodReady] = useState(false);
+  // The encoder has an asset for this post but hasn't published it yet — i.e.
+  // the stream is over and the recording is still being transcoded. Shown over
+  // the (now dead) live player so the page says "coming back shortly" instead
+  // of just "the streamer is offline".
+  const [vodProcessing, setVodProcessing] = useState(false);
   useEffect(() => {
     setLiveVodReady(false);
+    setVodProcessing(false);
     if (!videoDetails?.live || !author || !permlink) return undefined;
     let alive = true;
-    fetchPlaySource(author, permlink)
-      .then((src) => { if (alive && src?.published) setLiveVodReady(true); })
-      .catch(() => { /* stay live */ });
-    return () => { alive = false; };
+    let timer = null;
+    // Poll: a viewer who sits on the page while the host wraps up should see
+    // the VOD appear on its own, not have to reload to find out.
+    const check = () => {
+      fetchPlaySource(author, permlink)
+        .then((src) => {
+          if (!alive) return;
+          if (src?.published) { setLiveVodReady(true); return; }   // done — stop polling
+          // No asset at all means nothing was ever recorded (the host didn't
+          // tick "replace the stream with a video"), and a failed encode is
+          // not "processing" either — don't promise a video in either case.
+          const dead = ['failed', 'error', 'deleted', 'cancelled'].includes(src?.status);
+          setVodProcessing(!!src && !dead);
+          timer = setTimeout(check, 20000);
+        })
+        .catch(() => { if (alive) timer = setTimeout(check, 20000); });
+    };
+    check();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [videoDetails?.live, author, permlink]);
 
   // Mirror the live flag into the ref the player callbacks read.
   const isLive = !!videoDetails?.live && !liveVodReady;
   useEffect(() => { isLiveRef.current = isLive; }, [isLive]);
+
+  // Live chat takes the reaction panel's place in the right column. The panel
+  // itself is rendered by <LiveStreamPlayer> and portalled in here, so it can
+  // share the player's single LiveKit connection — hence a DOM element in
+  // state (a plain ref wouldn't re-render the player once it's attached).
+  const [liveChatSlot, setLiveChatSlot] = useState(null);
+  // Reported by <LiveStreamPlayer>, which already resolves the room's endpoint.
+  const [streamRoomMeta, setStreamRoomMeta] = useState(null);
+  const mirrorChatToHive = useStreamChatMirror({
+    author,
+    permlink,
+    // `liveAt` is the server's stamp of the moment the host hit Start, which is
+    // also when recording began — so timecodes line up with the VOD's timeline.
+    // The post's own timestamp is only a fallback: the announcement broadcast
+    // lands some seconds after go-live, and older rooms have no stamp at all.
+    startedAt: streamRoomMeta?.liveAt || videoDetails?.created_at,
+    hasPost: true,   // we ARE on the post — an announced stream always has one
+  });
 
   // Poster: the SDK's `poster: true` would set <video poster> straight from the
   // RAW metadata thumbnail — for legacy uploads that's the full-resolution
@@ -1387,6 +1427,10 @@ function Watch({ v2 = false }) {
         permlink={permlink}
         isLive={isLive}
         streamRoom={videoDetails?.roomName}
+        liveChatSlot={isLive ? liveChatSlot : null}
+        onLiveChatSent={mirrorChatToHive}
+        vodAssetPending={vodProcessing}
+        onStreamRoomMeta={setStreamRoomMeta}
         mediaUnavailable={!isLive && mediaUnavailable}
         mediaLoading={!isLive && mediaLoading}
         videoRef={videoRef}
@@ -1526,9 +1570,20 @@ function Watch({ v2 = false }) {
         ) : null}
       />
 
-      {/* Right column: Reaction Player + Recommended */}
+      {/* Right column: Reaction Player (or, while live, the chat) + Recommended */}
       <div className="right-column">
-        {isReactionPlayerVisible && reactions.length > 0 && (
+        {/* A live stream has nothing to react TO yet, and the chat is the whole
+            point of watching one — so it takes the reaction panel's slot until
+            the recording is published, at which point this reverts to reactions
+            and the page becomes an ordinary watch page. Filled by a portal from
+            <LiveStreamPlayer>; empty until the room connects. */}
+        {isLive && (
+          <div className="live-chat-column">
+            <div className="live-chat-column__head">Live chat</div>
+            <div className="live-chat-column__body" ref={setLiveChatSlot} />
+          </div>
+        )}
+        {!isLive && isReactionPlayerVisible && reactions.length > 0 && (
           <ReactionPlayer
             reactions={reactions}
             selectedIndex={selectedReactionIndex}
@@ -1541,12 +1596,12 @@ function Watch({ v2 = false }) {
             onReactionPlay={pause}
           />
         )}
-        {!isReactionPlayerVisible && reactions.length > 0 && (
+        {!isLive && !isReactionPlayerVisible && reactions.length > 0 && (
           <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
             Show Reactions ({reactionCountLabel})
           </button>
         )}
-        {reactions.length === 0 && (
+        {!isLive && reactions.length === 0 && (
           <button className="show-reactions-btn" onClick={handleAddReaction}>
             Add Reaction
           </button>

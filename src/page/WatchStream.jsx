@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-  HangoutsProvider, StandaloneWatch, StreamVideo, StreamViewerCount, StreamQualityControl, ChatPanel,
+  HangoutsProvider, StandaloneWatch, StreamVideo, StreamViewerCount, StreamQualityControl, ChatPanel, useIsMobile, useChat,
 } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
-import { useAioha } from '@aioha/react-ui';
-import { Providers } from '@aioha/aioha';
-import { useHangout } from '../context/HangoutContext';
-import { useAppStore } from '../lib/store';
+import { useStreamSession } from '../hooks/useStreamSession';
+import { useStreamChatMirror } from '../hooks/useStreamChatMirror';
+import { fetchVideoDetails } from '../lib/videoData';
+// The mobile layout reuses the shorts page's classes — load its styles too.
+import './Short.scss';
 import SEOHead from '../components/SEOHead';
 import BarLoader from '../components/Loader/BarLoader';
 import Card3 from '../components/Cards/Card3';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
 import TipModal from '../components/tip-reward/TipModal';
+import { ArrowLeft, Heart, MessageSquare, Send, Share2 } from 'lucide-react';
+
 import { TAG_FEED_URL } from '../utils/config';
 import { FaThumbsUp, FaRegCommentAlt, FaBookmark, FaHeart } from 'react-icons/fa';
 import { MdShare } from 'react-icons/md';
@@ -26,45 +29,84 @@ const API_URL = (import.meta.env.VITE_HANGOUTS_API_URL || '').replace(/\/$/, '')
 const LK_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://livekit.3speak.tv';
 const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
 
+/**
+ * The chat composer, docked to the bottom of the screen like the shorts
+ * comment bar — separate from the chat overlay, which shows messages only.
+ * Must live inside <StandaloneWatch> to reach the LiveKit room context.
+ */
+function StreamChatBar({ canChat, onSent }) {
+  // The SDK's chat hook — ChatPanel renders what THIS publishes. LiveKit's
+  // own useChat is a different transport; sending on it meant neither the
+  // viewer nor the streamer ever saw the message.
+  const { sendMessage } = useChat();
+  const [text, setText] = useState('');
+  const submit = (e) => {
+    e.preventDefault();
+    const msg = text.trim();
+    if (!msg || !canChat) return;
+    void sendMessage(msg);
+    setText('');
+    try { onSent?.(msg); } catch { /* mirroring is best-effort */ }
+  };
+  return (
+    <form className="shortsBottomComment ws-shorts__bar" onSubmit={submit}>
+      <textarea
+        rows={1}
+        placeholder={canChat ? 'Say something…' : 'Sign in to chat'}
+        value={text}
+        disabled={!canChat}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) submit(e); }}
+      />
+      <button className="sendCommentBtn" type="submit" disabled={!canChat || !text.trim()} aria-label="Send message">
+        <Send size={18} />
+      </button>
+    </form>
+  );
+}
+
 export default function WatchStream() {
   const { streamId } = useParams();
   const navigate = useNavigate();
-  const { sessionToken, sessionLoading, retryLogin, hangoutsUser } = useHangout();
-  const { aioha, provider, user: aiohaUser } = useAioha();
-  const authenticated = useAppStore((s) => s.authenticated);
-  const user = useAppStore((s) => s.user);
+  const { aioha, authenticated, sessionToken, hangoutsUser, connectReady, joinKey } = useStreamSession();
 
-  const [state, setState] = useState({ status: 'loading', room: null });
+  const [state, setState] = useState({ status: 'loading', room: null, hivePost: null });
   const [copied, setCopied] = useState(false);
   const [recommended, setRecommended] = useState({ loading: false, videos: [] });
   const [tipOpen, setTipOpen] = useState(false);
+  // Phones get a shorts-style full-bleed player rather than the desktop grid.
+  const isMobile = useIsMobile();
+  const [chatOverlayOn, setChatOverlayOn] = useState(true);
 
-  // Hand the 3Speak session over to the hangout backend in the background so
-  // an authenticated viewer joins as themselves (and can chat) instead of an
-  // anonymous guest. Mirrors the OpenPods page.
-  const canHandover = !!provider && provider !== Providers.HiveSigner && !!aiohaUser;
-  useEffect(() => {
-    if (canHandover && !sessionToken && !sessionLoading) retryLogin(aiohaUser || user);
-  }, [canHandover, sessionToken, sessionLoading, aiohaUser, user, retryLogin]);
-  // Give the handover a moment before connecting as a guest, so authed users
-  // join with their identity.
-  const [waited, setWaited] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setWaited(true), 4000); return () => clearTimeout(t); }, []);
-  const connectReady = !!sessionToken || !canHandover || waited;
-
-  // Detect the live stream via the room lookup (works for unlisted too).
+  // Detect the live stream via the room lookup (works for unlisted too), then
+  // ask Hive whether the host actually ANNOUNCED it.
+  //
+  // The room's `post` field is seeded from the create-room form and exists
+  // whether or not anything was ever broadcast, so it can't answer that — only
+  // the chain can. An announced stream publishes under `host/<roomName>`, and
+  // when that post exists the ordinary watch page is the better home for the
+  // stream: it already carries votes, payout, comments, playlists, and it
+  // swaps the live player for the recording once the VOD publishes. See the
+  // redirect below.
   useEffect(() => {
     let alive = true;
-    setState({ status: 'loading', room: null });
-    if (!streamId || !API_URL) { setState({ status: 'notfound', room: null }); return undefined; }
+    setState({ status: 'loading', room: null, hivePost: null });
+    if (!streamId || !API_URL) { setState({ status: 'notfound', room: null, hivePost: null }); return undefined; }
     fetch(`${API_URL}/rooms/${encodeURIComponent(streamId)}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((room) => {
+      .then(async (room) => {
         if (!alive) return;
-        if (room && room.mode === 'standalone') setState({ status: 'live', room });
-        else setState({ status: 'notlive', room: room || null });
+        if (!room || room.mode !== 'standalone') {
+          setState({ status: 'notlive', room: room || null, hivePost: null });
+          return;
+        }
+        let hivePost = null;
+        try { hivePost = room.host ? await fetchVideoDetails(room.host, streamId) : null; }
+        catch { /* Hive unreachable — treat as unannounced and stay on this page */ }
+        if (!alive) return;
+        setState({ status: 'live', room, hivePost });
       })
-      .catch(() => { if (alive) setState({ status: 'notfound', room: null }); });
+      .catch(() => { if (alive) setState({ status: 'notfound', room: null, hivePost: null }); });
     return () => { alive = false; };
   }, [streamId]);
 
@@ -84,6 +126,18 @@ export default function WatchStream() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status, tags[0]]);
 
+  const mirrorChatToHive = useStreamChatMirror({
+    author: state.room?.host,
+    permlink: streamId,
+    // `liveAt` is the server's stamp of the moment the host hit Start, which is
+    // also when recording began — so timecodes line up with the VOD's timeline.
+    // The post's timestamp is a fallback (the announcement lands seconds after
+    // go-live); `createdAt` — when the room was OPENED, possibly long before —
+    // is the last resort for rooms that pre-date the stamp.
+    startedAt: state.room?.liveAt || state.hivePost?.created_at || state.room?.createdAt,
+    hasPost: !!state.hivePost,
+  });
+
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); }
     catch { /* clipboard unavailable */ }
@@ -96,14 +150,125 @@ export default function WatchStream() {
       <div className="ws-error">
         <p>{state.status === 'notlive' ? 'This stream isn’t live right now.' : 'No live stream found for this link.'}</p>
         <button className="ws-error-btn" onClick={() => navigate('/openpods')}>Browse live streams</button>
+        {/* Same floating back affordance the live view has (.shortBackBtn),
+            so leaving a dead link works exactly like leaving a live one. */}
+        <button
+          className="shortBackBtn ws-error-back"
+          onClick={() => navigate('/')}
+          title="Back to 3Speak"
+        >
+          <ArrowLeft size={18} />
+        </button>
       </div>
     );
   }
 
   const { room } = state;
+
+  // Announced on Hive → hand the viewer to the real watch page, which is the
+  // same stream plus everything a post gets: votes, payout, comments, playlists
+  // and the VOD once it publishes. It renders the live player in the video slot
+  // and puts this chat where the reaction panel goes (see Watch.jsx).
+  //
+  // Desktop only. On a phone the shorts-style layout below is the better
+  // experience and the watch page's sidebar — where the chat would live — is
+  // collapsed away anyway.
+  if (!isMobile && state.hivePost) {
+    return <Navigate to={`/watch?v=${room.host}/${streamId}`} replace />;
+  }
   const host = room.host;
   const title = post.title || room.title;
   const description = post.description || room.description || '';
+
+  // --- mobile: the shorts layout, rendered exactly as Short.jsx does -------
+  // Top level, NOT inside .play-container: `.short-main` is position:fixed at
+  // ≤767px and a wrapper with its own layout context was penning it in, which
+  // is why the player sat inline with the nav instead of covering the screen.
+  if (isMobile) {
+    return (
+      <>
+        <SEOHead title={`${title} (LIVE)`} author={host} url={window.location.href} />
+        <HangoutsProvider
+          apiBaseUrl={API_URL}
+          livekitServerUrl={LK_URL}
+          imageServerApiKey={IMAGE_KEY || undefined}
+          sessionToken={sessionToken || undefined}
+          username={hangoutsUser || undefined}
+          aioha={aioha}
+        >
+          {!connectReady ? <BarLoader /> : (
+            <StandaloneWatch key={joinKey} roomName={streamId} connecting={<BarLoader />}>
+              <main className="short-main no-bottom-bar ws-shorts">
+                <div className="videoWrapper">
+                  <div className="videoContainer">
+                    <StreamVideo showLiveBadge={false} />
+
+                    {/* Same back affordance as the shorts feed. */}
+                    <button
+                      className="shortBackBtn"
+                      onClick={(e) => { e.stopPropagation(); navigate('/'); }}
+                      title="Back to 3Speak"
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+
+                    {/* Quality lives in the top-right corner, not the rail. */}
+                    <div className="ws-shorts__quality" onClick={(e) => e.stopPropagation()}>
+                      <StreamQualityControl />
+                    </div>
+
+                    <div className="bottomOverlay">
+                      <div className="ws-shorts__live">
+                        <span className="ws-live-tag">● LIVE</span>
+                        <StreamViewerCount render={(c) => <span className="ws-shorts__watching">👁 {c}</span>} />
+                      </div>
+                      <div className="userRow" onClick={(e) => e.stopPropagation()}>
+                        <AuthorBadge author={host} showFollow fetchFollowers color="#fff" />
+                      </div>
+                      <div className="caption">
+                        <p className="captionText">{title}</p>
+                        {description && <p className="captionText ws-shorts__desc">{description}</p>}
+                      </div>
+                    </div>
+
+                    <div className="actionSidebar" onClick={(e) => e.stopPropagation()}>
+                      <div className="actionItem" onClick={() => setChatOverlayOn((v) => !v)}>
+                        <div className={`actionButton${chatOverlayOn ? ' liked' : ''}`}>
+                          <MessageSquare size={24} />
+                        </div>
+                        <span className="actionLabel">Chat</span>
+                      </div>
+                      <div className="actionItem" onClick={() => setTipOpen(true)}>
+                        <div className="actionButton"><Heart size={24} /></div>
+                        <span className="actionLabel">Tip</span>
+                      </div>
+                      <div className="actionItem" onClick={copyLink}>
+                        <div className="actionButton"><Share2 size={24} /></div>
+                        <span className="actionLabel">{copied ? 'Copied' : 'Share'}</span>
+                      </div>
+                    </div>
+
+                    {chatOverlayOn && (
+                      <div className="ws-shorts__chat">
+                        {/* Messages only — the composer lives in the bottom bar. */}
+                        <ChatPanel readOnly readOnlyNotice="" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <StreamChatBar canChat={authenticated} onSent={mirrorChatToHive} />
+              </main>
+            </StandaloneWatch>
+          )}
+        </HangoutsProvider>
+        {/* TipModal ignores its `isOpen` prop and always renders its markup,
+            so mounting is what actually gates it — same as every other caller. */}
+        {tipOpen && (
+          <TipModal recipient={host} isOpen={tipOpen} onClose={() => setTipOpen(false)} />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="play-container watch-v2 ws-page">
@@ -117,16 +282,13 @@ export default function WatchStream() {
         aioha={aioha}
       >
         {!connectReady ? <BarLoader /> : (
-        <StandaloneWatch roomName={streamId} connecting={<BarLoader />}>
+
+        <StandaloneWatch key={joinKey} roomName={streamId} connecting={<BarLoader />}>
           <div className="ws-grid">
             {/* Main column */}
             <div className="ws-col-main">
               <div className="ws-player">
                 <StreamVideo showLiveBadge={false} />
-              </div>
-
-              <div className="ws-controls-row">
-                <StreamQualityControl />
               </div>
 
               {/* Info area — reuses the watch page (PlayVideo) classes so it
@@ -143,8 +305,14 @@ export default function WatchStream() {
                     </div>
                   </div>
 
-                  <div className="badges-row">
+                  {/* Quality sits in the author row rather than on its own
+                      line under the player — one less band of chrome between
+                      the video and the title. */}
+                  <div className="badges-row ws-badges-row">
                     <AuthorBadge author={host} showFollow fetchFollowers />
+                    <div className="ws-quality-slot">
+                      <StreamQualityControl />
+                    </div>
                   </div>
 
                   {tags.length > 0 && (
@@ -192,7 +360,11 @@ export default function WatchStream() {
             <div className="ws-col-side">
               <div className="ws-chat">
                 <div className="ws-chat-head">Live chat</div>
-                <ChatPanel readOnly={!authenticated} readOnlyNotice="🔒 Sign in to join the chat." />
+                <ChatPanel
+                  readOnly={!authenticated}
+                  readOnlyNotice="🔒 Sign in to join the chat."
+                  onMessageSent={mirrorChatToHive}
+                />
               </div>
 
               {(recommended.loading || recommended.videos.length > 0) && (

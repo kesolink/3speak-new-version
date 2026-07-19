@@ -1,3 +1,4 @@
+@use '../styles/shorts-action-rail' as rail;
 .ws-page.play-container {
   display: block;
 }
@@ -245,3 +246,181 @@
 
 /* Plain-text description (a live stream has no Hive markdown body). */
 .ws-desc-text { white-space: pre-wrap; word-break: break-word; }
+
+/* Author badge and the quality picker share one row; the picker is pushed to
+   the far right and wraps under on narrow screens rather than squashing the
+   badge. */
+.ws-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ws-quality-slot {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+// ===========================================================================
+// Mobile live player — only the LIVE-specific bits
+// ===========================================================================
+// Layout, scrim, caption and the action rail all come from Short.scss (the
+// markup uses its classes). What's left is what a live stream has and a short
+// doesn't: the LIVE tag, the viewer count and the chat overlay.
+.ws-shorts {
+  // Everything anchored to the bottom sits above the docked chat bar.
+  .bottomOverlay { padding-bottom: 4.5rem; }
+  .actionSidebar { bottom: 5rem; }
+
+  &__live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  &__watching {
+    font-size: 12px;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  }
+  &__desc {
+    margin-top: 4px;
+    opacity: 0.85;
+    font-size: 0.82rem;
+  }
+  // Quality picker: top-right corner, on its own, solid black so the <select>
+  // is legible over any frame.
+  &__quality {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.85);
+
+    select,
+    .hh-quality select {
+      background: #000;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      font-size: 12px;
+      padding: 2px 6px;
+      option { background: #000; color: #fff; }
+    }
+  }
+
+  // The rail is anchored to the RIGHT EDGE of the screen. Short.scss anchors it
+  // to its own container; being explicit here keeps it flush regardless of what
+  // the video wrapper does with its width.
+  .actionSidebar {
+    right: 0.75rem;
+    left: auto;
+    align-items: flex-end;
+  }
+  // react-icons ship a viewBox that leaves a visible box inside the circle;
+  // the shorts feed uses lucide, which we now match. Belt and braces:
+  .actionButton svg {
+    background: transparent;
+    border: none;
+  }
+
+  // --- transparent chat overlay --------------------------------------------
+  // Sits above the video, below the caption/rail, with no panel of its own.
+  &__chat {
+    position: absolute;
+    left: 0;
+    right: 5rem;                       // clear of the action rail
+    bottom: 14rem;                     // above the caption block
+    top: 30%;
+    z-index: 16;                       // under .actionSidebar (50)
+    display: flex;
+    pointer-events: none;              // taps fall through to the video…
+
+    .hh-chat {
+      flex: 1;
+      // Fill the band, so the composer sits at ITS bottom instead of floating
+      // directly under the last message.
+      height: 100%;
+      min-height: 0;
+      justify-content: flex-end;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      max-height: none;
+    }
+    // …except where you actually interact.
+    .hh-chat__messages,
+    .hh-chat__input-row,
+    .hh-chat__guest-prompt { pointer-events: auto; }
+
+    .hh-chat__header { display: none; }
+    // "No messages yet" is noise over a live video.
+    .hh-chat__empty { display: none; }
+    .hh-chat__messages {
+      background: transparent;
+      border: none;
+      justify-content: flex-end;       // newest sit at the bottom
+      mask-image: linear-gradient(to bottom, transparent 0%, #000 20%);
+    }
+    .hh-chat__msg { background: transparent; padding: 3px 4px; }
+    .hh-chat__msg-name,
+    .hh-chat__msg-text {
+      color: #fff;
+      text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.95),
+        0 0 6px rgba(0, 0, 0, 0.85),
+        0 0 14px rgba(0, 0, 0, 0.6);
+    }
+    .hh-chat__mention { color: #8ab4ff; }
+    // The composer moved to the docked bar; nothing input-shaped belongs here.
+    .hh-chat__input-row,
+    .hh-chat__compose,
+    .hh-chat__guest-prompt { display: none; }
+  }
+}
+
+// Docked chat bar — reuses the shorts comment-bar class, so it inherits that
+// layout; only the live-specific placement is set here.
+.ws-shorts__bar.shortsBottomComment {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;                      // above the caption scrim and the rail
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+
+  textarea {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    &::placeholder { color: rgba(255, 255, 255, 0.55); }
+  }
+}
+
+/* The error screen has no .videoContainer to anchor against, so the shared
+   .shortBackBtn look is pinned to the viewport instead of the player. */
+.ws-error-back.ws-error-back {
+  position: fixed;
+  top: calc(12px + var(--safe-top, 0px));
+  left: 12px;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px 8px 12px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}

@@ -72,7 +72,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -800,7 +800,15 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
               {/* Live OpenPods stream: the WebRTC live player takes the player
                   slot in place of the (idle) VOD <video>. Everything around it —
                   title, description, voting, comments — is the real post. */}
-              {isLive && streamRoom && <LiveStreamPlayer roomName={streamRoom} />}
+              {isLive && streamRoom && (
+                <LiveStreamPlayer
+                  roomName={streamRoom}
+                  chatSlot={liveChatSlot}
+                  onChatSent={onLiveChatSent}
+                  vodAssetPending={vodAssetPending}
+                  onRoomMeta={onStreamRoomMeta}
+                />
+              )}
               <video
                 ref={videoRef}
                 style={{

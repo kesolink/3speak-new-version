@@ -194,8 +194,10 @@ function App() {
   const aiohaUserSeen = useRef(false); // Track if aiohaUser has ever been populated
   const sessionExpiredHandled = useRef(false); // Guard so the expiry prompt shows once (StrictMode-safe)
 
-  // Hide nav on /shorts route on mobile
-  const isShorts = location.pathname.startsWith('/shorts');
+  // Hide nav on /shorts route on mobile — and on a live stream's watch page,
+  // which uses the same full-bleed shorts layout.
+  const isShorts = location.pathname.startsWith('/shorts')
+    || /^\/(watch|l)\/[^/]+$/.test(location.pathname);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 767);
 
   useEffect(() => {
@@ -519,6 +521,8 @@ function App() {
             {/* Live OpenPods stream at /watch/<roomName> (path param, distinct
                 from the ?v= VOD route above). */}
             <Route path="/watch/:streamId" element={<WatchStream />} />
+            {/* Short alias for stream share links — see buildOpenPodShareUrl. */}
+            <Route path="/l/:streamId" element={<WatchStream />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/post/:author/:permlink" element={<PostView />} />
             <Route path="/upload" element={<UploadVideo />} />
