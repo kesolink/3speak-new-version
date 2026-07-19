@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.67.0',
+    date: '2026-07-19',
+    summary:
+      'A stream you share on Hive now opens as a normal 3Speak video page \u2014 votes, rewards, comments and playlists all work, with the live chat where the reactions panel usually sits. On a phone it plays full screen like a Short, with the chat over the video. Chat messages from signed-in Hive users are posted as comments with the time they were sent, so they line up with the replay. When the stream ends the page tells you the recording is being processed and swaps in the replay on its own.',
+  },
+  {
+    version: '1.66.0',
+    date: '2026-07-19',
+    summary:
+      'You can now go live from your phone. Share \u2192 Go Live opens the create screen straight away, and the mobile studio is camera only: front/back switching, a lens picker with zoom, a microphone picker with a level meter, and a see-through chat you can drag taller. The create screen also lets you decide up front what happens to the recording when the stream ends, and sharing a session now links to the right place \u2014 the watch page for a stream, the room itself for a conference.',
+  },
+  {
     version: '1.65.0',
     date: '2026-07-19',
     summary:
