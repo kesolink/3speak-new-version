@@ -626,7 +626,11 @@ html[data-card-size="large"] { --card-min-w: 420px; }
 // 1st-level v2 tag (category) on large cards, sitting left of the view count.
 .card-topic-chip {
   flex: 0 0 auto;
-  margin-left: auto;   // pushes the chip + view count group to the right of the author
+  // `margin-left: auto` absorbs the row's free space (which is why the parent's
+  // space-between leaves none), so the chip and the view count end up flush —
+  // the right margin is what actually separates them.
+  margin-left: auto;
+  margin-right: 8px;
   padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid var(--border-light);
