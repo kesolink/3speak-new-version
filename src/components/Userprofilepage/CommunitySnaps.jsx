@@ -53,14 +53,25 @@ function SnapBody({ body, maxVh = 0.33 }) {
   }, [body]);
 
   useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
     const measure = () => {
-      const el = ref.current;
       // scrollHeight is the full content height regardless of the max-height clamp.
-      if (el) setOverflowing(el.scrollHeight > window.innerHeight * maxVh + 8);
+      setOverflowing(el.scrollHeight > window.innerHeight * maxVh + 8);
     };
     measure();
+    // Images and GIFs inside a snap load AFTER this first pass, when they still
+    // measure ~0 tall — so a post that overflows once its media arrives would
+    // stay unclamped forever (it opened full-size on first load). The observer
+    // re-measures as the body grows; once clamped its height is pinned, so this
+    // settles instead of looping.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(el);
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, [html, maxVh]);
 
   const clamped = overflowing && !expanded;
