@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.66.0',
+    date: '2026-07-19',
+    summary:
+      'New Popular creators row on Discover: creators from the trending list you are not following yet, with their follower count and a Follow button.',
+  },
+  {
     version: '1.70.0',
     date: '2026-07-19',
     summary:

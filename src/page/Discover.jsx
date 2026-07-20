@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
+import PopularCreators from "../components/PopularCreators/PopularCreators";
 import { useLiveStreams } from "../hooks/useLiveStreams";
 import { TRENDING_SORTED_URL, CHECKER_URL, appendNsfw } from '../utils/config';
 import { feedParams } from '../utils/feedParams';
@@ -736,6 +737,8 @@ const Discover = () => {
 
       {!isSearching && (
         <>
+          {/* Standalone row: trending creators the viewer doesn't follow yet. */}
+          <PopularCreators />
           {isLoading ? (
             <CardSkeleton />
           ) : (
