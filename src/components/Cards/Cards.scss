@@ -631,10 +631,8 @@ html[data-card-size="large"] { --card-min-w: 420px; }
   // the right margin is what actually separates them.
   margin-left: auto;
   margin-right: 8px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border-light);
-  background: var(--bg-tertiary);
+  // Plain text, not a pill — it sits in the same muted stats row as the view
+  // count, so a bordered chip made it read as a button.
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
