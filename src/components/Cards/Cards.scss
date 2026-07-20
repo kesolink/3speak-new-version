@@ -639,3 +639,11 @@ html[data-card-size="large"] { --card-min-w: 420px; }
   text-overflow: ellipsis;
   max-width: 46%;
 }
+
+// Desktop always has room, so the chip shows whatever the card layout. Only a
+// phone running the SMALL card layout hides it — there the tile is too tight.
+// `data-card-size` is set on <html> by App.jsx, so this needs no JS or resize
+// handling; toggling the setting or rotating the device just works.
+@media screen and (max-width: 767px) {
+  :root[data-card-size="small"] .card-topic-chip { display: none; }
+}
