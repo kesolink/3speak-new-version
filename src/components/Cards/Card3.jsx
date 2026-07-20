@@ -1,6 +1,7 @@
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useDeadVideos } from '../../lib/deadVideos';
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
+import CommentCount from "../CommentCount/CommentCount";
 import ViewCount from "../ViewCount/ViewCount";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -273,8 +274,14 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 return (
                   <ViewCount
                     views={resolvedViews}
-                    watched={isWatched?.(vcAuthor, video.permlink) === true}
+                    watched={!video._liveStream && isWatched?.(vcAuthor, video.permlink) === true}
                     formatViews={formatViewCount}
+                    /* On a live tile the same slot counts people watching RIGHT
+                       NOW, not lifetime views — say so on hover, since the bare
+                       number next to a LIVE badge reads as either. */
+                    title={video._liveStream
+                      ? `${resolvedViews} watching now`
+                      : undefined}
                   />
                 );
               })()}
@@ -296,6 +303,12 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                     const author = video.author?.username || video.author || video.owner;
                     const content = getContentForVideo?.(author, video.permlink);
                     return content?.voters ?? video.stats?.num_votes ?? null;
+                  })()}
+                />
+                <CommentCount
+                  count={(() => {
+                    const author = video.author?.username || video.author || video.owner;
+                    return getContentForVideo?.(author, video.permlink)?.children ?? null;
                   })()}
                 />
               </div>

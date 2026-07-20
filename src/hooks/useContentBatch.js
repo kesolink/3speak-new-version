@@ -3,7 +3,7 @@ import { batchGetContent } from '../utils/hiveUtils';
 import { useAppStore } from '../lib/store';
 
 /**
- * Hook to batch fetch content data (payout, voters, vote status) for multiple videos
+ * Hook to batch fetch content data (payout, voters, vote status, comment count) for multiple videos
  * @param {Array} videos - Array of video objects with author and permlink
  * @returns {Object} - { contentData: Map, loading: boolean, error: Error|null }
  */
@@ -67,7 +67,7 @@ export function useContentBatch(videos) {
    * Get content data for a specific video
    * @param {string} author
    * @param {string} permlink
-   * @returns {Object|null} - { payout, voters, isVoted } or null if not loaded
+   * @returns {Object|null} - { payout, voters, isVoted, children } or null if not loaded
    */
   const getContentForVideo = useCallback((author, permlink) => {
     const key = `${author}/${permlink}`;

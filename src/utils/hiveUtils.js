@@ -12,7 +12,7 @@ const client = getHiveClient();
  * Batch fetch content data for multiple posts in a single API call
  * @param {Array<{author: string, permlink: string}>} posts - Array of post identifiers
  * @param {string} activeUser - Current logged-in user (to check if voted)
- * @returns {Promise<Map<string, {payout: string, voters: number, isVoted: boolean}>>}
+ * @returns {Promise<Map<string, {payout: string, voters: number, isVoted: boolean, children: number}>>}
  */
 export async function batchGetContent(posts, activeUser = null) {
   if (!posts || posts.length === 0) {
@@ -54,6 +54,9 @@ export async function batchGetContent(posts, activeUser = null) {
         payout: payout.toFixed(2),
         voters: post.active_votes?.length || 0,
         isVoted,
+        // Hive's own reply count. The checker's stats.num_comments is a hardcoded
+        // 0 placeholder, so this is the only trustworthy source.
+        children: post.children ?? 0,
       });
     }
 

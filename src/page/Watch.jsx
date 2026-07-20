@@ -5,6 +5,7 @@ import './WatchV2.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import SEOHead from '../components/SEOHead';
 import Card3 from '../components/Cards/Card3';
+import { useContentBatch } from '../hooks/useContentBatch';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchVideoDetails, fetchPlaySource, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
@@ -1279,6 +1280,10 @@ function Watch({ v2 = false }) {
     return [...promoted, ...authorVideos, ...recommendations];
   }, [authorItems, relatedItems, trendingItems, promotedVideos, author, permlink]);
 
+  // Batch the Hive content for the recommended list so the tiles can show the
+  // real comment count (the feed payload's num_comments is a hardcoded 0).
+  const { getContentForVideo: getSuggestedContent } = useContentBatch(suggestedVideos);
+
   const suggestedVideosRef = useRef(suggestedVideos);
   suggestedVideosRef.current = suggestedVideos;
 
@@ -1614,6 +1619,7 @@ function Watch({ v2 = false }) {
               videos={suggestedVideos}
               loading={false}
               shortTimeAgo={false}
+              getContentForVideo={getSuggestedContent}
               interleaveEvery={desktopCols > 0 && relatedShorts.length ? desktopCols * WATCH_ROWS_PER_SHORTS_RAIL : 0}
               renderInterleave={relatedShorts.length ? renderDesktopRail : null}
             />
@@ -1628,6 +1634,7 @@ function Watch({ v2 = false }) {
             videos={suggestedVideos.slice(0, 12)}
             loading={false}
             shortTimeAgo={false}
+            getContentForVideo={getSuggestedContent}
             interleaveEvery={mobileCols > 0 && relatedShorts.length ? mobileCols * WATCH_ROWS_PER_SHORTS_RAIL : 0}
             renderInterleave={relatedShorts.length ? renderMobileRail : null}
           />
