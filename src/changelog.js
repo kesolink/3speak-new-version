@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.68.0',
+    date: '2026-07-19',
+    summary:
+      'Large video cards now show the topic (for example Entertainment or Food & Outdoors) next to the view count, based on the automatic tagging.',
+  },
+  {
     version: '1.67.0',
     date: '2026-07-19',
     summary:

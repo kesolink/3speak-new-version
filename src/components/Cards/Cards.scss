@@ -622,3 +622,20 @@ html[data-card-size="large"] { --card-min-w: 420px; }
   box-shadow: 0 0 10px rgba(227, 19, 55, 0.5);
   pointer-events: none;
 }
+
+// 1st-level v2 tag (category) on large cards, sitting left of the view count.
+.card-topic-chip {
+  flex: 0 0 auto;
+  margin-left: auto;   // pushes the chip + view count group to the right of the author
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 46%;
+}

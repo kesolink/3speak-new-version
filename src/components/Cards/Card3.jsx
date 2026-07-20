@@ -2,6 +2,8 @@ import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useDeadVideos } from '../../lib/deadVideos';
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import CommentCount from "../CommentCount/CommentCount";
+import { getCategoryOf, getTagLabel } from "../../utils/tagsV2";
+import { useAppStore } from "../../lib/store";
 import ViewCount from "../ViewCount/ViewCount";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -91,6 +93,9 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
   const { containerProps, getCardProps, overlay, canHover } = useHoverPreview({
     renderControls: renderCardControls,
   });
+
+  // The topic chip only appears on large cards — small cards have no room for it.
+  const largeCards = useAppStore((s) => s.homeCardSize) !== 'small';
 
   const formatViewCount = (views) => {
     if (views === null || views === undefined) return null;
@@ -262,6 +267,17 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 noLink
                 compact
               />
+              {/* 1st-level v2 tag (the category the auto-tag rolls up to), left of
+                  the view count. Large cards only. */}
+              {largeCards && (() => {
+                const cat = getCategoryOf(video.tag_v2);
+                if (!cat) return null;
+                return (
+                  <span className="card-topic-chip" title={`Topic: ${getTagLabel(cat)}`}>
+                    {getTagLabel(cat)}
+                  </span>
+                );
+              })()}
               {(() => {
                 const vcAuthor = video.author?.username || video.author || video.owner;
                 // Prefer the count already in the feed payload (the only source that
