@@ -10,6 +10,20 @@
     color: var(--text-secondary, #666);
   }
 
+  .tagsv2-search {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, rgba(150, 150, 150, 0.4));
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary, #111);
+    font-size: 13px;
+    &::placeholder { color: var(--text-secondary, #888); }
+    &:focus { outline: none; border-color: var(--accent-primary, #e53935); }
+  }
+
   .tagsv2-hint {
     margin: 8px 0 4px;
     font-size: 11px;
@@ -109,6 +123,23 @@
   // (no ring) so the path stays visible but reads weaker than the selection.
   .tagsv2-cat.open:not(.selected) {
     border-color: var(--accent-primary, #e53935);
+  }
+
+  // Multi mode: a category holding selected topics gets a subtle accent border
+  // even while collapsed, plus a count badge (top-left, mirroring .tagsv2-pct).
+  .tagsv2-cat.has-selected:not(.open):not(.selected) {
+    border-color: var(--accent-primary, #e53935);
+  }
+  .tagsv2-count {
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    font-weight: 700;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--accent-primary, #e53935);
+    color: #fff;
   }
 
   // Topics read as a refinement of the category above them.

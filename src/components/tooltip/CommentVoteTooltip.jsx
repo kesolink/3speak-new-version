@@ -507,6 +507,7 @@ const CommentVoteTooltip = ({
                         tagPct={tagPct}
                         disabled={isLoading}
                         suggested={autoTagsV2 || []}
+                        searchable
                       />
                     </div>
                     <button
@@ -552,6 +553,7 @@ const CommentVoteTooltip = ({
                         tagPct={tagPct}
                         disabled={isLoading}
                         suggested={autoTagsV2 || []}
+                        searchable
                       />
                     </div>
 
