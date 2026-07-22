@@ -6,7 +6,7 @@ const cookieParser = require('cookie-parser')
 const rateLimit = require('express-rate-limit')
 const helmet = require('helmet')
 const crypto = require('crypto')
-const { Client, PrivateKey, cryptoUtils } = require('@hiveio/dhive')
+const { Client, PrivateKey, PublicKey, Signature, cryptoUtils } = require('@hiveio/dhive')
 
 // ButrAuth SDK is ESM-only — load via dynamic import at startup.
 let butr = null
@@ -33,6 +33,20 @@ const EMBED_API_KEY = process.env.EMBED_API_KEY || ''
 const MANTEAUTH_CLIENT_ID = process.env.MANTEAUTH_CLIENT_ID || 'threespeak'
 const MANTEAUTH_CLIENT_SECRET = process.env.MANTEAUTH_CLIENT_SECRET
 const MANTEAUTH_URL = process.env.MANTEAUTH_URL || 'https://auth.okinoko.io'
+
+// Secret for signing 3speak's own wallet session tokens + SIWH login challenges.
+// Prefer a dedicated env var; otherwise derive a stable, domain-separated key
+// from the ButrAuth client secret so this works with no new config. Empty (no
+// secret at all) → wallet sessions are disabled and the app-key path stays.
+const SESSION_SIGNING_SECRET = process.env.SESSION_SIGNING_SECRET
+  || (MANTEAUTH_CLIENT_SECRET
+    ? crypto.createHash('sha256').update('3speak-wallet-session|' + MANTEAUTH_CLIENT_SECRET).digest('hex')
+    : '')
+
+// Legacy app-key auth on /api/broadcast: the PUBLIC app key + a CLAIMED username.
+// Kept ON by default for backwards-compat; set ALLOW_APPKEY_AUTH=0 to require a
+// SIWH wallet session cookie instead (the secure path — see /api/auth/wallet/*).
+const ALLOW_APPKEY_AUTH = process.env.ALLOW_APPKEY_AUTH !== '0'
 
 // Allowed origins for CORS — only the trusted 3speak frontends
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://3speak.tv,https://3speak.okinoko.io,http://localhost:5173')
@@ -147,6 +161,103 @@ function clearPkceCookie(res) {
   res.clearCookie(PKCE_COOKIE_NAME, { path: '/' })
 }
 
+// === Wallet ("Sign in with Hive") sessions =================================
+// Wallet logins (Keychain/HiveAuth/PeakVault/Ledger) can't present a ButrAuth
+// cookie or a HiveSigner token, so historically /api/broadcast trusted the
+// PUBLIC app key + a claimed username (anyone could impersonate any opted-in
+// user). Instead, the user signs a server-issued nonce with their POSTING key
+// once; we verify it against their on-chain posting authority and mint an
+// httpOnly session cookie. All subsequent proxied broadcasts trust that cookie.
+// Colons delimit our tokens/challenges — a Hive username never contains one.
+const WSESSION_COOKIE_NAME = 'threespeak_wsession'
+const WSESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days ("remember me"); stateless token, so no per-session revocation — rotate SESSION_SIGNING_SECRET to invalidate all at once
+const SIWH_CHALLENGE_TTL_MS = 5 * 60 * 1000     // 5 minutes to sign
+const HIVE_USER_RE = /^[a-z][a-z0-9.-]{2,15}$/
+
+// Session token = "v1:<user>:<expMs>:<hmac>"; HMAC over "<user>:<expMs>".
+function mintWalletSession(username) {
+  const exp = Date.now() + WSESSION_TTL_MS
+  const body = `${username}:${exp}`
+  const mac = crypto.createHmac('sha256', SESSION_SIGNING_SECRET).update(body).digest('hex')
+  return `v1:${body}:${mac}`
+}
+function verifyWalletSession(token) {
+  if (!token || !SESSION_SIGNING_SECRET) return null
+  const parts = String(token).split(':')
+  if (parts.length !== 4 || parts[0] !== 'v1') return null
+  const [, username, expStr, mac] = parts
+  const exp = Number(expStr)
+  if (!Number.isFinite(exp) || Date.now() > exp) return null
+  const expected = crypto.createHmac('sha256', SESSION_SIGNING_SECRET).update(`${username}:${expStr}`).digest('hex')
+  const a = Buffer.from(mac); const b = Buffer.from(expected)
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
+  return username
+}
+function setWalletSessionCookie(res, token) {
+  res.cookie(WSESSION_COOKIE_NAME, token, {
+    httpOnly: true, secure: true, sameSite: 'lax', maxAge: WSESSION_TTL_MS, path: '/'
+  })
+}
+function clearWalletSessionCookie(res) {
+  res.clearCookie(WSESSION_COOKIE_NAME, { path: '/' })
+}
+
+// Challenge = "3speak-login:<user>:<expMs>:<rand>:<hmac>". Self-authenticating
+// (the HMAC binds it to us; the exp bounds replay) so no server-side store is
+// needed. The shape is obviously not a serialized Hive tx, so a captured
+// signature can never be replayed on-chain.
+function issueSiwhChallenge(username) {
+  const exp = Date.now() + SIWH_CHALLENGE_TTL_MS
+  const rand = crypto.randomBytes(12).toString('hex')
+  const body = `${username}:${exp}:${rand}`
+  const mac = crypto.createHmac('sha256', SESSION_SIGNING_SECRET).update('siwh:' + body).digest('hex')
+  return `3speak-login:${body}:${mac}`
+}
+// Validate a challenge's shape, freshness and HMAC. Returns { rand, exp } on
+// success (so the caller can mark the nonce consumed) or null on any failure.
+function parseSiwhChallenge(challenge, username) {
+  const parts = String(challenge || '').split(':')
+  if (parts.length !== 5 || parts[0] !== '3speak-login') return null
+  const [, user, expStr, rand, mac] = parts
+  if (user !== username) return null
+  const exp = Number(expStr)
+  if (!Number.isFinite(exp) || Date.now() > exp) return null
+  const expected = crypto.createHmac('sha256', SESSION_SIGNING_SECRET).update(`siwh:${user}:${expStr}:${rand}`).digest('hex')
+  const a = Buffer.from(mac); const b = Buffer.from(expected)
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
+  return { rand, exp }
+}
+
+// Single-use nonce tracking — defeats replay of a captured (challenge, signature)
+// pair within the challenge's validity window. Keyed by the random nonce; entries
+// self-expire at the challenge's own expiry. Check-and-set is atomic under Node's
+// single-threaded event loop (no await between has() and set()).
+const consumedSiwhNonces = new Map() // rand -> expiryMs
+function consumeSiwhNonce(rand, expMs) {
+  const now = Date.now()
+  for (const [k, exp] of consumedSiwhNonces) if (exp <= now) consumedSiwhNonces.delete(k)
+  if (consumedSiwhNonces.has(rand)) return false
+  consumedSiwhNonces.set(rand, expMs)
+  return true
+}
+
+// Recover the signer's public key from the signature over sha256(challenge) —
+// all wallet providers sign that hash — and require it to be a key in the
+// account's POSTING authority (weight >= threshold). Forging a valid signature
+// therefore requires actually controlling one of the account's posting keys.
+async function verifySiwhSignature(username, challenge, signature) {
+  let recovered
+  try {
+    recovered = Signature.fromString(signature).recover(cryptoUtils.sha256(challenge)).toString()
+  } catch {
+    return false
+  }
+  const [account] = await client.database.getAccounts([username])
+  if (!account) return false
+  const threshold = account.posting.weight_threshold
+  return (account.posting.key_auths || []).some(([k, w]) => k === recovered && w >= threshold)
+}
+
 // === Custom_json operation whitelist ===
 // account_update2 is allowed ONLY to set posting_json_metadata (profile-level
 // metadata, e.g. a user's 3Speak interests) — broadcastAsThreespeak enforces
@@ -168,7 +279,19 @@ const ALLOWED_CUSTOM_JSON_IDS = new Set([
   // Crowd-sourced viewer tag, broadcast in the same tx as a vote (see the app's
   // voteWithAioha). Low-stakes topic label; posting-auth only.
   '3speak-viewer-tag',
+  // Community subscribe/unsubscribe. The `community` id ALSO carries admin/mod
+  // actions (setRole, mutePost, flagPost, updateProps, …) which must never be
+  // proxied under @threespeak's delegated posting key — so the validation below
+  // restricts this id to a plain subscribe/unsubscribe (the user's own action).
+  'community',
 ])
+
+// custom_json ids whose payload we further restrict to specific actions. The
+// json is a stringified ["<action>", {...}] tuple; only these first-element
+// actions are allowed for the given id.
+const CUSTOM_JSON_ACTION_WHITELIST = {
+  community: new Set(['subscribe', 'unsubscribe']),
+}
 
 const OP_USER_FIELD = {
   vote: 'voter',
@@ -338,6 +461,22 @@ async function broadcastAsThreespeak(hiveUsername, operations, res) {
       if (!ALLOWED_CUSTOM_JSON_IDS.has(opData.id)) {
         return res.status(403).json({ error: 'custom_json id not allowed for this app' })
       }
+      // For ids with a restricted action set (e.g. `community`), the payload's
+      // first element must be an allowed action — so we never proxy the id's
+      // more powerful admin/mod variants under @threespeak's posting key.
+      const actionSet = CUSTOM_JSON_ACTION_WHITELIST[opData.id]
+      if (actionSet) {
+        let action = null
+        try {
+          const parsed = JSON.parse(opData.json)
+          action = Array.isArray(parsed) ? parsed[0] : null
+        } catch {
+          return res.status(400).json({ error: 'Invalid custom_json payload' })
+        }
+        if (!actionSet.has(action)) {
+          return res.status(403).json({ error: 'custom_json action not allowed for this app' })
+        }
+      }
     } else if (opType === 'account_update2') {
       // Posting authority may ONLY change posting_json_metadata. Reject any
       // field that would require active/owner auth so this can never become a
@@ -364,6 +503,69 @@ async function broadcastAsThreespeak(hiveUsername, operations, res) {
   return res.json({ success: true, result })
 }
 
+// === Wallet SIWH auth endpoints ===========================================
+const walletAuthLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many requests' }
+})
+
+// POST /api/auth/wallet/challenge — { username } → { challenge } to be signed.
+app.post('/api/auth/wallet/challenge', walletAuthLimiter, (req, res) => {
+  try {
+    if (!SESSION_SIGNING_SECRET) return res.status(503).json({ error: 'Sessions not configured' })
+    const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : ''
+    if (!HIVE_USER_RE.test(username)) return res.status(400).json({ error: 'Invalid username' })
+    res.set('Cache-Control', 'no-store')
+    return res.json({ challenge: issueSiwhChallenge(username) })
+  } catch (err) {
+    console.error('Wallet challenge error:', err.message)
+    res.status(500).json({ error: 'Internal error' })
+  }
+})
+
+// POST /api/auth/wallet/login — { username, challenge, signature }. Verifies the
+// signature against the account's posting authority and mints a session cookie.
+app.post('/api/auth/wallet/login', walletAuthLimiter, async (req, res) => {
+  try {
+    if (!SESSION_SIGNING_SECRET) return res.status(503).json({ error: 'Sessions not configured' })
+    const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : ''
+    const challenge = typeof req.body?.challenge === 'string' ? req.body.challenge : ''
+    const signature = typeof req.body?.signature === 'string' ? req.body.signature.trim() : ''
+    if (!HIVE_USER_RE.test(username) || !challenge || !signature) {
+      return res.status(400).json({ error: 'Invalid request' })
+    }
+    const parsed = parseSiwhChallenge(challenge, username)
+    if (!parsed) {
+      return res.status(400).json({ error: 'Invalid or expired challenge' })
+    }
+    if (!(await verifySiwhSignature(username, challenge, signature))) {
+      return res.status(401).json({ error: 'Signature verification failed' })
+    }
+    // Burn the nonce only after the signature checks out, so a valid pair can
+    // never be replayed to mint a second session.
+    if (!consumeSiwhNonce(parsed.rand, parsed.exp)) {
+      return res.status(400).json({ error: 'Challenge already used' })
+    }
+    setWalletSessionCookie(res, mintWalletSession(username))
+    // Non-httpOnly hint cookie so the SPA can tell it has a session (no secret leaked).
+    res.cookie('threespeak_user', username, {
+      httpOnly: false, secure: true, sameSite: 'lax', maxAge: WSESSION_TTL_MS, path: '/'
+    })
+    res.set('Cache-Control', 'no-store')
+    return res.json({ success: true, username })
+  } catch (err) {
+    console.error('Wallet login error:', err.message)
+    res.status(500).json({ error: 'Login failed' })
+  }
+})
+
+// POST /api/auth/wallet/logout — clear the wallet session cookie.
+app.post('/api/auth/wallet/logout', (req, res) => {
+  clearWalletSessionCookie(res)
+  res.clearCookie('threespeak_user', { path: '/' })
+  res.json({ success: true })
+})
+
 app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
   try {
     let hiveUsername = null
@@ -376,7 +578,16 @@ app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
       else clearSessionCookie(res)
     }
 
-    // 2) HiveSigner access token via Authorization: Bearer (HiveSigner users
+    // 2) SIWH wallet session cookie (Keychain/HiveAuth/PeakVault/Ledger): the
+    //    user proved posting-key control at login, so the username is bound to a
+    //    server-signed cookie — no public-key impersonation possible.
+    if (!hiveUsername) {
+      const ws = req.cookies?.[WSESSION_COOKIE_NAME]
+      const wu = ws && verifyWalletSession(ws)
+      if (wu) hiveUsername = wu
+    }
+
+    // 3) HiveSigner access token via Authorization: Bearer (HiveSigner users
     //    can't sign client-side; verify the token and post on their behalf).
     if (!hiveUsername) {
       const authHeader = req.headers.authorization || ''
@@ -384,16 +595,12 @@ app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
       if (bearer) hiveUsername = await verifyHiveSignerToken(bearer)
     }
 
-    // 3) App-key path (wallet logins: Keychain/HiveAuth/PeakVault/Ledger). They
-    //    can't present a token/cookie, so — per policy that @threespeak (not the
-    //    user) broadcasts embed posts — we trust the frontend app key (the same
-    //    one the embed TUS upload uses) and take the claimed username from the
-    //    body. This path is narrowed to posting-level ops only (comment /
-    //    comment_options / custom_json / vote); broadcastAsThreespeak still
-    //    enforces the @threespeak posting-auth grant + author/voter/
-    //    required_posting_auths match, so the worst case is "act as a user who
-    //    opted into @threespeak" (and only posting-level, never active-key).
-    if (!hiveUsername) {
+    // 4) LEGACY app-key path (wallet logins that haven't established a session).
+    //    Trusts the PUBLIC app key + a CLAIMED username, so anyone with the key
+    //    (it ships in the frontend bundle) could act as any opted-in user —
+    //    posting-level only. Disabled by ALLOW_APPKEY_AUTH=0, which makes the
+    //    SIWH session cookie (path 2) mandatory for wallet logins.
+    if (!hiveUsername && ALLOW_APPKEY_AUTH) {
       const apiKey = req.headers['x-api-key'] || ''
       if (EMBED_API_KEY && apiKey === EMBED_API_KEY) {
         const claimed = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : ''
@@ -404,7 +611,10 @@ app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
         if (claimed && !postingOpsOnly) {
           return res.status(403).json({ error: 'Operation not allowed for app-key auth' })
         }
-        if (claimed) hiveUsername = claimed
+        if (claimed) {
+          console.warn(`[appkey-auth] /api/broadcast acting as @${claimed} via legacy public-app-key path (no SIWH session)`)
+          hiveUsername = claimed
+        }
       }
     }
 
@@ -564,6 +774,63 @@ app.post('/api/upload-image', imageUploadLimiter, express.raw({ type: () => true
 })
 
 app.get('/api/health', (req, res) => res.json({ ok: true }))
+
+// === Teleprompter STT token minting ===
+// Hands the browser a short-lived SIGNED token for the self-hosted STT WebSocket,
+// so the browser never holds STT_SIGNING_SECRET. Token = "<exp>.<hexHMAC(exp)>";
+// the STT server verifies the HMAC and expiry (see the STT dual-token auth plan).
+// STT_SIGNING_SECRET must match the value on the STT box. Gated by the shared app
+// key (same trust model as /api/broadcast) when EMBED_API_KEY is set.
+// TODO: tighten to a real per-user session before opening publicly.
+const STT_SIGNING_SECRET = process.env.STT_SIGNING_SECRET || ''
+const STT_TOKEN_TTL = parseInt(process.env.STT_TOKEN_TTL || '300', 10) // seconds
+
+app.get('/api/stt-token', baseLimiter, (req, res) => {
+  if (!STT_SIGNING_SECRET) return res.status(503).json({ error: 'STT tokens not configured' })
+  if (EMBED_API_KEY && req.get('X-API-Key') !== EMBED_API_KEY) {
+    return res.status(401).json({ error: 'unauthorized' })
+  }
+  const exp = Math.floor(Date.now() / 1000) + STT_TOKEN_TTL
+  const sig = crypto.createHmac('sha256', STT_SIGNING_SECRET).update(String(exp)).digest('hex')
+  res.json({ token: `${exp}.${sig}`, exp })
+})
+
+// === Playlists read proxy ===
+// The playlists API (playlists.3speak.tv) requires a secret token once its read
+// gate is enabled. We hold that token HERE on the server — never in the browser
+// bundle — and attach it to forwarded reads, so a playlist can only be read
+// THROUGH us; a raw GET straight to the playlists URL is rejected. This is NOT
+// per-user auth: we don't check who is asking, so it stops direct-URL access and
+// token-lifting, but not a crafted request through this proxy (accepted tradeoff).
+const PLAYLISTS_UPSTREAM = (process.env.PLAYLISTS_UPSTREAM_URL || 'https://playlists.3speak.tv/api').replace(/\/+$/, '')
+const PLAYLISTS_API_TOKEN = process.env.PLAYLISTS_API_TOKEN || ''
+
+// Regex route (not '/api/pl/*') — Express 5's router rejects a bare wildcard.
+app.get(/^\/api\/pl\/(.*)$/, baseLimiter, async (req, res) => {
+  try {
+    const subPath = req.params[0] || '' // path after /api/pl/, no query string
+    // Whitelist the playlist read paths only — no arbitrary reach into upstream.
+    if (!/^(playlists(\/|$)|video\/[^/]+\/[^/]+\/playlists(\/|$))/.test(subPath)) {
+      return res.status(404).json({ error: 'not found' })
+    }
+    const qIdx = req.originalUrl.indexOf('?')
+    const qs = qIdx >= 0 ? req.originalUrl.slice(qIdx) : ''
+    const headers = { Accept: 'application/json' }
+    if (PLAYLISTS_API_TOKEN) headers.Authorization = `Bearer ${PLAYLISTS_API_TOKEN}`
+    // Forward the real client IP so the upstream's per-IP rate limiter still
+    // buckets per user (otherwise every read looks like it's from this server).
+    const fwd = req.headers['x-forwarded-for'] || req.ip
+    if (fwd) headers['X-Forwarded-For'] = fwd
+    const upstream = await fetch(`${PLAYLISTS_UPSTREAM}/${subPath}${qs}`, { method: 'GET', headers })
+    const body = await upstream.text()
+    const ct = upstream.headers.get('content-type')
+    if (ct) res.set('Content-Type', ct)
+    res.status(upstream.status).send(body)
+  } catch (e) {
+    console.error('playlists proxy error:', e.message)
+    res.status(502).json({ error: 'playlists upstream unreachable' })
+  }
+})
 
 // Generic error handler
 app.use((err, req, res, next) => {
