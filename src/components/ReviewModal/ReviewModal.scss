@@ -1,0 +1,293 @@
+@use "../../mixins.scss" as *;
+
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100; // match the app's other modal overlays; clears nav (1000)
+  padding: 20px;
+
+  @include respond(phone) {
+    align-items: flex-end;
+    padding: 0;
+  }
+}
+
+.review-modal {
+  background: var(--card-bg, #1a1a2e);
+  border: 1px solid var(--border-light, #333);
+  border-radius: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 440px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  @include respond(phone) {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 90vh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: review-slide-up 0.28s ease forwards;
+  }
+
+  .review-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 20px 12px;
+    flex-shrink: 0;
+
+    .review-head-text {
+      h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary, #fff);
+      }
+      p {
+        margin: 4px 0 0;
+        font-size: 13px;
+        color: var(--text-secondary, #aaa);
+      }
+    }
+
+    .review-close {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-secondary, #aaa);
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover { background: rgba(255, 255, 255, 0.2); color: var(--text-primary, #fff); }
+      svg { font-size: 20px; }
+    }
+  }
+
+  .review-body {
+    // basis auto (NOT 0): with a fixed header + footer in a content-height flex
+    // column, `flex:1 1 0` collapses the body to zero height. Size to content,
+    // shrink + scroll only if the modal hits its max-height.
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px 20px 4px;
+
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+
+  .review-stars {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin: 4px 0 20px;
+
+    // Keep the stars dead-centre AND stop them shifting as the rating word
+    // (Poor…Amazing) changes width: a fixed-width label on the right, balanced
+    // by an equal-width empty spacer on the left.
+    &::before {
+      content: "";
+      flex: 0 0 64px;
+    }
+
+    .star {
+      display: flex;
+      padding: 2px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-muted, #555);
+      transition: transform 0.1s ease, color 0.15s ease;
+
+      svg { font-size: 34px; }
+      &:hover { transform: scale(1.12); }
+      &.on { color: #ffc531; }
+    }
+
+    .star-label {
+      flex: 0 0 64px; // fixed width (matches the ::before spacer) so text length never moves the stars
+      font-size: 14px;
+      font-weight: 400; // regular, not bold
+      color: var(--text-secondary, #888); // regular text, not red
+      white-space: nowrap;
+      min-height: 18px;
+    }
+  }
+
+  .review-field {
+    margin-bottom: 18px;
+
+    > label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary, #eee);
+      margin-bottom: 10px;
+
+      span { font-weight: 400; color: var(--text-secondary, #888); }
+    }
+
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-light, #444);
+      border-radius: 10px;
+      color: var(--text-primary, #fff);
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+
+      &::placeholder { color: var(--text-muted, #666); }
+      &:focus { outline: none; border-color: var(--accent-primary, #e53935); }
+    }
+  }
+
+  .review-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .chip {
+      padding: 8px 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-light, #444);
+      border-radius: 999px;
+      color: var(--text-secondary, #bbb);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      &:hover { background: rgba(255, 255, 255, 0.1); }
+      &.on {
+        background: rgba(229, 57, 53, 0.15);
+        border-color: var(--accent-primary, #e53935);
+        color: var(--accent-primary, #e53935);
+      }
+    }
+  }
+
+  .review-recommend {
+    display: flex;
+    gap: 10px;
+
+    .rec {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-light, #444);
+      border-radius: 10px;
+      color: var(--text-secondary, #bbb);
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+
+      svg { font-size: 18px; }
+      &:hover { background: rgba(255, 255, 255, 0.1); }
+      &.on.yes { background: rgba(76, 175, 80, 0.15); border-color: #4caf50; color: #6cc070; }
+      &.on.no { background: rgba(229, 57, 53, 0.15); border-color: #e53935; color: #ef6b66; }
+    }
+  }
+
+  .review-actions {
+    display: flex;
+    gap: 12px;
+    padding: 14px 20px 18px;
+    border-top: 1px solid var(--border-light, #333);
+    flex-shrink: 0;
+
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:disabled { opacity: 0.5; cursor: not-allowed; }
+    }
+
+    .review-cancel {
+      flex: 0 0 auto;
+      padding: 12px 18px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-secondary, #aaa);
+      &:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+    }
+
+    .review-submit {
+      background: var(--accent-primary, #e53935);
+      color: #fff;
+      &:hover:not(:disabled) { background: #c62828; }
+    }
+  }
+}
+
+@keyframes review-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+// Placeholder GLOBAL trigger (area:'global'). Replaced later by the one-time
+// "initial review" auto-prompt — see ReviewFab.jsx.
+.review-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, background 0.2s ease;
+
+  svg { font-size: 20px; }
+  &:hover { transform: translateY(-2px); background: #c62828; }
+
+  // Lift above the bottom nav wherever it's shown. The nav renders on BOTH the
+  // phone and tab breakpoints, so both need the offset — otherwise on tablets
+  // the FAB stays at bottom:18px and covers the Profile tab.
+  @include respond(tab) {
+    bottom: 76px; // clear the bottom nav (shown on tablet too)
+  }
+
+  @include respond(phone) {
+    bottom: 76px; // clear the mobile bottom nav
+    right: 14px;
+    padding: 12px;
+    span { display: none; } // icon-only on phones
+  }
+}
