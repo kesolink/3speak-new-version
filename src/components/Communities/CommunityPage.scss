@@ -6,60 +6,183 @@
     margin: 14px 4px 4px;
   }
 
-  .search-tren-wrapper {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    margin: 10px 0px;
+  .community-description--side { margin: 0; }
 
-    .search-wrapper {
-      margin-bottom: 20px;
-      @include respond(phone) {
-        margin-bottom: 0px;
+  // Two rendered copies of the description/stats — CSS decides which shows:
+  //   • .community-intro: above the tabs on phones (description left, stats
+  //     right); hidden on desktop.
+  //   • .community-side:  the right sidebar on desktop (stats + description);
+  //     hidden on phones.
+  .community-intro { display: none; }
+  @include respond(phone) {
+    .community-intro {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 12px 4px 4px;
+
+      .community-intro-desc {
+        flex: 1 1 auto;
+        min-width: 0;
+        .community-description { margin: 0; }
       }
-
-      input {
-        width: 70%;
-        padding: 10px;
-        border: 1px solid #e2e2ec;
-        border-radius: 8px;
-        font-size: 1rem;
-        outline: none;
-        transition: border-color 0.3s;
-        &:focus {
-          border-color: #0073e6;
-        }
+      .community-intro-stats {
+        flex: 0 0 42%;
+        max-width: 42%;
+        min-width: 128px;
       }
     }
-    .trend-btn-wrap {
+  }
+
+  // --- Subscribe button (ProfileHeader actions) -----------------------------
+  .community-sub-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    // "Subscribe" = accent fill; "Subscribed" = subtle outline (like Following).
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    border: 1px solid var(--accent-primary, #e53935);
+
+    &:hover { filter: brightness(1.05); }
+
+    &--on {
+      background: transparent;
+      color: var(--text-primary, #f1f1f1);
+      border-color: var(--border-color, rgba(150, 150, 150, 0.35));
+    }
+
+    &:disabled { opacity: 0.6; cursor: default; }
+  }
+
+  // --- New / Trending tab bar (mirrors .home-tabs) --------------------------
+  .community-tabs {
+    display: flex;
+    gap: 2px;
+    margin: 16px 0 4px;
+    border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
+
+    .community-tab {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 4px;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid #1e293b;
-      border-radius: 999px;
+      gap: 5px;
+      flex: 0 0 auto;
+      padding: 9px 14px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary, #888);
+      font-size: 13.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px; // sit on top of the container's bottom border
+      user-select: none;
+      transition: color 0.12s ease, border-color 0.12s ease;
 
-      span {
-        padding: 6px 18px;
-        border-radius: 999px;
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: #94a3b8;
-        cursor: pointer;
-        user-select: none;
-        transition: color 0.18s ease, background 0.18s ease;
+      .community-tab-icon { display: inline-flex; opacity: 0.9; }
 
-        &:hover {
-          color: #e2e8f0;
-        }
+      &:hover { color: var(--text-primary, #f1f1f1); }
 
-        &.active {
-          background: var(--accent-primary, #e53935);
-          color: #fff;
-        }
+      &.active {
+        color: var(--text-primary, #f1f1f1);
+        border-bottom-color: var(--accent-primary, #e0594b);
       }
+    }
+
+    @include respond(phone) {
+      .community-tab { padding: 8px 12px; font-size: 13px; }
+    }
+  }
+
+  // --- Body: grid (80%) + sidebar (20%) -------------------------------------
+  .community-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    margin-top: 4px;
+
+    .community-feed {
+      flex: 1 1 auto;
+      min-width: 0; // let the grid shrink instead of overflowing
+    }
+
+    .community-feed .card-container { margin-top: 12px; }
+
+    .community-side {
+      flex: 0 0 20%;
+      min-width: 220px;
+      max-width: 320px;
+      position: sticky;
+      top: calc(var(--nav-height, 56px) + 12px);
+      // Cap to the viewport and scroll internally so a long description is never
+      // clipped by the OS taskbar; the padding keeps its end off the bottom edge.
+      max-height: calc(100vh - var(--nav-height, 56px) - 24px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      padding-bottom: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    // Mobile: the intro row above the tabs carries the description + stats, so
+    // the desktop sidebar is dropped entirely and the grid goes full-width.
+    @include respond(phone) {
+      .community-side { display: none; }
+    }
+  }
+
+  // --- KPI card -------------------------------------------------------------
+  .community-kpis {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid var(--border-light, rgba(150, 150, 150, 0.18));
+    border-radius: 12px;
+    background: var(--bg-secondary, rgba(150, 150, 150, 0.06));
+
+    .community-kpi {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 4px;
+
+      & + .community-kpi {
+        border-top: 1px solid var(--border-light, rgba(150, 150, 150, 0.12));
+      }
+
+      .community-kpi-icon {
+        display: inline-flex;
+        color: var(--accent-primary, #e53935);
+        flex: 0 0 auto;
+      }
+
+      .community-kpi-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.2;
+        min-width: 0;
+      }
+
+      .community-kpi-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text-primary, #f1f1f1);
+      }
+
+      .community-kpi-label {
+        font-size: 11.5px;
+        color: var(--text-secondary, #888);
+      }
+    }
+
+    // Tighter padding when the stats sit in the narrow mobile column, but the
+    // per-row layout (icon + value/label, separated by lines) stays the same.
+    @include respond(phone) {
+      padding: 10px;
+      .community-kpi { padding: 6px 2px; gap: 8px; }
     }
   }
 }

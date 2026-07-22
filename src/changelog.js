@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.71.0',
+    date: '2026-07-22',
+    summary:
+      'Community pages got an upgrade: a Subscribe button that shows whether you are already subscribed, live stats from Hive (subscribers, active posters, posts and more), and New/Trending are now proper tabs — with the community description moved beside the video grid on desktop.',
+  },
+  {
     version: '1.68.0',
     date: '2026-07-19',
     summary:
