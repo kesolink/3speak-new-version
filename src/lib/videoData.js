@@ -80,6 +80,12 @@ export async function fetchPlaySource(author, permlink) {
     play_url: data.videoUrl,
     thumbnail_url: data.thumbnail || data.thumbnailUrl || null,
     duration: data.duration || 0,
+    // A finished OpenPods stream gets its recording published as a VOD under
+    // the SAME owner/permlink. The Hive post keeps `video.live: true` forever,
+    // so the watch page needs this to know the stream is over and a real
+    // video is ready. `isPlaceholder` is the encoder's "still processing" card.
+    status: data.status || null,
+    published: data.status === 'published' && data.isPlaceholder !== true,
   };
 }
 
@@ -130,7 +136,16 @@ export async function fetchVideoDetails(author, permlink) {
   if (play_url) spkvideo = { play_url, thumbnail_url, duration: videoInfo.duration || 0 };
   else if (thumbnail_url) spkvideo = { play_url: null, thumbnail_url, duration: videoInfo.duration || 0 };
 
+  // Live OpenPods session announced via a full post (see openpodAnnounce):
+  // `video.live` marks it, and the room name doubles as the permlink. The
+  // watch page renders the live player in place of the VOD one, but keeps all
+  // the real-post features (details, voting, commenting).
+  const live = !!meta.video?.live;
+  const roomName = live ? (meta.openpodRoom || videoInfo.permlink || permlink) : null;
+
   return {
+    live,
+    roomName,
     title: post.title,
     body: post.body,
     author: {

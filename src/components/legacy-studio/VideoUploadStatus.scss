@@ -481,32 +481,31 @@
   p {
     font-size: 16px;
     color: var(--text-secondary, #6b7280);
-    margin: 0 0 32px 0;
-    font-weight: 600;
+    margin: 0 auto 32px;
+    max-width: 480px;
+    font-weight: 400;
+    line-height: 1.55;
     @include mix.respond(phone) {
       font-size: 14px;
     }
   }
 
+  // Secondary/non-prominent (sits next to the primary "Promote" button).
   .profile-btn {
-    background-color: var(--accent-primary, #e53935);
-    color: #ffffff;
-    border: none;
-    padding: 10px 32px;
+    background-color: transparent;
+    color: var(--text-secondary, #6b7280);
+    border: 1px solid var(--border-light, #d1d5db);
+    padding: 10px 24px;
     border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.3);
+    box-shadow: none;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 
     &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(229, 57, 53, 0.4);
-    }
-
-    &:active {
-      transform: translateY(0);
+      background-color: rgba(127, 127, 127, 0.1);
+      border-color: var(--text-secondary, #9ca3af);
     }
   }
 }

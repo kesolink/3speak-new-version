@@ -18,6 +18,8 @@ import { getVotePower, getDynamicProps } from '../../utils/hiveUtils';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
 import SnapComposer from './SnapComposer';
+import EmojiGifPicker from '../common/EmojiGifPicker/EmojiGifPicker';
+import { insertAtCursor, gifMarkdown } from '../../utils/composerInsert';
 import UpvoteCount from '../UpvoteCount/UpvoteCount';
 import AuthorBadge from '../AuthorBadge/AuthorBadge';
 import CommentVoteTooltip from '../tooltip/CommentVoteTooltip';
@@ -51,14 +53,25 @@ function SnapBody({ body, maxVh = 0.33 }) {
   }, [body]);
 
   useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
     const measure = () => {
-      const el = ref.current;
       // scrollHeight is the full content height regardless of the max-height clamp.
-      if (el) setOverflowing(el.scrollHeight > window.innerHeight * maxVh + 8);
+      setOverflowing(el.scrollHeight > window.innerHeight * maxVh + 8);
     };
     measure();
+    // Images and GIFs inside a snap load AFTER this first pass, when they still
+    // measure ~0 tall — so a post that overflows once its media arrives would
+    // stay unclamped forever (it opened full-size on first load). The observer
+    // re-measures as the body grows; once clamped its height is pinned, so this
+    // settles instead of looping.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(el);
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, [html, maxVh]);
 
   const clamped = overflowing && !expanded;
@@ -86,6 +99,7 @@ function ReplyBox({ parentAuthor, parentPermlink, onPosted, onSigned, autoFocus 
   const user = useAppStore((s) => s.user);
   const [reply, setReply] = useState('');
   const [posting, setPosting] = useState(false);
+  const replyRef = useRef(null);
   if (!user) return null;
 
   const submit = async () => {
@@ -109,15 +123,22 @@ function ReplyBox({ parentAuthor, parentPermlink, onPosted, onSigned, autoFocus 
   return (
     <div className="snap-reply-box">
       <textarea
+        ref={replyRef}
         placeholder="Write a comment…"
         value={reply}
         onChange={(e) => setReply(e.target.value)}
         rows={2}
         autoFocus={autoFocus}
       />
-      <button type="button" onClick={submit} disabled={posting || !reply.trim()}>
-        {posting ? 'Posting…' : 'Reply'}
-      </button>
+      <div className="snap-reply-actions">
+        <EmojiGifPicker
+          onPickEmoji={(em) => insertAtCursor(replyRef.current, reply, em, setReply)}
+          onPickGif={(url) => insertAtCursor(replyRef.current, reply, gifMarkdown(url), setReply)}
+        />
+        <button type="button" onClick={submit} disabled={posting || !reply.trim()}>
+          {posting ? 'Posting…' : 'Reply'}
+        </button>
+      </div>
     </div>
   );
 }

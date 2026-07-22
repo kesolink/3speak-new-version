@@ -18,7 +18,7 @@ import {
 } from '../utils/playlistOperations';
 import { toast } from 'sonner';
 import './PlaylistView.scss';
-import { HIVE_API_URL, PLAYLISTS_API_URL, CHECKER_URL } from '../utils/config';
+import { HIVE_API_URL, PLAYLISTS_READ_URL, CHECKER_URL } from '../utils/config';
 import { MdPlayArrow as MdPlayIcon } from 'react-icons/md';
 import AudioTile from '../components/AudioTile/AudioTile';
 import AddToPlaylistModal from '../components/AddToPlaylistModal/AddToPlaylistModal';
@@ -151,7 +151,7 @@ function PlaylistView() {
   const { data: playlist, isLoading: playlistLoading, error: playlistError } = useQuery({
     queryKey: ['playlist', playlistId],
     queryFn: async () => {
-      const response = await axios.get(`${PLAYLISTS_API_URL}/playlists/${playlistId}`);
+      const response = await axios.get(`${PLAYLISTS_READ_URL}/playlists/${playlistId}`);
       return response.data;
     },
     enabled: !!playlistId,
@@ -159,6 +159,14 @@ function PlaylistView() {
 
   // Check if user is the owner
   const isOwner = authenticatedUser && playlist?.owner?.toLowerCase() === authenticatedUser.toLowerCase();
+
+  // Per-user visibility: a private playlist (this also covers Watch Later, which
+  // is created private) is only viewable by its owner. Non-owners — logged in or
+  // not — get a "not available" state instead of its contents. This is the
+  // client-side filter the server API-token gate can't do (the token is shared,
+  // not per-user); it's why opening someone else's private list by id must 404 here.
+  const isPrivate = playlist?.access === 'private';
+  const isHiddenFromViewer = !!playlist && isPrivate && !isOwner;
 
   // Fetch videos for the playlist
   const { data: videos = [], isLoading: videosLoading } = useQuery({
@@ -438,6 +446,23 @@ function PlaylistView() {
         <div className="empty-wrap">
           <img src={icon} alt="" />
           <span>Playlist not found</span>
+          <Link to="/" className="back-link">
+            <IoArrowBack /> Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // A private playlist (incl. Watch Later) opened by anyone but its owner: don't
+  // reveal its contents. Deliberately worded like "not found" so it doesn't even
+  // confirm the playlist exists to a stranger who guessed/was handed the id.
+  if (isHiddenFromViewer) {
+    return (
+      <div className="playlist-view-container">
+        <div className="empty-wrap">
+          <img src={icon} alt="" />
+          <span>This playlist is private</span>
           <Link to="/" className="back-link">
             <IoArrowBack /> Back to Home
           </Link>

@@ -19,6 +19,10 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
   const [account, setAccount] = useState('');
   const [percent, setPercent] = useState(0);
   const [error, setError] = useState('');
+  // Live check that the typed account actually exists on Hive: 'idle' (empty),
+  // 'checking', 'valid', 'invalid'. Debounced so we don't hit the API on every
+  // keystroke. handleBeneficairy still re-checks authoritatively on add.
+  const [acctStatus, setAcctStatus] = useState('idle');
 
 
   useEffect(() => {
@@ -38,6 +42,23 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
       return false;
     }
   }
+
+  useEffect(() => {
+    const name = account.trim().toLowerCase();
+    if (!name) { setAcctStatus('idle'); return undefined; }
+    setAcctStatus('checking');
+    let alive = true;
+    const t = setTimeout(async () => {
+      try {
+        const ok = await isAccountValid(name);
+        if (alive) setAcctStatus(ok ? 'valid' : 'invalid');
+      } catch { if (alive) setAcctStatus('idle'); }
+    }, 450);
+    return () => { alive = false; clearTimeout(t); };
+  }, [account]);
+
+  // Anything typed into the row that hasn't been committed with "+" yet.
+  const hasPendingRow = account.trim() !== '';
 
   const handleBeneficairy = async () => {
 
@@ -136,6 +157,11 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
   };
 
   const handleSave = () => {
+    // Don't quietly discard a half-entered beneficiary.
+    if (hasPendingRow) {
+      setError(`@${account.trim()} hasn't been added yet — click + to add it, or clear the field.`);
+      return;
+    }
     // Map the list to the required format
     const beneficiaries = list.map((item) => ({
       account: item.account,
@@ -161,7 +187,7 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
       >
         <div className="modal-header">
           <h2>Beneficiaries</h2>
-          <button className="close-btn" onClick={close}>
+          <button type="button" className="close-btn" onClick={close}>
             &times;
           </button>
         </div>
@@ -190,7 +216,7 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
                       value={item.percent}
                       min={item.minPercent || 1}
                       step="1"
-                      style={{ width: '50px', textAlign: 'center' }}
+                      style={{ width: '62px', textAlign: 'center' }}
                       onChange={(e) => handleLockedPercentChange(index, e.target.value)}
                     />
                     <span>% (min {item.minPercent}%)</span>
@@ -247,10 +273,23 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
               </div>
 
               <span>%</span>
-              <button onClick={handleBeneficairy} className="green">+</button>
+              <button type="button" onClick={handleBeneficairy} className="green">+</button>
             </div>
 
           </div>
+
+          {/* Typed but not committed with "+" — say so, and report whether the
+              account actually exists on Hive. Nothing shows while the row is
+              empty. */}
+          {hasPendingRow && (
+            <div className={`bene-pending${acctStatus === 'invalid' ? ' bene-pending--bad' : ''}`}>
+              {acctStatus === 'checking' && <>Checking <strong>@{account.trim()}</strong> on Hive…</>}
+              {acctStatus === 'invalid' && <>⚠️ <strong>@{account.trim()}</strong> is not an existing Hive account.</>}
+              {(acctStatus === 'valid' || acctStatus === 'idle') && (
+                <>⚠️ <strong>@{account.trim()}</strong> is not added yet — click <strong>+</strong> to add it, or clear the field.</>
+              )}
+            </div>
+          )}
 
           {/* Render the beneficiary list
           <div className="beneficiary-list">
@@ -268,7 +307,7 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
 
           <div className="last-btn-wrap">
             {/* <button onClick={close}>Cancel</button> */}
-            <button onClick={handleSave}>Continue</button>
+            <button type="button" onClick={handleSave}>Continue</button>
           </div>
 
           {(() => {
@@ -281,9 +320,12 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
             if (!isPremium) {
               entries.push(<div key="fund" className="wrap"><span>threespeakfund</span> <span>10% === Infrastructure</span></div>);
             }
+            // 'stream' = an OpenPods session announcement: nothing goes
+            // through the video encoder, so the 1% split never applies (the
+            // publish path doesn't add it either — don't advertise it).
             const keepEncoder = variant === 'studio'
               ? true
-              : variant === 'audio'
+              : (variant === 'audio' || variant === 'stream')
                 ? false
                 : !isPremium;
             if (keepEncoder) {

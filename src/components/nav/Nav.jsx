@@ -8,9 +8,9 @@ import { AiOutlineClose} from "react-icons/ai";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { useEffect, useRef, useState } from "react";
 import NavSearch from "./NavSearch";
-import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { TiThMenu } from "react-icons/ti";
-import { MdOutlineSearch, MdGraphicEq, MdMic, MdPlaylistPlay, MdWatchLater, MdHistory, MdKeyboardArrowDown, MdOutlineLeaderboard } from "react-icons/md";
+import { MdOutlineSearch, MdGraphicEq, MdPlaylistPlay, MdWatchLater, MdHistory, MdKeyboardArrowDown } from "react-icons/md";
+import { FaMedal } from "react-icons/fa6";
 import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
@@ -78,9 +78,9 @@ function NavUploadDropdown() {
 
   return (
     <div className="nav-upload-wrapper" ref={ref}>
-      <div className="nav-upload-btn" onClick={() => setOpen(!open)} title="Upload">
+      <div className="nav-upload-btn" onClick={() => setOpen(!open)} title="Share">
         <IoCloudUploadSharp size={18} />
-        <span className="nav-upload-label">Upload</span>
+        <span className="nav-upload-label">Share</span>
       </div>
       {open && (
         <div className="nav-upload-flyout" onClick={() => setOpen(false)}>
@@ -94,7 +94,6 @@ function NavUploadDropdown() {
 function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
   const sidebarHidden = useAppStore((s) => s.sidebarHidden);
-  const livePodsCount = useOpenPodsCount();
   const location = useLocation();
   const [nav, setNav] = useState(false)
    const sideNavRef = useRef(null); // Ref for the side nav container
@@ -185,15 +184,9 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
         <NavLink to="/audio" className={({ isActive }) => `nav-tab${isActive ? ' active' : ''}`}>
           <MdGraphicEq className="nav-tab-icon" /> <span>Audio</span>
         </NavLink>
-        <NavLink to="/openpods" className={({ isActive }) => `nav-tab${isActive ? ' active' : ''}`}>
-          <MdMic className="nav-tab-icon" /> <span>OpenPods</span>
-          {livePodsCount > 0 && (
-            <span className="nav-tab-live-dot" title={`${livePodsCount} live`} aria-label={`${livePodsCount} live`} />
-          )}
-        </NavLink>
         {authenticated && <NavPlaylistsDropdown user={user} />}
         <NavLink to="/leaderboard" className={({ isActive }) => `nav-tab${isActive ? ' active' : ''}`}>
-          <MdOutlineLeaderboard className="nav-tab-icon" /> <span>Leaderboard</span>
+          <FaMedal className="nav-tab-icon nav-tab-icon--medal" /> <span>Leaderboard</span>
         </NavLink>
       </div>
 
@@ -219,17 +212,18 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           </Link>
           <ChatButton />
           <NotificationBell />
+          <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
           <span className="nav-avatar-wrap" onClick={toggleProfileNav}>
             <img src={`https://images.hive.blog/u/${user}/avatar/small`} alt="" />
             <PremiumBadge username={user} size={10} className="nav-avatar-premium" />
           </span>
-          <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
         </div>
       ) : (
         <div className="nav-right flex-div">
           <Link to="/discover" className="nav-mobile-discover" title="Discover">
             <MdOutlineSearch size={19} />
           </Link>
+          <Link to="/about" className="nav-guest-about">About 3Speak</Link>
           <button className="nav-guest-login" onClick={openLoginModal}><FiLogIn /> LOG IN</button>
           <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
         </div>

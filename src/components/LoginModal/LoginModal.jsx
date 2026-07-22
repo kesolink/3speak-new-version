@@ -202,9 +202,10 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
     };
   }, [displayed, step]);
 
-  // Only inject the extra login options when not logged in (i.e. showing the
-  // provider list to pick from).
-  const showLoginExtras = displayed && step === 'providers' && !aioha.isLoggedIn();
+  // Inject the extra login options whenever the wallet-provider list is shown —
+  // both the logged-out "Log in" flow AND the logged-in "Add account" / "Change
+  // account" flow, so Butter Auth is offered when switching accounts too.
+  const showLoginExtras = displayed && step === 'providers';
 
   return (
     <>
@@ -217,6 +218,12 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
                 <p className="login-chooser-sub">
                   Signed in{user ? <> as <strong>@{user}</strong></> : ''} via Butter Auth.
                 </p>
+                <button className="login-chooser-login" onClick={() => setStep('providers')}>
+                  <span style={{ display: 'block' }}>Change account</span>
+                  <span style={{ display: 'block', fontWeight: 400, fontSize: '12.5px', opacity: 0.7, marginTop: '2px' }}>
+                    {ENABLE_BUTRAUTH ? 'Log in with Butter Auth or any Hive wallet' : 'Log in with any Hive wallet'}
+                  </span>
+                </button>
                 <button className="login-chooser-login" onClick={handleLogout}>
                   <IoPower style={{ marginRight: 8, verticalAlign: 'middle' }} /> Log out
                 </button>

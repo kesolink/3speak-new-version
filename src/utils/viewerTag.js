@@ -6,10 +6,10 @@
 // (summed across voters), computed server-side — see GET /viewer-tags/:a/:p.
 import axios from 'axios';
 import { CHECKER_URL } from './config';
-import { INTERESTS } from './interests';
+import { TAG_OPTIONS } from './tagsV2';
 
 // The only tags a viewer may assign — the interest taxonomy, for the dropdown.
-export const VIEWER_TAG_OPTIONS = INTERESTS;
+export const VIEWER_TAG_OPTIONS = TAG_OPTIONS;
 
 /** Mirror the on-chain choice into the checker's queryable index. Best-effort. */
 export async function recordViewerTag(username, author, permlink, tag, weight) {

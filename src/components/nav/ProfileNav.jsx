@@ -3,7 +3,7 @@ import "./ProfileNav.scss"
 import '../../page/Login/KeyChainLogin.scss';
 import { useAppStore } from '../../lib/store';
 import { useGetMyQuery } from '../../hooks/getUserDetails';
-import { MdCloudUpload, MdKeyboardArrowDown, MdOutlineKeyboardArrowUp, MdOutlineLeaderboard, MdSettings } from "react-icons/md";
+import { MdKeyboardArrowDown, MdOutlineKeyboardArrowUp, MdSettings, MdTrendingUp } from "react-icons/md";
 import { ImPower } from "react-icons/im";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaDiscord, FaLanguage } from 'react-icons/fa';
@@ -18,8 +18,6 @@ import logoDark from '../../assets/image/3S_logodark.png';
 import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
 import { getHiveUrl, ensureHealthyNode } from '../../utils/hiveNode';
-import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
-import UploadLinks from '../UploadLinks';
 import LabeledToggle from '../LabeledToggle/LabeledToggle';
 import SettingsModal from '../SettingsModal/SettingsModal';
 
@@ -33,7 +31,6 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const isManteAuth = localStorage.getItem("manteauth_login") === "true";
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Currently chosen Hive RPC node (auto-picked by the session probe).
   const [rpcNode, setRpcNode] = useState(getHiveUrl());
@@ -101,23 +98,12 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           <Link to="/profile" className="wrap" onClick={onclose}>
             <IoMdPerson className="icon" /> <span>My Channel</span>
           </Link>
-          <Link to="/leaderboard" className="wrap" onClick={onclose}>
-            <MdOutlineLeaderboard className="icon" /> <span>Leaderboard</span>
+          <Link to="/profile?tab=stats" className="wrap" onClick={onclose}>
+            <MdTrendingUp className="icon" /> <span>Analytics</span>
           </Link>
           {/* <Link className="wrap" onClick={onclose}>
             <TiThList className="icon" /> <span>Playlist</span>
           </Link> */}
-          <div className="upload-dropdown">
-            <div className="wrap" onClick={() => setUploadOpen(!uploadOpen)}>
-              <MdCloudUpload className="icon" /> <span>Upload</span>
-              {uploadOpen ? <BiChevronUp className="upload-chevron" /> : <BiChevronDown className="upload-chevron" />}
-            </div>
-            {uploadOpen && (
-              <div className="upload-subitems">
-                <UploadLinks linkClass="wrap sub-item" onClick={onclose} />
-              </div>
-            )}
-          </div>
 
           <a className="wrap" onClick={() => { handlewallletNavigation(); onclose() }}>
             <RiWallet3Fill className="icon" /> <span>Wallet</span>
@@ -131,13 +117,12 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           <Link to="/about" className="wrap" onClick={onclose}>
             <HiInformationCircle className="icon" /> <span>About 3Speak</span>
           </Link>
-          {isManteAuth ? (
+          <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
+            <IoPower className="icon" /> <span>Change account</span>
+          </a>
+          {isManteAuth && (
             <a className="wrap" onClick={() => { LogOut(user); onclose(); navigate('/'); }}>
               <IoPower className="icon" /> <span>Logout</span>
-            </a>
-          ) : (
-            <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
-              <IoPower className="icon" /> <span>Change account</span>
             </a>
           )}
 

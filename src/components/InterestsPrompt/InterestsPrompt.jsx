@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
-import { INTERESTS, fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import { TAG_OPTIONS } from '../../utils/tagsV2';
 import './InterestsPrompt.scss';
 
 // Per-user "already asked" flag (browser storage) so a given account is prompted
@@ -85,7 +86,7 @@ export default function InterestsPrompt() {
           You can change these anytime in <strong>Settings</strong>.
         </p>
         <div className="interests-prompt-grid">
-          {INTERESTS.map(({ id, label, emoji }) => (
+          {TAG_OPTIONS.map(({ id, label, emoji }) => (
             <button
               key={id}
               type="button"

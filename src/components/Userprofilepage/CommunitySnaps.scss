@@ -21,16 +21,24 @@
     // header row (badge + follow + label + time + ⋮ menu) fits on ONE line instead
     // of wrapping the menu underneath. Once cards hit the cap the group still
     // centers, so a partial row doesn't stretch edge-to-edge.
+    // Snap cards and the mixed-in playlist cards share the same flex sizing so
+    // they line up in the wrap. Playlists are capped narrower — a playlist is a
+    // thumbnail tile, not a text post, so it shouldn't blow up to 560px.
     .snap-card {
       margin: 0;
       min-width: 0; // allow shrinking instead of overflowing
       flex: 1 1 var(--card-min-w, 460px);
       max-width: min(560px, 100%);
     }
+    .playlist-feed-card {
+      flex: 1 1 var(--card-min-w, 460px);
+      max-width: min(340px, 100%);
+    }
 
     @media screen and (max-width: 767px) {
       gap: 10px;
       .snap-card { flex-basis: 100%; } // one full-width snap per line on phones
+      .playlist-feed-card { flex-basis: 46%; } // two playlist tiles per line on phones
     }
   }
 
@@ -447,11 +455,12 @@
 
       .snap-reply-box {
         display: flex;
+        flex-direction: column;
         gap: 8px;
         margin-bottom: 12px;
 
         textarea {
-          flex: 1;
+          width: 100%;
           min-width: 0;
           resize: vertical;
           padding: 8px 10px;
@@ -462,18 +471,24 @@
           font-size: 14px;
           font-family: inherit;
         }
-        button {
-          flex: none;
-          align-self: flex-end;
-          padding: 8px 16px;
-          border: none;
-          border-radius: 999px;
-          background: var(--accent-primary, #e53935);
-          color: #fff;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          &:disabled { opacity: 0.5; cursor: not-allowed; }
+        .snap-reply-actions {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+
+          > button {
+            flex: none;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 999px;
+            background: var(--accent-primary, #e53935);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            &:disabled { opacity: 0.5; cursor: not-allowed; }
+          }
         }
       }
 

@@ -1,6 +1,8 @@
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
 import { useDeadVideos } from '../../lib/deadVideos';
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
+import CommentCount from "../CommentCount/CommentCount";
+import { getCategoryOf, getTagLabel } from "../../utils/tagsV2";
 import ViewCount from "../ViewCount/ViewCount";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -51,7 +53,7 @@ function withInterleave(cards, channels) {
   return out;
 }
 
-function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, communityEvery = 0, renderCommunity = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false, hideWatched = false, watchedVersion = 0 }) {
+function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, communityEvery = 0, renderCommunity = null, creatorsEvery = 0, renderCreators = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false, hideWatched = false, watchedVersion = 0 }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
 
@@ -126,7 +128,7 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
         && isWatched(v.author?.username || v.author || v.owner, v.permlink) === true))
       .map(video => ({
         ...video,
-        _processedThumbnail: fixVideoThumbnail(video, shortsGrid)
+        _processedThumbnail: video._liveStream ? video.thumbnail : fixVideoThumbnail(video, shortsGrid)
       }));
   }, [videos, shortsGrid, dismissed, deadVideos, hideWatched, isWatched, watchedVersion]);
 
@@ -147,13 +149,17 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
 
         return (
           <Link
-            to={`${linkPrefix}?v=${cardAuthor}/${
-              video.permlink
-            }${linkQuery}${video._scheduled ? '&scheduled=1' : ''}`}
+            to={video._liveStream
+              ? (video._openpodRoom ? `/openpods/${video.roomName}` : `/watch/${video.roomName}`)
+              : `${linkPrefix}?v=${cardAuthor}/${
+                video.permlink
+              }${linkQuery}${video._scheduled ? '&scheduled=1' : ''}`}
             className="card"
             key={postKey}
             data-vidkey={postKey}
-            {...getCardProps(postKey, cardAuthor, video.permlink, video._processedThumbnail, video.status, video.title)}
+            {...(video._liveStream
+              ? {}
+              : getCardProps(postKey, cardAuthor, video.permlink, video._processedThumbnail, video.status, video.title))}
           >
             {/* Thumbnail — fast fallback so a dead image host can't leave the
                 card blank for ~a minute (see CardThumbnail). */}
@@ -163,7 +169,7 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 fallback={img}
                 eager={priority && index < 6}
               />
-              {!shortsGrid && (
+              {!shortsGrid && !video._liveStream && (
                 <div className="wrap">
                   <span className="play">
                     {Math.floor((video.spkvideo?.duration || video.duration) / 60)}:
@@ -172,6 +178,12 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                       .padStart(2, "0")}
                   </span>
                 </div>
+              )}
+
+              {/* Live tile → badge (top-right). A group-chat (conference) room
+                  reads "LIVE CHAT"; a standalone stream reads "LIVE". */}
+              {video._liveStream && (
+                <div className="card-live-badge">{video._openpodRoom ? '● LIVE CHAT' : '● LIVE'}</div>
               )}
 
               {/* Options menu (playlist / not interested / hide creator).
@@ -252,6 +264,19 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 noLink
                 compact
               />
+              {/* 1st-level v2 tag (the category the auto-tag rolls up to), left of
+                  the view count. Visibility is CSS-driven (see .card-topic-chip):
+                  shown on desktop whatever the layout, and on large cards
+                  everywhere — hidden only on small cards on a phone. */}
+              {(() => {
+                const cat = getCategoryOf(video.tag_v2);
+                if (!cat) return null;
+                return (
+                  <span className="card-topic-chip" title={`Topic: ${getTagLabel(cat)}`}>
+                    {getTagLabel(cat)}
+                  </span>
+                );
+              })()}
               {(() => {
                 const vcAuthor = video.author?.username || video.author || video.owner;
                 // Prefer the count already in the feed payload (the only source that
@@ -264,8 +289,14 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 return (
                   <ViewCount
                     views={resolvedViews}
-                    watched={isWatched?.(vcAuthor, video.permlink) === true}
+                    watched={!video._liveStream && isWatched?.(vcAuthor, video.permlink) === true}
                     formatViews={formatViewCount}
+                    /* On a live tile the same slot counts people watching RIGHT
+                       NOW, not lifetime views — say so on hover, since the bare
+                       number next to a LIVE badge reads as either. */
+                    title={video._liveStream
+                      ? `${resolvedViews} watching now`
+                      : undefined}
                   />
                 );
               })()}
@@ -289,6 +320,12 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                     return content?.voters ?? video.stats?.num_votes ?? null;
                   })()}
                 />
+                <CommentCount
+                  count={(() => {
+                    const author = video.author?.username || video.author || video.owner;
+                    return getContentForVideo?.(author, video.permlink)?.children ?? null;
+                  })()}
+                />
               </div>
               <p><TimeAgo date={video.created_at || video.created} short={shortTimeAgo} /></p>
             </div>
@@ -297,6 +334,7 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
       }), [
         { every: interleaveEvery, render: renderInterleave, key: 'shorts' },
         { every: communityEvery, render: renderCommunity, key: 'community' },
+        { every: creatorsEvery, render: renderCreators, key: 'creators' },
       ])}
       {modalUser && (
         <ProfileModal

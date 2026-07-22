@@ -12,15 +12,17 @@ import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
 import { getFeedSeed, regenerateFeedSeed } from "../utils/feedSeed";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
-import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
+import SuggestedCreators from "../components/SuggestedCreators/SuggestedCreators";
+import { useLiveStreams } from "../hooks/useLiveStreams";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import ShortsRow from "../components/ShortsRow/ShortsRow";
-import { useGridColumns, useShortsPerRow } from "../hooks/useGridMetrics";
+import { useGridColumns, useShortsPerRow, useTilesPerRow } from "../hooks/useGridMetrics";
 import { fetchCommunityFeed } from "../lib/snaps";
 import { SnapCard } from "../components/Userprofilepage/CommunitySnaps";
+import { fetchPlaylistsFeed } from "../lib/playlistsFeed";
+import PlaylistFeedCard from "../components/Cards/PlaylistFeedCard";
 import { SHORTS_API_URL } from "../utils/config";
-import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
-import { Rocket, Compass, Sparkles, GripVertical } from "lucide-react";
+import { Rocket, Compass, Users, Tags, Clock, GripVertical } from "lucide-react";
 
 // Extra feed params for the logged-in user: interests (checker weights the feed
 // toward them), currentuser (needed for BOTH the always-on dismissals and
@@ -169,12 +171,12 @@ const deduplicateVideos = (videos) => {
 
 // Section icons shown in the tab bar.
 const iconsByTitle = {
-  "Home Feed": <TrendingIcon />,
-  "Follow Feed": <TrendingIcon />,
-  "New Content": <NewContentIcon />,
+  "Home Feed": <Users size={16} />,
+  "Follow Feed": <Users size={16} />,
+  "New Content": <Clock size={16} />,
   "Promoted": <Rocket size={16} />,
   "Discover": <Compass size={16} />,
-  "Interests": <Sparkles size={16} />,
+  "Interests": <Tags size={16} />,
 };
 
 // ── Persisted custom tab order (array of section keys) in localStorage ──
@@ -331,15 +333,21 @@ const HomeGrouped = () => {
     [promotedData],
   );
 
+  // Live OpenPods streams, prepended into the grids as regular cards. "all"
+  // for public feeds; "following" for the follow feed / personalised tabs.
+  const liveAll = useLiveStreams();
+  const liveFollowing = useLiveStreams({ following: true });
+  const withLive = (live, vids) => (live.length ? [...live, ...vids] : vids);
+
   // ── Build the section list (natural order), then apply the user's saved order ──
   const baseSections = [
-    { key: 'discover', title: 'Discover', videos: leadWithPromoted(discoverData), isLoading: discoverLoading, priority: true },
-    { key: 'home', title: authenticated ? 'Follow Feed' : 'Home Feed', videos: leadWithPromoted(homeData), linkTo: authenticated ? '/follow-feed' : '/home-feed', isLoading: homeLoading, priority: true },
-    { key: 'new', title: 'New Content', videos: leadWithPromoted(deduplicateVideos(newContentData || [])), linkTo: '/new', isLoading: newContentLoading },
+    { key: 'discover', title: 'Discover', videos: withLive(liveAll, leadWithPromoted(discoverData)), isLoading: discoverLoading, priority: true },
+    { key: 'home', title: authenticated ? 'Follow Feed' : 'Home Feed', videos: withLive(authenticated ? liveFollowing : liveAll, leadWithPromoted(homeData)), linkTo: authenticated ? '/follow-feed' : '/home-feed', isLoading: homeLoading, priority: true },
+    { key: 'new', title: 'New Content', videos: withLive(liveAll, leadWithPromoted(deduplicateVideos(newContentData || []))), linkTo: '/new', isLoading: newContentLoading },
   ];
   // Interests row (logged-in + has interests): between the follow feed and New.
   if (authenticated && hasInterests) {
-    baseSections.splice(2, 0, { key: 'interests', title: 'Interests', videos: leadWithPromoted(interestsData), isLoading: interestsLoading, priority: true });
+    baseSections.splice(2, 0, { key: 'interests', title: 'Interests', videos: withLive(liveFollowing, leadWithPromoted(interestsData)), isLoading: interestsLoading, priority: true });
   }
   if (authenticated) {
   }
@@ -407,6 +415,11 @@ const HomeGrouped = () => {
 
   // Live column count of the card grid — drives "a shorts rail every 2 rows".
   const gridCols = useGridColumns(panelRef, `${activeSection?.key}:${activeVideos.length}`);
+  // How many narrow creator tiles fit across the grid — the "follow these" rail uses
+  // this to fill its row exactly on desktop (no horizontal scroll). Mobile ignores it
+  // (that rail stays a scroller); it's only >0 once the grid is measured, which also
+  // gates the interleave so an unmeasured/empty creators row can't open a gap.
+  const creatorsPerRow = useTilesPerRow(panelRef, `cr:${activeSection?.key}:${activeVideos.length}`, { min: 132, minPhone: 108, gap: 10, gapPhone: 8, floor: 3 });
   // Shorts per rail = however many fit across right now.
   const shortsPerRow = useShortsPerRow(panelRef, `${activeSection?.key}:${activeVideos.length}`);
 
@@ -433,10 +446,17 @@ const HomeGrouped = () => {
     return null;
   }, [activeSection?.key, authenticated, user]);
 
+  // Discover is a browse surface, so it gets a TIGHTER freshness window than the
+  // other sections: community posts from the last 3 days, playlist changes from
+  // the last 24h. Other feeds keep the server default.
+  const isDiscover = activeSection?.key === 'discover';
+  const snapsMaxAgeHours = isDiscover ? 72 : undefined;
+  const playlistsMaxAgeHours = isDiscover ? 24 : undefined;
+
   const communityQ = useInfiniteQuery({
-    queryKey: ['feed-community', activeSection?.key, communityMode, user || null],
+    queryKey: ['feed-community', activeSection?.key, communityMode, user || null, snapsMaxAgeHours || 0],
     queryFn: async ({ pageParam = 1 }) => {
-      const data = await fetchCommunityFeed({ scope: communityMode, currentuser: user, page: pageParam });
+      const data = await fetchCommunityFeed({ scope: communityMode, currentuser: user, page: pageParam, maxAgeHours: snapsMaxAgeHours });
       return data?.snaps || [];
     },
     initialPageParam: 1,
@@ -461,33 +481,97 @@ const HomeGrouped = () => {
     [communityQ.data, removedSnaps, user],
   );
 
-  // A community post roughly every 3 rows (offset from the shorts' every-2-rows).
-  // Each interleave slot packs up to a full grid-row of snaps (one per column) so
-  // several creators' posts share one line when there's room.
+  // ── Recently-changed public playlists, MIXED INTO the community-snaps stream ──
+  // Same scope model as the snaps feed (communityMode): Discover + New → any
+  // public playlist changed in the last 7d; Interests + Follow → only from people
+  // you follow. They ride the community interleave, so a row can show a couple of
+  // snaps and a fresh playlist together instead of playlists getting their own row.
+  const playlistsQ = useInfiniteQuery({
+    queryKey: ['feed-playlists', activeSection?.key, communityMode, user || null, playlistsMaxAgeHours || 0],
+    queryFn: async ({ pageParam = 1 }) => {
+      const data = await fetchPlaylistsFeed({ scope: communityMode, currentuser: user, page: pageParam, maxAgeHours: playlistsMaxAgeHours });
+      return data?.playlists || [];
+    },
+    initialPageParam: 1,
+    getNextPageParam: nextPage(),
+    enabled: !!communityMode,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const feedPlaylists = useMemo(
+    // Your own playlists never show in your own feed (the checker also filters
+    // them server-side — this covers pages cached before login/logout).
+    () => (playlistsQ.data?.pages || []).flat().filter((p) => p.owner !== user),
+    [playlistsQ.data, user],
+  );
+
+  // Blend the two streams into ONE list so playlists and snaps genuinely
+  // ALTERNATE rather than playlists tacking on at the end. At each step we emit
+  // from whichever stream is furthest "behind" its share, which spreads them
+  // proportionally at ANY ratio: 3 snaps + 4 playlists → p,s,p,s,p,s,p;
+  // 20 snaps + 4 → a playlist roughly every 5th card. One-sided lists pass through.
+  const feedCommunityMixed = useMemo(() => {
+    const snaps = feedCommunity.map((s) => ({ kind: 'snap', data: s }));
+    const pls = feedPlaylists.map((p) => ({ kind: 'playlist', data: p }));
+    if (!snaps.length) return pls;
+    if (!pls.length) return snaps;
+    const out = [];
+    let si = 0;
+    let pi = 0;
+    const S = snaps.length;
+    const P = pls.length;
+    while (si < S || pi < P) {
+      // Fractional progress each list would reach by advancing (+1 avoids /0).
+      const snapAhead = (si + 1) / (S + 1);
+      const plAhead = (pi + 1) / (P + 1);
+      if (pi >= P || (si < S && snapAhead <= plAhead)) out.push(snaps[si++]);
+      else out.push(pls[pi++]);
+    }
+    return out;
+  }, [feedCommunity, feedPlaylists]);
+
+  // A mixed community row roughly every 3 rows (offset from the shorts' every-2).
+  // Each slot packs up to a full grid-row of cards (snaps + playlists) that mirror
+  // the video columns.
   const communityEvery = gridCols > 0 ? gridCols * 3 : 0;
   const communityPerRow = gridCols > 0 ? gridCols : 1;
   const communityNeeded = communityEvery ? Math.floor(activeVideos.length / communityEvery) : 0;
+  // Keep BOTH source streams supplied so the mixed list can fill the needed rows.
   useEffect(() => {
     if (!communityMode) return;
-    if (feedCommunity.length >= communityNeeded * communityPerRow) return;
-    if (!communityQ.hasNextPage || communityQ.isFetchingNextPage) return;
-    communityQ.fetchNextPage();
-  }, [communityMode, communityNeeded, communityPerRow, feedCommunity.length, communityQ.hasNextPage, communityQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (feedCommunityMixed.length >= communityNeeded * communityPerRow) return;
+    if (communityQ.hasNextPage && !communityQ.isFetchingNextPage) communityQ.fetchNextPage();
+    if (playlistsQ.hasNextPage && !playlistsQ.isFetchingNextPage) playlistsQ.fetchNextPage();
+  }, [communityMode, communityNeeded, communityPerRow, feedCommunityMixed.length, communityQ.hasNextPage, communityQ.isFetchingNextPage, playlistsQ.hasNextPage, playlistsQ.isFetchingNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderCommunityRow = useCallback((slot) => {
     const start = slot * communityPerRow;
-    const group = feedCommunity.slice(start, start + communityPerRow);
+    const group = feedCommunityMixed.slice(start, start + communityPerRow);
     if (!group.length) return null;
     // Wrap in .community-snaps so the SnapCards' (nested) styles apply; --row makes
-    // it a full-width grid that mirrors the video columns.
+    // it a full-width grid that mirrors the video columns. Playlist cards ride the
+    // same row (sized to match via .community-snaps--row .playlist-feed-card).
     return (
       <div className="community-snaps community-snaps--feed community-snaps--row">
-        {group.map((snap) => (
-          <SnapCard key={`${snap.owner}/${snap.permlink}`} snap={snap} feedMode onRemove={removeSnap} />
+        {group.map((el) => (el.kind === 'playlist'
+          ? <PlaylistFeedCard key={`pl-${el.data.id}`} playlist={el.data} />
+          : <SnapCard key={`${el.data.owner}/${el.data.permlink}`} snap={el.data} feedMode onRemove={removeSnap} />
         ))}
       </div>
     );
-  }, [feedCommunity, removeSnap, communityPerRow]);
+  }, [feedCommunityMixed, removeSnap, communityPerRow]);
+
+  // "Follow these" rail, injected as a full-width grid row (like the community/snaps
+  // rows). Shown ONCE — only slot 0 — so it's a single suggestion strip, not a
+  // repeating band. The component fetches its own creators (per the active tab:
+  // discover = seeded-random slice of the top 20, interests = the deterministic top)
+  // and renders nothing if the viewer has no interests / no suggestions, in which
+  // case the empty `.card-interleave` wrapper collapses to zero height.
+  const renderCreatorsRow = useCallback((slot) => {
+    if (slot !== 0) return null;
+    return <SuggestedCreators variant={activeSection?.key} perRow={creatorsPerRow} />;
+  }, [activeSection?.key, creatorsPerRow]);
 
   const { getContentForVideo } = useContentBatch(visibleVideos);
   const { isWatched, version: watchedVersion } = useWatchHistory(visibleVideos);
@@ -632,6 +716,10 @@ const HomeGrouped = () => {
       return <div className="home-tab-empty">Nothing to show here yet.</div>;
     }
     const q = queryByKey[s.key];
+    // Only interest-having users get the "follow these" rail (it's interest-matched).
+    // Gating here — not just inside the component — keeps an empty rail from ever
+    // reserving an interleave slot (which would open a grid-gap where nothing renders).
+    const creatorsMode = hasInterests && (s.key === 'discover' || s.key === 'interests');
     return (
       <>
         <Card3
@@ -649,9 +737,15 @@ const HomeGrouped = () => {
              mobile, 4-5 on desktop). 0 until measured → no interleave, no jump. */
           interleaveEvery={shortsMode && s.key === activeSection?.key && gridCols > 0 ? gridCols * 2 : 0}
           renderInterleave={shortsMode && s.key === activeSection?.key ? renderShortsRail : null}
-          /* Community posts on the same feeds, ~every 3 rows (see communityMode). */
+          /* Community posts + fresh playlists share this stream, ~every 3 rows
+             (see communityMode / feedCommunityMixed). */
           communityEvery={communityMode && s.key === activeSection?.key && gridCols > 0 ? communityEvery : 0}
           renderCommunity={communityMode && s.key === activeSection?.key ? renderCommunityRow : null}
+          /* "Follow these" creator rail, interleaved as a full-width row after the
+             first row of videos (once), on the discover/interests tabs. Placed at
+             gridCols*1 so it never lands on the same card as the shorts rail (×2). */
+          creatorsEvery={creatorsMode && s.key === activeSection?.key && gridCols > 0 && creatorsPerRow > 0 ? gridCols : 0}
+          renderCreators={creatorsMode && s.key === activeSection?.key ? renderCreatorsRow : null}
         />
         {q && (
           <InfiniteSentinel
@@ -671,7 +765,6 @@ const HomeGrouped = () => {
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container home-tabbed" data-card-size={homeCardSize || 'large'}>
       <ShortsStories />
-      <OpenPodsLiveStrip />
 
       <div className={`home-tabs home-tabs--bar${drag ? ' is-dragging' : ''}`} role="tablist" ref={tabBarRef}>
         {displaySections.map((s) => (

@@ -54,6 +54,9 @@
 
 .openpods-guest-cta {
   display: flex;
+  // Column, so the failure hint sits UNDER the button rather than beside it.
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   margin-top: 16px;
 }
@@ -70,4 +73,16 @@
   transition: background 0.15s;
 
   &:hover { background: #c62828; }
+}
+
+// Shown when the automatic @threespeak handover failed — usually because the
+// user never granted posting authority. Explains the fix instead of leaving
+// them clicking a button that keeps failing.
+.openpods-guest-cta__hint {
+  margin: 8px auto 0;
+  max-width: 44ch;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
 }

@@ -24,6 +24,7 @@ import { IoMdShare, IoMdAdd } from "react-icons/io";
 import { MdLock, MdPublic, MdClose } from "react-icons/md";
 import SocialLinks from "../components/Userprofilepage/SocialLinks";
 import LeaderboardBadges from "../components/LeaderboardBadges/LeaderboardBadges";
+import ProfileStreams from "../components/Userprofilepage/ProfileStreams";
 import AddSocialLink_modal from "../components/modal/AddSocialLink_modal";
 import EditVideoHintModal from "../components/modal/EditVideoHintModal";
 import { fetchScheduledPosts, normalizeScheduledForCard } from "../utils/scheduledPosts";
@@ -307,6 +308,32 @@ function ProfilePage() {
   });
   const snapCount = snapCountData?.total || 0;
 
+  // Streams tab only exists when there's something to show — a running
+  // OpenPods session, or the VOD of a finished one. Counts both.
+  const { data: streamCount = 0 } = useQuery({
+    queryKey: ["profile-streams-count", user],
+    queryFn: async () => {
+      const hangoutsApi = (import.meta.env.VITE_HANGOUTS_API_URL || '').replace(/\/$/, '');
+      const [vods, rooms] = await Promise.all([
+        axios
+          .get(`${MY_VIDEOS_URL}/api/my-videos?username=${encodeURIComponent(user)}&limit=50&status=published&openpod=1`)
+          .then((r) => r.data?.data?.videos || [])
+          .catch(() => []),
+        hangoutsApi
+          ? fetch(`${hangoutsApi}/streams`)
+              .then((r) => (r.ok ? r.json() : []))
+              .then((list) => (Array.isArray(list) ? list : []).filter(
+                (x) => String(x.host || '').toLowerCase() === String(user).toLowerCase(),
+              ))
+              .catch(() => [])
+          : Promise.resolve([]),
+      ]);
+      return vods.length + rooms.length;
+    },
+    enabled: !!user,
+    staleTime: 60 * 1000,
+  });
+
   const scheduledCards = useMemo(() => {
     return (scheduledData || [])
       .map(normalizeScheduledForCard)
@@ -480,6 +507,11 @@ function ProfilePage() {
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          {streamCount > 0 && (
+            <span className={show === "streams" ? "active" : ""} onClick={() => selectTab("streams")}>
+              Streams ({streamCount})
+            </span>
+          )}
           <span className={show === "community" ? "active" : ""} onClick={() => selectTab("community")}>
             Community {snapCount > 0 && `(${snapCount})`}
           </span>
@@ -558,6 +590,8 @@ function ProfilePage() {
           )
         ) : show === "audio" ? (
           <UserAudioList user={user} />
+        ) : show === "streams" ? (
+          <ProfileStreams user={user} getViewCount={getViewCount} />
         ) : show === "community" ? (
           <CommunitySnaps user={user} canPost={!!user} />
         ) : show === "stats" ? (

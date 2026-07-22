@@ -38,6 +38,17 @@
   // tint here let the dark banner bleed through and made the text unreadable.
   // Colours are fixed rather than theme-dependent: an opaque pill keeps the same
   // contrast against light and dark alike.
+  // 3Speak Pro — a status, not a ranking, so it gets the brand red rather than
+  // another medal tier. Opaque like the rest so it stays legible over any
+  // banner. Not a link: the Pro page lives on the owner's own wallet, so it
+  // would be a dead end on someone else's profile.
+  .lb-badge-pro {
+    background: #e31337;
+    border-color: #b30f2b;
+    color: #fff;
+    cursor: default;
+  }
+
   .lb-badge-top1 {
     background: #ffd75e;
     border-color: #d9ae2b;

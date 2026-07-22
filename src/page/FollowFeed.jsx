@@ -4,6 +4,7 @@ import { useEffect, useCallback } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import Card3 from "../components/Cards/Card3";
+import { useLiveStreams } from "../hooks/useLiveStreams";
 import { FOLLOW_FEED_URL, appendNsfw } from "../utils/config";
 import { feedParams } from "../utils/feedParams";
 import { useContentBatch } from "../hooks/useContentBatch";
@@ -62,6 +63,7 @@ const FollowFeed = () => {
   }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
 
   const videos = data?.pages.flatMap(page => page.videos || []) || [];
+  const liveStreams = useLiveStreams({ following: true }); // live streams from followed creators
 
   const { getContentForVideo } = useContentBatch(videos);
   const { isWatched } = useWatchHistory(videos);
@@ -82,7 +84,7 @@ const FollowFeed = () => {
       {isLoading ? (
         <CardSkeleton />
       ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
+        <Card3 videos={[...liveStreams, ...videos]} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
       )}
 
       {isError && <p>Error fetching videos</p>}

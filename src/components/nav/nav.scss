@@ -148,6 +148,14 @@
       flex-shrink: 0;
     }
 
+    // The medal glyph is solid and fills its box, so it reads larger than the
+    // outline icons — trim it so it sits visually level with its neighbours.
+    .nav-tab-icon--medal {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
     .nav-tab-live-dot {
       display: inline-block;
       width: 8px;
@@ -299,6 +307,11 @@
     .nav-upload-wrapper {
       position: relative;
 
+      // Share now lives in the mobile bottom nav (the centre "+"), so hide the
+      // top-nav Share button wherever the bottom nav is shown (phone + tab).
+      @include mix.respond(phone) { display: none; }
+      @include mix.respond(tab)   { display: none; }
+
       .nav-upload-btn {
         display: flex;
         align-items: center;
@@ -405,6 +418,8 @@
       height: 35px;
       flex: 0 0 35px;
       align-self: center;
+      // Extra breathing room between the settings cog and the avatar (desktop only).
+      margin-left: 8px;
       cursor: pointer;
       // The legacy `.nav-right > span { padding/background/border-radius }`
       // rule below this block targets span children of .nav-right. Our
@@ -476,6 +491,31 @@
       background: transparent;
       border: 1px solid var(--accent-primary);
       color: var(--accent-primary);
+    }
+
+    @include mix.respond(phone) { display: none; }
+    @include mix.respond(tab)   { display: none; }
+  }
+
+  // "About 3Speak" pill for logged-out users — sits left of the login button.
+  // Neutral (secondary) styling so the red login pill stays the primary action.
+  > .nav-right a.nav-guest-about {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 18px;
+    border-radius: 20px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+      background: var(--bg-hover);
     }
 
     @include mix.respond(phone) { display: none; }
