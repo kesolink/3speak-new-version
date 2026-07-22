@@ -31,36 +31,6 @@ export const CHANGELOG = [
       'New Popular creators row on Discover: creators from the trending list you are not following yet, with their follower count and a Follow button.',
   },
   {
-    version: '1.70.0',
-    date: '2026-07-19',
-    summary:
-      'Sharing a session now links to the right place: the watch page for a stream, the room itself for a conference.',
-  },
-  {
-    version: '1.69.0',
-    date: '2026-07-19',
-    summary:
-      'When a stream ends, the watch page says the recording is being processed and swaps in the replay on its own. You can pick what happens to the recording when you create the stream.',
-  },
-  {
-    version: '1.68.0',
-    date: '2026-07-19',
-    summary:
-      'Live chat messages from signed-in Hive users are posted as comments, timed to the moment they were sent, so they line up with the replay.',
-  },
-  {
-    version: '1.67.0',
-    date: '2026-07-19',
-    summary:
-      'A stream shared on Hive now opens as a normal 3Speak video page, with votes, rewards, comments and playlists. Live chat sits where the reactions panel usually is. On a phone the stream plays full screen like a Short.',
-  },
-  {
-    version: '1.66.0',
-    date: '2026-07-19',
-    summary:
-      'You can now go live from your phone. Share \u2192 Go Live opens the create screen directly, and the mobile studio adds front/back camera switching, a lens picker with zoom, a microphone picker, and a see-through chat you can drag taller.',
-  },
-  {
     version: '1.65.0',
     date: '2026-07-19',
     summary:
@@ -73,12 +43,6 @@ export const CHANGELOG = [
       'Recently updated public playlists now show up as their own card in the home feeds, and the feeds respect a creator’s choice to keep a video out of them.',
   },
   {
-    version: '1.63.0',
-    date: '2026-07-18',
-    summary:
-      'You can now go live on 3Speak with standalone streams. Start one from Share → Go Live, watch a stream on its own page, catch live streams from people you follow in the home feed, and find a creator’s streams on their profile. Finished streams can be kept as a video.',
-  },
-  {
     version: '1.62.0',
     date: '2026-07-18',
     summary:
@@ -88,7 +52,7 @@ export const CHANGELOG = [
     version: '1.60.0',
     date: '2026-07-18',
     summary:
-      'The Upload menu is now called Share, with two new entries: Go Live (opens OpenPods) and Community Snap (your profile\'s Community tab). Logged-out visitors get an About 3Speak button next to Log in, and the About page now follows the app\'s light and dark theme.',
+      'The Upload menu is now called Share, with a new Community Snap entry (your profile\'s Community tab). Logged-out visitors get an About 3Speak button next to Log in, and the About page now follows the app\'s light and dark theme.',
   },
   {
     version: '1.59.0',
@@ -382,7 +346,7 @@ export const CHANGELOG = [
     version: '1.12.0',
     date: '2026-06-13',
     summary:
-      'New 3Speak Chat: message any Hive user with direct messages, and join channels, from the new chat icon in the top bar (or the /chat page). It connects on its own — no extra signature popup. And hosting OpenPods rooms now works no matter how you logged in (HiveSigner, Keychain, HiveAuth, PeakVault or Ledger).',
+      'New 3Speak Chat: message any Hive user with direct messages, and join channels, from the new chat icon in the top bar (or the /chat page). It connects on its own — no extra signature popup.',
   },
   {
     version: '1.11.1',
@@ -539,12 +503,6 @@ export const CHANGELOG = [
     date: '2026-05-06',
     summary:
       'Audio comes to 3Speak. Share a podcast or music track from the upload menu and listen with the new built-in audio player, plus new profile and social links.',
-  },
-  {
-    version: '1.6.0',
-    date: '2026-05-03',
-    summary:
-      'Introducing OpenPods — live audio and video rooms. Start or join a room from the new OpenPods section (/openpods), publish your recordings, invite guests, and share a room link.',
   },
   {
     version: '1.5.0',
