@@ -148,6 +148,14 @@
       flex-shrink: 0;
     }
 
+    // The medal glyph is solid and fills its box, so it reads larger than the
+    // outline icons — trim it so it sits visually level with its neighbours.
+    .nav-tab-icon--medal {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
     .nav-tab-live-dot {
       display: inline-block;
       width: 8px;
@@ -298,6 +306,11 @@
 
     .nav-upload-wrapper {
       position: relative;
+
+      // Share now lives in the mobile bottom nav (the centre "+"), so hide the
+      // top-nav Share button wherever the bottom nav is shown (phone + tab).
+      @include mix.respond(phone) { display: none; }
+      @include mix.respond(tab)   { display: none; }
 
       .nav-upload-btn {
         display: flex;

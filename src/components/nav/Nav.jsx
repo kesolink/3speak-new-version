@@ -8,9 +8,9 @@ import { AiOutlineClose} from "react-icons/ai";
 import { IoCloudUploadSharp } from "react-icons/io5";
 import { useEffect, useRef, useState } from "react";
 import NavSearch from "./NavSearch";
-import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { TiThMenu } from "react-icons/ti";
-import { MdOutlineSearch, MdGraphicEq, MdMic, MdPlaylistPlay, MdWatchLater, MdHistory, MdKeyboardArrowDown, MdOutlineLeaderboard } from "react-icons/md";
+import { MdOutlineSearch, MdGraphicEq, MdPlaylistPlay, MdWatchLater, MdHistory, MdKeyboardArrowDown } from "react-icons/md";
+import { FaMedal } from "react-icons/fa6";
 import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
@@ -94,7 +94,6 @@ function NavUploadDropdown() {
 function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
   const sidebarHidden = useAppStore((s) => s.sidebarHidden);
-  const livePodsCount = useOpenPodsCount();
   const location = useLocation();
   const [nav, setNav] = useState(false)
    const sideNavRef = useRef(null); // Ref for the side nav container
@@ -185,15 +184,9 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
         <NavLink to="/audio" className={({ isActive }) => `nav-tab${isActive ? ' active' : ''}`}>
           <MdGraphicEq className="nav-tab-icon" /> <span>Audio</span>
         </NavLink>
-        <NavLink to="/openpods" className={({ isActive }) => `nav-tab${isActive ? ' active' : ''}`}>
-          <MdMic className="nav-tab-icon" /> <span>OpenPods</span>
-          {livePodsCount > 0 && (
-            <span className="nav-tab-live-dot" title={`${livePodsCount} live`} aria-label={`${livePodsCount} live`} />
-          )}
-        </NavLink>
         {authenticated && <NavPlaylistsDropdown user={user} />}
         <NavLink to="/leaderboard" className={({ isActive }) => `nav-tab${isActive ? ' active' : ''}`}>
-          <MdOutlineLeaderboard className="nav-tab-icon" /> <span>Leaderboard</span>
+          <FaMedal className="nav-tab-icon nav-tab-icon--medal" /> <span>Leaderboard</span>
         </NavLink>
       </div>
 

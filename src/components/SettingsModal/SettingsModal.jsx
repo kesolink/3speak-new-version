@@ -6,7 +6,7 @@ import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { getHiveUrl } from '../../utils/hiveNode';
 import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
-import { TAG_OPTIONS } from '../../utils/tagsV2';
+import TagsV2Picker from '../tooltip/TagsV2Picker';
 import DataRequestForm from './DataRequestForm';
 import './SettingsModal.scss';
 
@@ -37,15 +37,9 @@ function InterestsSection() {
     return () => { alive = false; };
   }, [user]);
 
-  const selected = new Set(interests || []);
   const dirty = savedRef.current == null
     ? (interests || []).length > 0
     : !sameSet(interests, savedRef.current);
-
-  const toggle = (id) => {
-    setJustSaved(false); // a fresh change → back to a "Save" CTA
-    setInterests(selected.has(id) ? interests.filter((x) => x !== id) : [...interests, id]);
-  };
 
   const save = async () => {
     if (!user) return;
@@ -72,21 +66,13 @@ function InterestsSection() {
         Pick the topics you care about — we’ll use them to show you more of the content you like.
         {!user && ' Log in to choose your interests.'}
       </p>
-      <div className="settings-interests-grid">
-        {TAG_OPTIONS.map(({ id, label, emoji }) => (
-          <button
-            key={id}
-            type="button"
-            className={`settings-interest-chip${selected.has(id) ? ' selected' : ''}`}
-            onClick={() => toggle(id)}
-            disabled={!user || saving}
-            aria-pressed={selected.has(id)}
-          >
-            <span className="settings-interest-emoji">{emoji}</span>
-            {label}
-          </button>
-        ))}
-      </div>
+      <TagsV2Picker
+        multi
+        searchable
+        value={interests || []}
+        onChange={(next) => { setJustSaved(false); setInterests(next); }}
+        disabled={!user || saving}
+      />
       {/* Only shown when there's something to save, while saving, or right after
           a save (the transient "Saved" confirmation). Hidden otherwise. */}
       {user && (dirty || saving || justSaved) && (

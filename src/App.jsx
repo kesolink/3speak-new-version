@@ -7,6 +7,7 @@ import Nav from "./components/nav/Nav";
 import { useState } from "react";
 import Watch from "./page/Watch";
 import WatchStream from "./page/WatchStream";
+import EgressStream from "./page/EgressStream";
 import Sidebar from "./components/Sidebar/Sidebar";
 import Feed from "./components/Feed/Feed";
 import FirstUploads from "./page/FirstUploads";
@@ -23,6 +24,8 @@ import { useSupportBlock } from "./lib/supportBlockStore";
 import { getCreatorSettings, isBanned } from "./utils/creatorSettings";
 import SupportModal from "./components/SupportModal/SupportModal";
 import CookieConsent from "./components/CookieConsent/CookieConsent";
+import { GlobalReviewModal } from "./components/ReviewModal/ReviewModal";
+import ReviewFab from "./components/ReviewModal/ReviewFab";
 import { useEffect } from "react";
 import { readAppVersion } from "./utils/appVersion";
 import ChangelogModal from "./components/Changelog/ChangelogModal";
@@ -116,6 +119,7 @@ import EmbedStudioPage from "./components/embed-studio/EmbedStudioPage";
 import EmbedThumbnail from "./components/embed-studio/EmbedThumbnail";
 import EmbedDetails from "./components/embed-studio/EmbedDetails";
 import EmbedPreview from "./components/embed-studio/EmbedPreview";
+import EmbedCameraRecord from "./components/embed-studio/EmbedCameraRecord";
 import FollowFeed from "./page/FollowFeed";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
@@ -500,6 +504,8 @@ function App() {
       <ChangelogModal />
       <SupportModal />
       <CookieConsent />
+      <GlobalReviewModal />
+      <ReviewFab />
       <ShortsPreloader />
       {!hideNavOnMobile && (
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
@@ -523,6 +529,10 @@ function App() {
             <Route path="/watch/:streamId" element={<WatchStream />} />
             {/* Short alias for stream share links — see buildOpenPodShareUrl. */}
             <Route path="/l/:streamId" element={<WatchStream />} />
+            {/* Opened by the LiveKit egress worker, never by a person: a
+                chrome-free full-bleed render of a standalone stream, which is
+                what gets recorded into the VOD. */}
+            <Route path="/egress-stream" element={<EgressStream />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/post/:author/:permlink" element={<PostView />} />
             <Route path="/upload" element={<UploadVideo />} />
@@ -547,6 +557,7 @@ function App() {
             <Route path="/studio/preview" element={<Navigate to="/embed-studio/preview" replace />} />
             {/* Embed studio (uses embed.okinoko.io upload service) */}
             <Route path="/embed-studio" element={<EmbedStudioPage />} />
+            <Route path="/embed-studio/record" element={<EmbedCameraRecord />} />
             <Route path="/embed-studio/thumbnail" element={<EmbedThumbnail />} />
             <Route path="/embed-studio/details" element={<EmbedDetails />} />
             <Route path="/embed-studio/preview" element={<EmbedPreview />} />

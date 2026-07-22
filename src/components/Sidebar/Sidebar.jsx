@@ -23,7 +23,6 @@ import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../../lib/store";
 import ShortsIcon from "../icons/ShortsIcon";
-import UploadLinks from "../UploadLinks";
 import { COMPACT_SIDEBAR } from "../../utils/config";
 import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 
@@ -81,12 +80,6 @@ const Sidebar = ({ sidebar, onNavigate }) => {
         <Link to="/audio" className="side-link" title="Audio" onClick={nav}>
           <MdGraphicEq className="icon" /> <span>Audio</span>
         </Link>
-       {authenticated && (
-          <SidebarDropdown icon={IoCloudUploadSharp} label="Share" sidebar={sidebar}>
-            <UploadLinks linkClass="side-link" onClick={nav} />
-          </SidebarDropdown>
-        )}
-
         {COMPACT_SIDEBAR ? (
           <SidebarDropdown icon={BsCollectionPlay} label="Feeds" sidebar={sidebar}>
             <Link to="/firstupload" className="side-link" title="First Uploads" onClick={nav}>

@@ -1,20 +1,18 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MdOutlineHome, MdOutlineSearch, MdOutlineDownload, MdGraphicEq, MdMic, MdSettings, MdCloudUpload, MdOutlineLeaderboard } from "react-icons/md";
+import { MdOutlineSearch, MdOutlineDownload, MdGraphicEq, MdSettings, MdAdd, MdTrendingUp } from "react-icons/md";
 import { IoAddCircleOutline, IoPower, IoCloudUploadSharp, IoShareOutline } from "react-icons/io5";
 import { IoMdPerson } from "react-icons/io";
 import { HiInformationCircle } from "react-icons/hi";
 import { GiAstronautHelmet } from "react-icons/gi";
 import { RiWallet3Fill } from "react-icons/ri";
-import { BiChevronDown, BiChevronUp } from "react-icons/bi";
 import { FaDiscord } from "react-icons/fa";
-import { FaSquareXTwitter } from "react-icons/fa6";
+import { FaSquareXTwitter, FaMedal, FaChartBar } from "react-icons/fa6";
 import { SiTelegram } from "react-icons/si";
 import { Clapperboard } from "lucide-react";
 import { useAppStore } from "../../lib/store";
 import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
 import SettingsModal from "../SettingsModal/SettingsModal";
-import useOpenPodsCount from "../../hooks/useOpenPodsCount";
 import { FEATURE_EDITOR } from "../../utils/config";
 import { APP_VERSION } from "../../version";
 import { getHiveUrl } from "../../utils/hiveNode";
@@ -31,11 +29,9 @@ const BottomNav = ({ openLoginModal }) => {
   const navigate = useNavigate();
   const { authenticated, user, theme, LogOut } = useAppStore();
   const isManteAuth = localStorage.getItem("manteauth_login") === "true";
-  const livePodsCount = useOpenPodsCount();
   const path = location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [menuUploadOpen, setMenuUploadOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const menuRef = useRef(null);
   const uploadRef = useRef(null);
@@ -89,7 +85,6 @@ const BottomNav = ({ openLoginModal }) => {
   useEffect(() => {
     setMenuOpen(false);
     setUploadOpen(false);
-    setMenuUploadOpen(false);
   }, [path]);
 
   const handleUploadClick = (e) => {
@@ -125,8 +120,10 @@ const BottomNav = ({ openLoginModal }) => {
     <>
     <nav className={`bottom-nav${path === '/watch' ? ' bottom-nav--watch' : ''}`} ref={menuRef}>
       <Link to="/" className={`bottom-nav-item ${isActive("/") ? "active" : ""}`}>
-        <MdOutlineHome className="bottom-nav-icon" />
-        <span>Home</span>
+        <span className="bottom-nav-icon-wrap">
+          <FaChartBar className="bottom-nav-icon bottom-nav-icon--feeds" />
+        </span>
+        <span>Feeds</span>
       </Link>
 
       <Link to="/audio" className={`bottom-nav-item ${isActive("/audio") ? "active" : ""}`}>
@@ -134,19 +131,33 @@ const BottomNav = ({ openLoginModal }) => {
         <span>Audio</span>
       </Link>
 
-      <Link to="/shorts" className={`bottom-nav-item ${isShortsActive ? "active" : ""}`}>
-        <ShortsIcon className="bottom-nav-icon" outlineWidth={isShortsActive ? 40 : 30} />
-        <span>Shorts</span>
-      </Link>
+      {/* Share = the centre item. Same UploadLinks popup that used to live in the
+          profile menu, now opened straight from the bar. */}
+      <div className="bottom-nav-upload-wrap" ref={uploadRef}>
+        <a href="#" className={`bottom-nav-item ${uploadOpen ? "active" : ""}`} onClick={handleUploadClick}>
+          <span className="bottom-nav-icon-wrap">
+            <span className="bottom-nav-share-plus">
+              <MdAdd />
+            </span>
+          </span>
+          <span>Share</span>
+        </a>
+        {uploadOpen && authenticated && (
+          <div className="bottom-nav-menu bottom-nav-upload-menu">
+            <UploadLinks
+              linkClass="bottom-nav-menu-item"
+              iconClass="bottom-nav-menu-icon"
+              onClick={() => setUploadOpen(false)}
+            />
+          </div>
+        )}
+      </div>
 
-      <Link to="/openpods" className={`bottom-nav-item ${isActive("/openpods") ? "active" : ""}`}>
+      <Link to="/shorts" className={`bottom-nav-item ${isShortsActive ? "active" : ""}`}>
         <span className="bottom-nav-icon-wrap">
-          <MdMic className="bottom-nav-icon" />
-          {livePodsCount > 0 && (
-            <span className="bottom-nav-live-dot" aria-label={`${livePodsCount} live`} />
-          )}
+          <ShortsIcon className="bottom-nav-icon bottom-nav-icon--shorts" outlineWidth={isShortsActive ? 40 : 30} />
         </span>
-        <span>OpenPods</span>
+        <span>Shorts</span>
       </Link>
 
       <a href="#" className={`bottom-nav-item ${menuOpen ? "active" : ""}`} onClick={handleProfileClick}>
@@ -183,21 +194,12 @@ const BottomNav = ({ openLoginModal }) => {
           <Link to="/profile" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <IoMdPerson className="bottom-nav-menu-icon" /> My Channel
           </Link>
-          <Link to="/leaderboard" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
-            <MdOutlineLeaderboard className="bottom-nav-menu-icon" /> Leaderboard
+          <Link to="/profile?tab=stats" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
+            <MdTrendingUp className="bottom-nav-menu-icon" /> Analytics
           </Link>
-
-          <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuUploadOpen((v) => !v); }}>
-            <MdCloudUpload className="bottom-nav-menu-icon" /> Share
-            {menuUploadOpen
-              ? <BiChevronUp className="bottom-nav-menu-chevron" />
-              : <BiChevronDown className="bottom-nav-menu-chevron" />}
-          </a>
-          {menuUploadOpen && (
-            <div className="bottom-nav-menu-subitems">
-              <UploadLinks linkClass="bottom-nav-menu-item bottom-nav-menu-subitem" iconClass="bottom-nav-menu-icon" onClick={() => setMenuOpen(false)} />
-            </div>
-          )}
+          <Link to="/leaderboard" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
+            <FaMedal className="bottom-nav-menu-icon" /> Leaderboard
+          </Link>
 
           <Link to={`/wallet/${user}`} className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <RiWallet3Fill className="bottom-nav-menu-icon" /> Wallet
