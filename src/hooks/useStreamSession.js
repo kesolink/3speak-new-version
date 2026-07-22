@@ -32,26 +32,57 @@ export function useStreamSession() {
   // viewers — who have no Keychain extension — silently joined as guests.
   const handoverUser = aiohaUser || user;
   const canHandover = !!authenticated && !!handoverUser;
-  const triedRef = useRef(null);
+  // Two attempts, not one. The handover involves a server-side signature and
+  // can lose a race on a cold load; giving up after a single failure left a
+  // signed-in viewer stuck as an anonymous guest for the whole session, with
+  // nothing on the watch page offering to try again.
+  const triesRef = useRef({ user: null, count: 0 });
   useEffect(() => {
-    if (!canHandover || sessionToken || sessionLoading) return;
-    // One automatic attempt per user — a failure clears sessionLoading, which
-    // would otherwise re-trigger this effect in a loop.
-    if (triedRef.current === handoverUser) return;
-    triedRef.current = handoverUser;
-    retryLogin(handoverUser);
+    if (!canHandover || sessionToken || sessionLoading) return undefined;
+    const t = triesRef.current;
+    if (t.user !== handoverUser) { triesRef.current = { user: handoverUser, count: 0 }; }
+    if (triesRef.current.count >= 2) return undefined;
+    // Space the retry out — an immediate one usually loses the same race.
+    const delay = triesRef.current.count === 0 ? 0 : 3000;
+    const timer = setTimeout(() => {
+      triesRef.current.count += 1;
+      retryLogin(handoverUser);
+    }, delay);
+    return () => clearTimeout(timer);
   }, [canHandover, handoverUser, sessionToken, sessionLoading, retryLogin]);
 
-  // Give the handover a moment before falling back to a guest connection.
+  // Are we PROBABLY about to authenticate? `authenticated` starts false and is
+  // flipped true by the store's initializeAuth a beat after the first render,
+  // so `canHandover` can't be trusted on a cold load — but a persisted `user_id`
+  // is in localStorage synchronously, on the very first render, whenever the
+  // viewer was signed in last time. That is the signal we need.
+  //
+  // Why it matters: if we connect as a guest during that ~100ms gap and then
+  // re-connect as the authed user once the handover lands, LiveKit sees two
+  // connections under one identity, kicks one as a duplicate, and the kicked
+  // client rejoins — an endless ~23s churn that leaves the viewer unable to
+  // raise their hand. Holding the connection until the token resolves means we
+  // connect ONCE, as the real user. (See useStreamSession's callers, which
+  // gate the LiveKit mount on connectReady.)
+  const likelyAuthed = canHandover
+    || (typeof window !== 'undefined' && !!window.localStorage.getItem('user_id'));
+
+  // Safety deadline: never wait forever for a handover that isn't coming (a
+  // genuinely expired session that initializeAuth will reject). A truly
+  // anonymous viewer — no persisted user_id — doesn't wait at all.
   const [waited, setWaited] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setWaited(true), 4000); return () => clearTimeout(t); }, []);
+  useEffect(() => {
+    if (!likelyAuthed) return undefined;
+    const t = setTimeout(() => setWaited(true), 10000);
+    return () => clearTimeout(t);
+  }, [likelyAuthed]);
 
   return {
     aioha,
     authenticated,
     sessionToken,
     hangoutsUser,
-    connectReady: !!sessionToken || !canHandover || waited,
+    connectReady: !!sessionToken || !likelyAuthed || waited,
     joinKey: sessionToken ? `auth-${hangoutsUser || 'user'}` : 'guest',
   };
 }

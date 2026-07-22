@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-  HangoutsProvider, StandaloneWatch, StreamVideo, StreamViewerCount, StreamQualityControl, ChatPanel, useIsMobile, useChat,
+  HangoutsProvider, StandaloneWatch, StreamVideo, StreamViewerCount, StreamQualityControl, ChatPanel, CollabRequest, useIsMobile, useChat,
 } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
+import StreamBoostButton from '../components/openpods/StreamBoostButton';
 import { useStreamSession } from '../hooks/useStreamSession';
+import { useLiveStreamPager } from '../hooks/useLiveStreamPager';
 import { useStreamChatMirror } from '../hooks/useStreamChatMirror';
 import { fetchVideoDetails } from '../lib/videoData';
 // The mobile layout reuses the shorts page's classes — load its styles too.
@@ -14,11 +16,10 @@ import SEOHead from '../components/SEOHead';
 import BarLoader from '../components/Loader/BarLoader';
 import Card3 from '../components/Cards/Card3';
 import AuthorBadge from '../components/AuthorBadge/AuthorBadge';
-import TipModal from '../components/tip-reward/TipModal';
-import { ArrowLeft, Heart, MessageSquare, Send, Share2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Share2 } from 'lucide-react';
 
 import { TAG_FEED_URL } from '../utils/config';
-import { FaThumbsUp, FaRegCommentAlt, FaBookmark, FaHeart } from 'react-icons/fa';
+import { FaThumbsUp, FaRegCommentAlt, FaBookmark } from 'react-icons/fa';
 import { MdShare } from 'react-icons/md';
 import '../page/Watch.scss';
 import '../page/WatchV2.scss';
@@ -73,10 +74,15 @@ export default function WatchStream() {
   const [state, setState] = useState({ status: 'loading', room: null, hivePost: null });
   const [copied, setCopied] = useState(false);
   const [recommended, setRecommended] = useState({ loading: false, videos: [] });
-  const [tipOpen, setTipOpen] = useState(false);
   // Phones get a shorts-style full-bleed player rather than the desktop grid.
   const isMobile = useIsMobile();
   const [chatOverlayOn, setChatOverlayOn] = useState(true);
+  // Swipe/scroll to the next live stream, shorts-style. No-op when nothing else
+  // is live.
+  const { containerRef: pagerRef, hasNext: hasNextLive } = useLiveStreamPager({
+    currentRoom: streamId,
+    enabled: isMobile,
+  });
 
   // Detect the live stream via the room lookup (works for unlisted too), then
   // ask Hive whether the host actually ANNOUNCED it.
@@ -200,7 +206,7 @@ export default function WatchStream() {
             <StandaloneWatch key={joinKey} roomName={streamId} connecting={<BarLoader />}>
               <main className="short-main no-bottom-bar ws-shorts">
                 <div className="videoWrapper">
-                  <div className="videoContainer">
+                  <div className="videoContainer" ref={pagerRef}>
                     <StreamVideo showLiveBadge={false} />
 
                     {/* Same back affordance as the shorts feed. */}
@@ -216,6 +222,12 @@ export default function WatchStream() {
                     <div className="ws-shorts__quality" onClick={(e) => e.stopPropagation()}>
                       <StreamQualityControl />
                     </div>
+
+                    {hasNextLive && (
+                      <div className="ws-shorts__next-hint" aria-hidden="true">
+                        Swipe for the next live stream
+                      </div>
+                    )}
 
                     <div className="bottomOverlay">
                       <div className="ws-shorts__live">
@@ -238,10 +250,8 @@ export default function WatchStream() {
                         </div>
                         <span className="actionLabel">Chat</span>
                       </div>
-                      <div className="actionItem" onClick={() => setTipOpen(true)}>
-                        <div className="actionButton"><Heart size={24} /></div>
-                        <span className="actionLabel">Tip</span>
-                      </div>
+                      <CollabRequest variant="rail" canRequest={authenticated} />
+                      <StreamBoostButton variant="rail" />
                       <div className="actionItem" onClick={copyLink}>
                         <div className="actionButton"><Share2 size={24} /></div>
                         <span className="actionLabel">{copied ? 'Copied' : 'Share'}</span>
@@ -261,11 +271,6 @@ export default function WatchStream() {
             </StandaloneWatch>
           )}
         </HangoutsProvider>
-        {/* TipModal ignores its `isOpen` prop and always renders its markup,
-            so mounting is what actually gates it — same as every other caller. */}
-        {tipOpen && (
-          <TipModal recipient={host} isOpen={tipOpen} onClose={() => setTipOpen(false)} />
-        )}
       </>
     );
   }
@@ -328,9 +333,8 @@ export default function WatchStream() {
                   <div className="play-video-info">
                     <div className="info-buttons-row">
                       <div className="info-buttons-right">
-                        <button type="button" className="pv-btn tip-btn" onClick={() => setTipOpen(true)} title={`Tip @${host}`}>
-                          <FaHeart size={14} /><span>Tip</span>
-                        </button>
+                        <CollabRequest canRequest={authenticated} />
+                        <StreamBoostButton />
                         <button type="button" className="pv-btn share-btn" onClick={copyLink} title="Copy the stream link">
                           <MdShare size={16} /><span>{copied ? 'Copied' : 'Share'}</span>
                         </button>
@@ -379,9 +383,6 @@ export default function WatchStream() {
         )}
       </HangoutsProvider>
 
-      {tipOpen && (
-        <TipModal recipient={host} isOpen={tipOpen} onClose={() => setTipOpen(false)} />
-      )}
     </div>
   );
 }

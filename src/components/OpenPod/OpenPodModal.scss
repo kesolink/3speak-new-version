@@ -87,6 +87,73 @@
   font-size: 14px;
 }
 
+// Shown after the host ends their stream — a confirmation instead of dropping
+// straight back to the lobby.
+.openpod-ended {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.55rem;
+  min-height: min(70vh, 420px);
+  padding: 2rem 1.5rem;
+  color: var(--text-primary);
+
+  &__icon { font-size: 3rem; line-height: 1; }
+  &__title { margin: 0; font-size: 1.4rem; font-weight: 700; }
+  &__text {
+    margin: 0;
+    max-width: 34ch;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  // Row for the two secondary "back" buttons (Home | OpenPods).
+  &__actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  // Secondary/non-prominent — the feedback button below is the only prominent CTA.
+  &__btn {
+    margin-top: 0.7rem;
+    padding: 0.6rem 1.5rem;
+    border: 1px solid var(--border-light, #d1d5db);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+
+    &:hover { background: rgba(127, 127, 127, 0.12); }
+  }
+
+  // Prominent CTA — matches the embed-studio success screen's feedback button.
+  &__feedback {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.2rem;
+    padding: 0.7rem 1.6rem;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(229, 57, 53, 0.4); }
+  }
+}
+
 // ── Mobile studio: skin the SDK's rail with the SAME shorts treatment ──
 // The SDK ships structure only; the look comes from the shared mixins that the
 // shorts player itself uses, so the two can never drift apart. Scoped under

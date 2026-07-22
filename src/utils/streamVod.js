@@ -118,3 +118,46 @@ export async function publishStreamVod({
     toast.error('Stream ended, but the video upload failed.', { id: toastId });
   }
 }
+
+/**
+ * Track a SERVER-SIDE VOD publish and mirror its progress into the same toasts
+ * the old client upload used.
+ *
+ * The server now uploads the recording itself (see the hangouts server's
+ * streamVodPublish), so there's nothing to upload here — we just poll the
+ * status endpoint and narrate it. Runs at module scope so it keeps going after
+ * the OpenPods modal unmounts, exactly like the upload used to.
+ */
+export async function trackServerVodPublish({ statusUrl }) {
+  if (!statusUrl) return;
+  const toastId = toast.loading('Saving your stream video…');
+  const started = Date.now();
+  const MAX_MS = 20 * 60 * 1000;   // give a long recording time to upload
+
+  const poll = async () => {
+    let state = null;
+    try {
+      const res = await fetch(statusUrl, { cache: 'no-store' });
+      if (res.ok) state = await res.json();
+    } catch { /* transient — try again */ }
+
+    if (state?.status === 'uploading') {
+      toast.loading(`Uploading your stream video… ${state.progress ?? 0}%`, { id: toastId });
+    } else if (state?.status === 'processing') {
+      toast.loading('Uploaded — the encoder is processing your video…', { id: toastId });
+    } else if (state?.status === 'published') {
+      toast.success('Stream video saved — it will replace the live stream once encoding finishes.', { id: toastId, duration: 8000 });
+      return;
+    } else if (state?.status === 'failed') {
+      toast.error(`Stream ended, but the video couldn't be saved: ${state.error || 'upload failed'}.`, { id: toastId });
+      return;
+    }
+
+    if (Date.now() - started > MAX_MS) {
+      toast.error('Stream ended — the video is still processing; check your profile shortly.', { id: toastId, duration: 8000 });
+      return;
+    }
+    setTimeout(poll, 3000);
+  };
+  void poll();
+}

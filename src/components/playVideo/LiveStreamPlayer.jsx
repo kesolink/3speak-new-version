@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { HangoutsProvider, StandaloneWatch, StreamVideo, StreamViewerCount, ChatPanel, useStreamLive } from '@snapie/hangouts-react';
+import { HangoutsProvider, StandaloneWatch, StreamVideo, StreamViewerCount, ChatPanel, CollabRequest, useStreamLive } from '@snapie/hangouts-react';
 import { defaultEndpoint, findRoomEndpoint } from '../../utils/hangoutsEndpoints';
 import { useStreamSession } from '../../hooks/useStreamSession';
+import StreamBoostButton from '../openpods/StreamBoostButton';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import './LiveStreamPlayer.scss';
 
@@ -93,6 +94,10 @@ export default function LiveStreamPlayer({ roomName, chatSlot = null, onChatSent
             <StreamViewerCount render={(c) => (
               <span className="live-stream-player__viewers">👁 {c} watching</span>
             )} />
+            <StreamBoostButton variant="overlay" />
+            <div className="live-stream-player__collab">
+              <CollabRequest canRequest={authenticated} />
+            </div>
             {chatSlot && createPortal(
               <ChatPanel
                 readOnly={!authenticated}

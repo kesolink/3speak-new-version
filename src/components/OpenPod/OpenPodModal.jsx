@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HangoutsProvider, HangoutsRoom } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import logoDark from '../../assets/image/3S_logodark.png';
+import { Star } from 'lucide-react';
 import { useAppStore } from '../../lib/store';
+import { useReviewModal } from '../../lib/reviewStore';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { getCreatorSettings, isUploadBlocked } from '../../utils/creatorSettings';
 import { useSupportBlock } from '../../lib/supportBlockStore';
 import { firePendingAnnouncement, getAnnounceConfig } from '../../utils/openpodAnnounce';
-import { publishStreamVod } from '../../utils/streamVod';
+import { publishStreamVod, trackServerVodPublish } from '../../utils/streamVod';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
 import { defaultEndpoint, findRoomEndpoint } from '../../utils/hangoutsEndpoints';
 import AnnounceOptions from '../openpods/AnnounceOptions';
@@ -54,6 +57,7 @@ function buildOpenPodShareUrl(roomName, origin, mode) {
 }
 
 export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, username, isAuthenticated }) {
+  const navigate = useNavigate();
   useWakeLock(isOpen);
   // Follow the 3speak-selected theme (light/dark/system) instead of
   // forcing the SDK widgets dark.
@@ -73,6 +77,11 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
   const [isUnlisted, setIsUnlisted] = useState(false);
   // Decides which share link the room hands out — see buildOpenPodShareUrl.
   const [roomMode, setRoomMode] = useState(null);
+  // The host ended their stream — show a confirmation instead of dropping them
+  // straight back to the lobby. Reset each time a session opens.
+  const [streamEnded, setStreamEnded] = useState(false);
+  useEffect(() => { if (isOpen) setStreamEnded(false); }, [isOpen, roomName]);
+  const openReview = useReviewModal((s) => s.openReview);
   useEffect(() => {
     if (!roomName) return;
     let alive = true;
@@ -172,6 +181,8 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
         // leaving so the host doesn't accidentally drop the room
         // by missing the modal edge.
         if (e.target !== e.currentTarget) return;
+        // Already ended — no room to drop, so just close.
+        if (streamEnded) { onClose(); return; }
         if (window.confirm('Leave this OpenPod? You can rejoin from the lobby anytime.')) {
           onClose();
         }
@@ -185,10 +196,34 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
           sessionToken={sessionToken}
           username={username || undefined}
         >
-          {roomReady ? (
+          {streamEnded ? (
+            <div className="openpod-ended">
+              <div className="openpod-ended__icon" aria-hidden="true">✅</div>
+              <h2 className="openpod-ended__title">Your stream has ended</h2>
+              <p className="openpod-ended__text">
+                {announceEnabled && !isUnlisted
+                  ? 'Nice one! Your recording is being processed and will appear on the announcement post shortly.'
+                  : 'Nice one — thanks for going live!'}
+              </p>
+              <div className="openpod-ended__actions">
+                {/* navigate('/') BEFORE onClose so the OpenPods page unmounts
+                    first — otherwise its URL-cleanup effect fires on room-close
+                    and redirects to /openpods, overriding this. */}
+                <button className="openpod-ended__btn" onClick={() => { navigate('/'); onClose(); }}>Back to Home</button>
+                <button className="openpod-ended__btn" onClick={onClose}>Back to OpenPods</button>
+              </div>
+              <button
+                className="openpod-ended__feedback"
+                onClick={() => openReview({ area: 'stream', username: username || null, permlink: roomName || null })}
+              >
+                <Star size={18} /> How was your stream?
+              </button>
+            </div>
+          ) : roomReady ? (
             <HangoutsRoom
               roomName={roomName}
               onLeave={onClose}
+              onEnded={() => setStreamEnded(true)}
               onVideoHandoff={handleVideoHandoff}
               onAudioHandoff={handleAudioHandoff}
               onStreamStart={(post) => firePendingAnnouncement(roomName, post)}
@@ -196,6 +231,13 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
               // video. Fire-and-forget into a module-level publisher so the
               // upload survives this modal unmounting when the room ends.
               onStreamVod={(file) => {
+                // Normal path: the server publishes the VOD itself — just track
+                // its progress and toast it.
+                if (file.publishStatusUrl) {
+                  void trackServerVodPublish({ statusUrl: file.publishStatusUrl });
+                  return;
+                }
+                // Legacy fallback: an older server handed us the blob to upload.
                 const draft = readPostDraft();
                 void publishStreamVod({
                   blob: file.blob,

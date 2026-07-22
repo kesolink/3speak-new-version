@@ -156,6 +156,32 @@
     flex: 1;
     min-height: 0;
   }
+
+  // --- 3Speak theme + de-duped title -----------------------------------
+  // The SDK ChatPanel is built for the studio's dark glass overlay (white text,
+  // frosted bg) — on the themed watch page that's illegible in light mode, so
+  // repaint it with the app's theme vars, which flip with light/dark.
+  background: var(--bg-secondary);
+  border-color: var(--border-light);
+
+  // We already show a "Live chat" head above — hide the SDK's own "Chat" one.
+  .hh-chat__header { display: none; }
+
+  .hh-chat {
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: none;
+    border-radius: 0;
+  }
+  .hh-chat__msg-name { color: var(--text-primary); }
+  .hh-chat__msg-text { color: var(--text-secondary); }
+  .hh-chat__input { color: var(--text-primary); }
+  .hh-chat__input::placeholder { color: var(--text-secondary); opacity: 0.7; }
+  .hh-chat__input-row,
+  .hh-chat__guest-prompt { border-top-color: var(--border-light); }
+  .hh-chat__guest-prompt { color: var(--text-secondary); }
+  .hh-chat__empty { color: var(--text-secondary); }
 }
 .ws-chat-head {
   padding: 0.6rem 0.8rem;
@@ -335,7 +361,7 @@
     position: absolute;
     left: 0;
     right: 5rem;                       // clear of the action rail
-    bottom: 14rem;                     // above the caption block
+    bottom: 12.5rem;                   // lift clear of the ● LIVE / caption block
     top: 30%;
     z-index: 16;                       // under .actionSidebar (50)
     display: flex;
@@ -369,7 +395,10 @@
       justify-content: flex-end;       // newest sit at the bottom
       mask-image: linear-gradient(to bottom, transparent 0%, #000 20%);
     }
-    .hh-chat__msg { background: transparent; padding: 3px 4px; }
+    // Tight rows: this is an overlay over live video, not a chat page, and
+    // the default 0.5rem gap wasted a lot of the visible band.
+    .hh-chat__messages { gap: 1px; padding: 0.4rem 0.5rem; }
+    .hh-chat__msg { background: transparent; padding: 1px 4px; }
     .hh-chat__msg-name,
     .hh-chat__msg-text {
       color: #fff;
@@ -423,4 +452,36 @@
   cursor: pointer;
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Only rendered when another stream is actually live — see useLiveStreamPager. */
+.ws-shorts__next-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 7.5rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: ws-next-hint-fade 0.3s ease 6s forwards;
+}
+@keyframes ws-next-hint-fade {
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* The SDK puts boosts across the top of the video; on the shorts-style page
+   that's exactly where the back button and quality picker sit, and they draw
+   above it (z-index 55 vs 5). Push the boosts clear of that row. */
+.ws-shorts .hh-boost-overlay {
+  top: calc(60px + var(--safe-top, 0px));
+}
+
+/* Send button: the app's accent, not the shorts feed's blue. */
+.ws-shorts__bar.shortsBottomComment .sendCommentBtn {
+  color: var(--accent-primary, #e0594b);
 }

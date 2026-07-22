@@ -1,0 +1,30 @@
+// Boost button on the live surfaces. The `rail` variant borrows the
+// shorts action-rail classes wholesale, so it needs nothing here.
+
+.stream-boost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+// Floats over the player next to the viewer count, on the watch page's live
+// player. Dark chip so it stays readable over any frame.
+.stream-boost-btn--overlay {
+  position: absolute;
+  right: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 6;
+  padding: 0.35rem 0.7rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover { background: rgba(0, 0, 0, 0.8); }
+}

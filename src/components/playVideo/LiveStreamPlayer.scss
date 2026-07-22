@@ -53,3 +53,20 @@
 @keyframes live-stream-player-spin {
   to { transform: rotate(360deg); }
 }
+
+/* "Ask to join" sits beside the gift chip, over the player. */
+.live-stream-player__collab {
+  position: absolute;
+  right: 6.2rem;
+  bottom: 0.6rem;
+  z-index: 6;
+
+  .pv-btn {
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.62);
+    backdrop-filter: blur(6px);
+    color: #fff;
+    font-size: 0.8rem;
+  }
+}

@@ -21,13 +21,39 @@ const LK_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://livekit.3speak.tv';
 const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
 
 export default function OpenPods() {
-  const { openRoom, sessionToken, sessionLoading, hangoutsUser, retryLogin } = useHangout();
+  const { openRoom, activeRoom, sessionToken, sessionLoading, hangoutsUser, retryLogin } = useHangout();
   const { authenticated, user } = useAppStore();
   // Follow the 3speak-selected theme (light/dark/system) for the SDK lobby.
   const hhTheme = useAppStore((s) => s.getEffectiveTheme());
   const { aioha, provider, user: aiohaUser } = useAioha();
   const navigate = useNavigate();
   const location = useLocation();
+  // A create request from a menu item ("Group chat" / "Start stream").
+  //
+  // REACTIVE, not read-once: clicking one of those while already on /openpods
+  // changes the URL but does NOT remount this page, so a ref captured at mount
+  // would keep the first mode forever — which is exactly why switching the
+  // menu item didn't switch the form. `seq` rises on every request so
+  // re-clicking the same item (e.g. after cancelling) still re-opens it, and
+  // it keys <RoomLobby> below so a mode change remounts it with the new draft.
+  const parseCreate = (search) => {
+    const p = new URLSearchParams(search);
+    const m = p.get('mode');
+    return { open: p.get('create') === '1', mode: m === 'conference' || m === 'standalone' ? m : undefined };
+  };
+  const [createReq, setCreateReq] = useState(() => ({ ...parseCreate(location.search), seq: 0 }));
+  useEffect(() => {
+    const parsed = parseCreate(location.search);
+    if (!parsed.open) return;
+    setCreateReq((prev) => ({ ...parsed, seq: prev.seq + 1 }));
+    // Strip both params so a reload — or landing back here after the studio
+    // closes — doesn't reopen the dialog.
+    const params = new URLSearchParams(location.search);
+    params.delete('create');
+    params.delete('mode');
+    const qs = params.toString();
+    navigate({ pathname: location.pathname, search: qs ? `?${qs}` : '' }, { replace: true });
+  }, [location.search, location.pathname, navigate]);
   const { roomName: roomNameFromUrl } = useParams();
   const premiumStatus = usePremiumStatus(user);
   const isPremium = !!premiumStatus?.premium;
@@ -84,9 +110,42 @@ export default function OpenPods() {
     openRoom(roomNameFromUrl);
   }, [roomNameFromUrl, openRoom]);
 
+  /**
+   * Open a room AND put it in the address bar.
+   *
+   * Switching apps can make a mobile browser discard the page entirely; it then
+   * reloads from the URL, and every bit of React state — including which room
+   * the host was broadcasting in — is gone. Without the room name in the path,
+   * a streamer who checked a message came back to the lobby with their stream
+   * abandoned. `/openpods/:roomName` already deep-links, so this just makes the
+   * live session use it.
+   */
+  // Once the room closes, drop it from the URL — otherwise a later reload
+  // deep-links straight back into a session that has ended. Gated on having
+  // actually been in a room, because activeRoom is briefly null on a cold deep
+  // link before openRoom() runs, and navigating then would kill the deep link
+  // we were in the middle of following.
+  const wasInRoomRef = useRef(false);
+  useEffect(() => {
+    if (activeRoom) { wasInRoomRef.current = true; return; }
+    if (!wasInRoomRef.current || !roomNameFromUrl) return;
+    wasInRoomRef.current = false;
+    openedDeepLinkRef.current = null;
+    navigate('/openpods', { replace: true });
+  }, [activeRoom, roomNameFromUrl, navigate]);
+
+  const openRoomAtUrl = useCallback((name) => {
+    if (!name) return;
+    // Claim the deep-link guard first: the effect below watches the URL and
+    // would otherwise treat our own navigation as a fresh deep link.
+    openedDeepLinkRef.current = name;
+    openRoom(name);
+    navigate(`/openpods/${encodeURIComponent(name)}`, { replace: true });
+  }, [navigate, openRoom]);
+
   const handleRoomCreated = async (room, options) => {
     // Open the modal immediately — don't wait for the Hive post
-    openRoom(room.name);
+    openRoomAtUrl(room.name);
 
     // Carry the create dialog's "Announce on Hive" choice into the shared
     // config, so the studio's own toggle opens matching it. Without this the
@@ -118,10 +177,19 @@ export default function OpenPods() {
   // List rooms from EVERY deployment, not just the one we'd create on.
   // Joining still works by name — OpenPodModal resolves the owning host.
   // useCallback keeps the identity stable so the lobby's 10s poll survives.
-  const fetchAllRooms = useCallback(() => fetchAllEndpoints('/rooms'), []);
+  // Conferences only. A standalone stream is a broadcast, not a room you drop
+  // into to talk: it has one publisher, viewers watch it on the 3Speak watch
+  // page, and joining it from here would put a spectator into the room UI. It
+  // already surfaces in the feeds as a LIVE card. Rooms created before the
+  // standalone split carry no `mode`, and those were all conferences.
+  const fetchAllRooms = useCallback(
+    () => fetchAllEndpoints('/rooms').then((rooms) => (Array.isArray(rooms) ? rooms : [])
+      .filter((r) => (r?.mode ?? 'conference') === 'conference')),
+    [],
+  );
 
   const handleJoinRoom = (roomName) => {
-    openRoom(roomName);
+    openRoomAtUrl(roomName);
   };
 
   // Single guest-first path: the lobby always renders, so visitors can browse
@@ -140,16 +208,31 @@ export default function OpenPods() {
         aioha={aioha}
       >
         <RoomLobby
+          key={`create-${createReq.mode ?? 'any'}-${createReq.seq}`}
           /* "Go Live" links to /openpods?create=1 — open the create form
              straight away instead of making the host find the button. The
              dialog itself stays gated on being authenticated, so it appears
-             as soon as the handover lands. */
-          defaultCreateOpen={new URLSearchParams(location.search).get('create') === '1'}
+             as soon as the handover lands.
+
+             Read ONCE, from a ref: the flag is stripped from the URL below, and
+             any later return to this page (closing the studio, a dropped
+             connection) must not re-open the create form on top of the lobby. */
+          defaultCreateOpen={createReq.open}
+          defaultMode={createReq.mode}
           onJoinRoom={handleJoinRoom}
           onRoomCreated={handleRoomCreated}
           fetchRooms={fetchAllRooms}
           allowGuestBrowse
           allowStandalone={OPENPODS_STANDALONE}
+          /* Snaps disabled on 3Speak — announcements are always a full post. */
+          allowSnapAnnounce={false}
+          /* We present our own live listing elsewhere — /openpods should land
+             the host straight in the create-room wizard, never the SDK lobby.
+             Cancelling goes home. (hideEmptyState is a belt-and-braces for the
+             guest fall-through, where the wizard needs a login first.) */
+          createOnly
+          onCreateCancel={() => navigate('/')}
+          hideEmptyState
           isPremium={isPremium}
           renderAnnounceOptions={(announceType) => (
             <AnnounceOptions announceType={announceType} isPremium={isPremium} />

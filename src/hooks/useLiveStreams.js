@@ -17,6 +17,7 @@ export function useLiveStreams({ following = false } = {}) {
   const [streams, setStreams] = useState([]);
   const [followSet, setFollowSet] = useState(null); // null = not loaded
   const user = useAppStore((s) => s.user);
+  const authenticated = useAppStore((s) => s.authenticated);
 
   useEffect(() => {
     let alive = true;
@@ -44,9 +45,16 @@ export function useLiveStreams({ following = false } = {}) {
 
   return useMemo(() => {
     let list = streams;
-    if (following) list = followSet ? streams.filter((s) => followSet.has(s.host)) : [];
+    // Hive-only rooms are for signed-in Hive users; a guest shouldn't even see
+    // them in discovery. Public rooms show to everyone. (Unlisted never reaches
+    // the client — the server drops it from /streams.)
+    if (!authenticated) list = list.filter((s) => s.visibility !== 'hive-internal');
+    if (following) list = followSet ? list.filter((s) => followSet.has(s.host)) : [];
     return list.map((s) => ({
       _liveStream: true,
+      // A conference ROOM, not a standalone stream — Card3 links it to the
+      // OpenPods room UI (join to talk) rather than the watch page.
+      _openpodRoom: s.mode === 'conference',
       roomName: s.name,
       permlink: s.name, // used only for React keys / dedupe here
       author: s.host,
@@ -54,6 +62,9 @@ export function useLiveStreams({ following = false } = {}) {
       title: s.title,
       thumbnail: s.thumbnail,
       created_at: s.createdAt,
+      // Lands in Card3's normal view-count slot, where it reads as "watching
+      // now" rather than lifetime views (the card labels it, see Card3).
+      views: s.viewers ?? 0,
     }));
-  }, [streams, following, followSet]);
+  }, [streams, following, followSet, authenticated]);
 }
