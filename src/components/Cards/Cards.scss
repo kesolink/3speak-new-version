@@ -10,7 +10,9 @@ html[data-card-size="large"] { --card-min-w: 420px; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-min-w, 460px), 1fr));
   grid-column-gap: 16px;
-  grid-row-gap: 30px;
+  // Match the vertical gap to the horizontal one on desktop (was a roomier 30px).
+  // Mobile keeps its own tighter row-gap in the phone block below.
+  grid-row-gap: 16px;
   margin-top: 15px;
   position: relative; // anchor for the single hover-preview overlay
   @include respond(phone) {
@@ -420,6 +422,13 @@ html[data-card-size="large"] { --card-min-w: 420px; }
         font-size: 12.95px;
         margin-bottom: 2px;
         color: var(--text-secondary);
+        // Phones show two cards per row, so this strip has roughly half the
+        // width it was measured at — halve the gap so payout/votes/comments
+        // stop wrapping or crowding the edge. AFTER the declarations above:
+        // sass warns about declarations that follow a nested rule.
+        @include respond(phone) {
+          gap: 6px;
+        }
         .flex-div {
           gap: 2px;
 
@@ -446,6 +455,32 @@ html[data-card-size="large"] { --card-min-w: 420px; }
               color: var(--accent-primary);
             }
           }
+        }
+      }
+
+      // ~80% type on phones. The metrics strip is secondary information and
+      // two-up cards give it half the width — the title and author keep their
+      // size, since those are what people actually read.
+      //
+      // MUST come after the rules above: a media query adds no specificity, so
+      // an override placed earlier in the file simply loses to the base rule.
+      @include respond(phone) {
+        p,
+        .wrap-left,
+        .wrap-left .flex-div span { font-size: 10.4px; }
+        .wrap-left .flex-div .icon { font-size: 17px; }
+        .wrap-left .flex-div .icon-heart { font-size: 12px; }
+
+        // Payout / votes / comments are each their own component with their own
+        // `font-size: 12px` on a single class. Nothing in the strip's own rules
+        // reaches them, so they're named here — and with two classes ahead of
+        // them, this beats the component rule wherever it loads from.
+        .payout-amount-badge,
+        .upvote-count-badge,
+        .comment-count-badge {
+          font-size: 9.6px;
+          gap: 2px;
+          svg { font-size: 12px; width: 12px; height: 12px; }
         }
       }
     }
@@ -648,4 +683,14 @@ html[data-card-size="large"] { --card-min-w: 420px; }
 // handling; toggling the setting or rotating the device just works.
 @media screen and (max-width: 767px) {
   :root[data-card-size="small"] .card-topic-chip { display: none; }
+}
+
+
+// The view count sits beside the author rather than in the metrics strip, but
+// it's the same class of secondary info — scale it with them on phones.
+.card .profile-view-wrap .view-count-badge {
+  @include respond(phone) {
+    font-size: 9.6px;
+    svg { font-size: 12px; }
+  }
 }

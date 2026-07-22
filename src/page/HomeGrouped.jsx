@@ -12,18 +12,17 @@ import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
 import { getFeedSeed, regenerateFeedSeed } from "../utils/feedSeed";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
-import OpenPodsLiveStrip from "../components/OpenPod/OpenPodsLiveStrip";
+import SuggestedCreators from "../components/SuggestedCreators/SuggestedCreators";
 import { useLiveStreams } from "../hooks/useLiveStreams";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
 import ShortsRow from "../components/ShortsRow/ShortsRow";
-import { useGridColumns, useShortsPerRow } from "../hooks/useGridMetrics";
+import { useGridColumns, useShortsPerRow, useTilesPerRow } from "../hooks/useGridMetrics";
 import { fetchCommunityFeed } from "../lib/snaps";
 import { SnapCard } from "../components/Userprofilepage/CommunitySnaps";
 import { fetchPlaylistsFeed } from "../lib/playlistsFeed";
 import PlaylistFeedCard from "../components/Cards/PlaylistFeedCard";
 import { SHORTS_API_URL } from "../utils/config";
-import { TrendingIcon, NewContentIcon } from "../components/FeedIcons";
-import { Rocket, Compass, Sparkles, GripVertical } from "lucide-react";
+import { Rocket, Compass, Users, Tags, Clock, GripVertical } from "lucide-react";
 
 // Extra feed params for the logged-in user: interests (checker weights the feed
 // toward them), currentuser (needed for BOTH the always-on dismissals and
@@ -172,12 +171,12 @@ const deduplicateVideos = (videos) => {
 
 // Section icons shown in the tab bar.
 const iconsByTitle = {
-  "Home Feed": <TrendingIcon />,
-  "Follow Feed": <TrendingIcon />,
-  "New Content": <NewContentIcon />,
+  "Home Feed": <Users size={16} />,
+  "Follow Feed": <Users size={16} />,
+  "New Content": <Clock size={16} />,
   "Promoted": <Rocket size={16} />,
   "Discover": <Compass size={16} />,
-  "Interests": <Sparkles size={16} />,
+  "Interests": <Tags size={16} />,
 };
 
 // ── Persisted custom tab order (array of section keys) in localStorage ──
@@ -416,6 +415,11 @@ const HomeGrouped = () => {
 
   // Live column count of the card grid — drives "a shorts rail every 2 rows".
   const gridCols = useGridColumns(panelRef, `${activeSection?.key}:${activeVideos.length}`);
+  // How many narrow creator tiles fit across the grid — the "follow these" rail uses
+  // this to fill its row exactly on desktop (no horizontal scroll). Mobile ignores it
+  // (that rail stays a scroller); it's only >0 once the grid is measured, which also
+  // gates the interleave so an unmeasured/empty creators row can't open a gap.
+  const creatorsPerRow = useTilesPerRow(panelRef, `cr:${activeSection?.key}:${activeVideos.length}`, { min: 132, minPhone: 108, gap: 10, gapPhone: 8, floor: 3 });
   // Shorts per rail = however many fit across right now.
   const shortsPerRow = useShortsPerRow(panelRef, `${activeSection?.key}:${activeVideos.length}`);
 
@@ -557,6 +561,17 @@ const HomeGrouped = () => {
       </div>
     );
   }, [feedCommunityMixed, removeSnap, communityPerRow]);
+
+  // "Follow these" rail, injected as a full-width grid row (like the community/snaps
+  // rows). Shown ONCE — only slot 0 — so it's a single suggestion strip, not a
+  // repeating band. The component fetches its own creators (per the active tab:
+  // discover = seeded-random slice of the top 20, interests = the deterministic top)
+  // and renders nothing if the viewer has no interests / no suggestions, in which
+  // case the empty `.card-interleave` wrapper collapses to zero height.
+  const renderCreatorsRow = useCallback((slot) => {
+    if (slot !== 0) return null;
+    return <SuggestedCreators variant={activeSection?.key} perRow={creatorsPerRow} />;
+  }, [activeSection?.key, creatorsPerRow]);
 
   const { getContentForVideo } = useContentBatch(visibleVideos);
   const { isWatched, version: watchedVersion } = useWatchHistory(visibleVideos);
@@ -701,6 +716,10 @@ const HomeGrouped = () => {
       return <div className="home-tab-empty">Nothing to show here yet.</div>;
     }
     const q = queryByKey[s.key];
+    // Only interest-having users get the "follow these" rail (it's interest-matched).
+    // Gating here — not just inside the component — keeps an empty rail from ever
+    // reserving an interleave slot (which would open a grid-gap where nothing renders).
+    const creatorsMode = hasInterests && (s.key === 'discover' || s.key === 'interests');
     return (
       <>
         <Card3
@@ -722,6 +741,11 @@ const HomeGrouped = () => {
              (see communityMode / feedCommunityMixed). */
           communityEvery={communityMode && s.key === activeSection?.key && gridCols > 0 ? communityEvery : 0}
           renderCommunity={communityMode && s.key === activeSection?.key ? renderCommunityRow : null}
+          /* "Follow these" creator rail, interleaved as a full-width row after the
+             first row of videos (once), on the discover/interests tabs. Placed at
+             gridCols*1 so it never lands on the same card as the shorts rail (×2). */
+          creatorsEvery={creatorsMode && s.key === activeSection?.key && gridCols > 0 && creatorsPerRow > 0 ? gridCols : 0}
+          renderCreators={creatorsMode && s.key === activeSection?.key ? renderCreatorsRow : null}
         />
         {q && (
           <InfiniteSentinel
@@ -741,7 +765,6 @@ const HomeGrouped = () => {
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container home-tabbed" data-card-size={homeCardSize || 'large'}>
       <ShortsStories />
-      <OpenPodsLiveStrip />
 
       <div className={`home-tabs home-tabs--bar${drag ? ' is-dragging' : ''}`} role="tablist" ref={tabBarRef}>
         {displaySections.map((s) => (

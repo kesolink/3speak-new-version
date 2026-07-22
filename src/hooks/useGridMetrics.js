@@ -75,6 +75,35 @@ const SHORT_MIN_W_PHONE = 104;  // phones fit ~3 across instead of 2
 const SHORT_GAP = 16;
 const SHORT_GAP_PHONE = 10;
 
+/**
+ * Generic "how many `min`-wide tiles fit across the grid at its current width" —
+ * the same measurement useShortsPerRow does, parameterised for other tile sizes
+ * (e.g. the narrow creator tiles in the follow rail). The caller then hands its row
+ * exactly this many items + this column count, so it fills the width edge-to-edge
+ * with no horizontal scroll.
+ */
+export function useTilesPerRow(rootRef, deps, { min = 150, minPhone = 104, gap = 16, gapPhone = 10, floor = 2 } = {}) {
+  const [n, setN] = useState(0);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+    const measure = () => {
+      const grid = root.querySelector('.card-container');
+      const w = grid?.clientWidth || 0;
+      if (!w) { setN((p) => (p === 0 ? p : 0)); return; }
+      const phone = window.matchMedia('(max-width: 600px)').matches;
+      const mn = phone ? minPhone : min;
+      const gp = phone ? gapPhone : gap;
+      const fit = Math.max(floor, Math.floor((w + gp) / (mn + gp)));
+      setN((prev) => (prev === fit ? prev : fit));
+    };
+    measure();
+    return observeRoot(root, measure);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rootRef, deps]);
+  return n;
+}
+
 /** How many shorts fit across the grid at its CURRENT width. */
 export function useShortsPerRow(rootRef, deps) {
   const [n, setN] = useState(0);

@@ -53,7 +53,7 @@ function withInterleave(cards, channels) {
   return out;
 }
 
-function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, communityEvery = 0, renderCommunity = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false, hideWatched = false, watchedVersion = 0 }) {
+function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, communityEvery = 0, renderCommunity = null, creatorsEvery = 0, renderCreators = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false, hideWatched = false, watchedVersion = 0 }) {
   const navigate = useNavigate();
   const [modalUser, setModalUser] = useState(null);
 
@@ -150,7 +150,7 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
         return (
           <Link
             to={video._liveStream
-              ? `/watch/${video.roomName}`
+              ? (video._openpodRoom ? `/openpods/${video.roomName}` : `/watch/${video.roomName}`)
               : `${linkPrefix}?v=${cardAuthor}/${
                 video.permlink
               }${linkQuery}${video._scheduled ? '&scheduled=1' : ''}`}
@@ -180,9 +180,10 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 </div>
               )}
 
-              {/* Live stream tile → LIVE badge (top-right); links to /watch/<room>. */}
+              {/* Live tile → badge (top-right). A group-chat (conference) room
+                  reads "LIVE CHAT"; a standalone stream reads "LIVE". */}
               {video._liveStream && (
-                <div className="card-live-badge">● LIVE</div>
+                <div className="card-live-badge">{video._openpodRoom ? '● LIVE CHAT' : '● LIVE'}</div>
               )}
 
               {/* Options menu (playlist / not interested / hide creator).
@@ -333,6 +334,7 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
       }), [
         { every: interleaveEvery, render: renderInterleave, key: 'shorts' },
         { every: communityEvery, render: renderCommunity, key: 'community' },
+        { every: creatorsEvery, render: renderCreators, key: 'creators' },
       ])}
       {modalUser && (
         <ProfileModal
