@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://3speak-checker.okinoko.io';
+const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://checker.3speak.tv';
 
 // Module-level cache so the same username isn't refetched across every
 // AuthorBadge mount. Entries expire after `CACHE_TTL_MS`; failed lookups
