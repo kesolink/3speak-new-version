@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MdPlaylistAdd, MdPlaylistAddCheck, MdAdd, MdClose, MdLock, MdPublic, MdWatchLater } from 'react-icons/md';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -146,7 +147,12 @@ function AddToPlaylistModal({ isOpen, onClose, author, permlink, videoTitle }) {
     onClose();
   };
 
-  return (
+  // Portalled to <body>: rendered in place it would sit inside the hover-preview
+  // overlay (.card-hover-controls) — a z-index:4 stacking context AND
+  // pointer-events:none. That trapped its z-index under the sticky tabs/nav, and let
+  // the pointer fall through to the cards behind, which flipped the hover state and
+  // tore the modal down after ~1s. At <body> its z-index and clicks work normally.
+  return createPortal(
     <div className="add-to-playlist-overlay" onClick={handleOverlayClick} onMouseDown={(e) => e.stopPropagation()}>
       <div className="add-to-playlist-modal" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
         <div className="modal-header">
@@ -315,7 +321,8 @@ function AddToPlaylistModal({ isOpen, onClose, author, permlink, videoTitle }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

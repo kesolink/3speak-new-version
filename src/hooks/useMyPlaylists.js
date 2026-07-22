@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getHiveUrl } from '../utils/hiveNode';
 import axios from 'axios';
 import { useAppStore } from '../lib/store';
-import { PLAYLISTS_API_URL, HIVE_API_URL } from '../utils/config';
+import { PLAYLISTS_READ_URL, HIVE_API_URL } from '../utils/config';
 
 /**
  * Fetch ALL playlists for the authenticated user (public + private)
@@ -18,7 +18,7 @@ export function useMyPlaylists(options = {}) {
     queryFn: async () => {
       if (!user) return [];
 
-      const response = await axios.get(`${PLAYLISTS_API_URL}/playlists`, {
+      const response = await axios.get(`${PLAYLISTS_READ_URL}/playlists`, {
         params: {
           owner: user,
           limit: options.limit || 100,

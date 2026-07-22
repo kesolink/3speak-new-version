@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getHiveUrl } from '../utils/hiveNode';
 import axios from 'axios';
-import { HIVE_API_URL, PLAYLISTS_API_URL } from '../utils/config';
+import { HIVE_API_URL, PLAYLISTS_READ_URL } from '../utils/config';
 import { fallbackImg } from '../utils/fixThumbnails';
 
 /**
@@ -48,7 +48,7 @@ export function useUserPlaylists(owner, options = {}) {
     queryFn: async () => {
       if (!owner) return [];
 
-      const response = await axios.get(`${PLAYLISTS_API_URL}/playlists`, {
+      const response = await axios.get(`${PLAYLISTS_READ_URL}/playlists`, {
         params: {
           owner,
           limit: options.limit || 50,
@@ -58,7 +58,9 @@ export function useUserPlaylists(owner, options = {}) {
 
       // API returns { count, playlists: [...] }
       const playlists = response.data?.playlists || [];
-      // Filter to only return public playlists
+      // Viewing someone else's profile: only their PUBLIC playlists are shown.
+      // This is the client-side per-user visibility filter (private + Watch Later
+      // stay hidden); the API token gate is a separate, coarser server-side guard.
       const publicPlaylists = playlists.filter(playlist => playlist.access === 'public');
 
       // Prefer the playlist's own album cover (set via _update on the indexer).
