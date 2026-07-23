@@ -8,7 +8,7 @@ import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
 import { Orbit } from 'ldrs/react';
 import 'ldrs/react/Orbit.css';
-import { voteWithAioha, isLoggedIn } from '../../hive-api/aioha';
+import { voteWithAioha, tagVideoWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { recordViewerTag, VIEWER_TAG_OPTIONS } from '../../utils/viewerTag';
 
 const UpvoteTooltip = ({
@@ -120,18 +120,30 @@ const UpvoteTooltip = ({
         return;
       }
 
+      const tag = viewerTag || null;
+      // active_votes is on-chain, so this finds the user's vote no matter which
+      // frontend they cast it from.
       const existingVote = data.active_votes?.find((vote) => vote.voter === user);
 
-      if (existingVote) {
-        if (existingVote.percent === voteWeight) {
+      // Already voted at this exact weight → re-voting would be a no-op. But they
+      // may just want to add a tag — and you can tag anything you've voted on, from
+      // ANY frontend — so broadcast a TAG-ONLY op instead of blocking. With no tag
+      // picked there's genuinely nothing to change.
+      if (existingVote && existingVote.percent === voteWeight) {
+        if (!tag) {
           toast.info('You already voted with this weight. Choose a different value.');
           setIsLoading(false);
           return;
         }
+        await tagVideoWithAioha(author, permlink, tag, voteWeight);
+        recordViewerTag(user, author, permlink, tag, voteWeight);
+        toast.success(`Tagged “${tag}”.`);
+        setIsVoted(true);
+        setShowTooltip(false);
+        return; // finally clears the loading state
       }
 
       // Vote + (optional) viewer-tag in ONE signed transaction.
-      const tag = viewerTag || null;
       await voteWithAioha(author, permlink, voteWeight, tag);
 
       // Mirror the tag into the checker's queryable index (best-effort; the signed

@@ -44,6 +44,7 @@ export const TAG_CATEGORIES = [
     topics: [
       { slug: 'music', label: 'Music', emoji: '🎵' },
       { slug: 'gaming', label: 'Gaming', emoji: '🎮' },
+      { slug: 'film-tv', label: 'Film & TV', emoji: '🎞️' },
       { slug: 'lifestyle', label: 'Lifestyle', emoji: '✨' },
       // Viewer-only addition (see VIEWER_EXTRA_TAGS below) — carried over from the
       // v1 interest list because people tag a lot of content as "vlog".
