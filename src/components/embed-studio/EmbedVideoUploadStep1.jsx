@@ -445,7 +445,8 @@ function EmbedVideoUploadStep1() {
                       onClick={() => navigate(fromStories ? '/embed-studio/record?from=stories' : '/embed-studio/record')}
                     >
                       <Video className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
-                      Use the experimental teleprompter
+                      Selfie teleprompter
+                      <span className="beta-badge">beta</span>
                     </button>
                   </div>
                 ) : (

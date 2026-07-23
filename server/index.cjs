@@ -795,6 +795,29 @@ app.get('/api/stt-token', baseLimiter, (req, res) => {
   res.json({ token: `${exp}.${sig}`, exp })
 })
 
+// Which languages the STT server actually has models for. Proxied server-side so
+// the browser doesn't need CORS on the STT box; cached for a minute.
+const STT_HTTP_URL = (process.env.STT_HTTP_URL || '').replace(/\/+$/, '')
+let sttLangCache = { at: 0, models: [] }
+
+app.get('/api/stt-langs', baseLimiter, async (req, res) => {
+  if (!STT_HTTP_URL) return res.json({ models: [] })
+  const now = Date.now()
+  if (now - sttLangCache.at < 60000 && sttLangCache.models.length) {
+    return res.json({ models: sttLangCache.models })
+  }
+  try {
+    const r = await fetch(`${STT_HTTP_URL}/healthz`, { signal: AbortSignal.timeout(4000) })
+    if (!r.ok) return res.json({ models: sttLangCache.models })
+    const j = await r.json()
+    const models = Array.isArray(j.models_loaded) ? j.models_loaded : []
+    sttLangCache = { at: now, models }
+    return res.json({ models })
+  } catch {
+    return res.json({ models: sttLangCache.models })
+  }
+})
+
 // === Playlists read proxy ===
 // The playlists API (playlists.3speak.tv) requires a secret token once its read
 // gate is enabled. We hold that token HERE on the server — never in the browser
