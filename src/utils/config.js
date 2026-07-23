@@ -196,6 +196,17 @@ const OPENPODS_STANDALONE = import.meta.env.VITE_OPENPODS_STANDALONE !== 'false'
 // "Live" category). OFF by default — set VITE_ENABLE_OPENPODS=true to show it.
 const ENABLE_OPENPODS = import.meta.env.VITE_ENABLE_OPENPODS === 'true';
 
+// Hosts whose live streams / rooms are kept OUT of the discovery feeds
+// (discover, follow, new). Same spirit as the checker's LEADERBOARD_EXCLUDED_USERS
+// — the account still works normally and its streams stay reachable by direct
+// link; they just don't get surfaced in the feeds. Comma-separated override.
+const FEED_EXCLUDED_HOSTS = new Set(
+  (import.meta.env.VITE_FEED_EXCLUDED_HOSTS ?? 'badadib')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+);
+
 // Mobile-only in-browser camera recorder with a voice-driven teleprompter
 // (prototype). When on, the video upload step shows a "Record" button on phones
 // that opens a front-camera recording page. Off unless explicitly "true".
@@ -261,6 +272,7 @@ export {
   ENABLE_SUBS,
   OPENPODS_STANDALONE,
   ENABLE_OPENPODS,
+  FEED_EXCLUDED_HOSTS,
   ENABLE_CAMERA_RECORD,
   STT_WS_URL,
   ENABLE_PPL,

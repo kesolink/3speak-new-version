@@ -20,7 +20,9 @@ const COOLDOWN_MS = 700;
  */
 export function useLiveStreamPager({ currentRoom, enabled = true }) {
   const navigate = useNavigate();
-  const streams = useLiveStreams();
+  // Not a discovery feed — this pages between streams you're already watching,
+  // so it keeps every host rather than applying the feed exclusion list.
+  const streams = useLiveStreams({ includeAllHosts: true });
   const containerRef = useRef(null);
   const lockRef = useRef(false);
 
