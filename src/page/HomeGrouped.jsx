@@ -419,7 +419,7 @@ const HomeGrouped = () => {
   // this to fill its row exactly on desktop (no horizontal scroll). Mobile ignores it
   // (that rail stays a scroller); it's only >0 once the grid is measured, which also
   // gates the interleave so an unmeasured/empty creators row can't open a gap.
-  const creatorsPerRow = useTilesPerRow(panelRef, `cr:${activeSection?.key}:${activeVideos.length}`, { min: 132, minPhone: 108, gap: 10, gapPhone: 8, floor: 3 });
+  const creatorsPerRow = useTilesPerRow(panelRef, `cr:${activeSection?.key}:${activeVideos.length}`, { min: 198, minPhone: 162, gap: 10, gapPhone: 8, floor: 3 });
   // Shorts per rail = however many fit across right now.
   const shortsPerRow = useShortsPerRow(panelRef, `${activeSection?.key}:${activeVideos.length}`);
 
