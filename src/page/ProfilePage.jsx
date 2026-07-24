@@ -13,6 +13,7 @@ import Follower from "../components/Userprofilepage/Follower";
 import BarLoader from "../components/Loader/BarLoader";
 import CreatorStats from "../components/CreatorStats/CreatorStats";
 import CommunitySnaps from "../components/Userprofilepage/CommunitySnaps";
+import SpotlightEditor from "../components/Spotlight/SpotlightEditor";
 import { fetchSnaps } from "../lib/snaps";
 import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
@@ -64,6 +65,7 @@ function ProfilePage() {
     if (tab === 'shorts') return 'shorts';
     if (tab === 'audio') return 'audio';
     if (tab === 'community') return 'community';
+    if (tab === 'links') return 'links';
     if (tab === 'stats') return 'stats';
     return 'video';
   });
@@ -74,6 +76,7 @@ function ProfilePage() {
     else if (tab === 'shorts') setShow('shorts');
     else if (tab === 'audio') setShow('audio');
     else if (tab === 'community') setShow('community');
+    else if (tab === 'links') setShow('links');
     else if (tab === 'stats') setShow('stats');
     else if (!tab) setShow('video');
   }, [searchParams]);
@@ -518,6 +521,7 @@ function ProfilePage() {
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists
           </span>
+          <span className={show === "links" ? "active" : ""} onClick={() => selectTab("links")}>Links</span>
           <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Analytics</span>
         </div>
 
@@ -594,6 +598,8 @@ function ProfilePage() {
           <ProfileStreams user={user} getViewCount={getViewCount} />
         ) : show === "community" ? (
           <CommunitySnaps user={user} canPost={!!user} />
+        ) : show === "links" ? (
+          <SpotlightEditor username={user} />
         ) : show === "stats" ? (
           <CreatorStats user={user} />
         ) : show === "playlists" ? (
