@@ -73,6 +73,23 @@
           width: 14px;
           height: 14px;
         }
+
+        // Text-label GIF toggle — the icon glyph is unreadable at 14px, so show
+        // a legible "GIF" wordmark instead (matches the comment composer button).
+        &.gif-toggle-btn {
+          width: auto;
+          min-width: 32px;
+          padding: 0 7px;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.3px;
+
+          @include mix.respond(phone) {
+            min-width: 28px;
+            font-size: 11px;
+            padding: 0 6px;
+          }
+        }
       }
     }
 
@@ -147,6 +164,73 @@
         em-emoji-picker,
         .em-emoji-picker {
           width: 270px;
+        }
+      }
+
+      // GIF picker popover — Giphy search + grid, matching the studio toolbar look.
+      .gif-picker-container {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        z-index: 100;
+        margin-top: 4px;
+        width: 340px;
+        padding: 8px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        box-shadow: var(--shadow-md);
+
+        @include mix.respond(phone) {
+          width: 280px;
+          right: -80px;
+        }
+
+        .gif-picker-search {
+          width: 100%;
+          box-sizing: border-box;
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          padding: 8px 10px;
+          color: var(--text-primary);
+          font-size: 13px;
+          outline: none;
+          margin-bottom: 8px;
+          &:focus { border-color: var(--accent-primary); }
+        }
+        .gif-picker-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          max-height: 280px;
+          overflow-y: auto;
+        }
+        .gif-picker-item {
+          width: 100%;
+          height: auto;
+          padding: 0;
+          border: none;
+          background: var(--bg-tertiary);
+          border-radius: 8px;
+          overflow: hidden;
+          cursor: pointer;
+          img { width: 100%; height: auto; display: block; }
+          &:hover { outline: 2px solid var(--accent-primary); }
+        }
+        .gif-picker-status {
+          grid-column: 1 / -1;
+          text-align: center;
+          padding: 20px;
+          color: var(--text-secondary);
+          font-size: 13px;
+        }
+        .gif-picker-attribution {
+          text-align: center;
+          font-size: 10px;
+          color: var(--text-secondary);
+          margin-top: 6px;
+          letter-spacing: 0.5px;
         }
       }
     }

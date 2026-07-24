@@ -10,7 +10,8 @@ import 'ldrs/react/Orbit.css';
 import { useAppStore } from '../../lib/store';
 import { tagVideoWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { recordViewerTag, getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
-import ViewerTagPicker from '../tooltip/ViewerTagPicker';
+import { getVideoTagsV2, getTagLabel, getCategoryOf } from '../../utils/tagsV2';
+import TagsV2Picker from '../tooltip/TagsV2Picker';
 // Reuses the vote dialog's popup shell (already a bottom sheet on mobile) and the
 // tag-tile styles, so tagging looks identical wherever it's offered.
 import '../tooltip/UpvoteTooltip.scss';
@@ -37,6 +38,8 @@ function AddTagModal({ isOpen, onClose, author, permlink, title }) {
   const [tagPct, setTagPct] = useState({});
   const [existing, setExisting] = useState(undefined); // undefined = still loading
   const [saving, setSaving] = useState(false);
+  // v2-tagged videos get the new category → topic picker (see utils/tagsV2.js).
+  const [autoTagsV2, setAutoTagsV2] = useState([]);
 
   // Load the crowd consensus (for the % on each tile) + this user's existing tag.
   useEffect(() => {
@@ -44,6 +47,17 @@ function AddTagModal({ isOpen, onClose, author, permlink, title }) {
     let alive = true;
     setExisting(undefined);
     setTag('');
+    setAutoTagsV2([]);
+
+    getVideoTagsV2(author, permlink).then(({ tags }) => {
+      if (!alive) return;
+      setAutoTagsV2(tags);
+      // Default to the auto-tag's CATEGORY (the reliable level) — but only if
+      // nothing is picked yet, so this user's own earlier tag still wins,
+      // whichever of the two lookups resolves first.
+      const parent = tags.length ? getCategoryOf(tags[0]) : null;
+      if (parent) setTag((cur) => cur || parent);
+    });
 
     getViewerTags(author, permlink).then((d) => {
       if (!alive || !d?.counts) return;
@@ -89,7 +103,7 @@ function AddTagModal({ isOpen, onClose, author, permlink, title }) {
       // Mirror into the checker (best-effort — the on-chain custom_json is the
       // source of truth, so a failed mirror must not report the tag as failed).
       await recordViewerTag(user, author, permlink, tag, TAG_WEIGHT);
-      toast.success(`Tagged “${tag}”`);
+      toast.success(`Tagged “${getTagLabel(tag)}”`);
       onClose();
     } catch (err) {
       console.error('Tag failed:', err);
@@ -121,17 +135,18 @@ function AddTagModal({ isOpen, onClose, author, permlink, title }) {
           <>
             <div className="viewer-tag-select" onClick={(e) => e.stopPropagation()}>
               <span>What is this video about?</span>
-              <ViewerTagPicker
+              <TagsV2Picker
                 value={tag}
                 onChange={setTag}
                 tagPct={tagPct}
                 disabled={saving}
+                suggested={autoTagsV2}
               />
             </div>
 
             {existing && (
               <p className="vote-popup-note">
-                You tagged this as <b>{existing}</b> — picking another replaces it.
+                You tagged this as <b>{getTagLabel(existing)}</b> — picking another replaces it.
               </p>
             )}
 

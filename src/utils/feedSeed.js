@@ -34,3 +34,21 @@ export function regenerateFeedSeed() {
   SESSION_SEED = Math.floor(Math.random() * 1_000_000);
   return SESSION_SEED;
 }
+
+/**
+ * Refetch the home-page feeds IN PLACE (no page reload) with a fresh shuffle and
+ * the current store state — the feeds read `interests`/`showNsfw`/etc. live from
+ * the store at fetch time, so this is what makes newly-picked interests take
+ * effect. Shared by HomeGrouped's pull-to-refresh AND the interests prompt's save.
+ * `queryClient` is the app-wide react-query client; keys mirror HomeGrouped's.
+ */
+export async function refreshHomeFeeds(queryClient, { authenticated, user } = {}) {
+  if (!queryClient) return;
+  regenerateFeedSeed();
+  await queryClient.invalidateQueries({ queryKey: authenticated ? ['follow-feed', user] : ['home-grouped'] });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['discover-grouped'] }),
+    queryClient.invalidateQueries({ queryKey: ['interests-grouped'] }),
+    queryClient.invalidateQueries({ queryKey: ['newcontent-grouped'] }),
+  ]);
+}

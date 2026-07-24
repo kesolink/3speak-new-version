@@ -1,0 +1,220 @@
+@use "../mixins.scss" as *;
+
+.spotlight-page {
+  min-height: calc(100vh - var(--nav-height, 56px));
+  width: 100%;
+  // Full-bleed background escaping the container's max-width/padding.
+  margin: calc(var(--nav-top-offset, 0px) * -1) 0 0;
+  padding: 36px 16px 64px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+
+  &--plain {
+    background: var(--bg-primary, #0f0f0f);
+    align-items: center;
+  }
+
+  .sp-inner {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .sp-avatar {
+    display: block;
+    width: 96px;
+    height: 96px;
+    line-height: 0;
+    img {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      object-fit: cover;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  .sp-name {
+    margin: 14px 0 0;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    word-break: break-word;
+  }
+  .sp-handle { margin-top: 2px; font-size: 14px; opacity: 0.7; }
+  .sp-headline {
+    margin: 10px 0 0;
+    font-size: 15px;
+    line-height: 1.5;
+    opacity: 0.9;
+    max-width: 440px;
+    word-break: break-word;
+  }
+
+  .sp-sections {
+    width: 100%;
+    margin-top: 26px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+
+    .sp-cell { min-width: 0; grid-column: span 6; }
+    .sp-cell.w-half { grid-column: span 3; }
+    .sp-cell.w-third { grid-column: span 2; }
+
+    @include respond(phone) {
+      grid-template-columns: repeat(2, 1fr);
+      .sp-cell { grid-column: span 2; }
+      .sp-cell.w-half, .sp-cell.w-third { grid-column: span 1; }
+    }
+  }
+
+  // ── link buttons ──
+  .sp-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 15px 18px;
+    text-decoration: none;
+    font-size: 15.5px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+
+    &:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); }
+    &:active { transform: translateY(0); }
+
+    // soft = translucent fill (default); outline = transparent + border; fill = as set.
+    &--outline { background: transparent !important; border-color: currentColor; }
+    &--soft { backdrop-filter: blur(4px); }
+
+    .sp-link-icon {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+    }
+    .sp-link-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      // Keep the label visually centered despite the leading icon.
+      margin-right: 34px;
+    }
+  }
+
+  // ── header/text ──
+  .sp-header {
+    width: 100%;
+    font-weight: 700;
+    word-break: break-word;
+    &--lg { font-size: 22px; margin-top: 6px; }
+    &--md { font-size: 17px; opacity: 0.95; }
+    &--sm { font-size: 14px; opacity: 0.75; font-weight: 600; }
+  }
+
+  // ── image ──
+  .sp-image, .sp-image-link { width: 100%; display: block; }
+  .sp-image { object-fit: cover; }
+
+  // ── rich-link (embed) card ──
+  .sp-embed {
+    display: block; text-align: left; text-decoration: none; overflow: hidden; color: inherit;
+    border: 1px solid rgba(128, 128, 128, 0.22); transition: transform 0.12s, box-shadow 0.12s, filter 0.12s;
+    &:hover { transform: translateY(-1px); filter: brightness(1.04); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); }
+  }
+  .sp-embed-img { width: 100%; aspect-ratio: 1.6 / 1; overflow: hidden; background: rgba(0, 0, 0, 0.18); }
+  .sp-embed-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sp-embed-b { padding: 13px 15px; }
+  .sp-embed-s { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; margin-bottom: 4px; }
+  .sp-embed-t { font-size: 15.5px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .sp-embed-d { margin-top: 6px; font-size: 13px; line-height: 1.45; opacity: 0.82; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  // ── video (lazy embed) ──
+  .sp-video {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: #000;
+    position: relative;
+
+    iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+    .sp-video-poster {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: 0;
+      cursor: pointer;
+      position: relative;
+      background: #000;
+      img { width: 100%; height: 100%; object-fit: cover; }
+    }
+    .sp-video-play {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 60px;
+      height: 60px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.55);
+      border-radius: 50%;
+      transition: transform 0.12s ease, background 0.12s ease;
+    }
+    .sp-video-poster:hover .sp-video-play { transform: scale(1.08); background: var(--accent-primary, #e53935); }
+    .sp-video-title {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      padding: 20px 12px 10px;
+      text-align: left;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  .sp-empty { margin-top: 30px; opacity: 0.7; font-size: 15px; }
+
+  .sp-profile-link {
+    margin-top: 30px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: inherit;
+    opacity: 0.85;
+    text-decoration: none;
+    &:hover { opacity: 1; text-decoration: underline; }
+  }
+  .sp-brand {
+    margin-top: 10px;
+    font-size: 12px;
+    opacity: 0.5;
+    a { color: inherit; text-decoration: none; }
+    a:hover { opacity: 1; }
+  }
+
+  .sp-spinner {
+    width: 34px; height: 34px;
+    border: 3px solid var(--border-light, rgba(150, 150, 150, 0.3));
+    border-top-color: var(--accent-primary, #e53935);
+    border-radius: 50%;
+    animation: sp-spin 0.8s linear infinite;
+  }
+}
+
+@keyframes sp-spin { to { transform: rotate(360deg); } }

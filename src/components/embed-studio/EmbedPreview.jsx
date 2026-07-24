@@ -10,7 +10,8 @@ import "../legacy-studio/VideoUploadStatus.scss";
 import BlogContent from "../playVideo/BlogContent";
 import EmbedPreviewPlayer from "./EmbedPreviewPlayer";
 import PromoteModal from "../Promote/PromoteModal";
-import { Rocket } from "lucide-react";
+import { Rocket, Star } from "lucide-react";
+import { useReviewModal } from "../../lib/reviewStore";
 
 function EmbedPreview() {
   const {
@@ -44,6 +45,9 @@ function EmbedPreview() {
 
   const navigate = useNavigate();
   const [promoteOpen, setPromoteOpen] = React.useState(false);
+  // On the success screen we offer feedback (area:'upload'), rather than opening
+  // the popup automatically — see the "Give feedback" button below.
+  const openReview = useReviewModal((s) => s.openReview);
 
   if (!description || (!fromStories && !title)) {
     return <Navigate to="/embed-studio" replace />;
@@ -282,29 +286,48 @@ function EmbedPreview() {
               <CheckCircle size={34} strokeWidth={2} />
             </div>
             <h3>Upload Finished!</h3>
-            <p>{fromStories ? 'Your short has been published on 3Speak.' : 'Your video has been published on 3Speak.'}</p>
-            {fromStories && <p style={{ color: '#e53935' }}>It will take around 5 minutes for it to show up on your profile.</p>}
-            {!fromStories && publishedPermlink && (
-              <button className="promote-success-btn" onClick={() => setPromoteOpen(true)}>
-                <Rocket size={18} /> Promote this video
+            <p>
+              {fromStories
+                ? 'Your short has been published on 3Speak. It will take around 5 minutes to show up on your profile.'
+                : (
+                  <>
+                    Your video has been published!<br />
+                    It&apos;s now encoding in the background, which can take a few minutes.
+                    {embedUrl && (
+                      <>
+                        <br />It&apos;ll be available{' '}
+                        <a className="success-embed-link" href={embedUrl} target="_blank" rel="noopener noreferrer">here</a>
+                        {' '}once it&apos;s ready.
+                      </>
+                    )}
+                  </>
+                )}
+            </p>
+
+            <div className="success-actions">
+              {!fromStories && publishedPermlink && (
+                <button className="promote-success-btn" onClick={() => setPromoteOpen(true)}>
+                  <Rocket size={18} /> Promote this video
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  navigate("/profile");
+                  setTimeout(() => {
+                    resetUploadState();
+                  }, 50);
+                }}
+                className="profile-btn"
+              >
+                Go To My Profile →
               </button>
-            )}
-            {embedUrl && (
-              <p style={{ fontSize: '0.85rem', wordBreak: 'break-all', marginTop: '0.5rem' }}>
-                Embed URL: {embedUrl}
-              </p>
-            )}
+            </div>
+
             <button
-              onClick={() => {
-                navigate("/profile");
-                setTimeout(() => {
-                  resetUploadState();
-                }, 50);
-              }}
-              className="profile-btn"
+              className="review-success-btn"
+              onClick={() => openReview({ area: 'upload', username: user || null, permlink: publishedPermlink || null })}
             >
-              Go To My Profile →
-            </button>
+              <Star size={18} /> How was your upload</button>
           </div>
         </div>
       )}

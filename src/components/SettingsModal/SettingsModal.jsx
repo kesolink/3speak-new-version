@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { getHiveUrl } from '../../utils/hiveNode';
-import { INTERESTS, fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import TagsV2Picker from '../tooltip/TagsV2Picker';
 import DataRequestForm from './DataRequestForm';
 import './SettingsModal.scss';
 
@@ -36,15 +37,9 @@ function InterestsSection() {
     return () => { alive = false; };
   }, [user]);
 
-  const selected = new Set(interests || []);
   const dirty = savedRef.current == null
     ? (interests || []).length > 0
     : !sameSet(interests, savedRef.current);
-
-  const toggle = (id) => {
-    setJustSaved(false); // a fresh change → back to a "Save" CTA
-    setInterests(selected.has(id) ? interests.filter((x) => x !== id) : [...interests, id]);
-  };
 
   const save = async () => {
     if (!user) return;
@@ -71,21 +66,13 @@ function InterestsSection() {
         Pick the topics you care about — we’ll use them to show you more of the content you like.
         {!user && ' Log in to choose your interests.'}
       </p>
-      <div className="settings-interests-grid">
-        {INTERESTS.map(({ id, label, emoji }) => (
-          <button
-            key={id}
-            type="button"
-            className={`settings-interest-chip${selected.has(id) ? ' selected' : ''}`}
-            onClick={() => toggle(id)}
-            disabled={!user || saving}
-            aria-pressed={selected.has(id)}
-          >
-            <span className="settings-interest-emoji">{emoji}</span>
-            {label}
-          </button>
-        ))}
-      </div>
+      <TagsV2Picker
+        multi
+        searchable
+        value={interests || []}
+        onChange={(next) => { setJustSaved(false); setInterests(next); }}
+        disabled={!user || saving}
+      />
       {/* Only shown when there's something to save, while saving, or right after
           a save (the transient "Saved" confirmation). Hidden otherwise. */}
       {user && (dirty || saving || justSaved) && (
@@ -165,6 +152,24 @@ export default function SettingsModal({ isOpen, onClose }) {
   // Not on mobile: there it's a bottom sheet and must stay pinned to the bottom.
   const modalRef = useRef(null);
   const [anchor, setAnchor] = useState(null);
+
+  // Hidden soft-launch unlock: 5 quick taps on the Hive RPC node row force-enables
+  // Butter Auth (login + signup) via localStorage, even when VITE_ENABLE_BUTRAUTH
+  // is off. Reload so every gate (config ENABLE_BUTRAUTH, aioha) re-reads the flag.
+  const butrTapRef = useRef({ count: 0, t: 0 });
+  const handleButrUnlockTap = () => {
+    const now = Date.now();
+    const s = butrTapRef.current;
+    if (now - s.t > 2000) s.count = 0; // taps must be within 2s of each other
+    s.t = now;
+    s.count += 1;
+    if (s.count >= 5) {
+      s.count = 0;
+      localStorage.setItem('butrauth_unlocked', 'true');
+      toast.success('Butter Auth unlocked');
+      setTimeout(() => window.location.reload(), 600);
+    }
+  };
 
   useLayoutEffect(() => {
     if (!isOpen) { setAnchor(null); return undefined; }
@@ -339,7 +344,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                   <span className="settings-row-desc">v{APP_VERSION}</span>
                 </div>
               </div>
-              <div className="settings-modal-row">
+              <div className="settings-modal-row" onClick={handleButrUnlockTap}>
                 <div className="settings-row-text">
                   <span className="settings-row-title">Hive RPC node</span>
                   <span className="settings-row-desc">{getHiveUrl()}</span>

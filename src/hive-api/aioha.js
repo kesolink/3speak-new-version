@@ -94,7 +94,7 @@ const extractAiohaError = (result, fallback) => {
 };
 
 // Wrapper to handle HiveAuth waiting state
-const withHiveAuthWaiting = async (operation, message = 'Waiting for approval...') => {
+export const withHiveAuthWaiting = async (operation, message = 'Waiting for approval...') => {
   const isHiveAuth = isHiveAuthProvider();
 
   if (isHiveAuth && hiveAuthCallbacks.onWaiting) {
@@ -418,10 +418,12 @@ export const signMessageWithAioha = async (message, keyType = KeyTypes.Posting, 
 // Auth happens via httpOnly cookie set during /api/manteauth/exchange — no token in JS.
 const THREESPEAK_API = import.meta.env.VITE_THREESPEAK_API || '/api'
 
-// Honors the VITE_ENABLE_BUTRAUTH=false flag — when disabled, treat ManteAuth
-// state as absent so no manteauth-specific code paths run.
+// Honors the VITE_ENABLE_BUTRAUTH=false flag (when disabled, treat ManteAuth
+// state as absent so no manteauth-specific code paths run) unless the hidden
+// soft-launch unlock (butrauth_unlocked) has been set, which forces it on.
 export const isManteAuthLogin = () => {
-  if (import.meta.env.VITE_ENABLE_BUTRAUTH === 'false') return false;
+  const unlocked = localStorage.getItem('butrauth_unlocked') === 'true';
+  if (import.meta.env.VITE_ENABLE_BUTRAUTH === 'false' && !unlocked) return false;
   return localStorage.getItem('manteauth_login') === 'true'
 }
 
@@ -439,36 +441,125 @@ export const broadcastViaManteAuth = async (operations) => {
   return { success: true, result: data.result }
 }
 
-// @threespeak proxy broadcast — embed-route video posts are broadcast server-side
-// as @threespeak (the user granted @threespeak posting authority via the upload
-// gate), not signed client-side. The server (/api/broadcast) needs to know which
-// user the post is for; how we authenticate that depends on the provider:
-//   • HiveSigner → Authorization: Bearer <token> (verified against hivesigner.com;
-//     HiveSigner can't sign comments client-side anyway).
-//   • Keychain/HiveAuth/PeakVault/Ledger → the app key (X-API-Key), the same trust
-//     the embed TUS upload already uses, plus the username in the body. The server
-//     still enforces that the user granted @threespeak posting auth, the comment
-//     author matches that username, and only post ops are allowed on this path.
+// "Sign in with Hive" session for wallet logins (Keychain/HiveAuth/PeakVault/
+// Ledger). The user signs a server-issued nonce with their POSTING key once; the
+// server verifies it against their on-chain posting authority and sets an
+// httpOnly session cookie. The @threespeak broadcast proxy then trusts that
+// cookie instead of a public app key + a claimed username — so nobody can act as
+// another user. No-op for ManteAuth (own cookie) and HiveSigner (own token).
+let walletSessionPromise = null
+export const establishWalletSession = async () => {
+  if (isManteAuthLogin()) return false
+  const provider = aioha.getCurrentProvider()
+  if (!provider || provider === Providers.HiveSigner) return false
+  const username = aioha.getCurrentUser()
+  if (!username) return false
+  if (walletSessionPromise) return walletSessionPromise // de-dupe concurrent calls
+  walletSessionPromise = (async () => {
+    try {
+      const chRes = await fetch(`${THREESPEAK_API}/auth/wallet/challenge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username })
+      })
+      const chData = await chRes.json().catch(() => ({}))
+      if (!chRes.ok || !chData.challenge) throw new Error(chData.error || 'Could not start sign-in')
+      const signed = await aioha.signMessage(chData.challenge, KeyTypes.Posting)
+      if (!signed?.success || !signed.result) {
+        throw new Error(extractAiohaError(signed, 'Sign-in signature was declined'))
+      }
+      const loginRes = await fetch(`${THREESPEAK_API}/auth/wallet/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, challenge: chData.challenge, signature: signed.result })
+      })
+      const loginData = await loginRes.json().catch(() => ({}))
+      if (!loginRes.ok || !loginData.success) throw new Error(loginData.error || 'Sign-in failed')
+      return true
+    } catch (e) {
+      console.warn('Wallet session establishment failed:', e?.message || e)
+      return false
+    } finally {
+      walletSessionPromise = null
+    }
+  })()
+  return walletSessionPromise
+}
+
+// Clear BOTH server-side session cookies (ManteAuth + SIWH wallet). Used when a
+// proxy broadcast resolves to the WRONG user — i.e. a session cookie left over
+// from a previously logged-in account (switching wallets without logging out).
+// Safe in the wallet broadcast path: a ManteAuth cookie present there is stale,
+// because ManteAuth logins never take this path.
+export const clearServerSession = async () => {
+  walletSessionPromise = null
+  await Promise.allSettled([
+    fetch(`${THREESPEAK_API}/auth/wallet/logout`, { method: 'POST', credentials: 'include' }),
+    fetch(`${THREESPEAK_API}/manteauth/logout`, { method: 'POST', credentials: 'include' }),
+  ])
+}
+
+// @threespeak proxy broadcast — the user granted @threespeak posting authority
+// (via the upload gate), so the server signs posting-level ops on their behalf,
+// no wallet popup per action. Authentication of WHICH user, by provider:
+//   • HiveSigner → Authorization: Bearer <token> (verified against hivesigner.com).
+//   • ManteAuth → its own httpOnly session cookie (see broadcastViaManteAuth).
+//   • Keychain/HiveAuth/PeakVault/Ledger → the SIWH session cookie (credentials:
+//     include). The legacy X-API-Key + claimed username is still sent as a
+//     fallback while the server keeps ALLOW_APPKEY_AUTH on; once that's off, a
+//     401 here means "no session yet" → establish one and retry.
 export const broadcastViaThreespeak = async (operations) => {
   const provider = aioha.getCurrentProvider()
-  const headers = { 'Content-Type': 'application/json' }
-  const body = { operations }
-  if (provider === Providers.HiveSigner) {
-    const token = localStorage.getItem('hivesignerToken')
-    if (!token) {
-      throw new Error('HiveSigner session expired — please reconnect HiveSigner and try again')
+  const isWallet = provider && provider !== Providers.HiveSigner
+
+  const doPost = async () => {
+    const headers = { 'Content-Type': 'application/json' }
+    const body = { operations }
+    if (provider === Providers.HiveSigner) {
+      const token = localStorage.getItem('hivesignerToken')
+      if (!token) {
+        throw new Error('HiveSigner session expired — please reconnect HiveSigner and try again')
+      }
+      headers.Authorization = `Bearer ${token}`
+    } else {
+      headers['X-API-Key'] = EMBED_API_KEY // legacy fallback; SIWH cookie is preferred
+      body.username = aioha.getCurrentUser()
     }
-    headers.Authorization = `Bearer ${token}`
-  } else {
-    headers['X-API-Key'] = EMBED_API_KEY
-    body.username = aioha.getCurrentUser()
+    const res = await fetch(`${THREESPEAK_API}/broadcast`, {
+      method: 'POST',
+      headers,
+      credentials: 'include', // send the SIWH / ManteAuth session cookie
+      body: JSON.stringify(body)
+    })
+    const data = await res.json().catch(() => ({}))
+    return { res, data }
   }
-  const res = await fetch(`${THREESPEAK_API}/broadcast`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body)
-  })
-  const data = await res.json()
+
+  let { res, data } = await doPost()
+  // Recover from a missing OR mismatched server session:
+  //   • 401                          → no session yet (app-key auth disabled).
+  //   • 403 "Operation not allowed"  → the session cookie is bound to a DIFFERENT
+  //     account than the one we're posting for (e.g. switched wallets without
+  //     logging out). Clear the stale cookies first, then establish fresh.
+  // A 403 "Authorization required" is different (no @threespeak grant) and is
+  // left to the caller's client-side-signing fallback.
+  const mismatch = res.status === 403 && /operation not allowed/i.test(data.error || '')
+  if (mismatch) {
+    // A stale session cookie (from a previously logged-in account) outranked our
+    // current credential on the server. Clear it, then retry with the right
+    // identity — wallet logins re-establish a SIWH session; HiveSigner's Bearer
+    // token authenticates on its own once the stale cookie is gone.
+    await clearServerSession()
+    if (!isWallet || await establishWalletSession()) {
+      ({ res, data } = await doPost())
+    }
+  } else if (isWallet && res.status === 401) {
+    if (await establishWalletSession()) {
+      ({ res, data } = await doPost())
+    }
+  }
   if (!res.ok || !data.success) {
     throw new Error(data.error || data.message || 'Broadcast via @threespeak failed')
   }

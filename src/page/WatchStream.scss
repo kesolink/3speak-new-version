@@ -1,0 +1,487 @@
+@use '../styles/shorts-action-rail' as rail;
+.ws-page.play-container {
+  display: block;
+}
+
+.ws-grid {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 1rem;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* --- main column --- */
+.ws-col-main { min-width: 0; }
+
+/* Live player — 16:9, black, rounded. StreamVideo fills it via absolute. */
+.ws-player {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.ws-below { margin-top: 0.9rem; }
+
+.ws-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.ws-live-tag {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #ff2a4a, #c00e2c);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(227, 19, 55, 0.4);
+}
+
+.ws-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-watching {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* Quality control below the player, right-aligned */
+.ws-controls-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.ws-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.ws-author {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+.ws-author-avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; }
+.ws-author-text { display: flex; flex-direction: column; line-height: 1.25; }
+.ws-author-name { font-weight: 650; font-size: 0.95rem; }
+.ws-author-sub { font-size: 0.78rem; opacity: 0.6; }
+
+.ws-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.ws-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  svg { font-size: 0.95rem; }
+  &:hover:not(:disabled) { background: rgba(128, 128, 128, 0.12); }
+}
+.ws-action--disabled, .ws-action:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ws-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.9rem; }
+.ws-tag {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.14);
+  cursor: pointer;
+}
+.ws-tag:hover { background: rgba(128, 128, 128, 0.24); }
+
+.ws-description {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: rgba(128, 128, 128, 0.08);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  p { margin: 0; }
+}
+
+/* --- side column --- */
+.ws-col-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.ws-chat {
+  display: flex;
+  flex-direction: column;
+  height: 460px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: 14px;
+  overflow: hidden;
+
+  .hh-chat {
+    flex: 1;
+    min-height: 0;
+  }
+
+  // --- 3Speak theme + de-duped title -----------------------------------
+  // The SDK ChatPanel is built for the studio's dark glass overlay (white text,
+  // frosted bg) — on the themed watch page that's illegible in light mode, so
+  // repaint it with the app's theme vars, which flip with light/dark.
+  background: var(--bg-secondary);
+  border-color: var(--border-light);
+
+  // We already show a "Live chat" head above — hide the SDK's own "Chat" one.
+  .hh-chat__header { display: none; }
+
+  .hh-chat {
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: none;
+    border-radius: 0;
+  }
+  .hh-chat__msg-name { color: var(--text-primary); }
+  .hh-chat__msg-text { color: var(--text-secondary); }
+  .hh-chat__input { color: var(--text-primary); }
+  .hh-chat__input::placeholder { color: var(--text-secondary); opacity: 0.7; }
+  .hh-chat__input-row,
+  .hh-chat__guest-prompt { border-top-color: var(--border-light); }
+  .hh-chat__guest-prompt { color: var(--text-secondary); }
+  .hh-chat__empty { color: var(--text-secondary); }
+}
+.ws-chat-head {
+  padding: 0.6rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+  flex-shrink: 0;
+}
+
+.ws-recommended-head {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+/* Recommended cards in a single sidebar column */
+.ws-recommended .card-container {
+  grid-template-columns: 1fr;
+}
+
+.ws-error {
+  max-width: 520px;
+  margin: 4rem auto;
+  text-align: center;
+  padding: 1rem;
+  p { font-size: 1.05rem; opacity: 0.8; margin-bottom: 1rem; }
+}
+.ws-error-btn {
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--primary-color, #e31337);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 980px) {
+  .ws-grid { grid-template-columns: 1fr; }
+  .ws-col-side { position: static; }
+  .ws-recommended .card-container {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .ws-grid { padding: 0.5rem; }
+  .ws-player { border-radius: 0; }
+  .ws-title { font-size: 1.1rem; }
+}
+
+.ws-action--tip {
+  border-color: rgba(229, 57, 53, 0.5);
+  color: #e53935;
+}
+.ws-action--tip:hover:not(:disabled) { background: rgba(229, 57, 53, 0.12); }
+
+/* Reuse the watch page (.play-video) info styling, but neutralise its
+   player-width assumptions (it's a 69% flex child on the real watch page). */
+.ws-play-video.play-video {
+  flex-basis: auto;
+  max-width: none;
+  width: 100%;
+  margin-top: 0.9rem;
+}
+@media (max-width: 768px) {
+  .ws-play-video.play-video { display: block; }
+  .ws-play-video.play-video > * { width: 100%; }
+}
+
+/* LIVE tag + viewer count sit inline with the title. */
+.ws-play-video .video-title-line {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+.ws-play-video .video-title-line h3 { margin: 0; }
+.ws-play-video .ws-watching {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* Plain-text description (a live stream has no Hive markdown body). */
+.ws-desc-text { white-space: pre-wrap; word-break: break-word; }
+
+/* Author badge and the quality picker share one row; the picker is pushed to
+   the far right and wraps under on narrow screens rather than squashing the
+   badge. */
+.ws-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ws-quality-slot {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+// ===========================================================================
+// Mobile live player — only the LIVE-specific bits
+// ===========================================================================
+// Layout, scrim, caption and the action rail all come from Short.scss (the
+// markup uses its classes). What's left is what a live stream has and a short
+// doesn't: the LIVE tag, the viewer count and the chat overlay.
+.ws-shorts {
+  // Everything anchored to the bottom sits above the docked chat bar.
+  .bottomOverlay { padding-bottom: 4.5rem; }
+  .actionSidebar { bottom: 5rem; }
+
+  &__live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  &__watching {
+    font-size: 12px;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  }
+  &__desc {
+    margin-top: 4px;
+    opacity: 0.85;
+    font-size: 0.82rem;
+  }
+  // Quality picker: top-right corner, on its own, solid black so the <select>
+  // is legible over any frame.
+  &__quality {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.85);
+
+    select,
+    .hh-quality select {
+      background: #000;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      font-size: 12px;
+      padding: 2px 6px;
+      option { background: #000; color: #fff; }
+    }
+  }
+
+  // The rail is anchored to the RIGHT EDGE of the screen. Short.scss anchors it
+  // to its own container; being explicit here keeps it flush regardless of what
+  // the video wrapper does with its width.
+  .actionSidebar {
+    right: 0.75rem;
+    left: auto;
+    align-items: flex-end;
+  }
+  // react-icons ship a viewBox that leaves a visible box inside the circle;
+  // the shorts feed uses lucide, which we now match. Belt and braces:
+  .actionButton svg {
+    background: transparent;
+    border: none;
+  }
+
+  // --- transparent chat overlay --------------------------------------------
+  // Sits above the video, below the caption/rail, with no panel of its own.
+  &__chat {
+    position: absolute;
+    left: 0;
+    right: 5rem;                       // clear of the action rail
+    bottom: 12.5rem;                   // lift clear of the ● LIVE / caption block
+    top: 30%;
+    z-index: 16;                       // under .actionSidebar (50)
+    display: flex;
+    pointer-events: none;              // taps fall through to the video…
+
+    .hh-chat {
+      flex: 1;
+      // Fill the band, so the composer sits at ITS bottom instead of floating
+      // directly under the last message.
+      height: 100%;
+      min-height: 0;
+      justify-content: flex-end;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      max-height: none;
+    }
+    // …except where you actually interact.
+    .hh-chat__messages,
+    .hh-chat__input-row,
+    .hh-chat__guest-prompt { pointer-events: auto; }
+
+    .hh-chat__header { display: none; }
+    // "No messages yet" is noise over a live video.
+    .hh-chat__empty { display: none; }
+    .hh-chat__messages {
+      background: transparent;
+      border: none;
+      justify-content: flex-end;       // newest sit at the bottom
+      mask-image: linear-gradient(to bottom, transparent 0%, #000 20%);
+    }
+    // Tight rows: this is an overlay over live video, not a chat page, and
+    // the default 0.5rem gap wasted a lot of the visible band.
+    .hh-chat__messages { gap: 1px; padding: 0.4rem 0.5rem; }
+    .hh-chat__msg { background: transparent; padding: 1px 4px; }
+    .hh-chat__msg-name,
+    .hh-chat__msg-text {
+      color: #fff;
+      text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.95),
+        0 0 6px rgba(0, 0, 0, 0.85),
+        0 0 14px rgba(0, 0, 0, 0.6);
+    }
+    .hh-chat__mention { color: #8ab4ff; }
+    // The composer moved to the docked bar; nothing input-shaped belongs here.
+    .hh-chat__input-row,
+    .hh-chat__compose,
+    .hh-chat__guest-prompt { display: none; }
+  }
+}
+
+// Docked chat bar — reuses the shorts comment-bar class, so it inherits that
+// layout; only the live-specific placement is set here.
+.ws-shorts__bar.shortsBottomComment {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;                      // above the caption scrim and the rail
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+
+  textarea {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    &::placeholder { color: rgba(255, 255, 255, 0.55); }
+  }
+}
+
+/* The error screen has no .videoContainer to anchor against, so the shared
+   .shortBackBtn look is pinned to the viewport instead of the player. */
+.ws-error-back.ws-error-back {
+  position: fixed;
+  top: calc(12px + var(--safe-top, 0px));
+  left: 12px;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px 8px 12px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Only rendered when another stream is actually live — see useLiveStreamPager. */
+.ws-shorts__next-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 7.5rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: ws-next-hint-fade 0.3s ease 6s forwards;
+}
+@keyframes ws-next-hint-fade {
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* The SDK puts boosts across the top of the video; on the shorts-style page
+   that's exactly where the back button and quality picker sit, and they draw
+   above it (z-index 55 vs 5). Push the boosts clear of that row. */
+.ws-shorts .hh-boost-overlay {
+  top: calc(60px + var(--safe-top, 0px));
+}
+
+/* Send button: the app's accent, not the shorts feed's blue. */
+.ws-shorts__bar.shortsBottomComment .sendCommentBtn {
+  color: var(--accent-primary, #e0594b);
+}

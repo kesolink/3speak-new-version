@@ -68,7 +68,7 @@
         color: var(--text-primary, #000);
       }
       input {
-        width: 40px;
+        width: 62px; // fits 3 digits (e.g. 100) plus the number spinner
         height: 100%;
         border: none;
         outline: none;
@@ -81,7 +81,7 @@
         border: 1px solid var(--border-light, #d1d3e2);
         color: var(--text-primary, #000);
         @include mix.respond(phone) {
-          width: 30px;
+          width: 54px;
           font-size: 16px;
         }
       }
@@ -230,5 +230,26 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+// Warning for a row that was typed but never committed with "+", plus the
+// live "does this Hive account exist?" result. Hidden while the row is empty.
+.bene-pending {
+  margin: 8px 0 0;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(224, 168, 82, 0.45);
+  background: rgba(224, 168, 82, 0.10);
+  color: #e0a852;
+  font-size: 12.5px;
+  line-height: 1.45;
+
+  strong { font-weight: 700; }
+
+  &--bad {
+    border-color: rgba(224, 82, 82, 0.5);
+    background: rgba(224, 82, 82, 0.10);
+    color: #e05252;
   }
 }

@@ -6,6 +6,8 @@ import "./App.css";
 import Nav from "./components/nav/Nav";
 import { useState } from "react";
 import Watch from "./page/Watch";
+import WatchStream from "./page/WatchStream";
+import EgressStream from "./page/EgressStream";
 import Sidebar from "./components/Sidebar/Sidebar";
 import Feed from "./components/Feed/Feed";
 import FirstUploads from "./page/FirstUploads";
@@ -22,6 +24,8 @@ import { useSupportBlock } from "./lib/supportBlockStore";
 import { getCreatorSettings, isBanned } from "./utils/creatorSettings";
 import SupportModal from "./components/SupportModal/SupportModal";
 import CookieConsent from "./components/CookieConsent/CookieConsent";
+import { GlobalReviewModal } from "./components/ReviewModal/ReviewModal";
+import ReviewFab from "./components/ReviewModal/ReviewFab";
 import { useEffect } from "react";
 import { readAppVersion } from "./utils/appVersion";
 import ChangelogModal from "./components/Changelog/ChangelogModal";
@@ -34,6 +38,7 @@ import CommunityPage from "./components/Communities/CommunityPage";
 import TagFeed from "./page/TagFeed";
 import Leaderboard from "./page/Leaderboard";
 import ProfilePage from "./page/ProfilePage";
+import Spotlight from "./page/Spotlight";
 import Wallet from "./page/Wallet";
 import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
 import DraftStudio from "./components/studio/DraftStudio";
@@ -115,6 +120,7 @@ import EmbedStudioPage from "./components/embed-studio/EmbedStudioPage";
 import EmbedThumbnail from "./components/embed-studio/EmbedThumbnail";
 import EmbedDetails from "./components/embed-studio/EmbedDetails";
 import EmbedPreview from "./components/embed-studio/EmbedPreview";
+import EmbedCameraRecord from "./components/embed-studio/EmbedCameraRecord";
 import FollowFeed from "./page/FollowFeed";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
@@ -182,6 +188,7 @@ function App() {
   const [globalCloseRender, setGlobalCloseRender] = useState(false)
   const [toggle, setToggle] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginIntent, setLoginIntent] = useState(null); // 'login' | 'signup' from the nav
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [audioUploadOpen, setAudioUploadOpen] = useState(false);
@@ -193,8 +200,10 @@ function App() {
   const aiohaUserSeen = useRef(false); // Track if aiohaUser has ever been populated
   const sessionExpiredHandled = useRef(false); // Guard so the expiry prompt shows once (StrictMode-safe)
 
-  // Hide nav on /shorts route on mobile
-  const isShorts = location.pathname.startsWith('/shorts');
+  // Hide nav on /shorts route on mobile — and on a live stream's watch page,
+  // which uses the same full-bleed shorts layout.
+  const isShorts = location.pathname.startsWith('/shorts')
+    || /^\/(watch|l)\/[^/]+$/.test(location.pathname);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 767);
 
   useEffect(() => {
@@ -315,12 +324,34 @@ function App() {
       // Only sync aiohaUser when modal is open — when closed, handleAiohaLogin
       // is the sole authority, preventing aioha's stale user reports from overriding
       console.log("Aioha account switched:", aiohaUser);
+      localStorage.removeItem('manteauth_login'); // switching to a wallet account clears any prior Butter Auth flag
       localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, aiohaUser);
       setUser(aiohaUser);
       setLoginModalOpen(false);
       toast.success("Login successful!");
     }
   }, [aiohaUser]);
+
+  // Reconcile a Butter Auth (ManteAuth) session that's sitting on top of a still-
+  // active aioha WALLET session for a different account. Butter Auth login does
+  // not log aioha out, so `appUser` can be the Butter Auth name while aioha's
+  // current user is still e.g. a Keychain account. In that state "Change account"
+  // opens straight into aioha's modal with the wallet account already selected —
+  // clicking it is a no-op (aiohaUser never changes) and nothing switches. When
+  // the modal is opened in this mismatch, adopt the wallet session so the switch
+  // actually lands (and tear down the now-unused Butter Auth backend session).
+  useEffect(() => {
+    if (!loginModalOpen) return;
+    if (localStorage.getItem('manteauth_login') !== 'true') return;
+    if (aiohaUser && aiohaUser !== appUser) {
+      localStorage.removeItem('manteauth_login');
+      localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, aiohaUser);
+      setUser(aiohaUser);
+      setLoginModalOpen(false);
+      fetch('/api/manteauth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+      toast.success(`Switched to @${aiohaUser}`);
+    }
+  }, [loginModalOpen, aiohaUser]);
 
   // Finalize a Butter Auth popup login. The popup (ManteAuthCallback) does the
   // token exchange, then writes `butrauth_login_result` to localStorage and
@@ -407,7 +438,10 @@ function App() {
     setToggle((prev) => !prev);
   }
 
-  const openLoginModal = () => {
+  // `mode` is 'login' | 'signup' from the nav buttons (opens the modal straight
+  // to that action). Other callers pass no string, so intent stays null.
+  const openLoginModal = (mode) => {
+    setLoginIntent(typeof mode === 'string' ? mode : null);
     setLoginProof(Math.floor(Date.now() / 1000)); // Fresh timestamp when modal opens
     if (!aioha.isLoggedIn()) {
       loginInProgress.current = true; // Only guard during fresh login, not account switch
@@ -430,6 +464,12 @@ function App() {
       return;
     }
 
+    // Switching in from a Butter Auth session → tear it down so the new wallet
+    // account isn't still treated as a Butter Auth login (stale manteauth flag).
+    if (localStorage.getItem('manteauth_login') === 'true') {
+      localStorage.removeItem('manteauth_login');
+      fetch('/api/manteauth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+    }
     localStorage.setItem(LOCAL_STORAGE_USER_ID_KEY, loginResult.username);
     setUser(loginResult.username);
     setLoginModalOpen(false);
@@ -469,6 +509,8 @@ function App() {
       <ChangelogModal />
       <SupportModal />
       <CookieConsent />
+      <GlobalReviewModal />
+      <ReviewFab />
       <ShortsPreloader />
       {!hideNavOnMobile && (
         <Nav setSideBar={setSideBar} toggleProfileNav={toggleProfileNav} globalClose={globalCloseRender} setGlobalClose={setGlobalCloseRender} openLoginModal={openLoginModal} />
@@ -487,6 +529,15 @@ function App() {
             <Route path="/home-feed" element={<Feed />} />
             <Route path="/follow-feed" element={<FollowFeed />} />
             <Route path="/watch" element={<Watch v2 />} />
+            {/* Live OpenPods stream at /watch/<roomName> (path param, distinct
+                from the ?v= VOD route above). */}
+            <Route path="/watch/:streamId" element={<WatchStream />} />
+            {/* Short alias for stream share links — see buildOpenPodShareUrl. */}
+            <Route path="/l/:streamId" element={<WatchStream />} />
+            {/* Opened by the LiveKit egress worker, never by a person: a
+                chrome-free full-bleed render of a standalone stream, which is
+                what gets recorded into the VOD. */}
+            <Route path="/egress-stream" element={<EgressStream />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/post/:author/:permlink" element={<PostView />} />
             <Route path="/upload" element={<UploadVideo />} />
@@ -511,6 +562,7 @@ function App() {
             <Route path="/studio/preview" element={<Navigate to="/embed-studio/preview" replace />} />
             {/* Embed studio (uses embed.okinoko.io upload service) */}
             <Route path="/embed-studio" element={<EmbedStudioPage />} />
+            <Route path="/embed-studio/record" element={<EmbedCameraRecord />} />
             <Route path="/embed-studio/thumbnail" element={<EmbedThumbnail />} />
             <Route path="/embed-studio/details" element={<EmbedDetails />} />
             <Route path="/embed-studio/preview" element={<EmbedPreview />} />
@@ -530,6 +582,10 @@ function App() {
             <Route path="/t/:tag" element={<TagFeed />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/profile" element={<ProfilePage />} />
+            {/* Spotlight — creator link page. Canonical: 3speak.tv/links/username (no @).
+                Legacy /@handle/links still resolves (nginx 301s it to /links/ in prod). */}
+            <Route path="/links/:handle" element={<Spotlight />} />
+            <Route path="/:handle/links" element={<Spotlight />} />
             <Route path="/p/:user" element={<UserProfilePage />} />
             <Route path="/user/:user" element={<UserProfilePage />} />
             <Route path="/playlist/:playlistId" element={<PlaylistView />} />
@@ -559,6 +615,7 @@ function App() {
         {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} /> }
         <LoginModal
           displayed={loginModalOpen}
+          intent={loginIntent}
           onLogin={handleAiohaLogin}
           onClose={closeLoginModal}
           loginTitle="Login to 3Speak"

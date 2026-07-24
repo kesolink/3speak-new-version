@@ -1,0 +1,140 @@
+@use "../../mixins.scss" as mix;
+
+// "Follow these" — a rail of creator tiles interleaved into the video grid on the
+// discover / interests tabs. No title; compact, so it sits in the feed like a normal
+// row (the grid gap handles the spacing around it).
+.suggested-creators {
+  margin: 0;
+
+  // BASE = the mobile horizontal scroller: fixed-width tiles, swipe sideways.
+  .sc-row {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  // DESKTOP = a fit-to-width grid of exactly `perRow` columns (set inline). Tiles
+  // stretch to fill via `minmax(0, 1fr)`, so the row is edge-to-edge with NO scroll —
+  // only as many tiles as fit are requested/shown.
+  .sc-row--grid {
+    display: grid;
+    gap: 10px;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .sc-card {
+    // Scroller mode: fixed width so tiles don't collapse. Grid mode overrides below.
+    flex: 0 0 auto;
+    width: 198px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 15px;
+    border-radius: 14px;
+    border: 1px solid var(--border-light);
+    background: var(--card-bg);
+    text-align: center;
+    transition: border-color 0.15s ease;
+
+    &:hover { border-color: var(--border-color); }
+
+    @include mix.respond(phone) {
+      width: 180px;
+      padding: 12px 12px;
+    }
+  }
+
+  // In grid mode the track sizes the card — drop the fixed width so it fills 1fr.
+  .sc-row--grid .sc-card {
+    flex: initial;
+    width: auto;
+  }
+
+  .sc-avatar {
+    display: block;
+    width: 100px;   // 1.2x the previous 84px
+    height: 100px;
+    line-height: 0;
+
+    img {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+  }
+
+  .sc-name {
+    max-width: 100%;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: none;
+    // Long Hive names must not stretch the card.
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &:hover { color: var(--accent-primary); }
+  }
+
+  // "Why suggested" — the topic most of their recent videos are tagged in.
+  .sc-basis {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: var(--bg-hover, rgba(150, 150, 150, 0.14));
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    // Long topic labels must not stretch the tile.
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    .sc-basis-emoji { font-size: 14px; line-height: 1; }
+  }
+
+  // Reserves its line even while the count is still loading, so cards don't jump.
+  .sc-followers {
+    min-height: 22px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  // Red outline, never a red fill (app-wide convention for red controls).
+  .sc-follow {
+    width: 100%;
+    margin-top: 3px;
+    padding: 9px 0;
+    border-radius: 999px;
+    border: 1px solid var(--accent-primary);
+    background: transparent;
+    color: var(--accent-primary);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover:not(:disabled) { background: var(--accent-light); }
+
+    // Already following: settled state, no longer the call to action.
+    &.followed {
+      border-color: var(--border-color);
+      color: var(--text-secondary);
+      cursor: default;
+    }
+
+    &:disabled:not(.followed) { opacity: 0.6; cursor: default; }
+  }
+}

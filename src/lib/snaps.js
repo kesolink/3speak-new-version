@@ -30,11 +30,13 @@ export async function fetchSnaps(owner, page = 1, limit = 20) {
 /**
  * Cross-author community-post feed for the home sections (fresh <7d, excludes the
  * viewer's hidden + already-engaged snaps server-side).
- * @param {{ scope?: 'all'|'following', currentuser?: string, page?: number, limit?: number }} opts
+ * `maxAgeHours` narrows the window below the server default (it can never widen it).
+ * @param {{ scope?: 'all'|'following', currentuser?: string, page?: number, limit?: number, maxAgeHours?: number }} opts
  */
-export async function fetchCommunityFeed({ scope = 'all', currentuser = '', page = 1, limit = 10 } = {}) {
+export async function fetchCommunityFeed({ scope = 'all', currentuser = '', page = 1, limit = 10, maxAgeHours } = {}) {
   const params = new URLSearchParams({ scope, page: String(page), limit: String(limit) });
   if (currentuser) params.set('currentuser', currentuser);
+  if (maxAgeHours) params.set('maxAgeHours', String(maxAgeHours));
   const { data } = await axios.get(`${CHECKER_URL}/snaps-feed?${params.toString()}`);
   return data; // { success, snaps, page, limit, hasMore }
 }

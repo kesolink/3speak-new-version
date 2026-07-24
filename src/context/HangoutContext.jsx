@@ -104,6 +104,24 @@ async function signOpenPodsChallengeViaThreespeak(challenge, username) {
   }
   return data.signature;
 }
+/**
+ * Is this session token still accepted by the server?
+ *
+ * `GET /auth/me` is a cheap authenticated probe. Anything other than a clean
+ * 401 (network blip, server down) counts as "keep the token" — we only discard
+ * on an explicit rejection, so a flaky connection can't log the user out.
+ */
+async function verifySessionToken(token) {
+  try {
+    const res = await fetch(`${HANGOUTS_API_URL.replace(/\/$/, '')}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.status !== 401;
+  } catch {
+    return true;
+  }
+}
+
 // No-op stub when the OpenPods API URL isn't configured, so the rest of the
 // app can mount the provider without crashing. Anything that does network is
 // guarded by `OPENPODS_ENABLED` and never reaches the stub.
@@ -150,11 +168,23 @@ export function HangoutContextProvider({ children, tokenStorage = 'none' }) {
       }
     }
     if (cached) {
-      if (isStillCurrentUser()) {
-        hangoutsClient.setSessionToken(cached);
-        setSessionToken(cached);
+      // A restored token can be unexpired yet UNVERIFIABLE — the storage layer
+      // only decodes the `exp` claim, it can't check the signature. After the
+      // server's SESSION_SECRET is rotated, every stored token stays "valid
+      // looking" forever while the server rejects it, and the user is stuck
+      // with "Invalid or expired session token" on every action with no way
+      // out but clearing site data. Probe it once, and re-mint if it's dead.
+      const stillGood = await verifySessionToken(cached);
+      if (stillGood) {
+        if (isStillCurrentUser()) {
+          hangoutsClient.setSessionToken(cached);
+          setSessionToken(cached);
+        }
+        return cached;
       }
-      return cached;
+      sessionCache.delete(requestedUser);
+      storageRef.current.clear(requestedUser);
+      hangoutsClient.clearSessionToken();
     }
 
     // No cached token, so we sign a fresh challenge. Per 3speak policy, ALL

@@ -5,9 +5,10 @@ import './WatchV2.scss';
 import PlayVideo from '../components/playVideo/PlayVideo';
 import SEOHead from '../components/SEOHead';
 import Card3 from '../components/Cards/Card3';
+import { useContentBatch } from '../hooks/useContentBatch';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchVideoDetails, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
+import { fetchVideoDetails, fetchPlaySource, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
 import BarLoader from '../components/Loader/BarLoader';
 import { useAppStore } from '../lib/store';
 import { hasConsent } from '../lib/consent';
@@ -17,6 +18,7 @@ import { HIVE_API_NODES, SHORTS_API_URL, appendNsfw } from '../utils/config';
 import { getPlayerUrl } from '../utils/playerUrl';
 import ShortsRow from '../components/ShortsRow/ShortsRow';
 import { useGridColumns, useShortsPerRow } from '../hooks/useGridMetrics';
+import { useStreamChatMirror } from '../hooks/useStreamChatMirror';
 import { getFeedSeed } from '../utils/feedSeed';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
@@ -268,6 +270,12 @@ function Watch({ v2 = false }) {
     updateStyle: updateSubtitleStyle,
   } = useSubtitles(author, permlink);
 
+  // True once the loaded post is a live OpenPods stream (video.live). A ref so
+  // the player's onError / load-failure callbacks read the latest value — a
+  // live post has NO VOD source, so we must NOT report it "unavailable" (that
+  // would flag the stream post as a dead video).
+  const isLiveRef = useRef(false);
+
   // Persist mute/volume preference across video navigations
   const MUTE_STORAGE_KEY = '3speak-muted';
   const VOLUME_STORAGE_KEY = '3speak-volume';
@@ -307,7 +315,9 @@ function Watch({ v2 = false }) {
     // The checker re-verifies across every gateway before banning anything, so being
     // wrong here is free.
     onError: (err) => {
-      if (err?.fatal) {
+      // A live post has no VOD source — an error here is expected, not a dead
+      // video. Never report it unavailable or show the "not available" hint.
+      if (err?.fatal && !isLiveRef.current) {
         reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
         setPlaybackFailed(true); // swap the player for a "not available" hint
       }
@@ -506,6 +516,10 @@ function Watch({ v2 = false }) {
     // Reset playhead to 0 immediately so the UI doesn't show the old video's position
     seek(0);
     loadVideo(playerLoadId).catch(err => {
+      // A live OpenPods post has no VOD source to resolve — the live player
+      // handles playback separately, so a load failure here is expected. Don't
+      // show "unavailable" or report the stream post as a dead video.
+      if (isLiveRef.current) return;
       console.error('[Watch] Failed to load video:', err);
       // The player backend couldn't resolve ANY playable stream — e.g. /api/embed
       // and /api/watch both 404 for a very old post whose media isn't indexed. No
@@ -987,6 +1001,65 @@ function Watch({ v2 = false }) {
     return merged;
   }, [baseVideoDetails, editOverride]);
 
+  // A finished OpenPods stream publishes its recording as a VOD under the SAME
+  // owner/permlink, but the Hive post keeps `video.live: true` forever (we
+  // never rewrite the post). So "is this still live?" = the post says live AND
+  // no published video exists yet — otherwise we'd show "Connecting to the
+  // stream…" over a room that ended hours ago.
+  const [liveVodReady, setLiveVodReady] = useState(false);
+  // The encoder has an asset for this post but hasn't published it yet — i.e.
+  // the stream is over and the recording is still being transcoded. Shown over
+  // the (now dead) live player so the page says "coming back shortly" instead
+  // of just "the streamer is offline".
+  const [vodProcessing, setVodProcessing] = useState(false);
+  useEffect(() => {
+    setLiveVodReady(false);
+    setVodProcessing(false);
+    if (!videoDetails?.live || !author || !permlink) return undefined;
+    let alive = true;
+    let timer = null;
+    // Poll: a viewer who sits on the page while the host wraps up should see
+    // the VOD appear on its own, not have to reload to find out.
+    const check = () => {
+      fetchPlaySource(author, permlink)
+        .then((src) => {
+          if (!alive) return;
+          if (src?.published) { setLiveVodReady(true); return; }   // done — stop polling
+          // No asset at all means nothing was ever recorded (the host didn't
+          // tick "replace the stream with a video"), and a failed encode is
+          // not "processing" either — don't promise a video in either case.
+          const dead = ['failed', 'error', 'deleted', 'cancelled'].includes(src?.status);
+          setVodProcessing(!!src && !dead);
+          timer = setTimeout(check, 20000);
+        })
+        .catch(() => { if (alive) timer = setTimeout(check, 20000); });
+    };
+    check();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [videoDetails?.live, author, permlink]);
+
+  // Mirror the live flag into the ref the player callbacks read.
+  const isLive = !!videoDetails?.live && !liveVodReady;
+  useEffect(() => { isLiveRef.current = isLive; }, [isLive]);
+
+  // Live chat takes the reaction panel's place in the right column. The panel
+  // itself is rendered by <LiveStreamPlayer> and portalled in here, so it can
+  // share the player's single LiveKit connection — hence a DOM element in
+  // state (a plain ref wouldn't re-render the player once it's attached).
+  const [liveChatSlot, setLiveChatSlot] = useState(null);
+  // Reported by <LiveStreamPlayer>, which already resolves the room's endpoint.
+  const [streamRoomMeta, setStreamRoomMeta] = useState(null);
+  const mirrorChatToHive = useStreamChatMirror({
+    author,
+    permlink,
+    // `liveAt` is the server's stamp of the moment the host hit Start, which is
+    // also when recording began — so timecodes line up with the VOD's timeline.
+    // The post's own timestamp is only a fallback: the announcement broadcast
+    // lands some seconds after go-live, and older rooms have no stamp at all.
+    startedAt: streamRoomMeta?.liveAt || videoDetails?.created_at,
+    hasPost: true,   // we ARE on the post — an announced stream always has one
+  });
+
   // Poster: the SDK's `poster: true` would set <video poster> straight from the
   // RAW metadata thumbnail — for legacy uploads that's the full-resolution
   // original (one is a 12MB JPEG), downloaded just to show a still frame. We turn
@@ -1207,6 +1280,10 @@ function Watch({ v2 = false }) {
     return [...promoted, ...authorVideos, ...recommendations];
   }, [authorItems, relatedItems, trendingItems, promotedVideos, author, permlink]);
 
+  // Batch the Hive content for the recommended list so the tiles can show the
+  // real comment count (the feed payload's num_comments is a hardcoded 0).
+  const { getContentForVideo: getSuggestedContent } = useContentBatch(suggestedVideos);
+
   const suggestedVideosRef = useRef(suggestedVideos);
   suggestedVideosRef.current = suggestedVideos;
 
@@ -1353,8 +1430,14 @@ function Watch({ v2 = false }) {
         videoDetails={videoDetails}
         author={author}
         permlink={permlink}
-        mediaUnavailable={mediaUnavailable}
-        mediaLoading={mediaLoading}
+        isLive={isLive}
+        streamRoom={videoDetails?.roomName}
+        liveChatSlot={isLive ? liveChatSlot : null}
+        onLiveChatSent={mirrorChatToHive}
+        vodAssetPending={vodProcessing}
+        onStreamRoomMeta={setStreamRoomMeta}
+        mediaUnavailable={!isLive && mediaUnavailable}
+        mediaLoading={!isLive && mediaLoading}
         videoRef={videoRef}
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
@@ -1492,9 +1575,20 @@ function Watch({ v2 = false }) {
         ) : null}
       />
 
-      {/* Right column: Reaction Player + Recommended */}
+      {/* Right column: Reaction Player (or, while live, the chat) + Recommended */}
       <div className="right-column">
-        {isReactionPlayerVisible && reactions.length > 0 && (
+        {/* A live stream has nothing to react TO yet, and the chat is the whole
+            point of watching one — so it takes the reaction panel's slot until
+            the recording is published, at which point this reverts to reactions
+            and the page becomes an ordinary watch page. Filled by a portal from
+            <LiveStreamPlayer>; empty until the room connects. */}
+        {isLive && (
+          <div className="live-chat-column">
+            <div className="live-chat-column__head">Live chat</div>
+            <div className="live-chat-column__body" ref={setLiveChatSlot} />
+          </div>
+        )}
+        {!isLive && isReactionPlayerVisible && reactions.length > 0 && (
           <ReactionPlayer
             reactions={reactions}
             selectedIndex={selectedReactionIndex}
@@ -1507,12 +1601,12 @@ function Watch({ v2 = false }) {
             onReactionPlay={pause}
           />
         )}
-        {!isReactionPlayerVisible && reactions.length > 0 && (
+        {!isLive && !isReactionPlayerVisible && reactions.length > 0 && (
           <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
             Show Reactions ({reactionCountLabel})
           </button>
         )}
-        {reactions.length === 0 && (
+        {!isLive && reactions.length === 0 && (
           <button className="show-reactions-btn" onClick={handleAddReaction}>
             Add Reaction
           </button>
@@ -1525,6 +1619,7 @@ function Watch({ v2 = false }) {
               videos={suggestedVideos}
               loading={false}
               shortTimeAgo={false}
+              getContentForVideo={getSuggestedContent}
               interleaveEvery={desktopCols > 0 && relatedShorts.length ? desktopCols * WATCH_ROWS_PER_SHORTS_RAIL : 0}
               renderInterleave={relatedShorts.length ? renderDesktopRail : null}
             />
@@ -1539,6 +1634,7 @@ function Watch({ v2 = false }) {
             videos={suggestedVideos.slice(0, 12)}
             loading={false}
             shortTimeAgo={false}
+            getContentForVideo={getSuggestedContent}
             interleaveEvery={mobileCols > 0 && relatedShorts.length ? mobileCols * WATCH_ROWS_PER_SHORTS_RAIL : 0}
             renderInterleave={relatedShorts.length ? renderMobileRail : null}
           />

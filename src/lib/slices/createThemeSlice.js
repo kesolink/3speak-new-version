@@ -4,8 +4,10 @@
  */
 
 export const createThemeSlice = (set, get) => ({
-  // Theme state: 'light' | 'dark' | 'system'
-  theme: 'light',
+  // Theme state: 'light' | 'dark' | 'system'.
+  // Default to dark for users with no stored preference (persisted theme, if
+  // any, is rehydrated over this and wins, so explicit choices are respected).
+  theme: 'dark',
   
   // Computed: actual theme based on system preference if theme is 'system'
   getEffectiveTheme: () => {

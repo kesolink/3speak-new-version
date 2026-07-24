@@ -1,9 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HangoutsProvider, HangoutsRoom } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
+import logoDark from '../../assets/image/3S_logodark.png';
+import { Star } from 'lucide-react';
+import { useAppStore } from '../../lib/store';
+import { useReviewModal } from '../../lib/reviewStore';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { getCreatorSettings, isUploadBlocked } from '../../utils/creatorSettings';
 import { useSupportBlock } from '../../lib/supportBlockStore';
+import { firePendingAnnouncement, getAnnounceConfig } from '../../utils/openpodAnnounce';
+import { publishStreamVod, trackServerVodPublish } from '../../utils/streamVod';
+import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import { defaultEndpoint, findRoomEndpoint } from '../../utils/hangoutsEndpoints';
+import AnnounceOptions from '../openpods/AnnounceOptions';
 import './OpenPodModal.scss';
 
 // Strip any trailing slash — useHangoutsRoom builds `${apiBaseUrl}/rooms` with a
@@ -17,15 +27,81 @@ const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
 // else falls back to the standalone hangout site.
 const THREE_SPEAK_HOSTS = new Set(['3speak.tv', 'preview.3speak.tv', '3speak.okinoko.io']);
 
-function buildOpenPodShareUrl(roomName, origin) {
+// The studio persists its post composer to localStorage under this key; we
+// reuse it to title/describe/thumbnail the published VOD.
+const POST_DRAFT_KEY = 'hh-studio-post-draft';
+function readPostDraft() {
+  try {
+    const raw = window.localStorage.getItem(POST_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function buildOpenPodShareUrl(roomName, origin, mode) {
+  // Where the link should DROP the recipient depends on what kind of session
+  // it is. A standalone stream has a spectator-facing watch page; a conference
+  // room has no such thing — you either join it or you see nothing — so its
+  // link has to be the room route itself. Sharing /watch for a conference sent
+  // people to a page with no stream on it.
+  //
+  // Built from the CURRENT host so a preview session shares a preview link
+  // instead of a prod one that doesn't exist yet.
   if (origin && THREE_SPEAK_HOSTS.has(origin)) {
-    return `https://3speak.tv/openpods/${roomName}`;
+    return mode === 'standalone'
+      ? `https://${origin}/watch/${roomName}`
+      : `https://${origin}/openpods/${roomName}`;
   }
   return `https://hangout.3speak.tv/room/${roomName}`;
 }
 
 export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, username, isAuthenticated }) {
+  const navigate = useNavigate();
   useWakeLock(isOpen);
+  // Follow the 3speak-selected theme (light/dark/system) instead of
+  // forcing the SDK widgets dark.
+  const hhTheme = useAppStore((s) => s.getEffectiveTheme());
+  const premiumStatus = usePremiumStatus(username);
+  const isPremium = !!premiumStatus?.premium;
+  // Owned here so the studio can react: with no announcement there's no post
+  // for a VOD to replace, so that option is hidden and inert.
+  const [announceEnabled, setAnnounceEnabled] = useState(() => getAnnounceConfig().announceEnabled !== false);
+  // A room lives on exactly ONE hangouts deployment — resolve which before
+  // connecting, otherwise we'd join the wrong server and 404.
+  const [endpoint, setEndpoint] = useState(() => defaultEndpoint());
+  // An UNLISTED session is link-only, so announcing it on Hive is a
+  // contradiction — the create dialog already hides the option, and this keeps
+  // the studio's own toggle consistent (which also hides the VOD option, since
+  // there'd be no post to replace).
+  const [isUnlisted, setIsUnlisted] = useState(false);
+  // Decides which share link the room hands out — see buildOpenPodShareUrl.
+  const [roomMode, setRoomMode] = useState(null);
+  // The host ended their stream — show a confirmation instead of dropping them
+  // straight back to the lobby. Reset each time a session opens.
+  const [streamEnded, setStreamEnded] = useState(false);
+  useEffect(() => { if (isOpen) setStreamEnded(false); }, [isOpen, roomName]);
+  const openReview = useReviewModal((s) => s.openReview);
+  useEffect(() => {
+    if (!roomName) return;
+    let alive = true;
+    findRoomEndpoint(roomName).then(async (ep) => {
+      if (!alive) return;
+      setEndpoint(ep);
+      try {
+        const res = await fetch(`${ep.api}/rooms/${encodeURIComponent(roomName)}`);
+        const room = res.ok ? await res.json() : null;
+        if (!alive) return;
+        // Set explicitly both ways: only ever setting `true` meant the flag
+        // stuck after opening an unlisted room and then a public one.
+        const unlisted = room?.visibility === 'unlisted';
+        setIsUnlisted(unlisted);
+        setRoomMode(room?.mode || null);
+        if (unlisted) setAnnounceEnabled(false);
+      } catch { /* leave defaults */ }
+    });
+    return () => { alive = false; };
+  }, [roomName]);
 
   // React fires child effects before parent effects. Without this flag,
   // HangoutsRoom.useEffect (join) fires before HangoutsProvider.useEffect
@@ -44,6 +120,11 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
     // Unauthenticated visitor → guest path; nothing to wait for.
     setRoomReady(isAuthenticated ? !!sessionToken : true);
   }, [sessionToken, isOpen, roomName, isAuthenticated]);
+
+  const getShareUrl = useCallback(
+    (name, origin) => buildOpenPodShareUrl(name, origin, roomMode),
+    [roomMode],
+  );
 
   if (!isOpen || !roomName) return null;
 
@@ -100,29 +181,92 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
         // leaving so the host doesn't accidentally drop the room
         // by missing the modal edge.
         if (e.target !== e.currentTarget) return;
+        // Already ended — no room to drop, so just close.
+        if (streamEnded) { onClose(); return; }
         if (window.confirm('Leave this OpenPod? You can rejoin from the lobby anytime.')) {
           onClose();
         }
       }}
     >
-      <div className="openpod-modal" data-hh-theme="dark">
+      <div className="openpod-modal" data-hh-theme={hhTheme}>
         <HangoutsProvider
-          apiBaseUrl={API_URL}
-          livekitServerUrl={LK_URL}
+          apiBaseUrl={endpoint.api}
+          livekitServerUrl={endpoint.lk}
           imageServerApiKey={IMAGE_KEY || undefined}
           sessionToken={sessionToken}
           username={username || undefined}
         >
-          {roomReady ? (
+          {streamEnded ? (
+            <div className="openpod-ended">
+              <div className="openpod-ended__icon" aria-hidden="true">✅</div>
+              <h2 className="openpod-ended__title">Your stream has ended</h2>
+              <p className="openpod-ended__text">
+                {announceEnabled && !isUnlisted
+                  ? 'Nice one! Your recording is being processed and will appear on the announcement post shortly.'
+                  : 'Nice one — thanks for going live!'}
+              </p>
+              <div className="openpod-ended__actions">
+                {/* navigate('/') BEFORE onClose so the OpenPods page unmounts
+                    first — otherwise its URL-cleanup effect fires on room-close
+                    and redirects to /openpods, overriding this. */}
+                <button className="openpod-ended__btn" onClick={() => { navigate('/'); onClose(); }}>Back to Home</button>
+                <button className="openpod-ended__btn" onClick={onClose}>Back to OpenPods</button>
+              </div>
+              <button
+                className="openpod-ended__feedback"
+                onClick={() => openReview({ area: 'stream', username: username || null, permlink: roomName || null })}
+              >
+                <Star size={18} /> How was your stream?
+              </button>
+            </div>
+          ) : roomReady ? (
             <HangoutsRoom
               roomName={roomName}
               onLeave={onClose}
+              onEnded={() => setStreamEnded(true)}
               onVideoHandoff={handleVideoHandoff}
               onAudioHandoff={handleAudioHandoff}
+              onStreamStart={(post) => firePendingAnnouncement(roomName, post)}
+              // Pro auto-VOD: publish the finished recording as this session's
+              // video. Fire-and-forget into a module-level publisher so the
+              // upload survives this modal unmounting when the room ends.
+              onStreamVod={(file) => {
+                // Normal path: the server publishes the VOD itself — just track
+                // its progress and toast it.
+                if (file.publishStatusUrl) {
+                  void trackServerVodPublish({ statusUrl: file.publishStatusUrl });
+                  return;
+                }
+                // Legacy fallback: an older server handed us the blob to upload.
+                const draft = readPostDraft();
+                void publishStreamVod({
+                  blob: file.blob,
+                  filename: file.filename,
+                  duration: file.duration,
+                  roomName: file.roomName || roomName,
+                  owner: username,
+                  title: draft.title,
+                  description: draft.description,
+                  tags: draft.tags,
+                  thumbnailUrl: draft.thumbnail,
+                });
+              }}
+              canPublishVod={announceEnabled && !isUnlisted}
+              isUnlisted={isUnlisted}
+              renderPostExtras={(
+                <AnnounceOptions
+                  announceType="post"
+                  isPremium={isPremium}
+                  showAnnounceToggle={!isUnlisted}
+                  announceEnabled={announceEnabled}
+                  onAnnounceEnabledChange={setAnnounceEnabled}
+                />
+              )}
               video
               embedded
               guestFallback
-              getShareUrl={buildOpenPodShareUrl}
+              getShareUrl={getShareUrl}
+              watermarkLogoUrl={new URL(logoDark, window.location.origin).href}
             />
           ) : (
             <div className="openpod-connecting">

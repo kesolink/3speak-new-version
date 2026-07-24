@@ -295,13 +295,14 @@
   }
 }
 
-// Row below textarea: buttons on right
+// Row below textarea: emoji/GIF picker on left, buttons on right
 .comment-form-row {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
+  flex-wrap: wrap;
 }
 
 @import '../LanguageSelector/translate-common';

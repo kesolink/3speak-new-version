@@ -17,13 +17,20 @@ export default function OpenPodsLiveStrip() {
   const { authenticated } = useAppStore();
   const navigate = useNavigate();
 
-  const { data: rooms = [] } = useQuery({
+  const { data: allRooms = [] } = useQuery({
     queryKey: ['openpods-live-rooms'],
     queryFn: () => client.listRooms(),
     refetchInterval: 30_000,
     staleTime: 20_000,
     enabled: !!client,
   });
+
+  // Conferences only. A standalone stream is a broadcast, not a room you drop
+  // into to talk — it already appears in the feeds as a LIVE video card that
+  // opens the watch page, and listing it here too sent people into the room
+  // UI instead. `mode` is absent on rooms created before the standalone split,
+  // and those were all conferences.
+  const rooms = allRooms.filter((r) => (r.mode ?? 'conference') === 'conference');
 
   if (rooms.length === 0) return null;
 

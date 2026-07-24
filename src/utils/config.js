@@ -14,9 +14,14 @@ const PLAYER_URL = PLAYER_URLS[0] || '';
 
 const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://api.hive.blog';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
-const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://3speak-checker.okinoko.io';
+const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://checker.3speak.tv';
 const TAG_FEED_URL = CHECKER_URL;
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
+// Playlist READS go through the 3speak server proxy (/api/pl/*), which holds the
+// secret token server-side and forwards to the playlists API — the token is never
+// shipped to the browser. Falls back to the direct API when unset (e.g. local dev
+// with no proxy). Watch-history and reshares stay on PLAYLISTS_API_URL (ungated).
+const PLAYLISTS_READ_URL = import.meta.env.VITE_PLAYLISTS_READ_URL || PLAYLISTS_API_URL;
 
 // All derived from CHECKER_URL
 const VIEWS_URL = CHECKER_URL;
@@ -29,8 +34,23 @@ const DISCOVER_FEED_URL = `${CHECKER_URL}/feeds/discover`;
 // `/feeds/discover?interestsOnly=1` filtered the discover pool, which is a uniform
 // sample of the catalogue, so a single-topic filter starved it (science: 1 page).
 const INTERESTS_FEED_URL = `${CHECKER_URL}/feeds/interests`;
+// "Follow these" creator suggestions — interest-matched creators ranked by recent
+// engagement (views+comments+reshares). Backs the rail on the discover/interests tabs.
+const SUGGESTED_CREATORS_URL = `${CHECKER_URL}/feeds/suggested-creators`;
 const NEW_CONTENT_URL = `${CHECKER_URL}/feeds/new`;
 const FIRST_UPLOADS_URL = `${CHECKER_URL}/feeds/firstUploads`;
+// Max length of a Short, in seconds. Every encoder node supports 2 minutes; keep
+// this as the single source of truth for the upload gate, the react-video
+// classifier and the user-facing hints so they can never drift apart.
+const SHORTS_MAX_DURATION_SEC = parseInt(import.meta.env.VITE_SHORTS_MAX_DURATION_SEC, 10) || 120;
+
+/** "2 minutes" / "90 seconds" — for hint + error copy. */
+const shortsMaxDurationLabel = () => (
+  SHORTS_MAX_DURATION_SEC % 60 === 0
+    ? `${SHORTS_MAX_DURATION_SEC / 60} minute${SHORTS_MAX_DURATION_SEC === 60 ? '' : 's'}`
+    : `${SHORTS_MAX_DURATION_SEC} seconds`
+);
+
 const SHORTS_STORIES_URL = `${CHECKER_URL}/shorts/stories`;
 const SHORTS_API_URL = `${CHECKER_URL}/shortssorted`;
 const USER_SHORTS_API_URL = `${CHECKER_URL}/shorts`;
@@ -105,7 +125,7 @@ const TRANSLATE_API_URL = import.meta.env.VITE_TRANSLATE_API_URL || 'https://3sp
 // Social verifier (mantequilla-social-verifier) — md5-hash ownership proof for web2 socials
 // Social-link verifier was merged into the checker — it now serves /verify
 // at the checker host. (Env still overrides for local/testnet.)
-const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https://3speak-checker.okinoko.io').replace(/\/$/, '');
+const SOCIAL_VERIFIER_URL = (import.meta.env.VITE_SOCIAL_VERIFIER_URL || 'https://checker.3speak.tv').replace(/\/$/, '');
 
 // Watch history threshold - number of days to show unwatched indicator
 const WATCH_HISTORY_THRESHOLD_DAYS = parseInt(import.meta.env.VITE_WATCH_HISTORY_THRESHOLD_DAYS || '14', 10);
@@ -159,13 +179,48 @@ const CHECKER_API_KEY = import.meta.env.VITE_CHECKER_API_KEY || '';
 
 // Feature flags for MetaMask Snap login and 3Speak Pro subscriptions
 const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true';
-// Default-on: only disabled when explicitly set to "false".
-const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false';
+// Default-on: only disabled when explicitly set to "false". A hidden soft-launch
+// "unlock" (5 taps on the RPC node line in the profile menu) writes
+// butrauth_unlocked=true to localStorage to force it on even when the env flag
+// is off, so testers can reveal the Butter Auth login + signup before launch.
+const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false'
+  || (typeof localStorage !== 'undefined' && localStorage.getItem('butrauth_unlocked') === 'true');
 const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
 // Pay-per-listen reward controls in the audio uploader. Enabled by
 // default; set VITE_ENABLE_PPL=false to hide the earn-mode chooser and
 // never attach the PPL beneficiary op.
 const ENABLE_PPL = import.meta.env.VITE_ENABLE_PPL !== 'false';
+
+// The standalone livestream studio as an OpenPods mode. Enabled by default;
+// set VITE_OPENPODS_STANDALONE=false to hide the Room/Standalone tiles in the
+// create dialog entirely, leaving OpenPods as conference rooms only.
+const OPENPODS_STANDALONE = import.meta.env.VITE_OPENPODS_STANDALONE !== 'false';
+
+// Gates the OpenPods live-streaming options in the create/share menu (the whole
+// "Live" category). OFF by default — set VITE_ENABLE_OPENPODS=true to show it.
+const ENABLE_OPENPODS = import.meta.env.VITE_ENABLE_OPENPODS === 'true';
+
+// Hosts whose live streams / rooms are kept OUT of the discovery feeds
+// (discover, follow, new). Same spirit as the checker's LEADERBOARD_EXCLUDED_USERS
+// — the account still works normally and its streams stay reachable by direct
+// link; they just don't get surfaced in the feeds. Comma-separated override.
+const FEED_EXCLUDED_HOSTS = new Set(
+  (import.meta.env.VITE_FEED_EXCLUDED_HOSTS ?? 'badadib')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+// Mobile-only in-browser camera recorder with a voice-driven teleprompter
+// (prototype). When on, the video upload step shows a "Record" button on phones
+// that opens a front-camera recording page. Off unless explicitly "true".
+const ENABLE_CAMERA_RECORD = import.meta.env.VITE_ENABLE_CAMERA_RECORD === 'true';
+
+// Self-hosted streaming speech-to-text WebSocket for the teleprompter. Empty =
+// use the browser Web Speech API only (which can't share the mic with the audio
+// recording). When set, recording taps the SINGLE recording audio track and
+// streams it here, so voice-scroll works DURING recording. See the STT plan.
+const STT_WS_URL = import.meta.env.VITE_STT_WS_URL || '';
 
 export {
   appendNsfw,
@@ -183,6 +238,7 @@ export {
   PLAYER_URL,
   PLAYER_URLS,
   PLAYLISTS_API_URL,
+  PLAYLISTS_READ_URL,
   WATCH_HISTORY_THRESHOLD_DAYS,
   POST_RC_COST,
   EMBED_UPLOAD_URL,
@@ -195,8 +251,11 @@ export {
   FOLLOW_FEED_URL,
   DISCOVER_FEED_URL,
   INTERESTS_FEED_URL,
+  SUGGESTED_CREATORS_URL,
   NEW_CONTENT_URL,
   FIRST_UPLOADS_URL,
+  SHORTS_MAX_DURATION_SEC,
+  shortsMaxDurationLabel,
   SHORTS_STORIES_URL,
   SHORTS_API_URL,
   USER_SHORTS_API_URL,
@@ -215,6 +274,11 @@ export {
   ENABLE_METAMASK_SNAP,
   ENABLE_BUTRAUTH,
   ENABLE_SUBS,
+  OPENPODS_STANDALONE,
+  ENABLE_OPENPODS,
+  FEED_EXCLUDED_HOSTS,
+  ENABLE_CAMERA_RECORD,
+  STT_WS_URL,
   ENABLE_PPL,
   THREESPEAK_AUDIO_API_URL,
   THREESPEAK_API_KEY,
