@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
 import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import { refreshHomeFeeds } from '../../utils/feedSeed';
 import TagsV2Picker from '../tooltip/TagsV2Picker';
 import './InterestsPrompt.scss';
 
@@ -29,6 +31,7 @@ export default function InterestsPrompt() {
   const user = useAppStore((s) => s.user);
   const authenticated = useAppStore((s) => s.authenticated);
   const setInterests = useAppStore((s) => s.setInterests);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -67,6 +70,10 @@ export default function InterestsPrompt() {
       if (user) markPrompted(user);
       toast.success('Interests saved — change them anytime in Settings');
       setOpen(false);
+      // Refetch the home feeds in place (no page reload) so they immediately
+      // reflect the new interests. Runs after setInterests so the feed params
+      // read the fresh list from the store.
+      refreshHomeFeeds(queryClient, { authenticated, user });
     } catch (e) {
       toast.error(e?.message || 'Could not save interests');
     } finally {
