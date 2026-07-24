@@ -37,6 +37,8 @@ import ShortsIcon from '../icons/ShortsIcon';
 import TipModal from '../tip-reward/TipModal';
 import UserAudioList from './UserAudioList';
 import CommunitySnaps from './CommunitySnaps';
+import SpotlightEditor from '../Spotlight/SpotlightEditor';
+import ProfileStreams from './ProfileStreams';
 import { fetchSnaps } from '../../lib/snaps';
 import SocialLinks from './SocialLinks';
 import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
@@ -60,6 +62,7 @@ function UserProfilePage() {
       if (tab === 'shorts') return 'shorts';
       if (tab === 'audio') return 'audio';
       if (tab === 'community') return 'community';
+      if (tab === 'links') return 'links';
       if (tab === 'stats') return 'stats';
       return 'video';
     });
@@ -71,6 +74,7 @@ function UserProfilePage() {
       else if (tab === 'shorts') setShow('shorts');
       else if (tab === 'audio') setShow('audio');
       else if (tab === 'community') setShow('community');
+      else if (tab === 'links') setShow('links');
       else if (tab === 'stats') setShow('stats');
       else if (!tab) setShow('video');
     }, [searchParams]);
@@ -118,6 +122,32 @@ function UserProfilePage() {
       staleTime: 60 * 1000,
     });
     const snapCount = snapCountData?.total || 0;
+
+    // The Streams tab only exists when there's something to show — a running
+    // OpenPods session, or the VOD of a finished one. Counts both.
+    const { data: streamCount = 0 } = useQuery({
+      queryKey: ['profile-streams-count', user],
+      queryFn: async () => {
+        const hangoutsApi = (import.meta.env.VITE_HANGOUTS_API_URL || '').replace(/\/$/, '');
+        const [vods, rooms] = await Promise.all([
+          axios
+            .get(`${MY_VIDEOS_URL}/api/my-videos?username=${encodeURIComponent(user)}&limit=50&status=published&openpod=1`)
+            .then((r) => r.data?.data?.videos || [])
+            .catch(() => []),
+          hangoutsApi
+            ? fetch(`${hangoutsApi}/streams`)
+                .then((r) => (r.ok ? r.json() : []))
+                .then((list) => (Array.isArray(list) ? list : []).filter(
+                  (x) => String(x.host || '').toLowerCase() === String(user).toLowerCase(),
+                ))
+                .catch(() => [])
+            : Promise.resolve([]),
+        ]);
+        return vods.length + rooms.length;
+      },
+      enabled: !!user && user !== 'unknown',
+      staleTime: 60 * 1000,
+    });
 
     const handleHideToggle = useCallback(async () => {
       if (!authenticatedUser || !user || isOwnProfile) return;
@@ -507,12 +537,20 @@ const {
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          {streamCount > 0 && (
+            <span className={show === "streams" ? "active" : ""} onClick={() => selectTab("streams")}>
+              Streams ({streamCount})
+            </span>
+          )}
           <span className={show === "community" ? "active" : ""} onClick={() => selectTab("community")}>
             Community {snapCount > 0 && `(${snapCount})`}
           </span>
           <span className={show === "playlists" ? "active" : ""} onClick={() => selectTab("playlists")}>
             Playlists {playlists.length > 0 && `(${playlists.length})`}
           </span>
+          {isOwnProfile && (
+            <span className={show === "links" ? "active" : ""} onClick={() => selectTab("links")}>Links</span>
+          )}
           {canSeeStats && (
             <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Analytics</span>
           )}
@@ -544,8 +582,12 @@ const {
     )
   ) : show === "audio" ? (
     <UserAudioList user={user} />
+  ) : show === "streams" ? (
+    <ProfileStreams user={user} getViewCount={getViewCount} />
   ) : show === "community" ? (
     <CommunitySnaps user={user} canPost={false} />
+  ) : show === "links" ? (
+    <SpotlightEditor username={user} />
   ) : show === "stats" ? (
     canSeeStats ? <CreatorStats user={user} /> : null
   ) : show === "playlists" ? (

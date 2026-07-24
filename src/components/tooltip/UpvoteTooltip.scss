@@ -168,7 +168,9 @@
 
 .vote-popup {
   position: relative;
-  width: 320px;
+  // Sized so the tag tiles lay out 4 per row and still fit the longest labels
+  // ("Entertainment", "Cryptocurrency") on one line — see .tagsv2-row.
+  width: 480px;
   max-width: 90vw;
   background: #fff;
   border-radius: 16px;
@@ -233,13 +235,39 @@
 
   .vote-slider-track {
     position: relative;
-    width: 100%;
-    height: 6px;
-    border-radius: 3px;
+    // Inset (not width:100%) so the thumb has room at 0% / 100% instead of
+    // hanging over the popup edges. The drag math reads the track's own rect,
+    // so the margins don't affect the percentage.
+    width: auto;
+    margin: 8px 24px;
+    height: 14px;
+    border-radius: 999px;
     background: var(--range-track);
-    cursor: pointer;
+    cursor: grab;
     touch-action: none;
     user-select: none;
+
+    &:active { cursor: grabbing; }
+
+    // The thumb is bigger than the track and is pointer-events:none, so without a
+    // padded hit area, pressing directly on it hits nothing (default cursor, no
+    // drag). This pseudo-element belongs to the track, so hovering/pressing it
+    // counts as the track and starts the drag. Two overflows to cover:
+    //   • vertically — the 26px thumb is taller than the 14px track;
+    //   • horizontally — at 1% / 100% the thumb is CENTRED on the track's end, so
+    //     half of it (13px) hangs past the edge. Without the side bleed the
+    //     handle is undraggable exactly at the extremes.
+    // Presses in the bleed land outside the track's rect, which getPct() clamps
+    // to 1–100 — so they read as the nearest end, which is what you want.
+    &::before {
+      content: "";
+      position: absolute;
+      left: -14px;   // > half the thumb (13px)
+      right: -14px;
+      top: 50%;
+      height: 38px; // > thumb (26px) with room to spare
+      transform: translateY(-50%);
+    }
   }
 
   .vote-slider-fill {
@@ -247,7 +275,7 @@
     top: 0;
     left: 0;
     height: 100%;
-    border-radius: 3px;
+    border-radius: 999px;
     background: var(--accent-primary, #e53935);
     pointer-events: none;
   }
@@ -255,13 +283,17 @@
   .vote-slider-thumb {
     position: absolute;
     top: 50%;
-    width: 20px;
-    height: 20px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     background: var(--accent-primary, #e53935);
+    // Ring in the popup's own colour so the thumb stays legible on the fill.
+    border: 2px solid #fff;
     transform: translate(-50%, -50%);
     pointer-events: none;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+
+    [data-theme="dark"] & { border-color: #1e1e1e; }
   }
 
   .vote-popup-value {
@@ -303,7 +335,9 @@
   // Compact variant — smaller popup on desktop (watch page)
   &.vote-popup--compact {
     @media screen and (min-width: 768px) {
-      width: 360px;
+      // Wide enough for a 4-across tag grid whose tiles fit "Entertainment" /
+      // "Cryptocurrency" unbroken, while staying compact vertically.
+      width: 480px;
       padding: 20px 18px 18px;
       gap: 12px;
       border-radius: 12px;
@@ -311,7 +345,7 @@
       .vote-popup-close { width: 26px; height: 26px; top: 8px; right: 8px; }
       .vote-popup-label { font-size: 14px; }
       .vote-popup-value { font-size: 18px; min-height: 24px; }
-      .vote-slider-thumb { width: 16px; height: 16px; }
+      .vote-slider-thumb { width: 23px; height: 23px; }
 
       .vote-popup-submit {
         padding: 8px 0;
@@ -336,7 +370,11 @@
   margin: 6px 0 10px;
   text-align: left;
 
-  span {
+  // DIRECT child only — this is the section heading ("Tag this video"). As a
+  // descendant selector it also hit every <span> inside the tag pickers, which
+  // uppercased + letter-spaced the tile labels (so "Entertainment" rendered as
+  // "ENTERTAINMENT" and no longer fit its tile) and dimmed them to 0.7.
+  > span {
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.03em;

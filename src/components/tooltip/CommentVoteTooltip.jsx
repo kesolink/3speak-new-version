@@ -11,7 +11,9 @@ import { Orbit } from 'ldrs/react';
 import 'ldrs/react/Orbit.css';
 import { voteWithAioha, tagVideoWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { recordViewerTag, getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
-import ViewerTagPicker from './ViewerTagPicker';
+import { getVideoTagsV2, getCachedTagsV2, getTagLabel, getCategoryOf } from '../../utils/tagsV2';
+import { getSavedVoteWeight, saveVoteWeight } from '../../utils/voteWeight';
+import TagsV2Picker from './TagsV2Picker';
 
 // Hive posts pay out (and voting stops mattering) 7 days after creation.
 const PAYOUT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -54,6 +56,9 @@ const CommentVoteTooltip = ({
   // The post's creation date — after the 7-day payout window, voting is hidden and
   // only tagging remains (interpreted as a 100% vote).
   postCreatedAt = null,
+  // Which remembered vote weight this dialog uses. Posts and comments keep
+  // separate values (see utils/voteWeight.js).
+  voteKind = 'post',
 }) => {
   const { user, authenticated } = useAppStore();
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +72,12 @@ const CommentVoteTooltip = ({
   const [tagPct, setTagPct] = useState({});
   // For the closed-voting tag-only path: the tag this user already gave (if any).
   const [myExistingTag, setMyExistingTag] = useState(undefined); // undefined=unknown
+  // The v2 tags the background tagger assigned to this video. Non-empty = this
+  // video is on the new taxonomy, so we show the v2 (category → topic) picker
+  // instead of the v1 interest tiles. Empty = untagged/not processed → v1 picker.
+  // `null` = we don't know YET — render neither picker rather than flashing the
+  // wrong one. Seeded from the cache so a prefetched video knows immediately.
+  const [autoTagsV2, setAutoTagsV2] = useState(() => getCachedTagsV2(author, permlink)?.tags ?? []);
 
   // After the payout window there's nothing to vote on — switch to tag-only.
   const votingClosed = !!postCreatedAt
@@ -82,6 +93,31 @@ const CommentVoteTooltip = ({
       const map = {};
       for (const c of data.counts) map[c.tag] = c.pct;
       setTagPct(map);
+    });
+    return () => { alive = false; };
+  }, [enableViewerTag, showTooltip, author, permlink]);
+
+  // Does this video carry v2 tags? Decides which picker we show. A cache hit
+  // (normally warmed by the page's prefetch) resolves synchronously — no flash.
+  // Otherwise we go back to "unknown" so neither picker renders until we know.
+  useEffect(() => {
+    if (!enableViewerTag || !showTooltip || !author || !permlink) return;
+
+    // Preselect the auto-tag's CATEGORY. When the tagger picked a topic (the
+    // 2nd level), its parent category is the far more reliable signal — so we
+    // default to the parent and let the viewer refine to a topic if they want.
+    // A category auto-tag resolves to itself. Never clobbers an existing pick.
+    const apply = (tags) => {
+      setAutoTagsV2(tags);
+      const parent = tags.length ? getCategoryOf(tags[0]) : null;
+      if (parent) setViewerTag((cur) => cur || parent);
+    };
+
+    const cached = getCachedTagsV2(author, permlink);
+    if (cached) { apply(cached.tags); return; }
+    let alive = true;
+    getVideoTagsV2(author, permlink).then(({ tags }) => {
+      if (alive) apply(tags);
     });
     return () => { alive = false; };
   }, [enableViewerTag, showTooltip, author, permlink]);
@@ -112,7 +148,7 @@ const CommentVoteTooltip = ({
       await tagVideoWithAioha(author, permlink, viewerTag, 10000);
       // Await the mirror so the consensus refresh below reflects this tag.
       await recordViewerTag(user, author, permlink, viewerTag, 10000);
-      toast.success(`Tagged “${viewerTag}”`);
+      toast.success(`Tagged “${getTagLabel(viewerTag)}”`);
       // Refresh the watch-page topics row (isNewVote=false → no vote-count change).
       onVoteSuccess?.(author, permlink, false, 10000);
       setShowTooltip(false);
@@ -158,8 +194,14 @@ const CommentVoteTooltip = ({
     const container = sliderContainerRef.current;
     if (!container) return;
 
-    weightRef.current = parentWeight;
-    if (labelRef.current) labelRef.current.textContent = `Vote Weight: ${parentWeight}%`;
+    // Open on the weight this user last voted with for THIS kind (posts and
+    // comments remember separate values), not a hardcoded 100%.
+    const startWeight = getSavedVoteWeight(voteKind);
+    weightRef.current = startWeight;
+    if (labelRef.current) labelRef.current.textContent = `Vote Weight: ${startWeight}%`;
+    // Keep the parent's state in step so the rendered label and the estimate
+    // agree with the slider we just built.
+    if (startWeight !== parentWeight) setParentWeight(startWeight);
 
     // Build track → fill + thumb
     const track = document.createElement('div');
@@ -167,11 +209,11 @@ const CommentVoteTooltip = ({
 
     const fill = document.createElement('div');
     fill.className = 'vote-slider-fill';
-    fill.style.width = `${parentWeight}%`;
+    fill.style.width = `${startWeight}%`;
 
     const thumb = document.createElement('div');
     thumb.className = 'vote-slider-thumb';
-    thumb.style.left = `${parentWeight}%`;
+    thumb.style.left = `${startWeight}%`;
 
     track.appendChild(fill);
     track.appendChild(thumb);
@@ -323,14 +365,30 @@ const CommentVoteTooltip = ({
 
       const existingVote = data.active_votes?.find((vote) => vote.voter === user);
 
+      // Video vote → vote + viewer-tag custom_json in ONE signed transaction.
+      const tag = enableViewerTag ? (viewerTag || null) : null;
+
       if (existingVote && existingVote.percent === voteWeight) {
+        // Re-voting the same weight is a no-op on chain. If they ALSO picked a
+        // tag, submit that on its own rather than dropping it — otherwise the
+        // tag is silently lost, which is easy to hit now that the slider
+        // reopens on the weight you last voted with.
+        if (tag) {
+          await tagVideoWithAioha(author, permlink, tag, voteWeight);
+          await recordViewerTag(user, author, permlink, tag, voteWeight);
+          saveVoteWeight(voteKind, currentWeight);
+          toast.success(`Tagged “${getTagLabel(tag)}” — your ${currentWeight}% vote was already cast.`);
+          onVoteSuccess?.(author, permlink, false, voteWeight);
+          setShowTooltip(false);
+          setActiveTooltipPermlink?.(null);
+          setIsLoading(false);
+          return;
+        }
         toast.info('You already voted with this weight. Choose a different value.');
         setIsLoading(false);
         return;
       }
 
-      // Video vote → vote + viewer-tag custom_json in ONE signed transaction.
-      const tag = enableViewerTag ? (viewerTag || null) : null;
       await voteWithAioha(author, permlink, voteWeight, tag);
 
       // Mirror the tag into the checker's queryable index (best-effort; the signed
@@ -342,10 +400,11 @@ const CommentVoteTooltip = ({
         ? estimateLocal(cachedAccountRef.current, cachedDynamicPropsRef.current, currentWeight)
         : '0.000';
 
-      toast.success(`Vote successful!${tag ? ` Tagged “${tag}”.` : ''} Value: $${finalValue}`);
+      toast.success(`Vote successful!${tag ? ` Tagged “${getTagLabel(tag)}”.` : ''} Value: $${finalValue}`);
 
-      // Sync back to parent
+      // Sync back to parent + remember this weight for the next vote of this kind.
       setParentWeight(currentWeight);
+      saveVoteWeight(voteKind, currentWeight);
       setParentVoteValue(finalValue);
 
       const isNewVote = !existingVote;
@@ -436,17 +495,19 @@ const CommentVoteTooltip = ({
                   </div>
                 ) : myExistingTag ? (
                   <p className="vote-popup-note">
-                    You tagged this as <b>{myExistingTag}</b>.
+                    You tagged this as <b>{getTagLabel(myExistingTag)}</b>.
                   </p>
                 ) : (
                   <>
                     <div className="viewer-tag-select" onClick={(e) => e.stopPropagation()}>
                       <span>Pick a topic (counts as a 100% vote)</span>
-                      <ViewerTagPicker
+                      <TagsV2Picker
                         value={viewerTag}
                         onChange={setViewerTag}
                         tagPct={tagPct}
                         disabled={isLoading}
+                        suggested={autoTagsV2 || []}
+                        searchable
                       />
                     </div>
                     <button
@@ -486,11 +547,13 @@ const CommentVoteTooltip = ({
                   <>
                     <div className="viewer-tag-select" onClick={(e) => e.stopPropagation()}>
                       <span>Tag this video{justTag ? ' (counts as a 100% vote)' : ''}</span>
-                      <ViewerTagPicker
+                      <TagsV2Picker
                         value={viewerTag}
                         onChange={setViewerTag}
                         tagPct={tagPct}
                         disabled={isLoading}
+                        suggested={autoTagsV2 || []}
+                        searchable
                       />
                     </div>
 

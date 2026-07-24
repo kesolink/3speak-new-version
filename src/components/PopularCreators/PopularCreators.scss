@@ -1,0 +1,106 @@
+@use "../../mixins.scss" as mix;
+
+// "Popular creators" — a standalone horizontal row of creator cards on Discover.
+.popular-creators {
+  margin: 8px 0 20px;
+
+  .pc-title {
+    margin: 0 0 10px;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  // Scrolls sideways rather than wrapping, so the row stays one line tall.
+  .pc-row {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  .pc-card {
+    flex: 0 0 auto;
+    width: 132px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+    background: var(--card-bg);
+    text-align: center;
+    transition: border-color 0.15s ease;
+
+    &:hover { border-color: var(--border-color); }
+
+    @include mix.respond(phone) {
+      width: 120px;
+      padding: 12px 8px 10px;
+    }
+  }
+
+  .pc-avatar {
+    display: block;
+    width: 56px;
+    height: 56px;
+    line-height: 0;
+
+    img {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+  }
+
+  .pc-name {
+    max-width: 100%;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: none;
+    // Long Hive names must not stretch the card.
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &:hover { color: var(--accent-primary); }
+  }
+
+  // Reserves its line even while the count is still loading, so cards don't jump.
+  .pc-followers {
+    min-height: 15px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+
+  // Red outline, never a red fill (app-wide convention for red controls).
+  .pc-follow {
+    width: 100%;
+    margin-top: 2px;
+    padding: 6px 0;
+    border-radius: 999px;
+    border: 1px solid var(--accent-primary);
+    background: transparent;
+    color: var(--accent-primary);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover:not(:disabled) { background: var(--accent-light); }
+
+    // Already following: settled state, no longer the call to action.
+    &.followed {
+      border-color: var(--border-color);
+      color: var(--text-secondary);
+      cursor: default;
+    }
+
+    &:disabled:not(.followed) { opacity: 0.6; cursor: default; }
+  }
+}

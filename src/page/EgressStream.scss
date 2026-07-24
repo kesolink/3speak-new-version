@@ -1,0 +1,34 @@
+// The egress recording surface. Nothing here is seen by a person — it is the
+// page a headless Chrome screenshots into an MP4 — so it carries no chrome and
+// no theme.
+
+.egress-stream {
+  position: fixed;
+  inset: 0;
+  // Above the app shell: this route still renders inside it, and a nav bar
+  // creeping into the recording would be baked into the VOD.
+  z-index: 99999;
+  background: #000;
+  overflow: hidden;
+}
+
+.egress-stream__idle {
+  position: absolute;
+  inset: 0;
+  background: #000;
+}
+
+.egress-stream__video,
+.egress-stream video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  // CONTAIN, not cover. The egress viewport is sized to the stream's own
+  // orientation (portrait for a phone, landscape for a desktop), so the track
+  // should already fill it — but if the two ever disagree, letterboxing keeps
+  // the whole frame. `cover` would silently crop the broadcaster's picture out
+  // of their own recording, which is unrecoverable.
+  object-fit: contain;
+  background: #000;
+}

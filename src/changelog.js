@@ -7,6 +7,90 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.76.0',
+    date: '2026-07-24',
+    summary:
+      'New: your own link page. Every creator gets a Spotlight page at 3speak.tv/links/yourname, built from the new Links tab on your profile. Add link buttons, embed your videos or latest posts and images, then style it with backgrounds, fonts, motion and ready-made templates.',
+  },
+  {
+    version: '1.75.0',
+    date: '2026-07-24',
+    summary:
+      'When you pick your interests in the welcome popup, the Home feeds now update right away to match, without reloading the page.',
+  },
+  {
+    version: '1.74.0',
+    date: '2026-07-24',
+    summary:
+      '3Speak now starts in dark mode for new visitors. Your saved choice still applies, and you can switch anytime in Settings.',
+  },
+  {
+    version: '1.73.0',
+    date: '2026-07-23',
+    summary:
+      'You can now add a topic tag to a video even after its rewards window has ended, so it still helps sort content by topic.',
+  },
+  {
+    version: '1.72.0',
+    date: '2026-07-22',
+    summary:
+      'New Review button floating on every page: rate 3Speak and send feedback in a few taps.',
+  },
+  {
+    version: '1.71.0',
+    date: '2026-07-22',
+    summary:
+      'Community pages got an upgrade: a Subscribe button that shows whether you are already subscribed, live stats from Hive (subscribers, active posters, posts and more), and New/Trending are now proper tabs — with the community description moved beside the video grid on desktop.',
+  },
+  {
+    version: '1.68.0',
+    date: '2026-07-19',
+    summary:
+      'Large video cards now show the topic (for example Entertainment or Food & Outdoors) next to the view count, based on the automatic tagging.',
+  },
+  {
+    version: '1.67.0',
+    date: '2026-07-19',
+    summary:
+      'Video cards now show the comment count alongside views and likes — in the feeds and in the More videos list on a watch page.',
+  },
+  {
+    version: '1.66.0',
+    date: '2026-07-19',
+    summary:
+      'New Popular creators row on Discover: creators from the trending list you are not following yet, with their follower count and a Follow button.',
+  },
+  {
+    version: '1.65.0',
+    date: '2026-07-19',
+    summary:
+      'Shorts can now be up to 2 minutes long, instead of 60 seconds. The upload limit and the hints in the Short uploader and the React-video box have been raised to match.',
+  },
+  {
+    version: '1.64.0',
+    date: '2026-07-18',
+    summary:
+      'Recently updated public playlists now show up as their own card in the home feeds, and the feeds respect a creator’s choice to keep a video out of them.',
+  },
+  {
+    version: '1.62.0',
+    date: '2026-07-18',
+    summary:
+      'New topic picker when you vote: choose a broad category (Entertainment, Tech & Science, …) and then, if you like, a specific topic. The leaderboard groups its topics the same way, and picking a category there now covers all the topics under it. The vote dialog also remembers your last vote weight, kept separately for videos, shorts and comments.',
+  },
+  {
+    version: '1.60.0',
+    date: '2026-07-18',
+    summary:
+      'The Upload menu is now called Share, with a new Community Snap entry (your profile\'s Community tab). Logged-out visitors get an About 3Speak button next to Log in, and the About page now follows the app\'s light and dark theme.',
+  },
+  {
+    version: '1.59.0',
+    date: '2026-07-18',
+    summary:
+      'GIFs and emojis in comments and posts, using the same pickers as chat. Look for the smiley and GIF buttons under the comment box on the watch page, shorts and community posts, and in the video and community post editors.',
+  },
+  {
     version: '1.58.0',
     date: '2026-07-16',
     summary:
@@ -28,7 +112,7 @@ export const CHANGELOG = [
     version: '1.55.0',
     date: '2026-07-12',
     summary:
-      'Shorts now also show up between the recommended videos on a watch page, picked to match the topic of the video you\u2019re watching. Don\u2019t want shorts mixed into your lists? Turn off \u201CShorts inside the feeds\u201D in Settings \u2192 Shorts. On the Stories view, the comments panel no longer covers the creators bar and now closes away completely.',
+      'Shorts now also show up between the recommended videos on a watch page, picked to match the topic of the video you’re watching. Don’t want shorts mixed into your lists? Turn off \u201CShorts inside the feeds\u201D in Settings → Shorts. On the Stories view, the comments panel no longer covers the creators bar and now closes away completely.',
   },
   {
     version: '1.54.0',
@@ -292,7 +376,7 @@ export const CHANGELOG = [
     version: '1.12.0',
     date: '2026-06-13',
     summary:
-      'New 3Speak Chat: message any Hive user with direct messages, and join channels, from the new chat icon in the top bar (or the /chat page). It connects on its own — no extra signature popup. And hosting OpenPods rooms now works no matter how you logged in (HiveSigner, Keychain, HiveAuth, PeakVault or Ledger).',
+      'New 3Speak Chat: message any Hive user with direct messages, and join channels, from the new chat icon in the top bar (or the /chat page). It connects on its own — no extra signature popup.',
   },
   {
     version: '1.11.1',
@@ -449,12 +533,6 @@ export const CHANGELOG = [
     date: '2026-05-06',
     summary:
       'Audio comes to 3Speak. Share a podcast or music track from the upload menu and listen with the new built-in audio player, plus new profile and social links.',
-  },
-  {
-    version: '1.6.0',
-    date: '2026-05-03',
-    summary:
-      'Introducing OpenPods — live audio and video rooms. Start or join a room from the new OpenPods section (/openpods), publish your recordings, invite guests, and share a room link.',
   },
   {
     version: '1.5.0',

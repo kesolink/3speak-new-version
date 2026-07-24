@@ -45,5 +45,20 @@ export function stripAutoEmbeds(html) {
     (m, src) => embedToLink(m, src)
   );
 
+  // 4. A BARE 3Speak URL that the renderer auto-linked into its own paragraph.
+  //    Our uploads and OpenPods announcements lead the body with
+  //    `play.3speak.tv/embed?v=…`, which never becomes an iframe (so the rules
+  //    above miss it) yet shouldn't be printed above the description — the page
+  //    already has the player. Only paragraphs that are JUST that link are
+  //    dropped, so a labelled link ("▶ Watch on 3speak.tv") is kept.
+  out = out.replace(
+    /<p[^>]*>\s*<a[^>]*\bhref="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*<\/p>/gi,
+    (m, href, text) => {
+      if (!/(?:\/\/|\.)3speak\.tv/i.test(href)) return m;
+      const norm = (s) => String(s).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+      return norm(text) === norm(href) ? '' : m;
+    }
+  );
+
   return out;
 }

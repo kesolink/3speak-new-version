@@ -1,0 +1,23 @@
+// Group headers in the Share menu (Upload / Live / Others).
+//
+// UploadLinks renders into four different containers (Nav flyout, Sidebar,
+// ProfileNav, BottomNav), each vertical, so one neutral heading style works in
+// all of them. Deliberately quiet — a small muted label, not another clickable
+// row — so the actual items stay the focus.
+.share-menu-heading {
+  padding: 0.5rem 0.75rem 0.2rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #8a8a8a);
+  opacity: 0.75;
+  pointer-events: none;
+  user-select: none;
+
+  // The first heading has an item-less top; drop the extra lead-in so the menu
+  // doesn't open with a big gap above "Upload".
+  &:first-child {
+    padding-top: 0.15rem;
+  }
+}

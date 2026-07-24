@@ -10,7 +10,9 @@ html[data-card-size="large"] { --card-min-w: 420px; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-min-w, 460px), 1fr));
   grid-column-gap: 16px;
-  grid-row-gap: 30px;
+  // Match the vertical gap to the horizontal one on desktop (was a roomier 30px).
+  // Mobile keeps its own tighter row-gap in the phone block below.
+  grid-row-gap: 16px;
   margin-top: 15px;
   position: relative; // anchor for the single hover-preview overlay
   @include respond(phone) {
@@ -420,6 +422,13 @@ html[data-card-size="large"] { --card-min-w: 420px; }
         font-size: 12.95px;
         margin-bottom: 2px;
         color: var(--text-secondary);
+        // Phones show two cards per row, so this strip has roughly half the
+        // width it was measured at — halve the gap so payout/votes/comments
+        // stop wrapping or crowding the edge. AFTER the declarations above:
+        // sass warns about declarations that follow a nested rule.
+        @include respond(phone) {
+          gap: 6px;
+        }
         .flex-div {
           gap: 2px;
 
@@ -446,6 +455,32 @@ html[data-card-size="large"] { --card-min-w: 420px; }
               color: var(--accent-primary);
             }
           }
+        }
+      }
+
+      // ~80% type on phones. The metrics strip is secondary information and
+      // two-up cards give it half the width — the title and author keep their
+      // size, since those are what people actually read.
+      //
+      // MUST come after the rules above: a media query adds no specificity, so
+      // an override placed earlier in the file simply loses to the base rule.
+      @include respond(phone) {
+        p,
+        .wrap-left,
+        .wrap-left .flex-div span { font-size: 10.4px; }
+        .wrap-left .flex-div .icon { font-size: 17px; }
+        .wrap-left .flex-div .icon-heart { font-size: 12px; }
+
+        // Payout / votes / comments are each their own component with their own
+        // `font-size: 12px` on a single class. Nothing in the strip's own rules
+        // reaches them, so they're named here — and with two classes ahead of
+        // them, this beats the component rule wherever it loads from.
+        .payout-amount-badge,
+        .upvote-count-badge,
+        .comment-count-badge {
+          font-size: 9.6px;
+          gap: 2px;
+          svg { font-size: 12px; width: 12px; height: 12px; }
         }
       }
     }
@@ -604,4 +639,58 @@ html[data-card-size="large"] { --card-min-w: 420px; }
   animation: card-thumb-spin 0.7s linear infinite;
   pointer-events: none;
   z-index: 1;
+}
+
+/* Live-stream tile badge (top-right) — streams rendered as regular cards */
+.card .img-wrap .card-live-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  background: linear-gradient(135deg, #ff2a4a, #c00e2c);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(227, 19, 55, 0.5);
+  pointer-events: none;
+}
+
+// 1st-level v2 tag (category) on large cards, sitting left of the view count.
+.card-topic-chip {
+  flex: 0 0 auto;
+  // `margin-left: auto` absorbs the row's free space (which is why the parent's
+  // space-between leaves none), so the chip and the view count end up flush —
+  // the right margin is what actually separates them.
+  margin-left: auto;
+  margin-right: 8px;
+  // Plain text, not a pill — it sits in the same muted stats row as the view
+  // count, so a bordered chip made it read as a button.
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 46%;
+}
+
+// Desktop always has room, so the chip shows whatever the card layout. Only a
+// phone running the SMALL card layout hides it — there the tile is too tight.
+// `data-card-size` is set on <html> by App.jsx, so this needs no JS or resize
+// handling; toggling the setting or rotating the device just works.
+@media screen and (max-width: 767px) {
+  :root[data-card-size="small"] .card-topic-chip { display: none; }
+}
+
+
+// The view count sits beside the author rather than in the metrics strip, but
+// it's the same class of secondary info — scale it with them on phones.
+.card .profile-view-wrap .view-count-badge {
+  @include respond(phone) {
+    font-size: 9.6px;
+    svg { font-size: 12px; }
+  }
 }

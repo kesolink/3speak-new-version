@@ -6,7 +6,7 @@ import { batchCheckWatched } from '../../utils/watchHistory';
 import { VIEWS_URL } from '../../utils/config';
 import './ViewCount.scss';
 
-function ViewCount({ views, watched, formatViews, author, permlink, size }) {
+function ViewCount({ views, watched, formatViews, author, permlink, size, title }) {
   const { user } = useAppStore();
   const [selfWatched, setSelfWatched] = useState(false);
   const [selfViews, setSelfViews] = useState(null);
@@ -42,7 +42,7 @@ function ViewCount({ views, watched, formatViews, author, permlink, size }) {
   const iconSize = size ? Math.round(size * 1.15) : undefined;
 
   return (
-    <div className={`view-count-badge${isWatched ? ' watched' : ''}`} style={size ? { fontSize: size } : undefined}>
+    <div className={`view-count-badge${isWatched ? ' watched' : ''}`} title={title} style={size ? { fontSize: size } : undefined}>
       {isWatched ? <IoEye size={iconSize} className="view-icon" /> : <IoEyeOutline size={iconSize} className="view-icon" />}
       <span>{display}</span>
     </div>

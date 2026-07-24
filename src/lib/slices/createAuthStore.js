@@ -94,10 +94,11 @@ export const createAuthUserSlice = (set) => ({
     // (threespeak_session, threespeak_user, manteauth_pkce).
     // Await it so we don't race a subsequent login attempt.
     try {
-      await fetch('/api/manteauth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      })
+      await Promise.all([
+        fetch('/api/manteauth/logout', { method: 'POST', credentials: 'include' }),
+        // Clear the SIWH wallet session cookie too (wallet logins).
+        fetch('/api/auth/wallet/logout', { method: 'POST', credentials: 'include' })
+      ])
     } catch { /* ignore network errors, still proceed with local cleanup */ }
 
     // Local cleanup

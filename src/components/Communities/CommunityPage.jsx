@@ -1,24 +1,27 @@
 import React, { useEffect, useState } from "react";
 import { getHiveClient } from '../../utils/hiveNode';
 import { useParams } from "react-router-dom";
-import { Client } from "@hiveio/dhive";
+import { toast } from 'sonner';
+import { Clock, TrendingUp, Users, PenLine, FileText, Coins, CalendarDays, Check, Plus } from 'lucide-react';
 import "./CommunityPage.scss";
 import axios from "axios";
-import { FEED_URL, HIVE_API_NODES } from '../../utils/config'
+import { FEED_URL } from '../../utils/config'
 import { feedParams } from '../../utils/feedParams'
 import { useInfiniteQuery } from "@tanstack/react-query";
 import Card3 from "../Cards/Card3";
 import CardSkeleton from "../Cards/CardSkeleton";
-import Com_PageSke_Loader from "./Com_PageSke_Loader";
 import ProfileHeader from "../ProfileHeader/ProfileHeader";
 import HiveMarkdown from "../HiveMarkdown/HiveMarkdown";
 import { useContentBatch } from "../../hooks/useContentBatch";
 import { useWatchHistory } from "../../hooks/useWatchHistory";
 import useViewCounts from "../../hooks/useViewCounts";
 import { useAppStore } from "../../lib/store";
+import { customJsonWithAioha, isLoggedIn, KeyTypes } from "../../hive-api/aioha";
 
 // Hive client
 const client = getHiveClient();
+
+const fmtNum = (n) => (typeof n === 'number' ? n.toLocaleString('en-US') : '—');
 
 function CommunityPage() {
   const { communityName: id } = useParams();
@@ -26,15 +29,26 @@ function CommunityPage() {
   const [trend, setTrend] = useState(false); // false = new (default), true = trending
   const hideWatched = useAppStore(s => s.hideWatched);
   const feedUser = useAppStore(s => s.user);
+  const authenticated = useAppStore(s => s.authenticated);
 
-  // Fetch community info
+  // Subscription state — mirrors Hive's community "subscribe" custom_json.
+  const [subscribed, setSubscribed] = useState(false);
+  const [subLoading, setSubLoading] = useState(false);
+  const [subCount, setSubCount] = useState(null); // optimistic subscriber count
+
+  // Fetch community info. Passing the logged-in user as `observer` makes Hive
+  // return `context.subscribed`, so we can show the correct button state.
   const fetchCommunityData = async (id) => {
     try {
       const communityData = await client.call("bridge", "get_community", {
         name: id,
-        observer: "",
+        observer: feedUser || "",
       });
       setDataMain(communityData);
+      setSubscribed(!!communityData?.context?.subscribed);
+      setSubCount(
+        typeof communityData?.subscribers === 'number' ? communityData.subscribers : null
+      );
     } catch (error) {
       console.error("Error fetching community data:", error);
     }
@@ -42,7 +56,36 @@ function CommunityPage() {
 
   useEffect(() => {
     if (id) fetchCommunityData(id);
-  }, [id]);
+  }, [id, feedUser]);
+
+  // Subscribe / unsubscribe via the on-chain `community` custom_json (posting auth).
+  const handleSubscribe = async () => {
+    if (subLoading) return;
+    if (!authenticated || !isLoggedIn()) {
+      toast.error('Log in to subscribe');
+      return;
+    }
+    const next = !subscribed;
+    setSubLoading(true);
+    try {
+      const label = dataMain?.title || id;
+      const json = JSON.stringify([next ? 'subscribe' : 'unsubscribe', { community: id }]);
+      await customJsonWithAioha(
+        KeyTypes.Posting,
+        'community',
+        json,
+        next ? `Subscribe to ${label}` : `Unsubscribe from ${label}`
+      );
+      setSubscribed(next);
+      setSubCount((c) => (typeof c === 'number' ? Math.max(0, c + (next ? 1 : -1)) : c));
+      toast.success(next ? `Subscribed to ${label}` : `Unsubscribed from ${label}`);
+    } catch (err) {
+      console.error('Community subscribe error:', err);
+      toast.error('Subscription failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setSubLoading(false);
+    }
+  };
 
   // ---------------------------
   // FETCH COMMUNITY VIDEOS
@@ -114,51 +157,134 @@ function CommunityPage() {
   // Batch fetch view counts
   const { getViewCount } = useViewCounts(videos);
 
+  // KPIs Hive exposes for a community (bridge.get_community).
+  const createdLabel = (() => {
+    if (!dataMain?.created_at) return '—';
+    const d = new Date(String(dataMain.created_at).replace(' ', 'T') + 'Z');
+    return isNaN(d) ? '—' : d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  })();
+
+  const kpis = dataMain ? [
+    { key: 'subs', icon: <Users size={16} />, label: 'Subscribers', value: fmtNum(subCount ?? dataMain.subscribers) },
+    { key: 'authors', icon: <PenLine size={16} />, label: 'Active posters', value: fmtNum(dataMain.num_authors) },
+    { key: 'posts', icon: <FileText size={16} />, label: 'Posts', value: fmtNum(dataMain.num_pending) },
+    { key: 'rewards', icon: <Coins size={16} />, label: 'Pending rewards', value: typeof dataMain.sum_pending === 'number' ? `$${dataMain.sum_pending}` : '—' },
+    { key: 'since', icon: <CalendarDays size={16} />, label: 'Created', value: createdLabel },
+  ] : [];
+
+  // Rendered in two spots: the desktop sidebar, and — on mobile — beside the
+  // description box above the tabs. Same markup, so it stays row-styled in both.
+  const kpiBlock = kpis.length ? (
+    <div className="community-kpis">
+      {kpis.map((k) => (
+        <div className="community-kpi" key={k.key}>
+          <span className="community-kpi-icon">{k.icon}</span>
+          <span className="community-kpi-text">
+            <span className="community-kpi-value">{k.value}</span>
+            <span className="community-kpi-label">{k.label}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <div className="community-page-wrap">
       <ProfileHeader
         username={id}
         name={dataMain?.title || id}
         bio={dataMain?.about}
+        actions={
+          authenticated && isLoggedIn() ? (
+            <button
+              className={`btn community-sub-btn${subscribed ? ' community-sub-btn--on' : ''}`}
+              onClick={handleSubscribe}
+              disabled={subLoading}
+            >
+              {subLoading
+                ? 'Loading…'
+                : subscribed
+                  ? <><Check size={16} /> Subscribed</>
+                  : <><Plus size={16} /> Subscribe</>}
+            </button>
+          ) : null
+        }
       />
 
-      {dataMain?.description ? (
-        <HiveMarkdown body={dataMain.description} className="community-description" collapsible />
+      {/* Mobile-only: description keeps its spot above the tabs, with the stats
+          row sitting to its right (hidden on desktop — sidebar carries them). */}
+      {(dataMain?.description || kpiBlock) ? (
+        <div className="community-intro">
+          {dataMain?.description ? (
+            <div className="community-intro-desc">
+              <HiveMarkdown
+                body={dataMain.description}
+                className="community-description community-description--mobile"
+                collapsible
+              />
+            </div>
+          ) : null}
+          {kpiBlock ? <div className="community-intro-stats">{kpiBlock}</div> : null}
+        </div>
       ) : null}
 
-      <hr />
-
-      {/* Trend / New Switch */}
-      <div className="search-tren-wrapper">
-        {/* <div className="search-wrapper">
-          <input type="text" placeholder="Search communities..." />
-        </div> */}
-        <div className="trend-btn-wrap">
-          <span
-            className={!trend ? "active" : ""}
-            onClick={() => setTrend(false)}
-          >
-            New
-          </span>
-          <span
-            className={trend ? "active" : ""}
-            onClick={() => setTrend(true)}
-          >
-            Trending
-          </span>
-        </div>
+      {/* New / Trending — real tabs, matching the home feed tab bar. */}
+      <div className="community-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!trend}
+          className={`community-tab${!trend ? ' active' : ''}`}
+          onClick={() => setTrend(false)}
+        >
+          <span className="community-tab-icon"><Clock size={16} /></span>
+          <span className="community-tab-label">New</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={trend}
+          className={`community-tab${trend ? ' active' : ''}`}
+          onClick={() => setTrend(true)}
+        >
+          <span className="community-tab-icon"><TrendingUp size={16} /></span>
+          <span className="community-tab-label">Trending</span>
+        </button>
       </div>
 
-      {/* Feed Display */}
-      {isLoading ? (
-        <CardSkeleton />
-      ) : isError ? (
-        <p>Error fetching videos</p>
-      ) : (
-        <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
-      )}
+      {/* Video grid + right sidebar (KPIs on both, description on desktop). */}
+      <div className="community-body">
+        <div className="community-feed">
+          {isLoading ? (
+            <CardSkeleton />
+          ) : isError ? (
+            <p>Error fetching videos</p>
+          ) : (
+            <Card3
+              videos={videos}
+              loading={isFetchingNextPage}
+              getContentForVideo={getContentForVideo}
+              isWatched={isWatched}
+              getViewCount={getViewCount}
+            />
+          )}
 
-      {isFetchingNextPage && <p style={{ textAlign: "center" }}>Loading more...</p>}
+          {isFetchingNextPage && <p style={{ textAlign: "center" }}>Loading more...</p>}
+        </div>
+
+        <aside className="community-side">
+          {kpiBlock}
+
+          {/* Desktop-only: the description moved off the top, beside the grid. */}
+          {dataMain?.description ? (
+            <HiveMarkdown
+              body={dataMain.description}
+              className="community-description community-description--side"
+              collapsible
+            />
+          ) : null}
+        </aside>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { MdUploadFile, MdVideocam, MdStop, MdFiberManualRecord } from 'react-icons/md';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
-import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY } from '../../utils/config';
+import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, SHORTS_MAX_DURATION_SEC, shortsMaxDurationLabel } from '../../utils/config';
 import { commentWithAioha, broadcastViaThreespeak, getCurrentProvider, Providers } from '../../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
 import { useAppStore } from '../../lib/store';
@@ -137,7 +137,7 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
     setVideoPreviewUrl(URL.createObjectURL(file));
     const dur = await calcDuration(file);
     setVideoDuration(dur);
-    if (dur > 60) {
+    if (dur > SHORTS_MAX_DURATION_SEC) {
       setIsShort(false);
     } else {
       setIsShort(true);
@@ -182,7 +182,7 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
       setVideoFile(file);
       const dur = await calcDuration(file);
       setVideoDuration(dur);
-      setIsShort(dur <= 60);
+      setIsShort(dur <= SHORTS_MAX_DURATION_SEC);
       // Stop webcam
       stream.getTracks().forEach(t => t.stop());
       setStream(null);
@@ -205,8 +205,8 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
     const file = videoFile;
     if (!file || !user) return;
 
-    if (isShort && videoDuration > 60) {
-      toast.error('Shorts must be 60 seconds or less. Uncheck "Show in 3Speak Shorts" or use a shorter video.');
+    if (isShort && videoDuration > SHORTS_MAX_DURATION_SEC) {
+      toast.error(`Shorts must be ${shortsMaxDurationLabel()} or less. Uncheck "Show in 3Speak Shorts" or use a shorter video.`);
       return;
     }
 
