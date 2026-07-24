@@ -7,6 +7,36 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.76.0',
+    date: '2026-07-24',
+    summary:
+      'New: your own link page. Every creator gets a Spotlight page at 3speak.tv/links/yourname, built from the new Links tab on your profile. Add link buttons, embed your videos or latest posts and images, then style it with backgrounds, fonts, motion and ready-made templates.',
+  },
+  {
+    version: '1.75.0',
+    date: '2026-07-24',
+    summary:
+      'When you pick your interests in the welcome popup, the Home feeds now update right away to match, without reloading the page.',
+  },
+  {
+    version: '1.74.0',
+    date: '2026-07-24',
+    summary:
+      '3Speak now starts in dark mode for new visitors. Your saved choice still applies, and you can switch anytime in Settings.',
+  },
+  {
+    version: '1.73.0',
+    date: '2026-07-23',
+    summary:
+      'You can now add a topic tag to a video even after its rewards window has ended, so it still helps sort content by topic.',
+  },
+  {
+    version: '1.72.0',
+    date: '2026-07-22',
+    summary:
+      'New Review button floating on every page: rate 3Speak and send feedback in a few taps.',
+  },
+  {
     version: '1.71.0',
     date: '2026-07-22',
     summary:

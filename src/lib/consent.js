@@ -12,10 +12,18 @@
  * consent:
  *
  *   ESSENTIAL (consent-exempt — §25(2) Nr. 2, "explicitly requested by the user"):
- *     • Login session (access_token, user_id, accountsList, aioha*, hivesigner*)
+ *     • Login session (access_token, user_id, accountsList, activeAccount, aioha*,
+ *       hivesigner*, manteauth_login, butrauth_*, auth-entropy/public-key; plus the
+ *       server httpOnly cookies threespeak_session/wsession/user + manteauth_pkce)
  *     • Settings YOU set: theme, volume, mute, autoplay, quality, subtitles,
- *       language, NSFW, card size, feed prefs, home tab order  (`user-store`)
- *     • Resuming an interrupted upload (tus::*, chunked::*)
+ *       language, NSFW, card size, feed prefs, home tab order, reactions, vote
+ *       weight, OpenPod announce config, shorts mute/mode  (`user-store` + friends)
+ *     • Resuming an interrupted upload (tus::*, chunked::*) AND post-composer drafts
+ *       (hh-studio-post-draft) — so you don't lose work you explicitly started
+ *     • The installed PWA's own asset cache + OS "share into 3Speak" (service
+ *       worker: workbox precache + share-target-cache) — first-party, strictly
+ *       necessary; stores 3Speak's own files, never third-party content
+ *     • App-version marker (3speak_app_version) for the "what's new" changelog
  *     • This consent choice itself — we cannot remember "no" without storing "no"
  *
  *   FUNCTIONAL (optional — this is what the banner is actually for):

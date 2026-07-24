@@ -795,6 +795,29 @@ app.get('/api/stt-token', baseLimiter, (req, res) => {
   res.json({ token: `${exp}.${sig}`, exp })
 })
 
+// Which languages the STT server actually has models for. Proxied server-side so
+// the browser doesn't need CORS on the STT box; cached for a minute.
+const STT_HTTP_URL = (process.env.STT_HTTP_URL || '').replace(/\/+$/, '')
+let sttLangCache = { at: 0, models: [] }
+
+app.get('/api/stt-langs', baseLimiter, async (req, res) => {
+  if (!STT_HTTP_URL) return res.json({ models: [] })
+  const now = Date.now()
+  if (now - sttLangCache.at < 60000 && sttLangCache.models.length) {
+    return res.json({ models: sttLangCache.models })
+  }
+  try {
+    const r = await fetch(`${STT_HTTP_URL}/healthz`, { signal: AbortSignal.timeout(4000) })
+    if (!r.ok) return res.json({ models: sttLangCache.models })
+    const j = await r.json()
+    const models = Array.isArray(j.models_loaded) ? j.models_loaded : []
+    sttLangCache = { at: now, models }
+    return res.json({ models })
+  } catch {
+    return res.json({ models: sttLangCache.models })
+  }
+})
+
 // === Playlists read proxy ===
 // The playlists API (playlists.3speak.tv) requires a secret token once its read
 // gate is enabled. We hold that token HERE on the server — never in the browser
@@ -832,6 +855,296 @@ app.get(/^\/api\/pl\/(.*)$/, baseLimiter, async (req, res) => {
   }
 })
 
+// ===================================================================
+// Spotlight — creator link pages ("linktree"). Storage is ON-CHAIN (the user's
+// posting_json_metadata.3speak.spotlight) — reads come from Hive, writes go through
+// the normal broadcast proxy as an account_update2 (posting auth). So the only
+// endpoint here is the standalone public renderer.
+// ===================================================================
+const spotlight = require('./spotlight')
+
+// Cache the fetched account (name + spotlight metadata) briefly so repeated views
+// of a popular page don't hit Hive each time. Short TTL so edits appear quickly.
+const spotlightAccountCache = new Map()
+async function spotlightAccount(username) {
+  const hit = spotlightAccountCache.get(username)
+  if (hit && Date.now() - hit.at < 10 * 1000) return hit.acc   // short TTL so edits appear fast
+  let acc = null
+  try { [acc] = await client.database.getAccounts([username]) } catch { acc = null }
+  spotlightAccountCache.set(username, { acc, at: Date.now() })
+  return acc
+}
+
+// POST /api/spotlight/render — render an ARBITRARY (unsaved) layout to the same HTML
+// the public page uses. Backs the editor's iframe preview so it's pixel-identical to
+// the final page (and instant — no Hive round-trip, no cache). Renders provided data
+// only; not a storage endpoint.
+app.post('/api/spotlight/render', baseLimiter, async (req, res) => {
+  try {
+    const { username, displayName, layout } = req.body || {}
+    const u = String(username || 'preview').replace(/^@/, '').toLowerCase()
+    const page = spotlight.sanitizeLayout(layout || {})
+    await resolveDynamicSections(page, u)
+    const html = spotlight.renderSpotlightHtml(u, page, { displayName: String(displayName || '') })
+    res.set('Content-Type', 'text/html; charset=utf-8')
+    res.set('Cache-Control', 'no-store')
+    return res.send(html)
+  } catch (err) {
+    console.error('Spotlight preview render error:', err.message)
+    res.status(500).send('preview error')
+  }
+})
+
+// ── link unfurl (rich embed cards) ──────────────────────────────────────────
+// POST /api/spotlight/unfurl { url } → { url, title, description, image, siteName }
+// Resolves a pasted link's preview metadata (like Discord/Slack unfurls) ONCE at edit
+// time; the result is stored in the layout so the public page needs no live fetch.
+// Native fast-path for Hive front-ends via bridge.get_post; everything else is an
+// SSRF-guarded Open-Graph/Twitter-card fetch.
+const dnsp = require('dns').promises
+const net = require('net')
+
+function isPrivateIp(ip) {
+  if (net.isIPv4(ip)) {
+    const p = ip.split('.').map(Number)
+    if (p[0] === 10 || p[0] === 127 || p[0] === 0) return true
+    if (p[0] === 169 && p[1] === 254) return true                 // link-local / metadata
+    if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return true
+    if (p[0] === 192 && p[1] === 168) return true
+    if (p[0] === 100 && p[1] >= 64 && p[1] <= 127) return true    // CGNAT
+    if (p[0] >= 224) return true                                  // multicast / reserved
+    return false
+  }
+  if (net.isIPv6(ip)) {
+    const s = ip.toLowerCase()
+    if (s === '::1' || s === '::') return true
+    if (s.startsWith('::ffff:')) return isPrivateIp(s.slice(7))   // v4-mapped
+    return s.startsWith('fc') || s.startsWith('fd') || s.startsWith('fe80')
+  }
+  return true                                                     // unknown → block
+}
+async function assertPublicHost(hostname) {
+  if (net.isIP(hostname)) { if (isPrivateIp(hostname)) throw new Error('blocked host'); return }
+  if (/^(localhost|.*\.local|.*\.internal)$/i.test(hostname)) throw new Error('blocked host')
+  const addrs = await dnsp.lookup(hostname, { all: true }).catch(() => [])
+  if (!addrs.length) throw new Error('dns')
+  for (const a of addrs) if (isPrivateIp(a.address)) throw new Error('blocked host')
+}
+
+// Fetch HTML with manual redirect following (each hop re-validated), a 6s timeout,
+// and a ~512KB read cap. Returns { html, finalUrl }.
+async function fetchHtml(rawUrl, maxHops = 3) {
+  let url = rawUrl
+  for (let hop = 0; hop <= maxHops; hop += 1) {
+    const u = new URL(url)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('proto')
+    if (u.port && !['80', '443', ''].includes(u.port)) throw new Error('port')
+    await assertPublicHost(u.hostname)
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 6000)
+    let res
+    try {
+      res = await fetch(u.toString(), {
+        method: 'GET', redirect: 'manual', signal: ctrl.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; 3SpeakBot/1.0; +https://3speak.tv)', Accept: 'text/html,application/xhtml+xml' },
+      })
+    } finally { clearTimeout(timer) }
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      url = new URL(res.headers.get('location'), u).toString()
+      continue
+    }
+    if (!/text\/html|application\/xhtml/i.test(res.headers.get('content-type') || '')) return { html: '', finalUrl: u.toString() }
+    const reader = res.body.getReader()
+    const dec = new TextDecoder('utf-8')
+    let html = ''; const CAP = 512 * 1024
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      html += dec.decode(value, { stream: true })
+      if (html.length >= CAP) { try { await reader.cancel() } catch { /* ignore */ } break }
+    }
+    return { html, finalUrl: u.toString() }
+  }
+  throw new Error('too many redirects')
+}
+
+function decodeEntities(s) {
+  return String(s || '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => { try { return String.fromCodePoint(parseInt(h, 16)) } catch { return '' } })
+    .replace(/&#(\d+);/g, (_, d) => { try { return String.fromCodePoint(Number(d)) } catch { return '' } })
+    .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&')
+}
+function parseOg(html, baseUrl) {
+  const meta = {}
+  const tagRe = /<meta\b[^>]*>/gi
+  let m
+  while ((m = tagRe.exec(html))) {
+    const tag = m[0]
+    const key = (tag.match(/\b(?:property|name)\s*=\s*["']([^"']+)["']/i) || [])[1]
+    const val = (tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i) || [])[1]
+    if (!key || val == null) continue
+    const k = key.toLowerCase()
+    if (!(k in meta)) meta[k] = decodeEntities(val)
+  }
+  const titleTag = (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || ''
+  const title = meta['og:title'] || meta['twitter:title'] || decodeEntities(titleTag)
+  const description = meta['og:description'] || meta['twitter:description'] || meta.description || ''
+  let image = meta['og:image'] || meta['og:image:url'] || meta['og:image:secure_url'] || meta['twitter:image'] || meta['twitter:image:src'] || ''
+  if (image) { try { image = new URL(image, baseUrl).toString() } catch { image = '' } }
+  const siteName = meta['og:site_name'] || ''
+  return {
+    title: title.trim().slice(0, 160),
+    description: description.trim().slice(0, 300),
+    image: /^https?:\/\//i.test(image) ? image : '',
+    siteName: siteName.trim().slice(0, 80),
+  }
+}
+
+// Known Hive front-ends → parse @author/permlink so we can build a card straight from
+// chain data (fast + reliable, no scraping).
+const HIVE_SITE_NAMES = { '3speak.tv': '3Speak', 'peakd.com': 'PeakD', 'hive.blog': 'Hive', 'ecency.com': 'Ecency', 'inleo.io': 'InLeo', 'leofinance.io': 'InLeo' }
+function parseHivePermalink(u) {
+  const host = u.hostname.replace(/^www\./, '').toLowerCase()
+  if (!(host in HIVE_SITE_NAMES)) return null
+  if (host === '3speak.tv') {
+    const v = u.searchParams.get('v')
+    if (v && v.includes('/')) { const [a, p] = v.split('/'); if (a && p) return { author: a.toLowerCase(), permlink: p.toLowerCase(), site: HIVE_SITE_NAMES[host] } }
+  }
+  const m = u.pathname.match(/@([a-z0-9.\-]{3,16})\/([a-z0-9.\-]{1,255})/i)
+  if (!m) return null
+  return { author: m[1].toLowerCase(), permlink: m[2].toLowerCase(), site: HIVE_SITE_NAMES[host] }
+}
+async function hiveCard(author, permlink, originalUrl, site) {
+  const post = await client.call('bridge', 'get_post', { author, permlink })
+  if (!post || !post.author) return null
+  let jm = post.json_metadata
+  if (typeof jm === 'string') { try { jm = JSON.parse(jm) } catch { jm = {} } }
+  let image = (jm && Array.isArray(jm.image) && jm.image[0]) || (jm && typeof jm.image === 'string' ? jm.image : '') || `https://images.hive.blog/u/${author}/avatar`
+  if (!/^https?:\/\//i.test(image)) image = `https://images.hive.blog/u/${author}/avatar`
+  return {
+    url: originalUrl,
+    title: (post.title || `@${author}`).slice(0, 160),
+    description: hiveExcerpt(post.body).slice(0, 240),
+    image,
+    siteName: site || 'Hive',
+  }
+}
+
+// Markdown/HTML post body → a plain-text excerpt for card descriptions.
+function hiveExcerpt(raw) {
+  return String(raw || '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, ' ').replace(/https?:\/\/\S+/g, '').replace(/[#>*_`~|]+/g, ' ')
+    .replace(/\s+/g, ' ').trim()
+}
+
+// The author's most recent TOP-LEVEL, non-reblog, non-crosspost Hive posts → cards.
+// Cached 60s per (account,count). Backs the embed block's "My latest Hive posts" source.
+const recentPostsCache = new Map()
+async function recentHivePosts(account, count) {
+  if (!/^[a-z][a-z0-9.-]{2,15}$/.test(account)) return []
+  const n = Math.max(1, Math.min(6, count || 3))
+  const key = `${account}:${n}`
+  const hit = recentPostsCache.get(key)
+  if (hit && Date.now() - hit.at < 60 * 1000) return hit.items
+  // sort:'posts' = the account's own root posts (excludes reblogs & replies).
+  // NOTE: bridge caps limit at 20.
+  let posts = []
+  try { posts = await client.call('bridge', 'get_account_posts', { sort: 'posts', account, limit: 20 }) } catch { posts = [] }
+  const items = []
+  for (const p of (posts || [])) {
+    if (!p || p.author !== account) continue                       // reblog → author differs
+    if (p.reblogged_by && p.reblogged_by.length) continue
+    if (typeof p.depth === 'number' && p.depth > 0) continue        // top-level only
+    let jm = p.json_metadata
+    if (typeof jm === 'string') { try { jm = JSON.parse(jm) } catch { jm = {} } }
+    jm = jm || {}
+    if (jm.original_author || jm.original_permlink) continue         // crosspost
+    const tags = Array.isArray(jm.tags) ? jm.tags.map(String) : []
+    if (tags.includes('cross-post') || tags.includes('crosspost')) continue
+    let image = (Array.isArray(jm.image) && jm.image[0]) || (typeof jm.image === 'string' ? jm.image : '')
+    if (!/^https?:\/\//i.test(image)) image = `https://images.hive.blog/u/${account}/avatar`
+    const isVideo = /3speak/i.test(String(jm.app || '')) || !!jm.video
+    items.push({
+      url: isVideo ? `https://3speak.tv/watch?v=${p.author}/${p.permlink}` : `https://peakd.com/@${p.author}/${p.permlink}`,
+      title: (p.title || 'Untitled').slice(0, 160),
+      description: hiveExcerpt(p.body).slice(0, 170),
+      image,
+      siteName: isVideo ? '3Speak' : 'Hive',
+    })
+    if (items.length >= n) break
+  }
+  recentPostsCache.set(key, { at: Date.now(), items })
+  return items
+}
+
+// Fill live data into dynamic sections (currently the hive-recent embed) before render.
+async function resolveDynamicSections(page, ownerUsername) {
+  if (!page || !Array.isArray(page.sections)) return page
+  const jobs = []
+  for (const s of page.sections) {
+    if (s && s.type === 'embed' && s.source === 'hive-recent') {
+      jobs.push(recentHivePosts(s.account || ownerUsername, s.count || 3)
+        .then((items) => { s._items = items }).catch(() => { s._items = [] }))
+    }
+  }
+  if (jobs.length) await Promise.all(jobs)
+  return page
+}
+
+app.post('/api/spotlight/unfurl', baseLimiter, async (req, res) => {
+  try {
+    const raw = String((req.body && req.body.url) || '').trim()
+    if (!raw || raw.length > 2000) return res.status(400).json({ error: 'bad url' })
+    let u
+    try { u = new URL(raw) } catch { return res.status(400).json({ error: 'bad url' }) }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return res.status(400).json({ error: 'bad url' })
+    const host = u.hostname.replace(/^www\./, '')
+
+    const hp = parseHivePermalink(u)
+    if (hp) {
+      try { const card = await hiveCard(hp.author, hp.permlink, raw, hp.site); if (card) return res.json(card) } catch { /* fall through */ }
+    }
+    try {
+      const { html, finalUrl } = await fetchHtml(raw)
+      const og = parseOg(html, finalUrl)
+      return res.json({ url: raw, title: og.title, description: og.description, image: og.image, siteName: og.siteName || host })
+    } catch {
+      // Failure still yields a usable card (domain title), so the block isn't lost.
+      return res.json({ url: raw, title: '', description: '', image: '', siteName: host })
+    }
+  } catch (err) {
+    console.error('Spotlight unfurl error:', err.message)
+    return res.status(500).json({ error: 'unfurl failed' })
+  }
+})
+
+// GET /spotlight-page/:username — the PUBLIC page as a standalone, chrome-free HTML
+// document (served by nginx for /@user/links). No SPA, no app bundle → near-instant.
+app.get('/spotlight-page/:username', baseLimiter, async (req, res) => {
+  const username = String(req.params.username || '').replace(/^@/, '').toLowerCase()
+  try {
+    const account = await spotlightAccount(username)
+    const page = spotlight.readSpotlightFromAccount(account)   // parses + sanitizes
+    await resolveDynamicSections(page, username)
+    let displayName = ''
+    try {
+      const meta = account && account.posting_json_metadata ? JSON.parse(account.posting_json_metadata) : {}
+      displayName = (meta && meta.profile && meta.profile.name) || ''
+    } catch { /* no name */ }
+    const html = spotlight.renderSpotlightHtml(username, page, { displayName })
+    res.set('Content-Type', 'text/html; charset=utf-8')
+    // Short cache so an edit shows up quickly (on-chain propagation is the real floor).
+    res.set('Cache-Control', 'public, max-age=15')
+    return res.send(html)
+  } catch (err) {
+    console.error('Spotlight render error:', err.message)
+    res.set('Content-Type', 'text/html; charset=utf-8')
+    return res.status(500).send('<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;padding:40px">Could not load this page.</body>')
+  }
+})
+
 // Generic error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err.message)
@@ -847,6 +1160,7 @@ app.use((err, req, res, next) => {
     console.error('[FATAL]', err.message)
     process.exit(1)
   }
+
 
   app.listen(PORT, () => {
     console.log(`3Speak backend service running on :${PORT}`)

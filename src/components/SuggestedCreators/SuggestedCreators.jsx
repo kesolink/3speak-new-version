@@ -10,6 +10,7 @@ import { getFollowing } from '../../utils/hiveUtils';
 import { getFollowers } from '../../hive-api/api';
 import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { useAppStore } from '../../lib/store';
+import { getTagLabel, getTagEmoji } from '../../utils/tagsV2';
 import HiveAvatar from '../HiveAvatar/HiveAvatar';
 import './SuggestedCreators.scss';
 
@@ -111,7 +112,14 @@ export default function SuggestedCreators({ variant = 'discover', perRow = 0 }) 
   const pool = useMemo(() => {
     if (!Array.isArray(suggested) || followSet == null) return [];
     return suggested
-      .map((c) => ({ name: (c.author || '').toLowerCase(), displayName: c.display_name || c.author, avatar: c.avatar }))
+      .map((c) => ({
+        name: (c.author || '').toLowerCase(),
+        displayName: c.display_name || c.author,
+        avatar: c.avatar,
+        // Why we surfaced them: the topic most of their recent videos are tagged in
+        // (checker's basisTopic), falling back to the first matched interest topic.
+        basis: c.basisTopic || (Array.isArray(c.matchedTopics) ? c.matchedTopics[0] : null),
+      }))
       .filter((c) => c.name && c.name !== (user || '').toLowerCase())
       .filter((c) => !followSet.has(c.name) || justFollowed[c.name]);
   }, [suggested, followSet, user, justFollowed]);
@@ -182,6 +190,12 @@ export default function SuggestedCreators({ variant = 'discover', perRow = 0 }) 
                 <HiveAvatar username={c.name} size={null} alt="" badgeSize={12} />
               </Link>
               <Link to={`/p/${c.name}`} className="sc-name" title={`@${c.name}`}>@{c.name}</Link>
+              {c.basis && (
+                <span className="sc-basis" title={`Mostly posts ${getTagLabel(c.basis)}`}>
+                  <span className="sc-basis-emoji">{getTagEmoji(c.basis)}</span>
+                  {getTagLabel(c.basis)}
+                </span>
+              )}
               <span className="sc-followers">
                 {followers != null ? `${followers} follower${followers === '1' ? '' : 's'}` : ' '}
               </span>

@@ -3,6 +3,7 @@ import { useAppStore } from '../lib/store';
 import { getFollowing } from '../utils/hiveUtils';
 
 import { fetchAllEndpoints } from '../utils/hangoutsEndpoints';
+import { FEED_EXCLUDED_HOSTS } from '../utils/config';
 
 /**
  * Currently-live OpenPods standalone streams, mapped to Card3-compatible
@@ -12,8 +13,12 @@ import { fetchAllEndpoints } from '../utils/hangoutsEndpoints';
  *
  * `following: true` filters to streamers the signed-in user follows (Follow
  * feed). Includes unlisted streams for now (the /streams endpoint does).
+ *
+ * Hosts in FEED_EXCLUDED_HOSTS are dropped by default, since every caller but
+ * one is a discovery feed. `includeAllHosts: true` opts out — used by the
+ * watch-page pager, which navigates between streams rather than surfacing them.
  */
-export function useLiveStreams({ following = false } = {}) {
+export function useLiveStreams({ following = false, includeAllHosts = false } = {}) {
   const [streams, setStreams] = useState([]);
   const [followSet, setFollowSet] = useState(null); // null = not loaded
   const user = useAppStore((s) => s.user);
@@ -49,6 +54,10 @@ export function useLiveStreams({ following = false } = {}) {
     // them in discovery. Public rooms show to everyone. (Unlisted never reaches
     // the client — the server drops it from /streams.)
     if (!authenticated) list = list.filter((s) => s.visibility !== 'hive-internal');
+    // Keep excluded hosts out of the discovery feeds (discover / follow / new).
+    if (!includeAllHosts && FEED_EXCLUDED_HOSTS.size) {
+      list = list.filter((s) => !FEED_EXCLUDED_HOSTS.has(String(s.host || '').toLowerCase()));
+    }
     if (following) list = followSet ? list.filter((s) => followSet.has(s.host)) : [];
     return list.map((s) => ({
       _liveStream: true,
@@ -66,5 +75,5 @@ export function useLiveStreams({ following = false } = {}) {
       // now" rather than lifetime views (the card labels it, see Card3).
       views: s.viewers ?? 0,
     }));
-  }, [streams, following, followSet, authenticated]);
+  }, [streams, following, followSet, authenticated, includeAllHosts]);
 }

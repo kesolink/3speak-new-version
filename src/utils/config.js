@@ -179,8 +179,12 @@ const CHECKER_API_KEY = import.meta.env.VITE_CHECKER_API_KEY || '';
 
 // Feature flags for MetaMask Snap login and 3Speak Pro subscriptions
 const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true';
-// Default-on: only disabled when explicitly set to "false".
-const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false';
+// Default-on: only disabled when explicitly set to "false". A hidden soft-launch
+// "unlock" (5 taps on the RPC node line in the profile menu) writes
+// butrauth_unlocked=true to localStorage to force it on even when the env flag
+// is off, so testers can reveal the Butter Auth login + signup before launch.
+const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false'
+  || (typeof localStorage !== 'undefined' && localStorage.getItem('butrauth_unlocked') === 'true');
 const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
 // Pay-per-listen reward controls in the audio uploader. Enabled by
 // default; set VITE_ENABLE_PPL=false to hide the earn-mode chooser and
@@ -195,6 +199,17 @@ const OPENPODS_STANDALONE = import.meta.env.VITE_OPENPODS_STANDALONE !== 'false'
 // Gates the OpenPods live-streaming options in the create/share menu (the whole
 // "Live" category). OFF by default — set VITE_ENABLE_OPENPODS=true to show it.
 const ENABLE_OPENPODS = import.meta.env.VITE_ENABLE_OPENPODS === 'true';
+
+// Hosts whose live streams / rooms are kept OUT of the discovery feeds
+// (discover, follow, new). Same spirit as the checker's LEADERBOARD_EXCLUDED_USERS
+// — the account still works normally and its streams stay reachable by direct
+// link; they just don't get surfaced in the feeds. Comma-separated override.
+const FEED_EXCLUDED_HOSTS = new Set(
+  (import.meta.env.VITE_FEED_EXCLUDED_HOSTS ?? 'badadib')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 // Mobile-only in-browser camera recorder with a voice-driven teleprompter
 // (prototype). When on, the video upload step shows a "Record" button on phones
@@ -261,6 +276,7 @@ export {
   ENABLE_SUBS,
   OPENPODS_STANDALONE,
   ENABLE_OPENPODS,
+  FEED_EXCLUDED_HOSTS,
   ENABLE_CAMERA_RECORD,
   STT_WS_URL,
   ENABLE_PPL,

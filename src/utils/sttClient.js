@@ -67,7 +67,8 @@ export function createSttStream({ track, url, lang, onTranscript, onStatus }) {
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
-          if (msg.type === 'partial' || msg.type === 'final') onTranscript?.(msg.text || '');
+          // isFinal closes the utterance so the matcher restarts its word count.
+          if (msg.type === 'partial' || msg.type === 'final') onTranscript?.(msg.text || '', msg.type === 'final');
           else if (msg.type === 'error') status('error', msg.message || 'server error');
         } catch { /* ignore non-JSON */ }
       };

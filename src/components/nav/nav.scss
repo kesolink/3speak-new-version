@@ -522,6 +522,53 @@
     @include mix.respond(tab)   { display: none; }
   }
 
+  // "Sign up" pill (shown next to Log in when Butter Auth is active) — the
+  // primary, welcoming CTA. Red OUTLINE per our convention (never solid fill).
+  > .nav-right button.nav-guest-signup {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 18px;
+    border-radius: 20px;
+    background: transparent;
+    border: 1px solid var(--accent-primary);
+    box-shadow: none;
+    color: var(--accent-primary);
+    font-weight: 600;
+    font-size: 14px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover { background: color-mix(in srgb, var(--accent-primary) 12%, transparent); }
+
+    // Beat the generic dark-theme nav-button fill (higher specificity) so the
+    // red OUTLINE holds in dark mode too (per our red = outline, not fill rule).
+    [data-theme="dark"] & {
+      background: transparent;
+      border: 1px solid var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    @include mix.respond(phone) { display: none; }
+    @include mix.respond(tab)   { display: none; }
+  }
+
+  // When Butter Auth is active, Log in steps down to a neutral secondary so the
+  // red "Sign up" pill reads as the single primary action.
+  > .nav-right button.nav-guest-login.nav-guest-login--secondary {
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+
+    &:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+      background: var(--bg-hover);
+    }
+
+    [data-theme="dark"] & {
+      border-color: var(--border-color);
+      color: var(--text-secondary);
+    }
+  }
+
   > .nav-right button.manteauth-btn {
     background: #e8d89b;
     color: #161107;

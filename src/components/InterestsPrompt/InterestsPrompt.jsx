@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
 import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
-import { TAG_OPTIONS } from '../../utils/tagsV2';
+import { refreshHomeFeeds } from '../../utils/feedSeed';
+import TagsV2Picker from '../tooltip/TagsV2Picker';
 import './InterestsPrompt.scss';
 
 // Per-user "already asked" flag (browser storage) so a given account is prompted
@@ -29,6 +31,7 @@ export default function InterestsPrompt() {
   const user = useAppStore((s) => s.user);
   const authenticated = useAppStore((s) => s.authenticated);
   const setInterests = useAppStore((s) => s.setInterests);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -54,9 +57,6 @@ export default function InterestsPrompt() {
 
   if (!open) return null;
 
-  const toggle = (id) =>
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-
   const dismiss = () => {
     if (user) markPrompted(user);
     setOpen(false);
@@ -70,6 +70,10 @@ export default function InterestsPrompt() {
       if (user) markPrompted(user);
       toast.success('Interests saved — change them anytime in Settings');
       setOpen(false);
+      // Refetch the home feeds in place (no page reload) so they immediately
+      // reflect the new interests. Runs after setInterests so the feed params
+      // read the fresh list from the store.
+      refreshHomeFeeds(queryClient, { authenticated, user });
     } catch (e) {
       toast.error(e?.message || 'Could not save interests');
     } finally {
@@ -85,20 +89,15 @@ export default function InterestsPrompt() {
           Pick a few topics you enjoy and we’ll show you more of the content you like.
           You can change these anytime in <strong>Settings</strong>.
         </p>
-        <div className="interests-prompt-grid">
-          {TAG_OPTIONS.map(({ id, label, emoji }) => (
-            <button
-              key={id}
-              type="button"
-              className={`interests-prompt-chip${selected.includes(id) ? ' selected' : ''}`}
-              onClick={() => toggle(id)}
-              aria-pressed={selected.includes(id)}
-            >
-              <span className="interests-prompt-emoji">{emoji}</span>
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Same picker (and search box) as Settings → Interests, so the two
+            screens look and behave identically. Values are topic slugs. */}
+        <TagsV2Picker
+          multi
+          searchable
+          value={selected}
+          onChange={setSelected}
+          disabled={saving}
+        />
         <div className="interests-prompt-actions">
           <button type="button" className="interests-prompt-cancel" onClick={dismiss} disabled={saving}>
             Not now

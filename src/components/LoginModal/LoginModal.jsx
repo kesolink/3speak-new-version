@@ -10,7 +10,7 @@ import "./LoginModal.scss";
 /**
  * Custom login modal wrapper that adds Butter Auth + MetaMask Snap login options to AiohaModal
  */
-function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
+function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions, intent }) {
   const [topContainer, setTopContainer] = useState(null);
   // 'choose' = sign-up / log-in chooser screen; 'providers' = wallet/provider list.
   const [step, setStep] = useState('choose');
@@ -26,15 +26,20 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
     onClose?.();
   };
 
-  // When the modal opens: if the user is already logged in via an aioha wallet
-  // (i.e. "Change account"), skip the sign-up/login chooser and go straight to
-  // the aioha account modal (manage / switch / log out). Otherwise show the
-  // chooser. (ManteAuth users aren't aioha-logged-in, so they still get the
-  // chooser's logout screen.)
+  // On open, route to the nav's intent so DESKTOP skips the "Welcome" chooser:
+  //  - aioha wallet already logged in ("Change account") → provider list
+  //  - Butter Auth session                               → change / log out screen
+  //  - nav "Sign up"                                     → Butter Auth signup popup
+  //  - nav "Log in"                                      → provider list
+  //  - no intent (mobile bottom-nav, /login route)       → login/signup chooser
   useEffect(() => {
     if (!displayed) return;
-    setStep(aioha.isLoggedIn() ? 'providers' : 'choose');
-  }, [displayed, aioha]);
+    if (aioha.isLoggedIn()) { setStep('providers'); return; }
+    if (isManteAuth) { setStep('choose'); return; }
+    if (intent === 'signup' && ENABLE_BUTRAUTH) { setStep('signup'); startButrauthFlow(true); return; }
+    if (intent === 'login') { setStep('providers'); return; }
+    setStep('choose');
+  }, [displayed, aioha, intent]);
 
   // Start the Butter Auth flow in a popup (state='popup' → ManteAuthCallback
   // signals back via a localStorage 'storage' event handled in App). Falls back
@@ -209,6 +214,10 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
 
   return (
     <>
+      {/* Chooser: the "You're signed in" change-account screen for Butter Auth
+          users, and (for logged-out users with no explicit nav intent, i.e.
+          mobile bottom-nav / the /login route) the Welcome login-or-signup pick.
+          Desktop nav buttons pass an intent and skip this entirely. */}
       {displayed && step === 'choose' && (
         <div className="login-chooser-overlay" onMouseDown={onClose}>
           <div className="login-chooser" onMouseDown={(e) => e.stopPropagation()}>
@@ -238,8 +247,6 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
                     : 'Log in to your account.'}
                 </p>
 
-                {/* Sign up is a Butter Auth flow — hide it (and avoid leaking the
-                    not-yet-live feature) when Butter Auth is disabled. */}
                 {ENABLE_BUTRAUTH && (
                   <button className="login-chooser-signup" onClick={() => startButrauthFlow(true)}>
                     <span className="butrauth-text">
@@ -258,6 +265,26 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions }) {
                 <button className="login-chooser-cancel" onClick={onClose}>Cancel</button>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {/* Signup intent from the nav: the Butter Auth account-creation popup is
+          already opening; this is just the fallback if it was blocked. */}
+      {displayed && step === 'signup' && (
+        <div className="login-chooser-overlay" onMouseDown={onClose}>
+          <div className="login-chooser" onMouseDown={(e) => e.stopPropagation()}>
+            <h3 className="login-chooser-title">Opening sign up…</h3>
+            <p className="login-chooser-sub">
+              Continue in the secure Butter Auth window. If it didn't open, allow
+              pop-ups and try again.
+            </p>
+            <button className="login-chooser-login" onClick={() => startButrauthFlow(true)}>
+              <span style={{ display: 'block' }}>Reopen sign up</span>
+            </button>
+            <button className="login-chooser-login" onClick={() => setStep('providers')}>
+              <span style={{ display: 'block' }}>Log in instead</span>
+            </button>
+            <button className="login-chooser-cancel" onClick={onClose}>Cancel</button>
           </div>
         </div>
       )}

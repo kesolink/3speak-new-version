@@ -6,6 +6,7 @@ import {
 } from '@snapie/hangouts-react';
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import StreamBoostButton from '../components/openpods/StreamBoostButton';
+import StreamReportButton from '../components/openpods/StreamReportButton';
 import { useStreamSession } from '../hooks/useStreamSession';
 import { useLiveStreamPager } from '../hooks/useLiveStreamPager';
 import { useStreamChatMirror } from '../hooks/useStreamChatMirror';
@@ -256,6 +257,7 @@ export default function WatchStream() {
                         <div className="actionButton"><Share2 size={24} /></div>
                         <span className="actionLabel">{copied ? 'Copied' : 'Share'}</span>
                       </div>
+                      <StreamReportButton roomName={streamId} host={host} variant="sidebar" />
                     </div>
 
                     {chatOverlayOn && (
@@ -347,6 +349,7 @@ export default function WatchStream() {
                         <button type="button" className="pv-btn" disabled title="Not available for live streams">
                           <FaBookmark size={14} /><span>Save</span>
                         </button>
+                        <StreamReportButton roomName={streamId} host={host} />
                       </div>
                     </div>
                   </div>

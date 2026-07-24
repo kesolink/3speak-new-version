@@ -8,15 +8,21 @@ import { useEmbedUpload } from '../../context/EmbedUploadContext';
 import { useVoiceTeleprompter } from '../../hooks/useVoiceTeleprompter';
 import { generateVideoThumbnails } from '../../utils/videoThumbnails';
 import { ENABLE_CAMERA_RECORD, SHORTS_MAX_DURATION_SEC, STT_WS_URL } from '../../utils/config';
-import { normalizeSpeechLang } from '../../utils/browser';
+import { detectScriptLang, modelIdToTag } from '../../utils/detectLang';
 import { createSttStream } from '../../utils/sttClient';
 import './EmbedCameraRecord.scss';
 
 const SETTINGS_KEY = 'tp-overlay-settings';
 const BOX_KEY = 'tp-overlay-box';
-const DEFAULT_SETTINGS = { fontSize: 26, fontColor: '#ffffff', bgColor: '#000000', bgOpacity: 0.5, lang: 'en-US' };
+const DEFAULT_SETTINGS = { fontSize: 26, fontColor: '#ffffff', bgColor: '#000000', bgOpacity: 0.5, lang: 'auto', rotateDir: 1 };
 const MIN_W = 150;
-const MIN_H = 90;
+// Low enough that the two-line "Front cam" strip can also be reached by dragging
+// the resize corner, not just by tapping the preset.
+const MIN_H = 44;
+// Must match .cr-tp-scroll in the SCSS (line-height, and top+bottom padding), so
+// a preset can size the box to an exact number of text lines.
+const LINE_HEIGHT = 1.7;
+const SCROLL_PAD_Y = 24;
 
 const LANG_OPTIONS = [
   { value: 'en-US', label: 'English (US)' },
@@ -34,6 +40,8 @@ const LANG_OPTIONS = [
   { value: 'ko-KR', label: '한국어' },
   { value: 'zh-CN', label: '中文' },
 ];
+const ALL_LANG_TAGS = LANG_OPTIONS.map((o) => o.value);
+const langLabel = (tag) => LANG_OPTIONS.find((o) => o.value === tag)?.label || tag;
 
 function pickMimeType() {
   const candidates = ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
@@ -151,6 +159,9 @@ function EmbedCameraRecord() {
 
   const rootRef = useRef(null);
   const previewRef = useRef(null);
+  const canvasRef = useRef(null);        // rotated compositor (portrait from a landscape sensor)
+  const canvasStreamRef = useRef(null);  // captureStream of that canvas, used for recording
+  const rafRef = useRef(null);
   const stageRef = useRef(null);
   const streamRef = useRef(null);
   const recorderRef = useRef(null);
@@ -163,10 +174,10 @@ function EmbedCameraRecord() {
 
   const [phase, setPhase] = useState('script'); // script → setup → recording → review
   const [script, setScript] = useState('');
-  const [settings, setSettings] = useState(() => loadJson(SETTINGS_KEY, {
-    ...DEFAULT_SETTINGS,
-    lang: normalizeSpeechLang(typeof navigator !== 'undefined' ? navigator.language : 'en-US'),
-  }));
+  const [settings, setSettings] = useState(() => loadJson(SETTINGS_KEY, { ...DEFAULT_SETTINGS }));
+  // Languages the STT server actually has models for (from its /healthz). Empty
+  // until fetched / when no STT server is configured.
+  const [serverLangs, setServerLangs] = useState([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
@@ -178,6 +189,10 @@ function EmbedCameraRecord() {
   const [finishing, setFinishing] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [sttStatus, setSttStatus] = useState(''); // '', 'connecting', 'connected', 'error:<msg>', 'closed'
+  // Quarter-turns applied to the sensor frame (0 = none, 1 = 90°, 3 = 270°).
+  const [rotateTurns, setRotateTurns] = useState(0);
+  const rotateTurnsRef = useRef(0);
+  rotateTurnsRef.current = rotateTurns;
 
   // Menu collapse state, persisted.
   const [menuCollapsed, setMenuCollapsed] = useState(() => !!loadJson('tp-menu-collapsed', { v: false }).v);
@@ -211,7 +226,36 @@ function EmbedCameraRecord() {
   const mimeType = useMemo(() => pickMimeType(), []);
   const recordingSupported = typeof MediaRecorder !== 'undefined';
 
-  const tp = useVoiceTeleprompter(script, { lang: settings.lang });
+  // Ask the STT server which models it actually has, so we only ever offer (and
+  // auto-detect into) languages it can transcribe.
+  useEffect(() => {
+    if (!STT_WS_URL) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Same-origin proxy — the STT box needs no CORS for this.
+        const r = await fetch('/api/stt-langs');
+        if (!r.ok) return;
+        const j = await r.json();
+        const tags = (j.models || []).map(modelIdToTag).filter(Boolean);
+        if (!cancelled && tags.length) setServerLangs(tags);
+      } catch { /* leave the full list in place */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const availableLangs = serverLangs.length ? serverLangs : ALL_LANG_TAGS;
+  const detectedLang = useMemo(
+    () => detectScriptLang(script, { allowed: availableLangs }),
+    [script, availableLangs],
+  );
+  // 'auto' (default) follows the script; an explicit pick is honoured only if the
+  // recognizer supports it, else we fall back to the detected one.
+  const effectiveLang = settings.lang === 'auto' || !availableLangs.includes(settings.lang)
+    ? detectedLang
+    : settings.lang;
+
+  const tp = useVoiceTeleprompter(script, { lang: effectiveLang });
   const currentWordRef = useRef(null);
 
   useEffect(() => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ } }, [settings]);
@@ -288,6 +332,54 @@ function EmbedCameraRecord() {
     }
   };
 
+  // One-tap layouts for the script overlay. Each sets BOTH the box geometry and
+  // the text size, since "front cam overlay" is really a position + size combo.
+  const applyPreset = useCallback((name) => {
+    const s = stageRef.current;
+    const W = s ? s.clientWidth : window.innerWidth;
+    const H = s ? s.clientHeight : window.innerHeight;
+    // Full-width layouts must start below the fixed close button, or the box's
+    // corner grip ends up underneath it. Measure it rather than guessing, so the
+    // safe-area inset on notched phones is accounted for automatically.
+    let topSafe = 58;
+    try {
+      const stageTop = s ? s.getBoundingClientRect().top : 0;
+      const closeEl = document.querySelector('.cr-close');
+      if (closeEl) {
+        topSafe = Math.max(topSafe, Math.round(closeEl.getBoundingClientRect().bottom - stageTop) + 8);
+      }
+    } catch { /* keep the fallback */ }
+    let w; let h; let y; let patch;
+
+    if (name === 'frontcam') {
+      // Tucked right under the top edge (where the selfie lens sits): tiny type,
+      // and only TWO lines tall so the strip is as shallow as it can be while
+      // still showing the word after the one you're on. Keeps your eyeline on the
+      // lens, and stays clear of the close button in the top-right corner.
+      const fs = 12;
+      w = Math.round(W * 0.68);
+      h = Math.round(fs * LINE_HEIGHT * 2 + SCROLL_PAD_Y);
+      y = 4;
+      patch = { fontSize: fs, bgOpacity: 0.28 };
+    } else if (name === 'max') {
+      // Big type for reading the phone from a distance.
+      w = Math.round(W * 0.96);
+      y = Math.max(Math.round(H * 0.08), topSafe);
+      h = Math.round(Math.min(H * 0.55, H - y - 24));
+      patch = { fontSize: 46, bgOpacity: 0.55 };
+    } else { // 'top'
+      w = Math.round(W * 0.92);
+      y = Math.max(Math.round(H * 0.05), topSafe);
+      h = Math.round(Math.min(H * 0.34, H - y - 24));
+      patch = { fontSize: 26, bgOpacity: 0.5 };
+    }
+
+    const rect = { x: Math.round((W - w) / 2), y, w, h };
+    setBox(rect);
+    try { localStorage.setItem(BOX_KEY, JSON.stringify(rect)); } catch { /* ignore */ }
+    setSettings((prev) => ({ ...prev, ...patch }));
+  }, []);
+
   // ---- draggable record/stop button (tap = action, drag = move) ------------
   const recordRef = useRef(null);
   const recordDrag = useRef(null);
@@ -301,6 +393,10 @@ function EmbedCameraRecord() {
     streamRef.current = null;
     if (s) s.getTracks().forEach((t) => t.stop());
     if (audioTrackRef.current) { try { audioTrackRef.current.stop(); } catch { /* ignore */ } audioTrackRef.current = null; }
+    if (canvasStreamRef.current) {
+      try { canvasStreamRef.current.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+      canvasStreamRef.current = null;
+    }
   }, []);
 
   const startCamera = useCallback(async (deviceId) => {
@@ -311,10 +407,14 @@ function EmbedCameraRecord() {
     // VIDEO-ONLY: holding a getUserMedia audio track starves the Web Speech
     // recognizer (it opens its own capture, gets silence, raises no error). The
     // mic stays free so recognition can grab it; the recording's audio track is
-    // added later, after recognition is live. `aspectRatio` is a soft hint only.
-    const ratio = orientationRef.current === 'landscape' ? 16 / 9 : 9 / 16;
+    // added later, after recognition is live.
+    //
+    // And NO size/aspect constraints at all. Asking for 9:16 makes Chrome
+    // CENTER-CROP the landscape sensor — that is the "extremely zoomed in"
+    // portrait. Take the sensor's natural frame and ROTATE it into portrait
+    // instead (see the compositor below), which keeps the full field of view.
     const videoBase = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: 'user' } };
-    const constraints = { audio: false, video: { ...videoBase, aspectRatio: { ideal: ratio } } };
+    const constraints = { audio: false, video: videoBase };
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
@@ -352,6 +452,68 @@ function EmbedCameraRecord() {
       el.play?.().catch(() => {});
     }
   }, [phase]);
+
+  // ---- sensor rotation compositor -----------------------------------------
+  // Chrome hands over the RAW sensor frame (landscape) even on a portrait page,
+  // so a portrait target needs a 90° turn. Judge orientation from the ELEMENT,
+  // never getSettings() — Firefox pre-rotates and reports the unrotated track.
+  const rotateDirRef = useRef(1);
+  rotateDirRef.current = settings.rotateDir === 3 ? 3 : 1;
+
+  const decideRotation = useCallback(() => {
+    const v = previewRef.current;
+    if (!v || !v.videoWidth || !v.videoHeight) return;
+    const frameIsLandscape = v.videoWidth > v.videoHeight;
+    const wantPortrait = orientationRef.current === 'portrait';
+    const need = wantPortrait ? frameIsLandscape : !frameIsLandscape;
+    setRotateTurns(need ? rotateDirRef.current : 0);
+  }, []);
+
+  useEffect(() => {
+    const v = previewRef.current;
+    if (!v) return undefined;
+    v.addEventListener('loadedmetadata', decideRotation);
+    v.addEventListener('resize', decideRotation);
+    decideRotation();
+    return () => {
+      v.removeEventListener('loadedmetadata', decideRotation);
+      v.removeEventListener('resize', decideRotation);
+    };
+  }, [decideRotation, phase]);
+
+  // Re-evaluate when the target orientation or the manual flip changes.
+  useEffect(() => { decideRotation(); }, [eff, settings.rotateDir, decideRotation]);
+
+  // Draw the rotated frame. A 16:9 frame turned 90° is exactly 9:16 → fills a
+  // portrait canvas with ZERO crop, which is the whole point.
+  useEffect(() => {
+    if (phase === 'review' || !rotateTurns) {
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      return undefined;
+    }
+    const draw = () => {
+      const v = previewRef.current;
+      const c = canvasRef.current;
+      if (v && c && v.videoWidth) {
+        const vw = v.videoWidth;
+        const vh = v.videoHeight;
+        const turns = rotateTurnsRef.current;
+        const cw = turns % 2 === 1 ? vh : vw;
+        const ch = turns % 2 === 1 ? vw : vh;
+        if (c.width !== cw) c.width = cw;
+        if (c.height !== ch) c.height = ch;
+        const ctx = c.getContext('2d');
+        ctx.save();
+        ctx.translate(cw / 2, ch / 2);
+        ctx.rotate((Math.PI / 2) * turns);
+        ctx.drawImage(v, -vw / 2, -vh / 2, vw, vh);
+        ctx.restore();
+      }
+      rafRef.current = requestAnimationFrame(draw);
+    };
+    rafRef.current = requestAnimationFrame(draw);
+    return () => { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; } };
+  }, [phase, rotateTurns]);
 
   useEffect(() => () => { if (recordedUrl) URL.revokeObjectURL(recordedUrl); }, [recordedUrl]);
 
@@ -466,14 +628,24 @@ function EmbedCameraRecord() {
     setSttStatus('');
     if (!useStt) tp.start();
 
-    let recordStream = videoStream;
+    // When we're rotating the sensor frame, record the ROTATED CANVAS — otherwise
+    // the saved file would be landscape while the preview showed portrait.
+    let videoTracks = videoStream.getVideoTracks();
+    if (rotateTurnsRef.current !== 0 && canvasRef.current) {
+      try {
+        const cs = canvasRef.current.captureStream(30);
+        if (cs.getVideoTracks().length) { canvasStreamRef.current = cs; videoTracks = cs.getVideoTracks(); }
+      } catch { /* fall back to the raw sensor track */ }
+    }
+
+    let recordStream = new MediaStream(videoTracks);
     try {
       if (!useStt) await new Promise((r) => setTimeout(r, 500)); // let recognition settle
       const audioStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
       audioTrackRef.current = audioStream.getAudioTracks()[0] || null;
-      recordStream = new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+      recordStream = new MediaStream([...videoTracks, ...audioStream.getAudioTracks()]);
     } catch {
       toast('Recording without a microphone (mic unavailable).');
     }
@@ -484,8 +656,8 @@ function EmbedCameraRecord() {
       sttRef.current = createSttStream({
         track: audioTrackRef.current,
         url: STT_WS_URL,
-        lang: settings.lang,
-        onTranscript: (t) => tp.ingestTranscript(t),
+        lang: effectiveLang,
+        onTranscript: (t, isFinal) => tp.ingestTranscript(t, isFinal),
         onStatus: (s, msg) => setSttStatus(msg ? `${s}:${msg}` : s),
       });
     }
@@ -505,6 +677,10 @@ function EmbedCameraRecord() {
     recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunksRef.current.push(e.data); };
     recorder.onstop = () => {
       if (audioTrackRef.current) { try { audioTrackRef.current.stop(); } catch { /* ignore */ } audioTrackRef.current = null; }
+      if (canvasStreamRef.current) {
+        try { canvasStreamRef.current.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+        canvasStreamRef.current = null;
+      }
       const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
       const url = URL.createObjectURL(blob);
       setRecordedBlob(blob);
@@ -520,11 +696,19 @@ function EmbedCameraRecord() {
       setElapsed(elapsedRef.current);
       if (elapsedRef.current >= shortsCap) stopRecording();
     }, 1000);
-  }, [mimeType, recordingSupported, shortsCap, stopRecording, tp, lockScreenOrientation, settings.lang]);
+  }, [mimeType, recordingSupported, shortsCap, stopRecording, tp, lockScreenOrientation, effectiveLang]);
 
   const toggleVoiceTest = useCallback(() => {
     if (tp.listening) tp.stop();
     else { tp.reset(); tp.start(); }
+  }, [tp]);
+
+  // Going back to edit always starts the prompter over — a leftover pointer would
+  // otherwise highlight somewhere in the middle when you return to the camera.
+  const goToScript = useCallback(() => {
+    tp.stop();
+    tp.reset();
+    setPhase('script');
   }, [tp]);
 
   // Record button: tap fires record/stop, a real drag just repositions it.
@@ -629,15 +813,30 @@ function EmbedCameraRecord() {
     </div>
   );
 
-  const langOptions = LANG_OPTIONS.some((o) => o.value === settings.lang)
-    ? LANG_OPTIONS
-    : [{ value: settings.lang, label: settings.lang }, ...LANG_OPTIONS];
+  // Auto-detect first, then ONLY the languages the recognizer actually supports
+  // (the STT server reports its loaded models via /healthz).
+  const langOptions = [
+    { value: 'auto', label: `Auto-detect (${langLabel(detectedLang)})` },
+    ...LANG_OPTIONS.filter((o) => availableLangs.includes(o.value)),
+  ];
 
   const overlaySettingsPanel = (
     <>
+      <div className="cr-presets">
+        <button type="button" onClick={() => applyPreset('frontcam')} title="Small strip under the selfie lens — least obvious that you're reading">
+          Front cam
+        </button>
+        <button type="button" onClick={() => applyPreset('max')} title="Large type for reading from a distance">
+          Max size
+        </button>
+        <button type="button" onClick={() => applyPreset('top')} title="Several lines across the top">
+          Top lines
+        </button>
+      </div>
+
       <label className="cr-set-row">
         <span>Font size</span>
-        <input type="range" min="14" max="52" step="1" value={settings.fontSize}
+        <input type="range" min="10" max="52" step="1" value={settings.fontSize}
           onChange={(e) => setSetting({ fontSize: Number(e.target.value) })} />
         <span className="cr-set-val">{settings.fontSize}px</span>
       </label>
@@ -659,7 +858,11 @@ function EmbedCameraRecord() {
       </div>
       <label className="cr-set-row">
         <span>Voice language</span>
-        <select className="cr-lang-select" value={settings.lang} onChange={(e) => setSetting({ lang: e.target.value })}>
+        <select
+          className="cr-lang-select"
+          value={langOptions.some((o) => o.value === settings.lang) ? settings.lang : 'auto'}
+          onChange={(e) => setSetting({ lang: e.target.value })}
+        >
           {langOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </label>
@@ -710,11 +913,20 @@ function EmbedCameraRecord() {
   const confirmDialogEl = confirmClose ? (
     <div className="cr-confirm">
       <div className="cr-confirm-box">
-        <p className="cr-confirm-title">Close the teleprompter?</p>
-        <p className="cr-confirm-sub">Your recording and script won&apos;t be saved.</p>
-        <div className="cr-confirm-actions">
-          <button type="button" className="cr-btn cr-btn--ghost" onClick={() => setConfirmClose(false)}>Keep editing</button>
-          <button type="button" className="cr-btn cr-btn--record" onClick={doClose}>Close</button>
+        <p className="cr-confirm-title">Leave the camera?</p>
+        <p className="cr-confirm-sub">Go back to your script, stay here, or close (nothing is saved).</p>
+        <div className="cr-confirm-actions cr-confirm-actions--stack">
+          <button
+            type="button"
+            className="cr-btn cr-btn--outline"
+            onClick={() => { setConfirmClose(false); stopRecording(); goToScript(); }}
+          >
+            <ChevronLeft size={16} /> Back to script
+          </button>
+          <div className="cr-confirm-row">
+            <button type="button" className="cr-btn cr-btn--ghost" onClick={() => setConfirmClose(false)}>Stay</button>
+            <button type="button" className="cr-btn cr-btn--record" onClick={doClose}>Close</button>
+          </div>
         </div>
       </div>
     </div>
@@ -762,7 +974,18 @@ function EmbedCameraRecord() {
           <video className="cr-video cr-video--contain" src={recordedUrl} controls playsInline preload="metadata" />
         ) : (
           <div className={`cr-frame cr-frame--${eff}`}>
-            <video ref={previewRef} className={`cr-video${mirror ? ' cr-video--mirror' : ''}`} muted playsInline autoPlay />
+            {/* When rotating, the <video> is only the SOURCE for the canvas — kept
+                in the DOM and playing, but visually out of the way. */}
+            <video
+              ref={previewRef}
+              className={rotateTurns ? 'cr-video cr-video--source' : `cr-video${mirror ? ' cr-video--mirror' : ''}`}
+              muted
+              playsInline
+              autoPlay
+            />
+            {!!rotateTurns && (
+              <canvas ref={canvasRef} className={`cr-video${mirror ? ' cr-video--mirror' : ''}`} />
+            )}
           </div>
         )}
 
@@ -794,23 +1017,27 @@ function EmbedCameraRecord() {
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
           >
-            <div className="cr-tp-header" onPointerDown={beginDrag('move')}>
-              <GripHorizontal size={16} />
-              <span className="cr-tp-hint">{phase === 'setup' ? 'Drag / resize' : 'Reading…'}</span>
-            </div>
             <div className="cr-tp-scroll" style={scrollStyle}>
               {tp.words.map((w, i) => (
-                <span
-                  key={i}
-                  ref={i === tp.matchedCount ? currentWordRef : null}
-                  className={
-                    i < tp.matchedCount ? 'cr-word cr-word--read'
-                      : i === tp.matchedCount ? 'cr-word cr-word--current' : 'cr-word'
-                  }
-                >
-                  {w.text}{' '}
-                </span>
+                <React.Fragment key={i}>
+                  {/* the author's own line/paragraph breaks, capped at one blank line */}
+                  {w.br > 0 && Array.from({ length: Math.min(w.br, 2) }, (_, k) => <br key={k} />)}
+                  <span
+                    ref={i === tp.matchedCount ? currentWordRef : null}
+                    className={
+                      i < tp.matchedCount ? 'cr-word cr-word--read'
+                        : i === tp.matchedCount ? 'cr-word cr-word--current' : 'cr-word'
+                    }
+                  >
+                    {w.text}{' '}
+                  </span>
+                </React.Fragment>
               ))}
+            </div>
+            {/* small corner grip instead of a header bar, so the script can sit
+                right under the front lens without an obvious UI strip above it */}
+            <div className="cr-tp-grip" onPointerDown={beginDrag('move')} title="Drag to move">
+              <GripHorizontal size={13} />
             </div>
             <div className="cr-tp-resize" onPointerDown={beginDrag('resize')} />
           </div>
@@ -837,7 +1064,7 @@ function EmbedCameraRecord() {
               {phase === 'setup' && (
                 <>
                   <div className="cr-menu-line"><span>Orientation</span>{orientationToggle}</div>
-                  <button type="button" className="cr-menu-btn" onClick={() => setPhase('script')}>
+                  <button type="button" className="cr-menu-btn" onClick={goToScript}>
                     <ChevronLeft size={15} /> Edit script
                   </button>
                   {devices.length > 1 && (
@@ -847,6 +1074,16 @@ function EmbedCameraRecord() {
                         {devices.map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${i + 1}`}</option>)}
                       </select>
                     </label>
+                  )}
+                  {!!rotateTurns && (
+                    <button
+                      type="button"
+                      className="cr-menu-btn"
+                      onClick={() => setSetting({ rotateDir: settings.rotateDir === 3 ? 1 : 3 })}
+                      title="If the picture is upside down, flip the 90° rotation"
+                    >
+                      <RotateCw size={15} /> Flip rotation
+                    </button>
                   )}
                   {tp.totalWords > 0 && tp.supported && (
                     <button type="button" className={`cr-menu-btn cr-test${tp.listening ? ' is-on' : ''}`} onClick={toggleVoiceTest}>
@@ -880,6 +1117,9 @@ function EmbedCameraRecord() {
 
       {phase === 'review' && (
         <div className="cr-review-actions">
+          <button type="button" className="cr-btn cr-btn--ghost" onClick={goToScript} disabled={finishing}>
+            <ChevronLeft size={16} /> Script
+          </button>
           <button type="button" className="cr-btn cr-btn--ghost" onClick={retake} disabled={finishing}>
             <RotateCcw size={16} /> Re-record
           </button>

@@ -10,7 +10,7 @@ import { useContentBatch } from "../hooks/useContentBatch";
 import { useWatchHistory } from "../hooks/useWatchHistory";
 import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
-import { getFeedSeed, regenerateFeedSeed } from "../utils/feedSeed";
+import { getFeedSeed, refreshHomeFeeds } from "../utils/feedSeed";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
 import SuggestedCreators from "../components/SuggestedCreators/SuggestedCreators";
 import { useLiveStreams } from "../hooks/useLiveStreams";
@@ -419,7 +419,7 @@ const HomeGrouped = () => {
   // this to fill its row exactly on desktop (no horizontal scroll). Mobile ignores it
   // (that rail stays a scroller); it's only >0 once the grid is measured, which also
   // gates the interleave so an unmeasured/empty creators row can't open a gap.
-  const creatorsPerRow = useTilesPerRow(panelRef, `cr:${activeSection?.key}:${activeVideos.length}`, { min: 132, minPhone: 108, gap: 10, gapPhone: 8, floor: 3 });
+  const creatorsPerRow = useTilesPerRow(panelRef, `cr:${activeSection?.key}:${activeVideos.length}`, { min: 198, minPhone: 162, gap: 10, gapPhone: 8, floor: 3 });
   // Shorts per rail = however many fit across right now.
   const shortsPerRow = useShortsPerRow(panelRef, `${activeSection?.key}:${activeVideos.length}`);
 
@@ -579,14 +579,9 @@ const HomeGrouped = () => {
 
   const handleRefresh = useCallback(async () => {
     // Pull-to-refresh is an explicit "give me something new" gesture, so it DOES
-    // reshuffle — same as hitting reload. Plain navigation never does.
-    regenerateFeedSeed();
-    await queryClient.invalidateQueries({ queryKey: authenticated ? ["follow-feed", user] : ["home-grouped"] });
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["discover-grouped"] }),
-      queryClient.invalidateQueries({ queryKey: ["interests-grouped"] }),
-      queryClient.invalidateQueries({ queryKey: ["newcontent-grouped"] }),
-    ]);
+    // reshuffle — same as hitting reload. Plain navigation never does. Shared with
+    // the interests prompt's post-save refresh (single source of truth).
+    await refreshHomeFeeds(queryClient, { authenticated, user });
   }, [queryClient, authenticated, user]);
 
   // ── Drag-to-reorder the tabs (pointer events → works for mouse + touch) ──

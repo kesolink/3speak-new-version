@@ -41,7 +41,8 @@ export default function CookieConsent() {
           <p>
             3Speak keeps your login and the settings you choose in your browser — that's what makes
             the site work. We use <strong>no tracking cookies, no advertising and no third-party
-            analytics</strong>, and watching a video stores nothing on your device.
+            analytics</strong>. The only thing watching a video can save to your device is where you
+            left off — and that's the one optional choice below.
           </p>
           <p>
             The one optional thing: we can remember <strong>where you left off in each video</strong>{' '}
@@ -55,7 +56,8 @@ export default function CookieConsent() {
                 <ul>
                   <li>Your login session</li>
                   <li>Settings you set: theme, volume, language, subtitles, feed preferences</li>
-                  <li>Resuming an interrupted upload</li>
+                  <li>Resuming an interrupted upload, and drafts of posts you're writing</li>
+                  <li>The app itself, for offline use once installed</li>
                   <li>Your answer to this banner</li>
                 </ul>
               </div>

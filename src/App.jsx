@@ -38,6 +38,7 @@ import CommunityPage from "./components/Communities/CommunityPage";
 import TagFeed from "./page/TagFeed";
 import Leaderboard from "./page/Leaderboard";
 import ProfilePage from "./page/ProfilePage";
+import Spotlight from "./page/Spotlight";
 import Wallet from "./page/Wallet";
 import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
 import DraftStudio from "./components/studio/DraftStudio";
@@ -187,6 +188,7 @@ function App() {
   const [globalCloseRender, setGlobalCloseRender] = useState(false)
   const [toggle, setToggle] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginIntent, setLoginIntent] = useState(null); // 'login' | 'signup' from the nav
   const [loginProof, setLoginProof] = useState(() => Math.floor(Date.now() / 1000));
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [audioUploadOpen, setAudioUploadOpen] = useState(false);
@@ -436,7 +438,10 @@ function App() {
     setToggle((prev) => !prev);
   }
 
-  const openLoginModal = () => {
+  // `mode` is 'login' | 'signup' from the nav buttons (opens the modal straight
+  // to that action). Other callers pass no string, so intent stays null.
+  const openLoginModal = (mode) => {
+    setLoginIntent(typeof mode === 'string' ? mode : null);
     setLoginProof(Math.floor(Date.now() / 1000)); // Fresh timestamp when modal opens
     if (!aioha.isLoggedIn()) {
       loginInProgress.current = true; // Only guard during fresh login, not account switch
@@ -577,6 +582,10 @@ function App() {
             <Route path="/t/:tag" element={<TagFeed />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/profile" element={<ProfilePage />} />
+            {/* Spotlight — creator link page. Canonical: 3speak.tv/links/username (no @).
+                Legacy /@handle/links still resolves (nginx 301s it to /links/ in prod). */}
+            <Route path="/links/:handle" element={<Spotlight />} />
+            <Route path="/:handle/links" element={<Spotlight />} />
             <Route path="/p/:user" element={<UserProfilePage />} />
             <Route path="/user/:user" element={<UserProfilePage />} />
             <Route path="/playlist/:playlistId" element={<PlaylistView />} />
@@ -606,6 +615,7 @@ function App() {
         {toggle && <AddAccount_modal close={toggleAddAccount} isOpen={toggle} /> }
         <LoginModal
           displayed={loginModalOpen}
+          intent={loginIntent}
           onLogin={handleAiohaLogin}
           onClose={closeLoginModal}
           loginTitle="Login to 3Speak"

@@ -39,7 +39,22 @@
 
       &--mirror { transform: scaleX(-1); }
       &--contain { object-fit: contain; }
+
+      // While the rotation compositor runs, the <video> is only the pixel source
+      // for the canvas — keep it in the DOM and decoding, but out of sight.
+      // (display:none would let some browsers stop delivering frames.)
+      &--source {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        opacity: 0.01;
+        pointer-events: none;
+      }
     }
+
+    // The rotated canvas already matches the frame's aspect, so a plain stretch
+    // is distortion-free (object-fit isn't reliable on <canvas>).
+    canvas.cr-video { display: block; }
   }
 
   .cr-error {
@@ -70,12 +85,14 @@
     cursor: pointer;
   }
 
-  // ---- recording top status (centered so it clears close + menu) ----
+  // ---- recording status ----
+  // Sits at the BOTTOM-left, not the top: the top strip is reserved for the
+  // script overlay (the "Front cam" preset tucks it right under the lens), and
+  // a REC badge up there would cover the first line.
   .cr-topbar {
     position: absolute;
-    top: calc(env(safe-area-inset-top) + 12px);
-    left: 50%;
-    transform: translateX(-50%);
+    bottom: calc(env(safe-area-inset-bottom) + 54px);
+    left: 14px;
     z-index: 15;
     display: flex;
     align-items: center;
@@ -128,29 +145,35 @@
     overflow: hidden;
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
 
-    .cr-tp-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
+    // Corner grip instead of a header bar: no UI strip above the text, so the
+    // script can sit flush under the selfie lens and stay inconspicuous.
+    .cr-tp-grip {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
       cursor: grab;
       touch-action: none; // only the grip disables touch scrolling
-      background: rgba(255, 255, 255, 0.14);
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.6);
+      background: rgba(0, 0, 0, 0.22);
+      border-bottom-left-radius: 10px;
       user-select: none;
-      &:active { cursor: grabbing; }
-      .cr-tp-hint { opacity: 0.85; }
+      &:active { cursor: grabbing; color: #fff; }
     }
 
     .cr-tp-scroll {
       flex: 1;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      padding: 10px 14px 16px;
+      // Tight vertical padding so a two-line "Front cam" strip is mostly text.
+      // Keep in sync with SCROLL_PAD_Y (8 + 16) in the component.
+      padding: 8px 14px 16px;
       line-height: 1.7;
       font-weight: 600;
-      text-align: center;
+      text-align: left;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
     }
 
@@ -368,6 +391,26 @@
       gap: 9px;
       font-size: 0.78rem;
 
+      // One-tap layout presets for the script overlay.
+      .cr-presets {
+        display: flex;
+        gap: 6px;
+
+        button {
+          flex: 1;
+          padding: 7px 4px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.07);
+          color: #fff;
+          font-size: 0.7rem;
+          font-weight: 600;
+          line-height: 1.15;
+          cursor: pointer;
+          &:active { background: var(--accent-primary, #e53935); border-color: transparent; }
+        }
+      }
+
       .cr-set-row {
         display: flex;
         align-items: center;
@@ -430,7 +473,14 @@
       text-align: center;
       .cr-confirm-title { font-size: 1.05rem; font-weight: 700; margin: 0 0 6px; }
       .cr-confirm-sub { font-size: 0.85rem; opacity: 0.7; margin: 0 0 16px; }
-      .cr-confirm-actions { display: flex; gap: 10px; .cr-btn { flex: 1; } }
+      .cr-confirm-actions {
+        display: flex;
+        gap: 10px;
+        .cr-btn { flex: 1; }
+
+        &--stack { flex-direction: column; }
+      }
+      .cr-confirm-row { display: flex; gap: 10px; .cr-btn { flex: 1; } }
     }
   }
 
