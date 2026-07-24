@@ -179,8 +179,12 @@ const CHECKER_API_KEY = import.meta.env.VITE_CHECKER_API_KEY || '';
 
 // Feature flags for MetaMask Snap login and 3Speak Pro subscriptions
 const ENABLE_METAMASK_SNAP = import.meta.env.VITE_ENABLE_METAMASK_SNAP === 'true';
-// Default-on: only disabled when explicitly set to "false".
-const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false';
+// Default-on: only disabled when explicitly set to "false". A hidden soft-launch
+// "unlock" (5 taps on the RPC node line in the profile menu) writes
+// butrauth_unlocked=true to localStorage to force it on even when the env flag
+// is off, so testers can reveal the Butter Auth login + signup before launch.
+const ENABLE_BUTRAUTH = import.meta.env.VITE_ENABLE_BUTRAUTH !== 'false'
+  || (typeof localStorage !== 'undefined' && localStorage.getItem('butrauth_unlocked') === 'true');
 const ENABLE_SUBS = import.meta.env.VITE_ENABLE_SUBS === 'true';
 // Pay-per-listen reward controls in the audio uploader. Enabled by
 // default; set VITE_ENABLE_PPL=false to hide the earn-mode chooser and

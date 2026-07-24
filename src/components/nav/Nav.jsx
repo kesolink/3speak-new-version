@@ -19,6 +19,7 @@ import ChatButton from "../Chat/ChatButton";
 import PremiumBadge from "../PremiumBadge/PremiumBadge";
 import { FiSettings, FiLogIn } from "react-icons/fi";
 import SettingsModal from "../SettingsModal/SettingsModal";
+import { ENABLE_BUTRAUTH } from "../../utils/config";
 
 function NavPlaylistsDropdown({ user }) {
   const [open, setOpen] = useState(false);
@@ -224,7 +225,14 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
             <MdOutlineSearch size={19} />
           </Link>
           <Link to="/about" className="nav-guest-about">About 3Speak</Link>
-          <button className="nav-guest-login" onClick={openLoginModal}><FiLogIn /> LOG IN</button>
+          {ENABLE_BUTRAUTH ? (
+            <>
+              <button className="nav-guest-login nav-guest-login--secondary" onClick={() => openLoginModal('login')}><FiLogIn /> Log in</button>
+              <button className="nav-guest-signup" onClick={() => openLoginModal('signup')}>Sign up</button>
+            </>
+          ) : (
+            <button className="nav-guest-login" onClick={() => openLoginModal('login')}><FiLogIn /> Log in</button>
+          )}
           <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
         </div>
       )}

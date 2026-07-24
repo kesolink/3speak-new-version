@@ -153,6 +153,24 @@ export default function SettingsModal({ isOpen, onClose }) {
   const modalRef = useRef(null);
   const [anchor, setAnchor] = useState(null);
 
+  // Hidden soft-launch unlock: 5 quick taps on the Hive RPC node row force-enables
+  // Butter Auth (login + signup) via localStorage, even when VITE_ENABLE_BUTRAUTH
+  // is off. Reload so every gate (config ENABLE_BUTRAUTH, aioha) re-reads the flag.
+  const butrTapRef = useRef({ count: 0, t: 0 });
+  const handleButrUnlockTap = () => {
+    const now = Date.now();
+    const s = butrTapRef.current;
+    if (now - s.t > 2000) s.count = 0; // taps must be within 2s of each other
+    s.t = now;
+    s.count += 1;
+    if (s.count >= 5) {
+      s.count = 0;
+      localStorage.setItem('butrauth_unlocked', 'true');
+      toast.success('Butter Auth unlocked');
+      setTimeout(() => window.location.reload(), 600);
+    }
+  };
+
   useLayoutEffect(() => {
     if (!isOpen) { setAnchor(null); return undefined; }
     // Bottom sheet (<=640px, see the SCSS) must not be anchored.
@@ -326,7 +344,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                   <span className="settings-row-desc">v{APP_VERSION}</span>
                 </div>
               </div>
-              <div className="settings-modal-row">
+              <div className="settings-modal-row" onClick={handleButrUnlockTap}>
                 <div className="settings-row-text">
                   <span className="settings-row-title">Hive RPC node</span>
                   <span className="settings-row-desc">{getHiveUrl()}</span>
