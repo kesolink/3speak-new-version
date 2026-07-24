@@ -418,10 +418,12 @@ export const signMessageWithAioha = async (message, keyType = KeyTypes.Posting, 
 // Auth happens via httpOnly cookie set during /api/manteauth/exchange — no token in JS.
 const THREESPEAK_API = import.meta.env.VITE_THREESPEAK_API || '/api'
 
-// Honors the VITE_ENABLE_BUTRAUTH=false flag — when disabled, treat ManteAuth
-// state as absent so no manteauth-specific code paths run.
+// Honors the VITE_ENABLE_BUTRAUTH=false flag (when disabled, treat ManteAuth
+// state as absent so no manteauth-specific code paths run) unless the hidden
+// soft-launch unlock (butrauth_unlocked) has been set, which forces it on.
 export const isManteAuthLogin = () => {
-  if (import.meta.env.VITE_ENABLE_BUTRAUTH === 'false') return false;
+  const unlocked = localStorage.getItem('butrauth_unlocked') === 'true';
+  if (import.meta.env.VITE_ENABLE_BUTRAUTH === 'false' && !unlocked) return false;
   return localStorage.getItem('manteauth_login') === 'true'
 }
 
@@ -486,6 +488,19 @@ export const establishWalletSession = async () => {
   return walletSessionPromise
 }
 
+// Clear BOTH server-side session cookies (ManteAuth + SIWH wallet). Used when a
+// proxy broadcast resolves to the WRONG user — i.e. a session cookie left over
+// from a previously logged-in account (switching wallets without logging out).
+// Safe in the wallet broadcast path: a ManteAuth cookie present there is stale,
+// because ManteAuth logins never take this path.
+export const clearServerSession = async () => {
+  walletSessionPromise = null
+  await Promise.allSettled([
+    fetch(`${THREESPEAK_API}/auth/wallet/logout`, { method: 'POST', credentials: 'include' }),
+    fetch(`${THREESPEAK_API}/manteauth/logout`, { method: 'POST', credentials: 'include' }),
+  ])
+}
+
 // @threespeak proxy broadcast — the user granted @threespeak posting authority
 // (via the upload gate), so the server signs posting-level ops on their behalf,
 // no wallet popup per action. Authentication of WHICH user, by provider:
@@ -523,11 +538,24 @@ export const broadcastViaThreespeak = async (operations) => {
   }
 
   let { res, data } = await doPost()
-  // Wallet login with no valid session (server has app-key auth disabled) → the
-  // resolver falls through to 401. Establish a SIWH session once, then retry.
+  // Recover from a missing OR mismatched server session:
+  //   • 401                          → no session yet (app-key auth disabled).
+  //   • 403 "Operation not allowed"  → the session cookie is bound to a DIFFERENT
+  //     account than the one we're posting for (e.g. switched wallets without
+  //     logging out). Clear the stale cookies first, then establish fresh.
   // A 403 "Authorization required" is different (no @threespeak grant) and is
   // left to the caller's client-side-signing fallback.
-  if (isWallet && res.status === 401) {
+  const mismatch = res.status === 403 && /operation not allowed/i.test(data.error || '')
+  if (mismatch) {
+    // A stale session cookie (from a previously logged-in account) outranked our
+    // current credential on the server. Clear it, then retry with the right
+    // identity — wallet logins re-establish a SIWH session; HiveSigner's Bearer
+    // token authenticates on its own once the stale cookie is gone.
+    await clearServerSession()
+    if (!isWallet || await establishWalletSession()) {
+      ({ res, data } = await doPost())
+    }
+  } else if (isWallet && res.status === 401) {
     if (await establishWalletSession()) {
       ({ res, data } = await doPost())
     }
