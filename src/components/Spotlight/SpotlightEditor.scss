@@ -271,6 +271,16 @@
   .sp-e-embchip-t { font-size: 13px; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sp-e-embchip-d { font-size: 12px; color: var(--text-secondary); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
+  // ── video/short mode toggle (segmented radio) ──
+  .sp-e-vmode { display: flex; gap: 4px; padding: 4px; background: var(--sp-hover); border-radius: 10px; }
+  .sp-e-vmode-opt {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 7px 10px; border-radius: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    color: var(--text-secondary); transition: background 0.12s, color 0.12s;
+    input { position: absolute; opacity: 0; pointer-events: none; }
+    svg { opacity: 0.8; }
+    &.active { background: var(--bg-primary, #0f0f0f); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+  }
   // ── video picker dropdown (choose from my videos) ──
   .sp-e-vpick { position: relative; }
   .sp-e-vpick-btn {
@@ -284,22 +294,32 @@
     &:hover { border-color: var(--sp-accent); }
   }
   .sp-e-vpick-menu {
-    margin-top: 6px; max-height: 292px; overflow-y: auto; scrollbar-width: thin;
+    margin-top: 6px; max-height: 380px; overflow-y: auto; scrollbar-width: thin;
     border: 1px solid var(--sp-border); border-radius: 10px; background: var(--bg-primary, #0f0f0f);
-    display: flex; flex-direction: column; padding: 4px;
+    display: grid; gap: 8px; padding: 8px;
+    grid-template-columns: repeat(2, 1fr); // videos: 2-up 16:9
   }
-  .sp-e-vpick-note { padding: 16px; text-align: center; font-size: 12.5px; color: var(--text-secondary); }
+  .sp-e-vpick-menu--short { grid-template-columns: repeat(3, 1fr); } // shorts: 3-up 9:16
+  .sp-e-vpick-note { grid-column: 1 / -1; padding: 18px; text-align: center; font-size: 12.5px; color: var(--text-secondary); }
   .sp-e-vpick-item {
-    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-    padding: 6px; border: none; border-radius: 8px; background: transparent; cursor: pointer;
+    display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left;
+    padding: 6px; border: none; border-radius: 10px; background: transparent; cursor: pointer;
     transition: background 0.1s;
     &:hover { background: var(--sp-hover); }
   }
-  .sp-e-vpick-thumb { flex: 0 0 auto; width: 64px; height: 38px; object-fit: cover; border-radius: 6px; background: var(--sp-hover); }
-  .sp-e-vpick-noimg { display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); }
-  .sp-e-vpick-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .sp-e-vpick-title { font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sp-e-vpick-time { font-size: 11px; color: var(--text-secondary); }
+  .sp-e-vpick-tile {
+    width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden;
+    background: var(--sp-hover); display: flex; align-items: center; justify-content: center;
+    img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .sp-e-vpick-tile-ico { color: var(--text-secondary); }
+  }
+  .sp-e-vpick-menu--short .sp-e-vpick-tile { aspect-ratio: 9 / 16; }
+  .sp-e-vpick-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .sp-e-vpick-title {
+    font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.25;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .sp-e-vpick-time { font-size: 10.5px; color: var(--text-secondary); }
   .sp-e-vpick-or {
     display: flex; align-items: center; gap: 10px; margin: 2px 0;
     span { font-size: 10.5px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -414,10 +434,14 @@
     span:last-child { flex: 1 1 auto; min-width: 0; text-align: center; margin-right: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
   .sp-e-pv-img { width: 100%; max-height: 200px; object-fit: cover; display: block; }
+  .sp-e-pv-vcard { display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; }
+  .sp-e-pv-vcard.short { max-width: 210px; margin-left: auto; margin-right: auto; }
+  .sp-e-pv-vtitle { font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
   .sp-e-pv-video {
     position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden; background: #000;
     img { width: 100%; height: 100%; object-fit: cover; }
     span { position: absolute; inset: 0; margin: auto; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,0.5); border-radius: 50%; font-size: 14px; }
+    &.short { aspect-ratio: 9/16; max-width: 100%; }
   }
 
   // ── drag-to-arrange grid (ArrangeGrid) — compact tiles ──

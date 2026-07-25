@@ -28,9 +28,20 @@ function Block({ s, theme }) {
     return s.src ? <img className="sp-e-pv-img" src={s.src} alt="" style={{ borderRadius: radius }} /> : null;
   }
   if (s.type === 'video' && s.permlink) {
+    const cardStyle = {
+      background: s.bg || theme.sectionBg || 'rgba(255,255,255,0.08)',
+      color: s.text || theme.sectionText || undefined,
+      borderRadius: radius,
+      fontSize: `calc(13px * ${s.fontScale ? s.fontScale / 100 : 1})`,
+      padding: 8,
+      border: s.borderWidth ? `${s.borderWidth}px solid ${s.borderColor || '#000'}` : undefined,
+    };
     return (
-      <div className="sp-e-pv-video" style={{ borderRadius: radius }}>
-        <img src={s.thumbnail || `https://img.3speak.tv/${s.permlink}/thumbnail.png`} alt="" /><span>▶</span>
+      <div className={`sp-e-pv-vcard${s.isShort ? ' short' : ''}`} style={cardStyle}>
+        {s.title ? <div className="sp-e-pv-vtitle">{s.title}</div> : null}
+        <div className={`sp-e-pv-video${s.isShort ? ' short' : ''}`} style={{ borderRadius: radius }}>
+          <img src={s.thumbnail || `https://img.3speak.tv/${s.permlink}/thumbnail.png`} alt="" /><span>▶</span>
+        </div>
       </div>
     );
   }

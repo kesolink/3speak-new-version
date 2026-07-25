@@ -200,6 +200,7 @@ function sanitizeSection(raw) {
         author, permlink,
         title: str(raw.title, 140),
         thumbnail: safeUrl(raw.thumbnail) || null,
+        isShort: !!raw.isShort, // shorts render in a 9:16 (vertical) player
       };
     }
     case 'embed': {
@@ -401,11 +402,24 @@ function renderSection(s, theme) {
     return cell(s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer nofollow">${img}</a>` : img);
   }
   if (s.type === 'video') {
-    // Direct iframe — the 3Speak player renders its OWN thumbnail/poster + play
-    // button, so no overlay is needed. `loading=lazy` defers offscreen players.
-    // Canonical embed = /watch?v=…&mode=iframe&layout=desktop (16:9) per EMBEDDING.md.
-    const embed = `https://play.3speak.tv/watch?v=${esc(s.author)}/${esc(s.permlink)}&mode=iframe&layout=desktop`;
-    return cell(`<div class="vid" style="${rad}${box}"><iframe src="${esc(embed)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`);
+    // Our own SDK player, served same-origin at /embed/<author>/<permlink> (see
+    // src/page/EmbedPlayer.jsx) — NOT a play.3speak.tv iframe. `?short=1` => vertical.
+    const embed = `/embed/${esc(s.author)}/${esc(s.permlink)}${s.isShort ? '?short=1' : ''}`;
+    const vcls = s.isShort ? 'vid vid-short' : 'vid';
+    const frame = `<div class="${vcls}"><iframe src="${esc(embed)}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+    const watch = `https://3speak.tv/watch?v=${esc(s.author)}/${esc(s.permlink)}`;
+    const title = s.title
+      ? `<a class="vtitle" href="${watch}" target="_blank" rel="noopener noreferrer nofollow">${esc(s.title)}</a>`
+      : '';
+    // ONE tile like a rich-link card. Defaults to the theme's section background (what
+    // the other blocks show) so it matches them; a per-block bg overrides. Border /
+    // shadow / font / radius / padding wrap the title + player together.
+    const cardBg = withOpacity(s.bg, s.bgOpacity) || theme.sectionBg || 'rgba(255,255,255,.08)';
+    const cardText = s.text || theme.sectionText || '#f5f5f7';
+    const cardRad = s.radius != null ? s.radius : (theme.radius != null ? theme.radius : 16);
+    const pad = s.padding != null ? `padding:${s.padding}px;` : 'padding:10px;';
+    const cardStyle = `${sfs}background:${esc(cardBg)};color:${esc(cardText)};border-radius:${cardRad}px;${pad}${box}`;
+    return cell(`<div class="vcard${s.isShort ? ' vcard-short' : ''}" style="${cardStyle}">${title}${frame}</div>`);
   }
   if (s.type === 'embed') {
     const aspect = embAspect(s.imgSize);
@@ -490,8 +504,15 @@ transition:transform .12s,filter .12s,box-shadow .12s}
 .ic{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
 .lt{flex:1 1 auto;min-width:0;text-align:center;margin-right:34px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .img{width:100%;display:block;object-fit:cover;border-radius:${theme.radius != null ? theme.radius : 16}px}
-.vid{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#000;border-radius:${theme.radius != null ? theme.radius : 16}px;cursor:pointer}
-.vid img{width:100%;height:100%;object-fit:cover}.vid iframe{width:100%;height:100%;border:0}
+.vcard{display:flex;flex-direction:column;gap:8px;box-sizing:border-box}
+.vcard-short{max-width:340px;margin-left:auto;margin-right:auto}
+.vtitle{display:block;text-decoration:none;color:inherit;font-size:calc(14.5px*var(--fs)*var(--sfs,1));font-weight:600;line-height:1.3;transition:filter .12s}
+.vtitle:hover{filter:brightness(1.12)}
+.vid{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#000;border-radius:${theme.radius != null ? theme.radius : 16}px}
+.vid::after{content:"";position:absolute;top:50%;left:50%;width:38px;height:38px;margin:-19px 0 0 -19px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:vspin .8s linear infinite;z-index:0}
+.vid-short{aspect-ratio:9/16;max-width:100%;margin-left:auto;margin-right:auto}
+.vid img{width:100%;height:100%;object-fit:cover}.vid iframe{width:100%;height:100%;border:0;position:relative;z-index:1;background:transparent}
+@keyframes vspin{to{transform:rotate(360deg)}}
 .play{position:absolute;inset:0;margin:auto;width:60px;height:60px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);border-radius:50%;transition:.12s}
 .vid:hover .play{transform:scale(1.08);background:#e53935}
 .vt{position:absolute;left:0;right:0;bottom:0;padding:20px 12px 10px;text-align:left;color:#fff;font-size:13px;font-weight:600;background:linear-gradient(transparent,rgba(0,0,0,.75))}
