@@ -66,21 +66,43 @@ function fxStyle(s) {
 
 // Direct 3Speak embed — the player renders its own thumbnail/poster + play button.
 // `loading="lazy"` defers offscreen players. Canonical: /watch?v=…&mode=iframe (16:9).
-function VideoBlock({ section, radius, fx }) {
+function VideoBlock({ section, radius, fx, theme }) {
   // Only render for a well-formed Hive author/permlink (guards the iframe URL).
   const author = String(section.author || '').toLowerCase();
   const permlink = String(section.permlink || '').toLowerCase();
   if (!/^[a-z][a-z0-9.\-]{2,15}$/.test(author) || !/^[a-z0-9-]{1,255}$/.test(permlink)) return null;
-  const src = `https://play.3speak.tv/watch?v=${author}/${permlink}&mode=iframe&layout=desktop`;
+  const isShort = !!section.isShort;
+  // Our own same-origin SDK player (src/page/EmbedPlayer.jsx), not a play.3speak.tv iframe.
+  const src = `/embed/${author}/${permlink}${isShort ? '?short=1' : ''}`;
+  // ONE tile like a rich-link card. Defaults to the theme's section background (what
+  // the other blocks show) so it matches them; a per-block bg overrides.
+  const cardBg = (section.bg ? withOpacity(safeColor(section.bg), num(section.bgOpacity, 100)) : null)
+    || safeColor(theme?.sectionBg) || 'rgba(255,255,255,0.08)';
+  const cardStyle = {
+    background: cardBg,
+    color: safeColor(section.text) || safeColor(theme?.sectionText) || undefined,
+    borderRadius: radius,
+    fontSize: `calc(14.5px * ${section.fontScale ? section.fontScale / 100 : 1})`,
+    padding: section.padding != null ? num(section.padding) : 10,
+    ...fx,
+  };
+  const watch = `https://3speak.tv/watch?v=${author}/${permlink}`;
   return (
-    <div className="sp-video" style={{ borderRadius: radius, ...fx }}>
-      <iframe
-        src={src}
-        title={section.title || `${author}/${permlink}`}
-        loading="lazy"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-      />
+    <div className={`sp-video-card${isShort ? ' short' : ''}`} style={cardStyle}>
+      {section.title ? (
+        <a className="sp-video-title" href={watch} target="_blank" rel="noopener noreferrer nofollow">
+          {section.title}
+        </a>
+      ) : null}
+      <div className={`sp-video${isShort ? ' sp-video-short' : ''}`} style={{ borderRadius: radius }}>
+        <iframe
+          src={src}
+          title={section.title || `${author}/${permlink}`}
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
     </div>
   );
 }
@@ -160,7 +182,7 @@ function Section({ section, theme, username }) {
       : img;
   }
 
-  if (section.type === 'video') return <VideoBlock section={section} radius={radius} fx={fx} />;
+  if (section.type === 'video') return <VideoBlock section={section} radius={radius} fx={fx} theme={theme} />;
 
   if (section.type === 'embed') return <EmbedBlock section={section} theme={theme} username={username} />;
 
