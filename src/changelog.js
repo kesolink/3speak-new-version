@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.77.0',
+    date: '2026-07-25',
+    summary:
+      'Spotlight link pages can now feature your videos and shorts, playing right on the page in the 3Speak player, with shorts shown vertically.',
+  },
+  {
     version: '1.76.0',
     date: '2026-07-24',
     summary:
