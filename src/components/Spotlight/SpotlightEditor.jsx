@@ -26,8 +26,10 @@ const STYLE_KEYS = [
   'animType', 'animSpeed', 'animLoop', 'animDur',
 ];
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
-import { parseEmbedUrl, timeAgo } from '../../hive-api/hiveApi';
+import axios from 'axios';
+import { parseEmbedUrl, timeAgo, fetchUserShortsList, bodyToPlaintext } from '../../hive-api/hiveApi';
 import { getHiveClient } from '../../utils/hiveNode';
+import { CHECKER_URL } from '../../utils/config';
 import { isLoggedIn } from '../../hive-api/aioha';
 import './SpotlightEditor.scss';
 
@@ -94,57 +96,113 @@ function MotionControls({ prefix, obj, onChange }) {
 
 // The account's most recent 3Speak videos (own root posts flagged as 3speak/video),
 // for the video block's "choose from my videos" dropdown. bridge caps limit at 20.
+// Recent videos for a channel. Same call the profile Videos tab uses
+// (checker /api/my-videos, status:'all' + include_unlisted, axios) so the picker
+// behaves identically to a source the user already sees working.
 async function fetchRecentVideos(account) {
-  const posts = await getHiveClient().call('bridge', 'get_account_posts', { sort: 'posts', account, limit: 20 });
+  const res = await axios.get(`${CHECKER_URL}/api/my-videos`, {
+    params: {
+      username: account,
+      limit: 20,
+      offset: 0,
+      status: 'all',
+      sort: 'newest',
+      include_unlisted: 1,
+    },
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const vids = res.data?.data?.videos || [];
   const out = [];
-  for (const p of (posts || [])) {
-    if (!p || p.author !== account) continue;
-    let jm = p.json_metadata;
-    if (typeof jm === 'string') { try { jm = JSON.parse(jm); } catch { jm = {}; } }
-    jm = jm || {};
-    if (!(/3speak/i.test(String(jm.app || '')) || jm.video)) continue;
-    const thumb = (Array.isArray(jm.image) && jm.image[0]) || '';
+  for (const v of vids) {
+    if (!v || !v.permlink || v.status === 'uploaded') continue; // skip incomplete uploads
+    const thumb = (v.images && (v.images.thumbnail || v.images.poster)) || '';
     out.push({
-      author: p.author, permlink: p.permlink, title: p.title || 'Untitled',
-      thumbnail: /^https?:\/\//i.test(thumb) ? thumb : '', created: p.created,
+      author: v.owner || v.author || account,
+      permlink: v.permlink,
+      title: v.title || 'Untitled',
+      thumbnail: /^https?:\/\//i.test(thumb) ? thumb : '',
+      created: v.created_at || v.createdAt || v.created,
     });
   }
   return out;
 }
 
+// Recent shorts for a channel, via the same helper the profile Shorts tab uses.
+async function fetchRecentShorts(account) {
+  const data = await fetchUserShortsList(account, 1, 20, true);
+  const shorts = (data && Array.isArray(data.shorts)) ? data.shorts : [];
+  const out = [];
+  for (const s of shorts) {
+    if (!s || !s.permlink) continue;
+    const thumb = s.thumbnail_url || '';
+    // Shorts rarely have a title, so use the first words of the post body — the same
+    // caption the profile Shorts tab shows (bodyToPlaintext(hive_body)).
+    const caption = (bodyToPlaintext(s.hive_body) || s.hive_title || s.embed_title || '').slice(0, 100).trim();
+    out.push({
+      author: s.owner || account,
+      permlink: s.permlink,
+      title: caption || 'Short',
+      thumbnail: /^https?:\/\//i.test(thumb) ? thumb : '',
+      created: s.createdAt || s.created,
+    });
+  }
+  return out;
+}
+
+// Per-kind config for the media picker dropdown (videos and shorts share the UI).
+const MEDIA_PICKERS = {
+  video: { fetch: fetchRecentVideos, label: 'Choose from my videos', loading: 'Loading your videos…', empty: 'No recent 3Speak videos found.' },
+  short: { fetch: fetchRecentShorts, label: 'Choose from my shorts', loading: 'Loading your shorts…', empty: 'No recent 3Speak shorts found.' },
+};
+
 // Thumbnail + title + "how long ago" dropdown that fills a video block on pick.
-function VideoPicker({ username, onPick }) {
+// kind picks the source: 'video' → published videos, 'short' → shorts.
+function MediaPicker({ username, kind = 'video', onPick }) {
+  const cfg = MEDIA_PICKERS[kind] || MEDIA_PICKERS.video;
   const [open, setOpen] = useState(false);
-  const [vids, setVids] = useState(null);
+  const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState(null);
+  // Cache the username we've already loaded so reopening doesn't refetch. NOT using
+  // `items`/`loading` as effect deps: setLoading(true) would re-run this effect, whose
+  // cleanup flips `alive` false on the in-flight request, so the response is discarded
+  // and it hangs on "Loading…" forever. Effect runs only on open/username/kind change.
+  const loadedFor = useRef(null);
   useEffect(() => {
-    if (!open || vids || loading || !username) return undefined;
+    if (!open || !username || loadedFor.current === username) return undefined;
     let alive = true;
-    setLoading(true);
-    fetchRecentVideos(username)
-      .then((v) => { if (alive) setVids(v); })
-      .catch(() => { if (alive) setVids([]); })
+    setLoading(true); setErr(null);
+    cfg.fetch(username)
+      .then((v) => { if (alive) { setItems(v); loadedFor.current = username; } })
+      .catch((e) => { if (alive) { setErr(e?.message || String(e)); setItems([]); } })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [open, username, vids, loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, username, kind]);
   return (
     <div className="sp-e-vpick">
       <button type="button" className={`sp-e-vpick-btn${open ? ' open' : ''}`} onClick={() => setOpen((o) => !o)}>
-        <span><FiVideo size={14} /> Choose from my videos</span>
+        <span><FiVideo size={14} /> {cfg.label}</span>
         <FiChevronDown className="sp-e-chev" size={15} />
       </button>
       {open && (
-        <div className="sp-e-vpick-menu">
+        <div className={`sp-e-vpick-menu sp-e-vpick-menu--${kind}`}>
           {loading ? (
-            <div className="sp-e-vpick-note">Loading your videos…</div>
-          ) : !vids || !vids.length ? (
-            <div className="sp-e-vpick-note">No recent 3Speak videos found.</div>
-          ) : vids.map((v) => (
+            <div className="sp-e-vpick-note">{cfg.loading}</div>
+          ) : !username ? (
+            <div className="sp-e-vpick-note">No channel detected (are you logged in?)</div>
+          ) : err ? (
+            <div className="sp-e-vpick-note">Couldn’t load: {err}</div>
+          ) : !items || !items.length ? (
+            <div className="sp-e-vpick-note">{cfg.empty} <span style={{ opacity: 0.6 }}>[@{username}]</span></div>
+          ) : items.map((v) => (
             <button type="button" key={`${v.author}/${v.permlink}`} className="sp-e-vpick-item"
-              onClick={() => { onPick(v); setOpen(false); }}>
-              {v.thumbnail
-                ? <img className="sp-e-vpick-thumb" src={v.thumbnail} alt="" loading="lazy" />
-                : <span className="sp-e-vpick-thumb sp-e-vpick-noimg"><FiVideo size={16} /></span>}
+              onClick={() => { onPick(v); setOpen(false); }} title={v.title}>
+              <span className="sp-e-vpick-tile">
+                {v.thumbnail
+                  ? <img src={v.thumbnail} alt="" loading="lazy" />
+                  : <FiVideo className="sp-e-vpick-tile-ico" size={18} />}
+              </span>
               <span className="sp-e-vpick-meta">
                 <span className="sp-e-vpick-title">{v.title}</span>
                 <span className="sp-e-vpick-time">{timeAgo(v.created)}</span>
@@ -193,8 +251,8 @@ function SectionCard({ section, onChange, onRemove, onApplyStyleToType, uploadin
 
   const onVideoPaste = async (raw) => {
     const { author, permlink } = parseEmbedUrl(raw) || {};
-    if (!author || !permlink) { set({ author: '', permlink: raw }); return; }
-    set({ author: author.toLowerCase(), permlink, thumbnail: null });
+    if (!author || !permlink) { set({ author: '', permlink: raw, isShort: false }); return; }
+    set({ author: author.toLowerCase(), permlink, thumbnail: null, isShort: false });
     try {
       const post = await getHiveClient().call('bridge', 'get_post', { author, permlink });
       let jm = post?.json_metadata;
@@ -328,18 +386,34 @@ function SectionCard({ section, onChange, onRemove, onApplyStyleToType, uploadin
 
         {section.type === 'video' && (
           <>
-            <VideoPicker username={username}
-              onPick={(v) => set({ author: v.author, permlink: v.permlink, title: v.title, thumbnail: v.thumbnail || null })} />
+            <div className="sp-e-vmode" role="radiogroup" aria-label="Content type">
+              <label className={`sp-e-vmode-opt${!section.isShort ? ' active' : ''}`}>
+                <input type="radio" name={`vmode-${section.id}`} checked={!section.isShort}
+                  onChange={() => set({ isShort: false })} />
+                <FiVideo size={13} /> Video
+              </label>
+              <label className={`sp-e-vmode-opt${section.isShort ? ' active' : ''}`}>
+                <input type="radio" name={`vmode-${section.id}`} checked={!!section.isShort}
+                  onChange={() => set({ isShort: true })} />
+                <FiVideo size={13} /> Short
+              </label>
+            </div>
+            <MediaPicker key={section.isShort ? 'short' : 'video'} username={username} kind={section.isShort ? 'short' : 'video'}
+              onPick={(v) => set({ author: v.author, permlink: v.permlink, title: v.title, thumbnail: v.thumbnail || null, isShort: !!section.isShort })} />
             <div className="sp-e-vpick-or"><span>or paste a link</span></div>
             <input className="sp-e-input" placeholder="Paste a 3Speak video link or author/permlink"
               defaultValue={section.author && section.permlink ? `${section.author}/${section.permlink}` : ''}
               onBlur={(e) => onVideoPaste(e.target.value)} />
             {section.author && section.permlink ? (
-              <div className="sp-e-videochip">
-                {section.thumbnail ? <img src={section.thumbnail} alt="" /> : null}
-                <span>{section.title || `${section.author}/${section.permlink}`}</span>
-              </div>
-            ) : <div className="sp-e-hint">Selected video will embed and play on your page.</div>}
+              <>
+                <div className="sp-e-videochip">
+                  {section.thumbnail ? <img src={section.thumbnail} alt="" /> : null}
+                  <span>{section.title || `${section.author}/${section.permlink}`}</span>
+                </div>
+                <input className="sp-e-input" placeholder="Title shown above the video (links to 3Speak)"
+                  value={section.title || ''} onChange={(e) => set({ title: e.target.value })} />
+              </>
+            ) : <div className="sp-e-hint">Selected content will embed and play on your page.</div>}
           </>
         )}
 
@@ -390,7 +464,7 @@ function SectionCard({ section, onChange, onRemove, onApplyStyleToType, uploadin
         )}
 
         {(() => {
-          const hasBg = section.type === 'link' || section.type === 'header' || section.type === 'embed';
+          const hasBg = section.type === 'link' || section.type === 'header' || section.type === 'embed' || section.type === 'video';
           const borderOn = (section.borderWidth ?? 0) > 0;
           const shadowOn = (section.shadowOpacity ?? 0) > 0;
           return (
@@ -528,7 +602,23 @@ export default function SpotlightEditor({ username }) {
   const setTheme = (patch) => markDirty({ ...layout, theme: { ...theme, ...patch } });
   const setBg = (patch) => markDirty({ ...layout, theme: { ...theme, bg: { ...theme.bg, ...patch } } });
 
-  const addSection = (type) => markDirty({ ...layout, sections: [...sections, { ...newSection(type), id: uid() }] });
+  // A newly added block inherits the visual style (background / border / shadow / font
+  // / anim) already in use — each setting taken from the most recent block that has it
+  // (preferring the same type, falling back to any block), so e.g. the background color
+  // is picked up even if it lives on a block of a different type.
+  const inheritedStyle = (type) => {
+    const out = {};
+    const recent = [...sections].reverse();
+    for (const k of STYLE_KEYS) {
+      const src = recent.find((s) => s.type === type && s[k] !== undefined)
+               || recent.find((s) => s[k] !== undefined);
+      if (src) out[k] = src[k];
+    }
+    return out;
+  };
+  const newBlock = (type) => ({ ...newSection(type), ...inheritedStyle(type), id: uid() });
+
+  const addSection = (type) => markDirty({ ...layout, sections: [...sections, newBlock(type)] });
   const changeSection = (next) => markDirty({ ...layout, sections: sections.map((s) => (s.id === next.id ? next : s)) });
   // Re-normalise widths after a delete so a row-mate of a removed half/third
   // reflows to fill the row (otherwise it'd keep its old width + leave a gap).
@@ -778,7 +868,7 @@ export default function SpotlightEditor({ username }) {
       <div className="sp-e-glabel">Add a block</div>
       <div className="sp-e-add">
         {SECTION_TYPES.map(({ type, label, Icon }) => (
-          <button type="button" key={type} onClick={() => { const s = { ...newSection(type), id: uid() }; markDirty({ ...layout, sections: [...sections, s] }); setSelectedId(s.id); }}><Icon size={15} /> {label}</button>
+          <button type="button" key={type} onClick={() => { const s = newBlock(type); markDirty({ ...layout, sections: [...sections, s] }); setSelectedId(s.id); }}><Icon size={15} /> {label}</button>
         ))}
       </div>
 

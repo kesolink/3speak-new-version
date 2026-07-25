@@ -259,7 +259,7 @@ export function newSection(type) {
     case 'header': return { id, type: 'header', text: 'Section title', size: 'md', align: 'center' };
     case 'link': return { id, type: 'link', title: '', url: '', icon: 'link', iconColor: null, iconBg: null };
     case 'image': return { id, type: 'image', src: '', alt: '', url: null };
-    case 'video': return { id, type: 'video', author: '', permlink: '', title: '', thumbnail: null };
+    case 'video': return { id, type: 'video', author: '', permlink: '', title: '', thumbnail: null, isShort: false };
     case 'embed': return { id, type: 'embed', source: 'link', url: '', title: '', description: '', image: null, siteName: '', imgSize: 55, count: 3, perRow: 1 };
     default: return { id, type: 'link', title: '', url: '', icon: 'link' };
   }
@@ -267,7 +267,7 @@ export function newSection(type) {
 
 export const SECTION_TYPES = [
   { type: 'link', label: 'Link', Icon: FaLink },
-  { type: 'video', label: '3Speak video', Icon: FaVideo },
+  { type: 'video', label: '3Speak content', Icon: FaVideo },
   { type: 'embed', label: 'Rich link', Icon: FaShareNodes },
   { type: 'image', label: 'Image', Icon: FaCamera },
   { type: 'header', label: 'Title / text', Icon: FaStar },

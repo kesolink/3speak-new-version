@@ -39,6 +39,7 @@ import TagFeed from "./page/TagFeed";
 import Leaderboard from "./page/Leaderboard";
 import ProfilePage from "./page/ProfilePage";
 import Spotlight from "./page/Spotlight";
+import EmbedPlayer from "./page/EmbedPlayer";
 import Wallet from "./page/Wallet";
 import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
 import DraftStudio from "./components/studio/DraftStudio";
@@ -475,6 +476,17 @@ function App() {
     setLoginModalOpen(false);
     loginInProgress.current = false;
     toast.success("Login successful!");
+  }
+
+  // Bare, chrome-free player route (iframed by the Spotlight /links page). Rendered
+  // WITHOUT the nav / context providers so the iframe is just the player. Wrapped in
+  // Routes/Route so EmbedPlayer's useParams() resolves author/permlink.
+  if (location.pathname.startsWith('/embed/')) {
+    return (
+      <Routes>
+        <Route path="/embed/:author/:permlink" element={<EmbedPlayer />} />
+      </Routes>
+    );
   }
 
   return (

@@ -13,11 +13,14 @@ clientsClaim();
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
-// SPA navigation fallback (exclude hivesigner callback)
+// SPA navigation fallback. Denylist = routes that must hit the network instead of
+// the cached SPA shell: the hivesigner callback, and the server-rendered Spotlight
+// link pages (/links/<user> and legacy /@<user>/links) which are standalone HTML
+// from the API, NOT part of the React app.
 const navHandler = createHandlerBoundToURL('/index.html');
 registerRoute(
   new NavigationRoute(navHandler, {
-    denylist: [/^\/hivesigner\.html/],
+    denylist: [/^\/hivesigner\.html/, /^\/links\//, /^\/@[^/]+\/links\/?$/],
   })
 );
 
