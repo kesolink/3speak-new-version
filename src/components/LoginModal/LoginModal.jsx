@@ -55,7 +55,11 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions, int
       });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error || 'Failed to start Butter Auth login');
-      const w = 480, h = 720;
+      // Sized to the screen (capped) rather than a fixed 480x720: the signup
+      // flow is tall — explainer, provider buttons, captcha — and was scrolling
+      // inside a small popup.
+      const w = Math.min(640, Math.max(420, Math.round(window.screen.availWidth * 0.42)));
+      const h = Math.min(980, Math.max(660, Math.round(window.screen.availHeight * 0.92)));
       const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
       const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
       const popup = window.open(data.url, 'butrauth-login', `width=${w},height=${h},left=${left},top=${top}`);

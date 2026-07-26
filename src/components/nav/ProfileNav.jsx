@@ -117,9 +117,15 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           <Link to="/about" className="wrap" onClick={onclose}>
             <HiInformationCircle className="icon" /> <span>About 3Speak</span>
           </Link>
-          <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
-            <IoPower className="icon" /> <span>Change account</span>
-          </a>
+          {/* Hidden for ButrAuth sessions: the account switcher is aioha-only and
+              there is no path yet between a ButrAuth session and an aioha wallet.
+              Until ButrAuth is available as an aioha provider, offering the switch
+              would just strand the user. */}
+          {!isManteAuth && (
+            <a className="wrap" onClick={() => { onclose(); openLoginModal(); }}>
+              <IoPower className="icon" /> <span>Change account</span>
+            </a>
+          )}
           {isManteAuth && (
             <a className="wrap" onClick={() => { LogOut(user); onclose(); navigate('/'); }}>
               <IoPower className="icon" /> <span>Logout</span>

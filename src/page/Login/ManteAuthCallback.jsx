@@ -13,6 +13,7 @@ const ManteAuthCallback = () => {
   const { setUser } = useAppStore()
   const hasRun = useRef(false)
   const [closeable, setCloseable] = useState(false)
+  const [ok, setOk] = useState(null) // null = working, true = success, false = failed
 
   const code = params.get("code")
   const username = params.get("username")
@@ -29,6 +30,7 @@ const ManteAuthCallback = () => {
       localStorage.setItem("butrauth_login_result", JSON.stringify({ ...result, ts: Date.now() }))
     } catch { /* ignore */ }
     try { window.close() } catch { /* ignore */ }
+    setOk(!result.error)
     setCloseable(true)
   }
 
@@ -110,18 +112,38 @@ const ManteAuthCallback = () => {
       height: "87vh",
       textAlign: "center",
       padding: "0 20px",
+      gap: "14px",
     }}>
-      {closeable ? (
+      <style>{`
+        @keyframes ba-sc-draw { to { stroke-dashoffset: 0; } }
+        @keyframes ba-sc-pop { 0%{transform:scale(.85)} 55%{transform:scale(1.06)} 100%{transform:scale(1)} }
+        .ba-sc { width:100px; height:100px; animation: ba-sc-pop .45s ease-out; }
+        .ba-sc circle { fill:none; stroke:#e8d89b; stroke-width:2.5; opacity:.5; stroke-dasharray:1; stroke-dashoffset:1; animation: ba-sc-draw .55s ease-out forwards; }
+        .ba-sc path { fill:none; stroke:#e8d89b; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:1; stroke-dashoffset:1; animation: ba-sc-draw .4s .5s ease-out forwards; filter: drop-shadow(0 0 8px rgba(232,216,155,.35)); }
+        .ba-sc.err circle, .ba-sc.err path { stroke:#e05a4d; opacity:1; filter:none; }
+      `}</style>
+      {ok === false ? (
         <>
-          <h2 style={{ marginBottom: "12px", color: "var(--accent-primary)" }}>✓ All set</h2>
-          <p style={{ color: "var(--text-secondary, #888)" }}>
-            You can close this window and return to 3Speak.
+          <svg className="ba-sc err" viewBox="0 0 52 52" aria-hidden="true">
+            <circle pathLength="1" cx="26" cy="26" r="24" />
+            <path pathLength="1" d="M18 18 L34 34 M34 18 L18 34" />
+          </svg>
+          <h2 style={{ margin: 0 }}>Login failed</h2>
+          <p style={{ margin: 0, color: "var(--text-secondary, #888)" }}>
+            You can close this window and try again.
           </p>
         </>
       ) : (
-        <h2 style={{ marginBottom: "20px", color: "var(--accent-primary)" }}>
-          Logging in via Butter Auth...
-        </h2>
+        <>
+          <svg className="ba-sc" viewBox="0 0 52 52" aria-hidden="true">
+            <circle pathLength="1" cx="26" cy="26" r="24" />
+            <path pathLength="1" d="M15 27 l7.5 7.5 L38 17" />
+          </svg>
+          <h2 style={{ margin: 0 }}>You're in</h2>
+          <p style={{ margin: 0, color: "var(--text-secondary, #888)" }}>
+            {closeable ? "You can close this window and return to 3Speak." : "Signing you in…"}
+          </p>
+        </>
       )}
     </div>
   )
