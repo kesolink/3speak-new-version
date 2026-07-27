@@ -13,12 +13,25 @@ export const WINDOWS = [
 // `watch` metrics are only tracked from the checker's WATCH_TRACKED_SINCE date;
 // the board response flags that per metric via partial_watch_data.
 export const METRICS = [
-  { id: 'video_uploads', label: 'Videos', unit: 'count', blurb: 'Videos uploaded' },
-  { id: 'short_uploads', label: 'Shorts', unit: 'count', blurb: 'Shorts uploaded' },
-  { id: 'video_watch_secs', label: 'Video watch time', unit: 'duration', blurb: 'Seconds their videos were watched' },
-  { id: 'short_watch_secs', label: 'Shorts watch time', unit: 'duration', blurb: 'Seconds their shorts were watched' },
-  { id: 'tags_given', label: 'Tags', unit: 'count', blurb: 'Tags given to other videos' },
+  { id: 'video_uploads', label: 'Videos', unit: 'count', group: 'Video', blurb: 'Videos uploaded' },
+  { id: 'short_uploads', label: 'Shorts', unit: 'count', group: 'Video', blurb: 'Shorts uploaded' },
+  { id: 'video_watch_secs', label: 'Video watch time', unit: 'duration', group: 'Video', blurb: 'Seconds their videos were watched' },
+  { id: 'short_watch_secs', label: 'Shorts watch time', unit: 'duration', group: 'Video', blurb: 'Seconds their shorts were watched' },
+  { id: 'tags_given', label: 'Tags', unit: 'count', group: 'Video', blurb: 'Tags given to other videos' },
+  // Livestream + boosts. Populated once the stream service calls the checker's
+  // /stream-stats/* endpoints; until then these boards read empty (all zeros).
+  { id: 'streams', label: 'Streams', unit: 'count', group: 'Streaming', blurb: 'Stream sessions started' },
+  { id: 'stream_secs', label: 'Time live', unit: 'duration', group: 'Streaming', blurb: 'Total time live (ended streams only)' },
+  { id: 'stream_peak_viewers', label: 'Peak viewers', unit: 'count', group: 'Streaming', blurb: 'Best concurrent viewers (a high-water mark, not a sum)' },
+  { id: 'stream_viewers', label: 'Viewer joins', unit: 'count', group: 'Streaming', blurb: 'Viewer-join events (volume, not unique reach)' },
+  { id: 'boosts_received', label: 'Boosts received', unit: 'count', group: 'Boosts', blurb: 'Boosts sent to their streams' },
+  { id: 'boost_amount_received', label: 'Amount received', unit: 'amount', group: 'Boosts', blurb: 'Summed amount of boosts received' },
+  { id: 'boosts_given', label: 'Boosts given', unit: 'count', group: 'Boosts', blurb: 'Boosts they sent to other streamers' },
+  { id: 'boost_amount_given', label: 'Amount given', unit: 'amount', group: 'Boosts', blurb: 'Summed amount of boosts they gave' },
 ];
+
+// Metric groups, in tab order. Drives the grouped metric selector on the board.
+export const METRIC_GROUPS = ['Video', 'Streaming', 'Boosts'];
 
 // The metric tabs are the SAME list whether or not a topic is selected — the
 // labels must never change under the user. The four content metrics exist on
