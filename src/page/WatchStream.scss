@@ -485,3 +485,61 @@
 .ws-shorts__bar.shortsBottomComment .sendCommentBtn {
   color: var(--accent-primary, #e0594b);
 }
+
+/* --- Landscape (phones only) ------------------------------------------------
+   A 16:9 stream fills the screen when the phone is turned. The portrait mobile
+   rules key off max-width, which a landscape phone exceeds, so re-assert a
+   fullscreen fixed player here (orientation + short height = a phone on its
+   side, never a tablet or desktop). Buttons stay on the right; the author/info
+   block moves bottom-LEFT and auto-hides (JS toggles .ws-info-hidden), coming
+   back on a screen tap. Placed last so it wins over the base .ws-shorts rules. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ws-shorts.ws-shorts--landscape {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+
+    .videoWrapper,
+    .videoContainer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-height: none;
+      border-radius: 0;
+    }
+
+    /* Author / title / LIVE: bottom-left, narrow enough to clear the rail, and
+       lifted above the docked chat composer. Fades for the auto-hide. */
+    .bottomOverlay {
+      right: auto;
+      left: 0;
+      bottom: 3rem;                          /* clear the docked chat composer */
+      max-width: min(60vw, 460px);
+      padding: 3rem 1rem 0.6rem;
+      transition: opacity 0.25s ease;
+    }
+
+    /* Action rail: flush right, above the chat composer. */
+    .actionSidebar {
+      right: 0.75rem;
+      left: auto;
+      bottom: 3.25rem;
+    }
+
+    /* Keep the docked chat composer out of the rail's column. */
+    .ws-shorts__bar.shortsBottomComment {
+      right: 4.5rem;
+    }
+  }
+
+  /* The 3s auto-hide — scoped INSIDE the landscape query so portrait is never
+     affected even if the class lingers. Only the author block hides; the rail
+     and corner controls stay. */
+  .ws-shorts.ws-info-hidden .bottomOverlay {
+    opacity: 0;
+    pointer-events: none;
+  }
+}

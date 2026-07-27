@@ -23,25 +23,28 @@ const HEALTH_GATE_DISABLED =
  * app, never a false outage screen.
  */
 export default function Bootstrap() {
-  // 'checking' | 'ok' | 'down'
-  const [phase, setPhase] = useState(() => {
-    if (EMERGENCY_MODE) return 'down'; // hard override wins
-    if (HEALTH_GATE_DISABLED) return 'ok'; // dev: skip probe, straight to app
-    return 'checking';
-  });
+  // 'ok' | 'down'
+  //
+  // Start OPTIMISTIC and render the app straight away, then switch to the
+  // maintenance screen only if the probe explicitly reports "down". This used to
+  // start at 'checking' and hold a splash until /healthz answered — but the probe
+  // already fails OPEN (healthGate.js returns healthy on any error), so blocking
+  // bought nothing: an unreachable checker showed the app anyway, just later. The
+  // only cost of not waiting is that a real outage takeover lands one probe late
+  // (~50ms + RTT) instead of every visitor paying that wait on every cold load.
+  const [phase, setPhase] = useState(() => (EMERGENCY_MODE ? 'down' : 'ok'));
 
   useEffect(() => {
     if (EMERGENCY_MODE || HEALTH_GATE_DISABLED) return; // no probe needed
     let alive = true;
     checkPlatformHealth().then(({ healthy }) => {
-      if (alive) setPhase(healthy ? 'ok' : 'down');
+      if (alive && !healthy) setPhase('down');
     });
     return () => {
       alive = false;
     };
   }, []);
 
-  if (phase === 'checking') return <EmergencyScreen variant="checking" />;
   if (phase === 'down') return <EmergencyScreen />;
   return <App />;
 }

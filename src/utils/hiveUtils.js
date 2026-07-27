@@ -1,8 +1,13 @@
 import { Client, SMTAsset } from '@hiveio/dhive';
 import { getHiveUrl } from './hiveNode';
 import { getHiveClient } from './hiveNode';
-import moment from 'moment';
+// dayjs (already used across the app) instead of moment — this file had the only
+// moment import left, for the single UTC comparison in accountVestingShares().
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import axios from 'axios';
+
+dayjs.extend(utc);
 import { HIVE_API_NODES, HIVE_API_URL } from './config';
 
 // Connect to a Hive node
@@ -327,7 +332,7 @@ export const accountVestingShares = (account) => {
     parseAsset(account.delegated_vesting_shares).amount;
   
   // If there is a power down occurring, also reduce effective vesting shares by this week's power down amount
-  if (moment.utc(account.next_vesting_withdrawal).isAfter(moment.unix(0).utc())) {
+  if (dayjs.utc(account.next_vesting_withdrawal).isAfter(dayjs.unix(0).utc())) {
     // Reduce by minimum between 'weekly amount' and 'remainder'
     const vestingWithdrawRate = parseAsset(account.vesting_withdraw_rate).amount;
     const toWithdraw = parseFloat(account.to_withdraw) / 1e6; // Convert from VESTS

@@ -16,7 +16,6 @@ import Discover from "./page/Discover";
 import NewVideos from "./page/NewVideos";
 import HomeGrouped from "./page/HomeGrouped";
 import UploadVideo from "./page/UploadVideo";
-import Login from "./page/Login/Login";
 // KeyChainLogin replaced by LoginRedirect (opens aioha modal)
 import LoginNew from "./page/Login/LoginNew";
 import { useAppStore } from "./lib/store";
@@ -91,6 +90,7 @@ import OpenPods from "./page/OpenPods";
 import OpenPodPublish from "./page/OpenPodPublish";
 
 const OpenPodModal = lazy(() => import("./components/OpenPod/OpenPodModal"));
+const ObsOverlay = lazy(() => import("./page/ObsOverlay"));
 
 function OpenPodModalMounter() {
   const { activeRoom, closeRoom, sessionToken, hangoutsUser } = useHangout();
@@ -486,6 +486,17 @@ function App() {
       <Routes>
         <Route path="/embed/:author/:permlink" element={<EmbedPlayer />} />
       </Routes>
+    );
+  }
+
+  // Bare, chrome-free OBS Browser Source overlay (pasted into OBS by the host).
+  // Rendered WITHOUT nav / context providers — StandaloneObsOverlay owns its own
+  // LiveKit connection and reads url+token+room+host from the query string.
+  if (location.pathname === '/obs') {
+    return (
+      <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: 'transparent' }} />}>
+        <ObsOverlay />
+      </Suspense>
     );
   }
 

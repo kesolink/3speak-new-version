@@ -302,10 +302,28 @@ const HomeGrouped = () => {
   const interestsData = useMemo(() => deduplicateVideos(interestsQ.data?.pages.flat() || []), [interestsQ.data]);
 
 
+  // "New Content" is never the tab that renders first, but its feed used to be
+  // requested immediately alongside the one that IS on screen — ~860ms / 43KB of
+  // pure contention against the feed the user is actually waiting for. Hold it
+  // until the browser goes idle, so it still prefetches (tab switches stay
+  // instant) but only once the visible feed has had the network to itself.
+  const [prefetchReady, setPrefetchReady] = useState(false);
+  useEffect(() => {
+    let id;
+    const ready = () => setPrefetchReady(true);
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      id = window.requestIdleCallback(ready, { timeout: 3000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    id = setTimeout(ready, 1500);
+    return () => clearTimeout(id);
+  }, []);
+
   const newQ = useInfiniteQuery({
     queryKey: ["newcontent-grouped", showNsfw, user],
     queryFn: ({ pageParam }) => fetchNewContent(pageParam),
     getNextPageParam: nextPage(),
+    enabled: prefetchReady,
     ...INF,
   });
   const newContentData = useMemo(() => deduplicateVideos(newQ.data?.pages.flat() || []), [newQ.data]);
@@ -313,7 +331,11 @@ const HomeGrouped = () => {
   const homeLoading = homeQ.isLoading;
   const discoverLoading = discoverQ.isLoading;
   const interestsLoading = interestsQ.isLoading;
-  const newContentLoading = newQ.isLoading;
+  // While the query is still deferred (see prefetchReady) React Query reports
+  // isLoading:false, which would render this tab as EMPTY rather than loading for
+  // anyone who switches to it within the first moment. Treat "deferred and no data
+  // yet" as loading so they get the skeleton they'd have got before.
+  const newContentLoading = newQ.isLoading || (!prefetchReady && !newQ.data);
 
   // Promoted videos — prefixed onto EVERY feed below (no dedicated tab any more).
   const { data: promotedData } = useQuery({

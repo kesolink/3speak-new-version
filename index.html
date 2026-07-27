@@ -12,6 +12,15 @@
     <link rel="dns-prefetch" href="https://hotipfs-3speak-1.b-cdn.net" />
     <link rel="dns-prefetch" href="https://play.3speak.tv" />
 
+    <!-- The two busiest origins on a cold home feed, and both were missing: the
+         checker serves the feed itself (the FIRST request that matters) and
+         images.hive.blog serves every avatar on the page. Warming these saves a
+         DNS+TLS round trip each before the feed can even start rendering. -->
+    <link rel="preconnect" href="https://checker.3speak.tv" crossorigin />
+    <link rel="preconnect" href="https://images.hive.blog" crossorigin />
+    <link rel="dns-prefetch" href="https://checker.3speak.tv" />
+    <link rel="dns-prefetch" href="https://images.hive.blog" />
+
     <!-- Primary Meta Tags -->
     <title>3Speak - Decentralized Video Platform</title>
     <meta name="title" content="3Speak - Decentralized Video Platform" />

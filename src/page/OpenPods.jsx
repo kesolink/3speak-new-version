@@ -131,8 +131,14 @@ export default function OpenPods() {
     if (!wasInRoomRef.current || !roomNameFromUrl) return;
     wasInRoomRef.current = false;
     openedDeepLinkRef.current = null;
-    navigate('/openpods', { replace: true });
-  }, [activeRoom, roomNameFromUrl, navigate]);
+    // Only rewrite the URL to the lobby if we're STILL on an /openpods route.
+    // When the modal is closed by navigating elsewhere — e.g. the ended screen's
+    // "Back to Home" → '/' — leave that destination intact instead of yanking
+    // the user back to /openpods.
+    if (location.pathname.startsWith('/openpods')) {
+      navigate('/openpods', { replace: true });
+    }
+  }, [activeRoom, roomNameFromUrl, navigate, location.pathname]);
 
   const openRoomAtUrl = useCallback((name) => {
     if (!name) return;
