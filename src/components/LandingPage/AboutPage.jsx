@@ -383,7 +383,7 @@ const AboutPage = () => {
           </div>
           
           <div style={{ borderTop: '1px solid #374151', paddingTop: '2rem', marginTop: '3rem' }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: 'white', marginBottom: '1.5rem', textAlign: 'center' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1.5rem', textAlign: 'center' }}>
               Connect with 3Speak
             </h3>
             <div className="social-icons">
@@ -399,8 +399,11 @@ const AboutPage = () => {
               <a href="https://x.com/3speaktv?utm_source=3speak.tv" className="social-link" target="_blank" rel="noopener noreferrer">
                 <Twitter />
               </a>
-              <a href="https://spk.network/" className="social-link red-accent spk" target="_blank" rel="noopener noreferrer">
-                <img src={spk_network} alt="" />
+              <a href="https://spk.network/" className="social-link red-accent spk" target="_blank" rel="noopener noreferrer" aria-label="SPK Network">
+                {/* Flat PNG mask so the mark takes the foreground colour (like the
+                    sibling SVG icons) instead of its baked-in colour. */}
+                <span className="spk-mark" aria-hidden="true"
+                  style={{ WebkitMaskImage: `url(${spk_network})`, maskImage: `url(${spk_network})` }} />
               </a>
             </div>
           </div>

@@ -24,14 +24,14 @@ export const METRICS = [
   { id: 'stream_secs', label: 'Time live', unit: 'duration', group: 'Streaming', blurb: 'Total time live (ended streams only)' },
   { id: 'stream_peak_viewers', label: 'Peak viewers', unit: 'count', group: 'Streaming', blurb: 'Best concurrent viewers (a high-water mark, not a sum)' },
   { id: 'stream_viewers', label: 'Viewer joins', unit: 'count', group: 'Streaming', blurb: 'Viewer-join events (volume, not unique reach)' },
-  { id: 'boosts_received', label: 'Boosts received', unit: 'count', group: 'Boosts', blurb: 'Boosts sent to their streams' },
-  { id: 'boost_amount_received', label: 'Amount received', unit: 'amount', group: 'Boosts', blurb: 'Summed amount of boosts received' },
-  { id: 'boosts_given', label: 'Boosts given', unit: 'count', group: 'Boosts', blurb: 'Boosts they sent to other streamers' },
-  { id: 'boost_amount_given', label: 'Amount given', unit: 'amount', group: 'Boosts', blurb: 'Summed amount of boosts they gave' },
+  { id: 'boosts_received', label: 'Boosts received', unit: 'count', group: 'Streaming', blurb: 'Boosts sent to their streams' },
+  { id: 'boost_amount_received', label: 'Amount received', unit: 'amount', group: 'Streaming', blurb: 'Summed amount of boosts received' },
+  { id: 'boosts_given', label: 'Boosts given', unit: 'count', group: 'Streaming', blurb: 'Boosts they sent to other streamers' },
+  { id: 'boost_amount_given', label: 'Amount given', unit: 'amount', group: 'Streaming', blurb: 'Summed amount of boosts they gave' },
 ];
 
 // Metric groups, in tab order. Drives the grouped metric selector on the board.
-export const METRIC_GROUPS = ['Video', 'Streaming', 'Boosts'];
+export const METRIC_GROUPS = ['Video', 'Streaming'];
 
 // The metric tabs are the SAME list whether or not a topic is selected — the
 // labels must never change under the user. The four content metrics exist on
