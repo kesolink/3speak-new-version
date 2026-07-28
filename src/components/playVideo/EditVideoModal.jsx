@@ -9,6 +9,7 @@ import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, CHECKER_URL, CHECKER_API_KEY } from '../../utils/config';
 import { commentWithAioha } from '../../hive-api/aioha';
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
+import { uploadVideoAsset, probeVideoDuration, registerMediaReplacement } from '../../utils/uploadVideoAsset';
 import PromoteModal from '../Promote/PromoteModal';
 import { Rocket } from 'lucide-react';
 import './EditVideoModal.scss';
@@ -118,6 +119,16 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
   const [systemTags, setSystemTags] = useState([]);
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [thumbUploading, setThumbUploading] = useState(false);
+  // Replacing the video FILE. The post keeps its permlink, payout, votes and
+  // comments; only the embed asset it points at changes. A replacement is always
+  // a NEW asset (the embed service has no in-place swap, and minting a fresh one
+  // means existing embeds of the old file elsewhere keep working).
+  const [newVideoFile, setNewVideoFile] = useState(null);
+  const [videoUploadPct, setVideoUploadPct] = useState(0);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [newAsset, setNewAsset] = useState(null); // { embedUrl, owner, permlink }
+  const [newDuration, setNewDuration] = useState(0);
+  const videoUploadRef = useRef(null);
   const thumbInputRef = useRef(null);
 
   // Listing / NSFW / promotion (checker-backed, same as the full Edit page)
@@ -275,7 +286,10 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
   const userTagLimit = Math.max(1, MAX_TAGS - systemTags.length);
   const tagsValid = parsedTags.length <= userTagLimit && (isShort || parsedTags.length > 0);
   const bodyValid = body.trim().length > 0;
-  const canSave = titleValid && tagsValid && bodyValid && !!original && !saving;
+  // Block Save while a replacement is still uploading — saving then would
+  // broadcast the post still pointing at the OLD asset and silently discard the
+  // upload in progress.
+  const canSave = titleValid && tagsValid && bodyValid && !!original && !saving && !videoUploading;
 
   // Final on-chain tags = preserved taxonomy + the user's tags + the canonical
   // `nsfw` tag when marked adult (deduped, taxonomy first — same shape the
@@ -312,8 +326,12 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
 
   const listingChanged = listed !== initialListedRef.current;
   const nsfwChanged = isNsfw !== initialNsfwRef.current;
+  // A replaced video file is deliberately NOT part of contentDirty: the media is
+  // swapped on the existing embed entry, so the post's json_metadata and body
+  // keep pointing at the same URL and no Hive broadcast is needed for it.
+  const videoDirty = !!newAsset;
   // Checker-only changes (listing) don't need a broadcast but should enable Save.
-  const isDirty = contentDirty || listingChanged;
+  const isDirty = contentDirty || listingChanged || videoDirty;
 
   const handleThumbFilePick = async (e) => {
     const file = e.target.files?.[0];
@@ -341,6 +359,56 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
     }
   };
 
+  const handleVideoFilePick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      toast.error('Please select a video file.');
+      return;
+    }
+    // Same 5GB ceiling the embed studio enforces (and the server enforces too).
+    if (file.size > 5 * 1024 * 1024 * 1024) {
+      toast.error('Video too large (max 5 GB).');
+      return;
+    }
+
+    setNewVideoFile(file);
+    setNewAsset(null);
+    setVideoUploadPct(0);
+    setVideoUploading(true);
+    try {
+      const duration = await probeVideoDuration(file);
+      setNewDuration(duration);
+      const asset = await uploadVideoAsset(file, {
+        owner: author,
+        duration,
+        onProgress: setVideoUploadPct,
+        onStart: (u) => { videoUploadRef.current = u; },
+      });
+      setNewAsset(asset);
+      toast.success('New video uploaded. Save to apply it to this post.');
+    } catch (err) {
+      console.error('Video replacement upload failed:', err);
+      toast.error(err?.message || 'Video upload failed.');
+      setNewVideoFile(null);
+      setNewDuration(0);
+    } finally {
+      setVideoUploading(false);
+      videoUploadRef.current = null;
+    }
+  };
+
+  const cancelVideoReplacement = () => {
+    try { videoUploadRef.current?.abort?.(); } catch { /* already finished */ }
+    videoUploadRef.current = null;
+    setNewVideoFile(null);
+    setNewAsset(null);
+    setNewDuration(0);
+    setVideoUploadPct(0);
+    setVideoUploading(false);
+  };
+
   const handleSave = async (e) => {
     e?.preventDefault?.();
     if (!canSave) return;
@@ -352,6 +420,20 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
     setSaving(true);
     try {
       const { post, meta } = original;
+
+      // --- Video file replacement ------------------------------------------
+      // Hand the freshly-uploaded asset to the embed service as a replacement
+      // for this post's EXISTING asset. The service copies its manifest onto the
+      // original entry once encoding finishes, so the entry keeps its permlink,
+      // upload date, view count and feed position — and nothing on-chain moves.
+      if (newAsset?.permlink) {
+        const originalAssetPermlink = meta.video?.info?.permlink;
+        if (!originalAssetPermlink) {
+          throw new Error("This post has no embed video entry to replace — its metadata doesn't reference one.");
+        }
+        await registerMediaReplacement(newAsset.permlink, originalAssetPermlink);
+        toast.info('Your new video is being processed. This might take some minutes before it plays.');
+      }
       const trimmedThumb = thumbnailUrl.trim();
       let finalBody = post.body || '';
 
@@ -479,6 +561,69 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
 
         {!loading && !loadError && original && (
           <form className="edit-video-form" onSubmit={handleSave}>
+            {/* Video file — swap the media without touching the post itself. */}
+            <label className="edit-video-label">Video file</label>
+            <div className="evm-video-replace">
+              {!newVideoFile && (
+                <>
+                  <label className="evm-video-pick">
+                    <MdUpload size={18} />
+                    <span>Replace video</span>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      hidden
+                      onChange={handleVideoFilePick}
+                    />
+                  </label>
+                  <p className="edit-video-hint">
+                    Swaps the video file on this post. Everything else stays as it is: the
+                    post keeps its likes, payout, comments, upload date and its place in
+                    your profile. Leave this alone to keep the current video.
+                  </p>
+                </>
+              )}
+
+              {newVideoFile && (
+                <div className="evm-video-staged">
+                  <div className="evm-video-staged__name" title={newVideoFile.name}>
+                    {newVideoFile.name}
+                  </div>
+
+                  {videoUploading && (
+                    <>
+                      <div className="evm-video-bar">
+                        <div className="evm-video-bar__fill" style={{ width: `${videoUploadPct}%` }} />
+                      </div>
+                      <div className="evm-video-staged__status">Uploading… {videoUploadPct}%</div>
+                    </>
+                  )}
+
+                  {!videoUploading && newAsset && (
+                    <div className="evm-video-staged__status evm-video-staged__status--ok">
+                      Uploaded. Press Save to swap it in.
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    className="evm-video-cancel"
+                    onClick={cancelVideoReplacement}
+                  >
+                    {videoUploading ? 'Cancel upload' : 'Keep the current video'}
+                  </button>
+
+                  {!videoUploading && newAsset && (
+                    <p className="edit-video-hint">
+                      After you save it still needs a few minutes to encode, and the old
+                      video keeps playing until it is ready. Your thumbnail is unchanged, so
+                      update it above if it no longer matches.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Thumbnail */}
             <label className="edit-video-label">Thumbnail</label>
             <div className="edit-video-thumb-row">

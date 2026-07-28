@@ -8,6 +8,7 @@ import { TAG_CATEGORIES, getCategoryOf } from '../utils/tagsV2';
 import {
   WINDOWS,
   METRICS,
+  METRIC_GROUPS,
   DEFAULT_WINDOW,
   DEFAULT_METRIC,
   metricSupportsTopics,
@@ -269,17 +270,23 @@ function Leaderboard() {
         </div>
       </header>
 
-      {/* What you're ranking, then over what interval, then narrowed to a topic. */}
+      {/* What you're ranking, then over what interval, then narrowed to a topic.
+          Metrics are grouped (Video / Streaming / Boosts) so the 13 tabs stay legible. */}
       <div className="lb-tabs lb-metrics">
-        {METRICS.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            className={`lb-tab${metricId === m.id ? ' active' : ''}`}
-            onClick={() => setMetricId(m.id)}
-          >
-            {m.label}
-          </button>
+        {METRIC_GROUPS.map((g) => (
+          <div className="lb-metric-group" key={g}>
+            <span className="lb-metric-group-label">{g}</span>
+            {METRICS.filter((m) => m.group === g).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className={`lb-tab${metricId === m.id ? ' active' : ''}`}
+                onClick={() => setMetricId(m.id)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
 

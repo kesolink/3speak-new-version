@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import * as echarts from 'echarts';
 import './Wallet.scss';
 // import Skeleton, { SkeletonLoader } from '../components/Wallet/Skeleton';
 import TrxHistory from '../components/Wallet/TrxHistory';

@@ -482,7 +482,18 @@
         img{
         width: 30px;
       }
-
+        // The spk.network mark is a flat PNG, so it can't inherit currentColor
+        // like the sibling SVG icons. Mask it and fill with the foreground colour
+        // (currentColor = the link's --text-primary, --accent-primary on hover).
+        .spk-mark {
+          display: inline-block;
+          width: 30px;
+          height: 30px;
+          background-color: currentColor;
+          -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+          -webkit-mask-position: center; mask-position: center;
+          -webkit-mask-size: contain; mask-size: contain;
+        }
       }
 
 

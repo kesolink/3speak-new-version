@@ -36,7 +36,7 @@ import axios from "axios";
 import mantequillaLogo from "../../assets/mantequilla-logo.png";
 import threespeakLogo from "../../assets/image/3S_logo.svg";
 import threespeakLogoDark from "../../assets/image/3S_logodark.png";
-import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
+import { HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
 import { displayTag, saveInterestsToHive } from '../../utils/interests';
 import { ALL_TOPIC_SLUGS } from '../../utils/tagsV2';
@@ -148,7 +148,6 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
   const [voteValue, setVoteValue] = useState(0.0);
   const [weight, setWeight] = useState(100);
   const [view, setView] = useState(0);
-  const [speakData, setSpeakData] = useState(null);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -447,12 +446,11 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
   }, [author, permlink, user]);
 
   const speakWatchData = useCallback(async () => {
-    try {
-      const res = await axios.get(`${FEED_URL}/apiv2/@${author}/${permlink}`);
-      setSpeakData(res.data);
-    } catch (err) {
-      // Legacy endpoint — best-effort; the view count comes from the checker below.
-    }
+    // The legacy `/apiv2/@author/permlink` call that used to lead this function is
+    // gone: the endpoint is retired (it answers 401) and the only thing it fed —
+    // `speakData` — was never read anywhere. So every watch page was paying for a
+    // request that could only fail, to populate state nothing consumes.
+    //
     // View count from the checker /views — the same source the cards use
     // (the legacy apiv2 endpoint is gone, which is why this read as 0 before).
     try {

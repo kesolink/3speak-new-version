@@ -9,7 +9,8 @@ import { useContentBatch } from '../hooks/useContentBatch';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchVideoDetails, fetchPlaySource, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
-import BarLoader from '../components/Loader/BarLoader';
+// BarLoader is intentionally not imported: this page renders immediately rather
+// than blocking on the post-metadata query (see the note above the render return).
 import { useAppStore } from '../lib/store';
 import { hasConsent } from '../lib/consent';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
@@ -1205,13 +1206,28 @@ function Watch({ v2 = false }) {
     return <ShortsRow shorts={slice} columns={mobilePerRow} />;
   }, [relatedShorts, mobilePerRow]);
 
-  // Plain trending is only a fallback when the related feed is thin.
-  const { data: trendingItems = [], isLoading: trendingLoading } = useQuery({
+  // Plain trending is only a fallback when the related feed is thin — and now it
+  // is only FETCHED then, too. It used to run on every watch page (a ~1.4s
+  // request competing with playback) while the recommendation builder below only
+  // reads it when there are fewer than 5 related videos, which is the uncommon
+  // case. Waiting for `related` costs one sequential request in that rare path
+  // and saves the request entirely in the common one.
+  const relatedIsThin = !relatedLoading && filterValidVideos(relatedItems).length < 5;
+  // NOTE the `= EMPTY_LIST` defaults, not `= []`. A DISABLED query's `data` stays
+  // `undefined` indefinitely, so an inline `[]` default mints a brand-new array on
+  // every render. `trendingItems` is a dependency of the `suggestedVideos` memo
+  // below, which feeds `useContentBatch` — an unstable identity there re-runs its
+  // effect every render and spins the page into an infinite render loop, freezing
+  // the whole tab (no clicks, no navigation). Harmless while the query was always
+  // enabled and its data settled into a stable array; adding `enabled` is what
+  // made the default permanent. Same reasoning as EMPTY_LIST at the top of this file.
+  const { data: trendingItems = EMPTY_LIST, isLoading: trendingLoading } = useQuery({
     queryKey: ['watch-trending'],
     queryFn: () => fetchTrendingFeed(24),
+    enabled: relatedIsThin,
     staleTime: 5 * 60 * 1000,
   });
-  const { data: authorItems = [], isLoading: authorVideosLoading } = useQuery({
+  const { data: authorItems = EMPTY_LIST, isLoading: authorVideosLoading } = useQuery({
     queryKey: ['watch-author-videos', author],
     queryFn: () => fetchAuthorVideos(author, 12),
     enabled: !!author && author !== 'unknown',
@@ -1396,11 +1412,21 @@ function Watch({ v2 = false }) {
     );
   }
 
-  if (isLoading) {
-    return <BarLoader />;
-  }
-
-  if (!videoDetails) {
+  // Do NOT block the whole page on `isLoading`.
+  //
+  // The player needs only author/permlink — both parsed from the URL with zero
+  // I/O — but the <video> element lives in the JSX below and `loadVideo` waits on
+  // `videoAttached`. A full-page loader here made the chain strictly serial:
+  // Hive RPC (condenser_api.get_content) → render → element attaches →
+  // /api/embed → playable URL. Rendering straight away lets /api/embed run
+  // CONCURRENTLY with the RPC, so playback no longer waits on metadata it does
+  // not need. Both this component and PlayVideo treat `videoDetails` as optional
+  // (PlayVideo has zero unguarded derefs plus its own `mediaLoading` prop), so
+  // title/description/stats simply fill in when the RPC lands.
+  //
+  // The "not found" branch must therefore wait for loading to FINISH — otherwise
+  // every video flashes an error before its metadata arrives.
+  if (!isLoading && !videoDetails) {
     return (
       <div className="watch-error">
         <p>{scheduled
