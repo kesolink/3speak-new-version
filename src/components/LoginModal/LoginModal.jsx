@@ -171,6 +171,15 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions, int
           return;
         }
 
+        // A non-Butter-Auth wallet session is already active ("Change account"):
+        // don't offer Butter Auth here — the user must log out first to use it.
+        // Tear down any existing top section and skip.
+        if (aioha.isLoggedIn()) {
+          modalContent.querySelector('.login-top-section')?.remove();
+          setTopContainer(null);
+          return;
+        }
+
         // TOP section (Recommended + ButrAuth + "General Hive Logins" heading)
         // goes ABOVE the wallet-provider list so ButrAuth is the prominent,
         // first-seen option. Insert into the list's ACTUAL parent — the <ul> is
@@ -211,10 +220,11 @@ function LoginModal({ displayed, onLogin, onClose, loginTitle, loginOptions, int
     };
   }, [displayed, step]);
 
-  // Inject the extra login options whenever the wallet-provider list is shown —
-  // both the logged-out "Log in" flow AND the logged-in "Add account" / "Change
-  // account" flow, so Butter Auth is offered when switching accounts too.
-  const showLoginExtras = displayed && step === 'providers';
+  // Offer Butter Auth on the provider list only when there is NO active wallet
+  // session — i.e. logged out, or a Butter Auth session (aioha.isLoggedIn() is
+  // false for both). When logged in with a Hive wallet, "Change account" must NOT
+  // surface Butter Auth; the user has to log out first.
+  const showLoginExtras = displayed && step === 'providers' && !aioha.isLoggedIn();
 
   return (
     <>
