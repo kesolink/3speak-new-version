@@ -5,19 +5,9 @@ import "./App.css";
 // import Treanding from './page/Treanding'
 import Nav from "./components/nav/Nav";
 import { useState } from "react";
-import Watch from "./page/Watch";
-import WatchStream from "./page/WatchStream";
-import EgressStream from "./page/EgressStream";
 import Sidebar from "./components/Sidebar/Sidebar";
-import Feed from "./components/Feed/Feed";
-import FirstUploads from "./page/FirstUploads";
-import Trend from "./page/Trend";
-import Discover from "./page/Discover";
-import NewVideos from "./page/NewVideos";
 import HomeGrouped from "./page/HomeGrouped";
-import UploadVideo from "./page/UploadVideo";
 // KeyChainLogin replaced by LoginRedirect (opens aioha modal)
-import LoginNew from "./page/Login/LoginNew";
 import { useAppStore } from "./lib/store";
 import { useSupportBlock } from "./lib/supportBlockStore";
 import { getCreatorSettings, isBanned } from "./utils/creatorSettings";
@@ -32,25 +22,11 @@ import ProfileNav from "./components/nav/ProfileNav";
 // Legacy studio is retired: /studio routes now redirect to /embed-studio
 // (the embed-studio uploader in non-short mode is the only video upload flow).
 // import StudioPage from "./components/legacy-studio/StudioPage";
-import CommunitiesRender from "./components/Communities/CommunitiesRender";
-import CommunityPage from "./components/Communities/CommunityPage";
-import TagFeed from "./page/TagFeed";
-import Leaderboard from "./page/Leaderboard";
-import ProfilePage from "./page/ProfilePage";
-import Spotlight from "./page/Spotlight";
-import EmbedPlayer from "./page/EmbedPlayer";
-import Wallet from "./page/Wallet";
-import UserProfilePage from "./components/Userprofilepage/UserProfilePage";
-import DraftStudio from "./components/studio/DraftStudio";
-import EditVideo from "./page/EditVideo";
-import EditScheduledPost from "./page/EditScheduledPost";
 import ScrollToTop from "./components/ScrollToTop";
 import RouteTitle from "./components/RouteTitle";
 import OpenShortsOnStart from "./components/OpenShortsOnStart";
 import AddAccount_modal from "./components/modal/AddAccount_modal";
 // import TestingLogin from "./page/Login/TestingLogin";
-import AboutPage from "./components/LandingPage/AboutPage";
-import Legal from "./page/Legal";
 import { toast, Toaster } from 'sonner'
 import { CircleCheck, CircleX, TriangleAlert, Info } from 'lucide-react'
 import './toast.css'
@@ -61,36 +37,69 @@ import { fetchNewerVersion, reloadForUpdate } from './utils/checkLatestVersion'
 // import Thumbnail from "./components/legacy-studio/Thumbnail";
 // import Details from "./components/legacy-studio/Details";
 // import Preview from "./components/legacy-studio/Preview";
-import Short from "./page/Short";
-import ShortsStoryFeed from "./page/ShortsStoryFeed";
 import ShortsPreloader from "./components/ShortsPreloader";
 // import Email from "./page/Login/Email"
-// import AuthCallback from "./page/Login/AuthCallback";
-// import {AUTH_JWT_SECRET} from "../src/utils/config";
+// // import {AUTH_JWT_SECRET} from "../src/utils/config";
 
 
 import { jwtDecode } from "jwt-decode";
-import AuthCallback from "./page/Login/AuthCallback";
-import ManteAuthCallback from "./page/Login/ManteAuthCallback";
 import NotFound from "./page/NotFound";
-import ProfileModal from "./components/modal/ProfileModal";
-import HiveImageUploader from "./page/HiveImageUploader";
-import PlaylistView from "./page/PlaylistView";
-import WatchedView from "./page/WatchedView";
-import Notifications from "./page/Notifications";
-import PostView from "./page/PostView";
-import Audio from "./page/Audio";
-import AudioPost from "./page/AudioPost";
 import { EmbedUploadProvider } from "./context/EmbedUploadContext";
 import { HiveAuthProvider } from "./context/HiveAuthContext";
 import { HangoutContextProvider, useHangout } from "./context/HangoutContext";
 import { ChatProvider } from "./context/ChatContext";
-import ChatPage from "./components/Chat/ChatPage";
-import OpenPods from "./page/OpenPods";
-import OpenPodPublish from "./page/OpenPodPublish";
-
 const OpenPodModal = lazy(() => import("./components/OpenPod/OpenPodModal"));
 const ObsOverlay = lazy(() => import("./page/ObsOverlay"));
+
+// Route components are code-split: only the route the visitor actually opens is
+// downloaded. Everything here used to be a static import, so a first paint pulled
+// the studio, wallet, editor and every other page down before rendering anything.
+// The index route (HomeGrouped) stays eager - lazying it would only add a waterfall.
+const AboutPage = lazy(() => import("./components/LandingPage/AboutPage"));
+const Audio = lazy(() => import("./page/Audio"));
+const AudioPost = lazy(() => import("./page/AudioPost"));
+const AuthCallback = lazy(() => import("./page/Login/AuthCallback"));
+const ChatPage = lazy(() => import("./components/Chat/ChatPage"));
+const CommunitiesRender = lazy(() => import("./components/Communities/CommunitiesRender"));
+const CommunityPage = lazy(() => import("./components/Communities/CommunityPage"));
+const Discover = lazy(() => import("./page/Discover"));
+const DraftStudio = lazy(() => import("./components/studio/DraftStudio"));
+const EditScheduledPost = lazy(() => import("./page/EditScheduledPost"));
+const EditVideo = lazy(() => import("./page/EditVideo"));
+const EgressStream = lazy(() => import("./page/EgressStream"));
+const EmbedCameraRecord = lazy(() => import("./components/embed-studio/EmbedCameraRecord"));
+const EmbedDetails = lazy(() => import("./components/embed-studio/EmbedDetails"));
+const EmbedPlayer = lazy(() => import("./page/EmbedPlayer"));
+const EmbedPreview = lazy(() => import("./components/embed-studio/EmbedPreview"));
+const EmbedStudioPage = lazy(() => import("./components/embed-studio/EmbedStudioPage"));
+const EmbedThumbnail = lazy(() => import("./components/embed-studio/EmbedThumbnail"));
+const Feed = lazy(() => import("./components/Feed/Feed"));
+const FirstUploads = lazy(() => import("./page/FirstUploads"));
+const FollowFeed = lazy(() => import("./page/FollowFeed"));
+const HiveImageUploader = lazy(() => import("./page/HiveImageUploader"));
+const Leaderboard = lazy(() => import("./page/Leaderboard"));
+const Legal = lazy(() => import("./page/Legal"));
+const LoginNew = lazy(() => import("./page/Login/LoginNew"));
+const ManteAuthCallback = lazy(() => import("./page/Login/ManteAuthCallback"));
+const NewVideos = lazy(() => import("./page/NewVideos"));
+const Notifications = lazy(() => import("./page/Notifications"));
+const OpenPodPublish = lazy(() => import("./page/OpenPodPublish"));
+const OpenPods = lazy(() => import("./page/OpenPods"));
+const PlaylistView = lazy(() => import("./page/PlaylistView"));
+const PostView = lazy(() => import("./page/PostView"));
+const ProfileModal = lazy(() => import("./components/modal/ProfileModal"));
+const ProfilePage = lazy(() => import("./page/ProfilePage"));
+const Short = lazy(() => import("./page/Short"));
+const ShortsStoryFeed = lazy(() => import("./page/ShortsStoryFeed"));
+const Spotlight = lazy(() => import("./page/Spotlight"));
+const TagFeed = lazy(() => import("./page/TagFeed"));
+const Trend = lazy(() => import("./page/Trend"));
+const UploadVideo = lazy(() => import("./page/UploadVideo"));
+const UserProfilePage = lazy(() => import("./components/Userprofilepage/UserProfilePage"));
+const Wallet = lazy(() => import("./page/Wallet"));
+const Watch = lazy(() => import("./page/Watch"));
+const WatchStream = lazy(() => import("./page/WatchStream"));
+const WatchedView = lazy(() => import("./page/WatchedView"));
 
 function OpenPodModalMounter() {
   const { activeRoom, closeRoom, sessionToken, hangoutsUser } = useHangout();
@@ -117,12 +126,6 @@ function OpenPodModalMounter() {
 }
 
 // Embed studio pages
-import EmbedStudioPage from "./components/embed-studio/EmbedStudioPage";
-import EmbedThumbnail from "./components/embed-studio/EmbedThumbnail";
-import EmbedDetails from "./components/embed-studio/EmbedDetails";
-import EmbedPreview from "./components/embed-studio/EmbedPreview";
-import EmbedCameraRecord from "./components/embed-studio/EmbedCameraRecord";
-import FollowFeed from "./page/FollowFeed";
 import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
 import ActiveAuthModal from "./components/ActiveAuthModal/ActiveAuthModal";
@@ -483,9 +486,15 @@ function App() {
   // Routes/Route so EmbedPlayer's useParams() resolves author/permlink.
   if (location.pathname.startsWith('/embed/')) {
     return (
-      <Routes>
-        <Route path="/embed/:author/:permlink" element={<EmbedPlayer />} />
-      </Routes>
+      // EmbedPlayer is lazy now, so it needs its own boundary here — this block
+      // returns BEFORE the router's Suspense below. Fallback is a bare black box
+      // rather than a spinner: this renders inside an iframe on someone else's
+      // page, where a flash of loading chrome is worse than nothing.
+      <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: '#000' }} />}>
+        <Routes>
+          <Route path="/embed/:author/:permlink" element={<EmbedPlayer />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -547,6 +556,13 @@ function App() {
           {/* Optional: land on /shorts when the app is opened (off by default). */}
           <OpenShortsOnStart />
           {/* <Toaster richColors position="top-right" /> */}
+          {/* Every route below the index one is lazy, so the router needs a
+              boundary. The fallback is deliberately EMPTY: the nav, sidebar and
+              bottom bar live outside this boundary and keep rendering, so a route
+              chunk arriving swaps in just the page body. A spinner here would
+              flash on every navigation, which reads worse than the shell holding
+              still for a moment. */}
+          <Suspense fallback={<div className="route-suspense-fallback" />}>
           <Routes>
             <Route path="/" element={<HomeGrouped />} />
             <Route path="/home-feed" element={<Feed />} />
@@ -622,6 +638,7 @@ function App() {
             <Route path="/chat" element={<ChatPage />} />
             <Route path="*" element={<HiveLinkRedirect />} />
           </Routes>
+          </Suspense>
           <OpenPodModalMounter />
         </div>
         {!hideNavOnMobile && (
