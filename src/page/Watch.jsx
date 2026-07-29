@@ -179,6 +179,21 @@ function Watch({ v2 = false }) {
   // land here — show an honest hint instead of a stuck/black player. Reset per video.
   const [playbackFailed, setPlaybackFailed] = useState(false);
   useEffect(() => { setPlaybackFailed(false); }, [author, permlink]);
+  // A RECOVERABLE playback failure (CORS-blocked gateway, network drop, 5xx,
+  // timeout) as opposed to genuinely missing media. Kept separate so we never
+  // tell someone their video is gone — or report it as dead — over a transport
+  // hiccup that usually clears on a retry.
+  const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  useEffect(() => { setPlaybackBlocked(false); }, [author, permlink]);
+  // Retrying has to force a NEW gateway race, not replay the poisoned result:
+  // /hls sends `max-age=300`, so the browser would otherwise hand back the same
+  // unreadable manifest for five minutes. Bumping this remounts the load effect
+  // and the SDK requests the source again with a cache-busting reload.
+  const [playbackAttempt, setPlaybackAttempt] = useState(0);
+  const retryPlayback = useCallback(() => {
+    setPlaybackBlocked(false);
+    setPlaybackAttempt((n) => n + 1);
+  }, []);
   const deadVideos = useDeadVideos();
   const mediaUnavailable = playbackFailed
     || (!!author && !!permlink && deadVideos.has(videoKey(author, permlink)));
@@ -318,10 +333,41 @@ function Watch({ v2 = false }) {
     onError: (err) => {
       // A live post has no VOD source — an error here is expected, not a dead
       // video. Never report it unavailable or show the "not available" hint.
-      if (err?.fatal && !isLiveRef.current) {
+      if (!err?.fatal || isLiveRef.current) return;
+
+      // Distinguish "the media is gone" from "we couldn't reach it".
+      //
+      // Every fatal used to be treated as missing media, which meant a TRANSPORT
+      // failure got a permanent-sounding message AND a reportVideoUnavailable()
+      // call — so a perfectly healthy video could be reported dead because one
+      // gateway had a bad moment. The live example: ipfs.3speak.tv serves
+      // manifests without access-control-allow-origin, so when the /hls race
+      // picks it the browser blocks the read. hls.js sees a load failure with NO
+      // http status (a CORS block is opaque to JS), which is indistinguishable
+      // from a network drop and nothing at all like a 404.
+      //
+      // The player hands us `{ message: 'HLS fatal error: <hls details>', code }`
+      // where `code` is the response status when there was one.
+      const status = Number(err.code) || 0;
+      const details = String(err.message || '');
+      // Only a definitive "not there" answer from the origin counts as missing.
+      const mediaIsGone = status === 404 || status === 410;
+      // Everything else — no status (CORS/network), 5xx, or a timeout — is a
+      // transport problem that may well succeed on the next attempt.
+      const transportProblem = !mediaIsGone
+        && (status === 0 || status >= 500 || /timeout/i.test(details));
+
+      if (mediaIsGone) {
         reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
         setPlaybackFailed(true); // swap the player for a "not available" hint
+      } else if (transportProblem) {
+        setPlaybackBlocked(true); // recoverable — offer a retry, report nothing
+      } else {
+        // An unexpected fatal we can't classify (e.g. a decode error): show the
+        // softer hint rather than accusing the video of being gone.
+        setPlaybackBlocked(true);
       }
+      console.warn('[Watch] fatal playback error', { status, details });
     },
     // First frame decoded — drop the branded loader and reveal the player.
     onReady: () => setVideoReady(true),
@@ -535,7 +581,8 @@ function Watch({ v2 = false }) {
       reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
     });
     return () => { active = false; };
-  }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek]);
+    // `playbackAttempt` is in the deps purely so "Try again" re-runs this load.
+  }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek, playbackAttempt]);
 
   // Subscribe to player events (stable effect — uses refs for mutable values)
   useEffect(() => {
@@ -1463,6 +1510,8 @@ function Watch({ v2 = false }) {
         vodAssetPending={vodProcessing}
         onStreamRoomMeta={setStreamRoomMeta}
         mediaUnavailable={!isLive && mediaUnavailable}
+        mediaBlocked={!isLive && playbackBlocked}
+        onRetryPlayback={retryPlayback}
         mediaLoading={!isLive && mediaLoading}
         videoRef={videoRef}
         wrapperRef={wrapperRef}

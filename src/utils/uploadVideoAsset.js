@@ -24,14 +24,19 @@ import { pickEmbedEndpoint, getEmbedHosts } from './embedEndpoints';
  * @param {number}   [opts.duration]           seconds, best-effort metadata
  * @param {(pct:number) => void} [opts.onProgress]
  * @param {(u:tus.Upload) => void} [opts.onStart]  receives the upload so callers can abort
+ * @param {(host:string) => void} [opts.onEndpoint]  the chosen host, once picked
  * @returns {Promise<{embedUrl:string, owner:string, permlink:string}>}
  */
-export async function uploadVideoAsset(file, { owner, duration = 0, onProgress, onStart } = {}) {
+export async function uploadVideoAsset(file, { owner, duration = 0, onProgress, onStart, onEndpoint } = {}) {
   if (!file) throw new Error('No file given.');
   if (!owner) throw new Error('No owner given.');
   if (!EMBED_API_KEY) throw new Error('Uploads are not configured (missing embed API key).');
 
-  const { uploadUrl } = await pickEmbedEndpoint();
+  const { base, uploadUrl } = await pickEmbedEndpoint();
+  // Tell the caller WHICH host won the pick. With a pool configured this is a
+  // load/health decision made per upload, so it is worth surfacing: when an
+  // upload misbehaves, the first question is which endpoint took it.
+  try { onEndpoint?.(hostLabel(base || uploadUrl)); } catch { /* display only */ }
 
   let embedUrl = '';
   await new Promise((resolve, reject) => {
@@ -143,6 +148,11 @@ async function postToAnyEmbedHost(path, body) {
     }
   }
   throw lastErr || new Error(`${path} failed: no embed host reachable`);
+}
+
+/** Bare hostname of a URL, for display ("https://embed2.3speak.tv/uploads" -> "embed2.3speak.tv"). */
+function hostLabel(url) {
+  try { return new URL(url).host; } catch { return String(url || '').replace(/^https?:\/\//, '').split('/')[0]; }
 }
 
 /** Read a video file's duration (seconds) without uploading it. Best-effort: resolves 0. */
