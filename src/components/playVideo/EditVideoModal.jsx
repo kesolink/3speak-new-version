@@ -438,6 +438,15 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
           throw new Error("This post has no embed video entry to replace — its metadata doesn't reference one.");
         }
         await registerMediaReplacement(newAsset.permlink, originalAssetPermlink);
+        // A fresh, playable source means any "deleted"/unavailable shadow-ban no
+        // longer applies — clear it so the badge drops. Best-effort + idempotent.
+        if (CHECKER_API_KEY) {
+          axios.post(
+            `${CHECKER_URL}/video/reinstate`,
+            { owner: author, permlink },
+            { headers: { Authorization: `Bearer ${CHECKER_API_KEY}` } },
+          ).catch((e) => console.warn('Reinstate (clear unavailable) failed:', e?.message));
+        }
         // No toast here — the single success toast at the end carries the
         // encoding caveat, so a replacement doesn't fire two in a row.
       }
