@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.3',
+    date: '2026-07-28',
+    summary:
+      'When you replace a video, the upload now shows which server it is going to, and the confirmation reminds you the new file needs a few moments to finish encoding.',
+  },
+  {
     version: '1.78.2',
     date: '2026-07-28',
     summary:
