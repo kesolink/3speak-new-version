@@ -11,12 +11,15 @@ export default function ReviewFab() {
   const location = useLocation();
   const openReview = useReviewModal((s) => s.openReview);
   const user = useAppStore((s) => s.user);
+  // On mobile the mini-player ("history bar") sits on top of the bottom nav, so lift
+  // the FAB above it while it's showing (else the FAB covers that bar).
+  const miniPlayer = useAppStore((s) => s.miniPlayer);
 
   if (location.pathname !== '/') return null;
 
   return (
     <button
-      className="review-fab"
+      className={`review-fab${miniPlayer ? ' review-fab--mini' : ''}`}
       onClick={() => openReview({ area: 'global', username: user || null, permlink: null })}
       aria-label="Give feedback"
     >

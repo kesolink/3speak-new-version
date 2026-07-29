@@ -23,11 +23,20 @@ const useViewCounts = (videos) => {
       return v.author?.username || v.author || v.owner || null;
     };
 
-    // Filter videos that haven't been fetched yet and have valid data
+    // Filter videos that haven't been fetched yet and have valid data.
+    //
+    // Crucially, SKIP anything the feed already told us the view count for. This
+    // is a fallback for legacy videos that ship without `views`, but the feeds now
+    // carry it on essentially everything (measured: 0/30 discover videos missing
+    // it), and Card3 prefers the feed value anyway — so every one of these
+    // requests was being made and then ignored. `useContentBatch` already skips
+    // rows it doesn't need; this hook never got the same treatment. With nothing
+    // left to fetch, `toFetch` is empty and no request goes out at all.
     const toFetch = videos.filter((v) => {
       const author = getAuthor(v);
       const permlink = v.permlink;
       if (!author || !permlink) return false;
+      if ((v.views ?? v.stats?.num_views) != null) return false; // feed already has it
       const key = `${author}/${permlink}`;
       return !fetchedRef.current.has(key);
     });

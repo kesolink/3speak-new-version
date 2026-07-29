@@ -465,7 +465,15 @@ export const establishWalletSession = async () => {
       })
       const chData = await chRes.json().catch(() => ({}))
       if (!chRes.ok || !chData.challenge) throw new Error(chData.error || 'Could not start sign-in')
-      const signed = await aioha.signMessage(chData.challenge, KeyTypes.Posting)
+      // MUST go through withHiveAuthWaiting: on HiveAuth the approval happens in
+      // the user's phone app, and this wrapper is what raises the "waiting for
+      // approval" prompt (QR / deep link). Without it the signature request is
+      // sent but the user is never shown anything to approve, so sign-in silently
+      // times out — and every HiveAuth user then fails /api/broadcast with 401.
+      const signed = await withHiveAuthWaiting(
+        () => aioha.signMessage(chData.challenge, KeyTypes.Posting),
+        'Approve sign-in on HiveAuth...',
+      )
       if (!signed?.success || !signed.result) {
         throw new Error(extractAiohaError(signed, 'Sign-in signature was declined'))
       }
@@ -561,6 +569,17 @@ export const broadcastViaThreespeak = async (operations) => {
     }
   }
   if (!res.ok || !data.success) {
+    // A bare 401 "Unauthorized" from the server tells the user nothing. Since
+    // ALLOW_APPKEY_AUTH=0 the legacy public-app-key path is closed, so a 401
+    // here always means "this login has no usable server session" — say which
+    // login and what to do about it.
+    if (res.status === 401) {
+      throw new Error(
+        provider === Providers.HiveSigner
+          ? 'Your HiveSigner session has expired. Please reconnect HiveSigner (log out and back in) and try again.'
+          : 'Could not verify your Hive account. Approve the sign-in request from your wallet, or log out and back in, then try again.',
+      )
+    }
     throw new Error(data.error || data.message || 'Broadcast via @threespeak failed')
   }
   return { success: true, result: data.result }

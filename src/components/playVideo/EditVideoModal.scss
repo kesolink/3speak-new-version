@@ -126,6 +126,85 @@
   }
 }
 
+/* --- Replace the video file ------------------------------------------------
+   Sits directly above the thumbnail row and borrows its visual language, so the
+   two "swap the media" controls read as a pair. */
+.evm-video-replace {
+  margin-bottom: 12px;
+}
+
+.evm-video-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #333);
+  background: var(--bg-secondary, #1a1a1a);
+  color: var(--text-primary, #fff);
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-color, #e31337);
+  }
+}
+
+.evm-video-staged {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  background: var(--bg-secondary, #1a1a1a);
+
+  &__name {
+    font-size: 13px;
+    color: var(--text-primary, #fff);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__status {
+    font-size: 11px;
+    color: var(--text-secondary, #888);
+    margin-top: 6px;
+
+    &--ok {
+      color: #3fb950;
+    }
+  }
+}
+
+.evm-video-bar {
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--border-color, #333);
+  overflow: hidden;
+
+  &__fill {
+    height: 100%;
+    background: var(--accent-color, #e31337);
+    transition: width 0.2s ease;
+  }
+}
+
+/* Red OUTLINE, never a red fill — house style for destructive-ish actions. */
+.evm-video-cancel {
+  margin-top: 10px;
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--accent-color, #e31337);
+  color: var(--accent-color, #e31337);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(227, 19, 55, 0.08);
+  }
+}
+
 .edit-video-thumb-row {
   display: flex;
   align-items: center;

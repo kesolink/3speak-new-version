@@ -36,7 +36,7 @@ import axios from "axios";
 import mantequillaLogo from "../../assets/mantequilla-logo.png";
 import threespeakLogo from "../../assets/image/3S_logo.svg";
 import threespeakLogoDark from "../../assets/image/3S_logodark.png";
-import { FEED_URL, HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
+import { HIVE_API_URL, CHECKER_URL, FEATURE_EDITOR } from '../../utils/config';
 import { getViewerTags, getMyViewerTag } from '../../utils/viewerTag';
 import { displayTag, saveInterestsToHive } from '../../utils/interests';
 import { ALL_TOPIC_SLUGS } from '../../utils/tagsV2';
@@ -72,7 +72,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -148,7 +148,6 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
   const [voteValue, setVoteValue] = useState(0.0);
   const [weight, setWeight] = useState(100);
   const [view, setView] = useState(0);
-  const [speakData, setSpeakData] = useState(null);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -447,12 +446,11 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
   }, [author, permlink, user]);
 
   const speakWatchData = useCallback(async () => {
-    try {
-      const res = await axios.get(`${FEED_URL}/apiv2/@${author}/${permlink}`);
-      setSpeakData(res.data);
-    } catch (err) {
-      // Legacy endpoint — best-effort; the view count comes from the checker below.
-    }
+    // The legacy `/apiv2/@author/permlink` call that used to lead this function is
+    // gone: the endpoint is retired (it answers 401) and the only thing it fed —
+    // `speakData` — was never read anywhere. So every watch page was paying for a
+    // request that could only fail, to populate state nothing consumes.
+    //
     // View count from the checker /views — the same source the cards use
     // (the legacy apiv2 endpoint is gone, which is why this read as 0 before).
     try {
@@ -854,6 +852,39 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                     The media for this older upload could not be found on the network. The post
                     still exists on the blockchain, but the video can no longer be played.
                   </div>
+                </div>
+              )}
+              {/* Recoverable transport failure — a gateway that couldn't be read
+                  (CORS), a network drop, a 5xx or a timeout. The media is very
+                  likely fine, so say so and offer a retry rather than claiming
+                  the video is gone. Nothing is reported to the checker. */}
+              {mediaBlocked && !mediaUnavailable && (
+                <div style={{
+                  position: 'absolute', inset: 0, zIndex: 6, background: '#000',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  justifyContent: 'center', textAlign: 'center', padding: '24px', gap: '10px',
+                }}>
+                  <div style={{ fontSize: '2.2rem', lineHeight: 1 }}>📡</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#f0f0f0' }}>
+                    Couldn&apos;t load the video right now
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#aaa', maxWidth: '440px', lineHeight: 1.5 }}>
+                    One of our video servers didn&apos;t respond. The video itself is fine, so
+                    please try again.
+                  </div>
+                  {onRetryPlayback && (
+                    <button
+                      onClick={onRetryPlayback}
+                      style={{
+                        marginTop: '6px', padding: '7px 16px', fontSize: '0.85rem',
+                        borderRadius: '7px', cursor: 'pointer', background: 'transparent',
+                        border: '1px solid var(--accent-primary, #e0594b)',
+                        color: 'var(--accent-primary, #e0594b)',
+                      }}
+                    >
+                      Try again
+                    </button>
+                  )}
                 </div>
               )}
               {videoControls?.subtitleCues?.length > 0 && (
@@ -1698,6 +1729,8 @@ PlayVideo.propTypes = {
   author: PropTypes.string.isRequired,
   permlink: PropTypes.string.isRequired,
   mediaUnavailable: PropTypes.bool,
+  mediaBlocked: PropTypes.bool,
+  onRetryPlayback: PropTypes.func,
   mediaLoading: PropTypes.bool,
   playlistData: PropTypes.shape({
     playlist: PropTypes.object,

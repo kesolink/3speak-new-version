@@ -80,26 +80,34 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
   // The host ended their stream — show a confirmation instead of dropping them
   // straight back to the lobby. Reset each time a session opens.
   const [streamEnded, setStreamEnded] = useState(false);
+  // Room existence: 'checking' | 'exists' | 'gone'. A stream that ended leaves a
+  // deleted room; refreshing on /openpods/:roomName must NOT try to connect to
+  // it forever (the "connecting…" hang) — we detect the 404 and show the ended
+  // state instead.
+  const [roomStatus, setRoomStatus] = useState('checking');
   useEffect(() => { if (isOpen) setStreamEnded(false); }, [isOpen, roomName]);
   const openReview = useReviewModal((s) => s.openReview);
   useEffect(() => {
     if (!roomName) return;
     let alive = true;
+    setRoomStatus('checking');
     findRoomEndpoint(roomName).then(async (ep) => {
       if (!alive) return;
       setEndpoint(ep);
       try {
         const res = await fetch(`${ep.api}/rooms/${encodeURIComponent(roomName)}`);
-        const room = res.ok ? await res.json() : null;
         if (!alive) return;
+        if (res.status === 404) { setRoomStatus('gone'); return; }
+        const room = res.ok ? await res.json() : null;
+        setRoomStatus('exists');
         // Set explicitly both ways: only ever setting `true` meant the flag
         // stuck after opening an unlisted room and then a public one.
         const unlisted = room?.visibility === 'unlisted';
         setIsUnlisted(unlisted);
         setRoomMode(room?.mode || null);
         if (unlisted) setAnnounceEnabled(false);
-      } catch { /* leave defaults */ }
-    });
+      } catch { if (alive) setRoomStatus('exists'); /* transient error → fail open */ }
+    }).catch(() => { if (alive) setRoomStatus('exists'); });
     return () => { alive = false; };
   }, [roomName]);
 
@@ -196,19 +204,23 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
           sessionToken={sessionToken}
           username={username || undefined}
         >
-          {streamEnded ? (
+          {(streamEnded || roomStatus === 'gone') ? (
             <div className="openpod-ended">
               <div className="openpod-ended__icon" aria-hidden="true">✅</div>
-              <h2 className="openpod-ended__title">Your stream has ended</h2>
+              <h2 className="openpod-ended__title">
+                {streamEnded ? 'Your stream has ended' : 'This stream has ended'}
+              </h2>
               <p className="openpod-ended__text">
-                {announceEnabled && !isUnlisted
-                  ? 'Nice one! Your recording is being processed and will appear on the announcement post shortly.'
-                  : 'Nice one — thanks for going live!'}
+                {!streamEnded
+                  ? 'It is no longer live. Start a new one whenever you are ready.'
+                  : announceEnabled && !isUnlisted
+                    ? 'Nice one! Your recording is being processed and will appear on the announcement post shortly.'
+                    : 'Nice one — thanks for going live!'}
               </p>
               <div className="openpod-ended__actions">
-                {/* navigate('/') BEFORE onClose so the OpenPods page unmounts
-                    first — otherwise its URL-cleanup effect fires on room-close
-                    and redirects to /openpods, overriding this. */}
+                {/* navigate('/') BEFORE onClose: OpenPods' URL-cleanup effect
+                    fires on room-close but now only rewrites to /openpods when
+                    the path is still /openpods, so going home first sticks. */}
                 <button className="openpod-ended__btn" onClick={() => { navigate('/'); onClose(); }}>Back to Home</button>
                 <button className="openpod-ended__btn" onClick={onClose}>Back to OpenPods</button>
               </div>
@@ -219,7 +231,7 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
                 <Star size={18} /> How was your stream?
               </button>
             </div>
-          ) : roomReady ? (
+          ) : (roomReady && roomStatus === 'exists') ? (
             <HangoutsRoom
               roomName={roomName}
               onLeave={onClose}
@@ -267,6 +279,10 @@ export default function OpenPodModal({ isOpen, onClose, roomName, sessionToken, 
               guestFallback
               getShareUrl={getShareUrl}
               watermarkLogoUrl={new URL(logoDark, window.location.origin).href}
+              // Serve the OBS Browser Source overlay from OUR origin (/obs route,
+              // current SDK, multi-endpoint aware) instead of the stale shared
+              // hangout.3speak.tv/obs page.
+              obsBaseUrl={window.location.origin}
             />
           ) : (
             <div className="openpod-connecting">
