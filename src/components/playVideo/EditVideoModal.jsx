@@ -128,6 +128,9 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
   const [videoUploading, setVideoUploading] = useState(false);
   const [newAsset, setNewAsset] = useState(null); // { embedUrl, owner, permlink }
   const [newDuration, setNewDuration] = useState(0);
+  // Which embed host the pool picked for this upload — shown while it runs, so a
+  // misbehaving upload can be traced to an endpoint without opening devtools.
+  const [uploadHost, setUploadHost] = useState('');
   const videoUploadRef = useRef(null);
   const thumbInputRef = useRef(null);
 
@@ -376,6 +379,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
     setNewVideoFile(file);
     setNewAsset(null);
     setVideoUploadPct(0);
+    setUploadHost('');
     setVideoUploading(true);
     try {
       const duration = await probeVideoDuration(file);
@@ -385,6 +389,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
         duration,
         onProgress: setVideoUploadPct,
         onStart: (u) => { videoUploadRef.current = u; },
+        onEndpoint: setUploadHost,
       });
       setNewAsset(asset);
       toast.success('New video uploaded. Save to apply it to this post.');
@@ -406,6 +411,7 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
     setNewAsset(null);
     setNewDuration(0);
     setVideoUploadPct(0);
+    setUploadHost('');
     setVideoUploading(false);
   };
 
@@ -432,7 +438,8 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
           throw new Error("This post has no embed video entry to replace — its metadata doesn't reference one.");
         }
         await registerMediaReplacement(newAsset.permlink, originalAssetPermlink);
-        toast.info('Your new video is being processed. This might take some minutes before it plays.');
+        // No toast here — the single success toast at the end carries the
+        // encoding caveat, so a replacement doesn't fire two in a row.
       }
       const trimmedThumb = thumbnailUrl.trim();
       let finalBody = post.body || '';
@@ -522,7 +529,14 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
         }
       }
 
-      if (contentDirty) toast.success('Video updated!');
+      // One success toast covering whatever actually changed. A replaced file
+      // needs the encoding caveat: the save succeeded, but the new video will
+      // not play for a few minutes yet — without saying so it reads as broken.
+      if (videoDirty) {
+        toast.success('Video updated! The new file needs a few moments to finish encoding.');
+      } else if (contentDirty) {
+        toast.success('Video updated!');
+      }
 
       onSaved?.({
         title: title.trim(),
@@ -595,13 +609,17 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
                       <div className="evm-video-bar">
                         <div className="evm-video-bar__fill" style={{ width: `${videoUploadPct}%` }} />
                       </div>
-                      <div className="evm-video-staged__status">Uploading… {videoUploadPct}%</div>
+                      <div className="evm-video-staged__status">
+                        {uploadHost
+                          ? <>Uploading to <b>{uploadHost}</b>… {videoUploadPct}%</>
+                          : <>Choosing an upload server…</>}
+                      </div>
                     </>
                   )}
 
                   {!videoUploading && newAsset && (
                     <div className="evm-video-staged__status evm-video-staged__status--ok">
-                      Uploaded. Press Save to swap it in.
+                      Uploaded{uploadHost ? <> to <b>{uploadHost}</b></> : null}. Press Save to swap it in.
                     </div>
                   )}
 
