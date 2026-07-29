@@ -72,7 +72,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -852,6 +852,39 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                     The media for this older upload could not be found on the network. The post
                     still exists on the blockchain, but the video can no longer be played.
                   </div>
+                </div>
+              )}
+              {/* Recoverable transport failure — a gateway that couldn't be read
+                  (CORS), a network drop, a 5xx or a timeout. The media is very
+                  likely fine, so say so and offer a retry rather than claiming
+                  the video is gone. Nothing is reported to the checker. */}
+              {mediaBlocked && !mediaUnavailable && (
+                <div style={{
+                  position: 'absolute', inset: 0, zIndex: 6, background: '#000',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  justifyContent: 'center', textAlign: 'center', padding: '24px', gap: '10px',
+                }}>
+                  <div style={{ fontSize: '2.2rem', lineHeight: 1 }}>📡</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#f0f0f0' }}>
+                    Couldn&apos;t load the video right now
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#aaa', maxWidth: '440px', lineHeight: 1.5 }}>
+                    One of our video servers didn&apos;t respond. The video itself is fine, so
+                    please try again.
+                  </div>
+                  {onRetryPlayback && (
+                    <button
+                      onClick={onRetryPlayback}
+                      style={{
+                        marginTop: '6px', padding: '7px 16px', fontSize: '0.85rem',
+                        borderRadius: '7px', cursor: 'pointer', background: 'transparent',
+                        border: '1px solid var(--accent-primary, #e0594b)',
+                        color: 'var(--accent-primary, #e0594b)',
+                      }}
+                    >
+                      Try again
+                    </button>
+                  )}
                 </div>
               )}
               {videoControls?.subtitleCues?.length > 0 && (
@@ -1696,6 +1729,8 @@ PlayVideo.propTypes = {
   author: PropTypes.string.isRequired,
   permlink: PropTypes.string.isRequired,
   mediaUnavailable: PropTypes.bool,
+  mediaBlocked: PropTypes.bool,
+  onRetryPlayback: PropTypes.func,
   mediaLoading: PropTypes.bool,
   playlistData: PropTypes.shape({
     playlist: PropTypes.object,
