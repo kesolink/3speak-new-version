@@ -199,6 +199,11 @@ const OPENPODS_STANDALONE = import.meta.env.VITE_OPENPODS_STANDALONE !== 'false'
 // Gates the OpenPods live-streaming options in the create/share menu (the whole
 // "Live" category). OFF by default — set VITE_ENABLE_OPENPODS=true to show it.
 const ENABLE_OPENPODS = import.meta.env.VITE_ENABLE_OPENPODS === 'true';
+// These accounts can always see/test OpenPods regardless of VITE_ENABLE_OPENPODS,
+// so the team can keep testing while it stays hidden for everyone else.
+const OPENPODS_ALWAYS_USERS = ['badadib', 'meno', 'tibfox', 'coolmole'];
+const openpodsEnabledFor = (user) =>
+  ENABLE_OPENPODS || (!!user && OPENPODS_ALWAYS_USERS.includes(String(user).toLowerCase()));
 
 // Hosts whose live streams / rooms are kept OUT of the discovery feeds
 // (discover, follow, new). Same spirit as the checker's LEADERBOARD_EXCLUDED_USERS
@@ -276,6 +281,7 @@ export {
   ENABLE_SUBS,
   OPENPODS_STANDALONE,
   ENABLE_OPENPODS,
+  openpodsEnabledFor,
   FEED_EXCLUDED_HOSTS,
   ENABLE_CAMERA_RECORD,
   STT_WS_URL,
