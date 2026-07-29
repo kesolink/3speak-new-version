@@ -200,6 +200,40 @@ export default defineConfig({
     commonjsOptions: {
       transformMixedEsModules: true,
     },
+    rollupOptions: {
+      output: {
+        // Split the Hive crypto/wallet stack out of the app chunk. It was one
+        // undivided ~8.6 MiB bundle, which had grown past the service worker's
+        // precache ceiling, so the app bundle silently stopped being precached
+        // and `vite build` started exiting 1.
+        //
+        // These deps are large, stable, and change far less often than app
+        // code, so isolating them also stops every app deploy from
+        // invalidating a multi-megabyte download for returning users.
+        //
+        // React is deliberately NOT split: `resolve.dedupe` above exists
+        // because this graph is sensitive to React resolving through more than
+        // one path, so it stays where it is.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          // Hive chain + the elliptic-curve/crypto primitives it pulls in,
+          // plus the node polyfills that only exist to satisfy them.
+          if (
+            /[\\/]node_modules[\\/](@hiveio[\\/]dhive|dhive|hive-tx|elliptic|secp256k1|bn\.js|hash\.js|asn1\.js|bs58|browserify-[^\\/]+|crypto-browserify|stream-browserify|readable-stream|create-hash|create-hmac|cipher-base|sha\.js|ripemd160|md5\.js|pbkdf2|randombytes|buffer)[\\/]/.test(id)
+          ) {
+            return "hive-crypto";
+          }
+
+          // Wallet adapters: only needed once a user actually authenticates.
+          if (
+            /[\\/]node_modules[\\/](@aioha|aioha|keychain-sdk|hive-auth-wrapper|@metamask)[\\/]/.test(id)
+          ) {
+            return "wallet";
+          }
+        },
+      },
+    },
   },
 
   css: {

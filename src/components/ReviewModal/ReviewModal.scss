@@ -282,6 +282,8 @@
   // the FAB stays at bottom:18px and covers the Profile tab.
   @include respond(tab) {
     bottom: 76px; // clear the bottom nav (shown on tablet too)
+    // The mini-player bar is 56px tall and sits on top of the nav — lift past it.
+    &.review-fab--mini { bottom: 132px; }
   }
 
   @include respond(phone) {
@@ -289,5 +291,6 @@
     right: 14px;
     padding: 12px;
     span { display: none; } // icon-only on phones
+    &.review-fab--mini { bottom: 132px; } // clear the mini-player bar too
   }
 }

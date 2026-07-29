@@ -210,9 +210,12 @@ const BottomNav = ({ openLoginModal }) => {
           <Link to="/about" className="bottom-nav-menu-item" onClick={() => setMenuOpen(false)}>
             <HiInformationCircle className="bottom-nav-menu-icon" /> About 3Speak
           </Link>
-          <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
-            <IoPower className="bottom-nav-menu-icon" /> Change account
-          </a>
+          {/* Hidden for ButrAuth sessions — see ProfileNav for the reasoning. */}
+          {!isManteAuth && (
+            <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); openLoginModal(); }}>
+              <IoPower className="bottom-nav-menu-icon" /> Change account
+            </a>
+          )}
           {isManteAuth && (
             <a href="#" className="bottom-nav-menu-item" onClick={(e) => { e.preventDefault(); setMenuOpen(false); LogOut(user); navigate('/'); }}>
               <IoPower className="bottom-nav-menu-icon" /> Logout

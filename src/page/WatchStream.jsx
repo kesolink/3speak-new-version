@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -7,6 +7,7 @@ import {
 import '@snapie/hangouts-react/src/styles/hangouts.css';
 import StreamBoostButton from '../components/openpods/StreamBoostButton';
 import StreamReportButton from '../components/openpods/StreamReportButton';
+import StreamClipButton from '../components/openpods/StreamClipButton';
 import { useStreamSession } from '../hooks/useStreamSession';
 import { useLiveStreamPager } from '../hooks/useLiveStreamPager';
 import { useStreamChatMirror } from '../hooks/useStreamChatMirror';
@@ -77,12 +78,47 @@ export default function WatchStream() {
   const [recommended, setRecommended] = useState({ loading: false, videos: [] });
   // Phones get a shorts-style full-bleed player rather than the desktop grid.
   const isMobile = useIsMobile();
+  // A phone rotated to landscape exceeds useIsMobile's 820px width breakpoint,
+  // which would wrongly flip us to the desktop grid. Track orientation and treat
+  // a SHORT landscape viewport (phones, not tablets/desktop) as mobile too.
+  const [isLandscape, setIsLandscape] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(orientation: landscape)').matches === true,
+  );
+  const [phoneLandscape, setPhoneLandscape] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(orientation: landscape) and (max-height: 500px)').matches === true,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const land = window.matchMedia('(orientation: landscape)');
+    const phone = window.matchMedia('(orientation: landscape) and (max-height: 500px)');
+    const update = () => { setIsLandscape(land.matches); setPhoneLandscape(phone.matches); };
+    update();
+    land.addEventListener('change', update);
+    phone.addEventListener('change', update);
+    return () => { land.removeEventListener('change', update); phone.removeEventListener('change', update); };
+  }, []);
+  const mobileLayout = isMobile || phoneLandscape;
+
+  // Landscape only (mobile): the author/info block auto-hides 3s after it last
+  // appeared and comes back on a screen tap. Portrait keeps it always visible.
+  const [infoVisible, setInfoVisible] = useState(true);
+  const hideTimerRef = useRef(null);
+  const revealInfo = useCallback(() => {
+    setInfoVisible(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (isLandscape) hideTimerRef.current = setTimeout(() => setInfoVisible(false), 3000);
+  }, [isLandscape]);
+  useEffect(() => {
+    revealInfo();
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+  }, [revealInfo]);
+
   const [chatOverlayOn, setChatOverlayOn] = useState(true);
   // Swipe/scroll to the next live stream, shorts-style. No-op when nothing else
   // is live.
   const { containerRef: pagerRef, hasNext: hasNextLive } = useLiveStreamPager({
     currentRoom: streamId,
-    enabled: isMobile,
+    enabled: mobileLayout,
   });
 
   // Detect the live stream via the room lookup (works for unlisted too), then
@@ -180,7 +216,7 @@ export default function WatchStream() {
   // Desktop only. On a phone the shorts-style layout below is the better
   // experience and the watch page's sidebar — where the chat would live — is
   // collapsed away anyway.
-  if (!isMobile && state.hivePost) {
+  if (!mobileLayout && state.hivePost) {
     return <Navigate to={`/watch?v=${room.host}/${streamId}`} replace />;
   }
   const host = room.host;
@@ -191,7 +227,7 @@ export default function WatchStream() {
   // Top level, NOT inside .play-container: `.short-main` is position:fixed at
   // ≤767px and a wrapper with its own layout context was penning it in, which
   // is why the player sat inline with the nav instead of covering the screen.
-  if (isMobile) {
+  if (mobileLayout) {
     return (
       <>
         <SEOHead title={`${title} (LIVE)`} author={host} url={window.location.href} />
@@ -205,9 +241,9 @@ export default function WatchStream() {
         >
           {!connectReady ? <BarLoader /> : (
             <StandaloneWatch key={joinKey} roomName={streamId} connecting={<BarLoader />}>
-              <main className="short-main no-bottom-bar ws-shorts">
+              <main className={`short-main no-bottom-bar ws-shorts${isLandscape ? ' ws-shorts--landscape' : ''}${!infoVisible ? ' ws-info-hidden' : ''}`}>
                 <div className="videoWrapper">
-                  <div className="videoContainer" ref={pagerRef}>
+                  <div className="videoContainer" ref={pagerRef} onClick={revealInfo}>
                     <StreamVideo showLiveBadge={false} />
 
                     {/* Same back affordance as the shorts feed. */}
@@ -257,6 +293,7 @@ export default function WatchStream() {
                         <div className="actionButton"><Share2 size={24} /></div>
                         <span className="actionLabel">{copied ? 'Copied' : 'Share'}</span>
                       </div>
+                      <StreamClipButton roomName={streamId} variant="sidebar" />
                       <StreamReportButton roomName={streamId} host={host} variant="sidebar" />
                     </div>
 
@@ -349,6 +386,7 @@ export default function WatchStream() {
                         <button type="button" className="pv-btn" disabled title="Not available for live streams">
                           <FaBookmark size={14} /><span>Save</span>
                         </button>
+                        <StreamClipButton roomName={streamId} />
                         <StreamReportButton roomName={streamId} host={host} />
                       </div>
                     </div>

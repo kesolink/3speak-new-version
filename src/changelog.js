@@ -7,6 +7,42 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.3',
+    date: '2026-07-28',
+    summary:
+      'When you replace a video, the upload now shows which server it is going to, and the confirmation reminds you the new file needs a few moments to finish encoding.',
+  },
+  {
+    version: '1.78.2',
+    date: '2026-07-28',
+    summary:
+      "Small polish: the feedback button no longer sits over the mini player on mobile, the chat icon's unread count lines up properly, and the About page reads correctly in light mode.",
+  },
+  {
+    version: '1.78.1',
+    date: '2026-07-28',
+    summary:
+      'Signing in and switching accounts is smoother, with 3Speak offering only the options that match how you logged in.',
+  },
+  {
+    version: '1.78.0',
+    date: '2026-07-28',
+    summary:
+      'You can now swap the video file on a post you already published. Open Edit on your video and use Replace video: your likes, payout, comments, upload date and its place on your profile all stay exactly as they are.',
+  },
+  {
+    version: '1.77.5',
+    date: '2026-07-28',
+    summary:
+      'Videos on the watch page start sooner: playback now begins loading immediately instead of waiting for the rest of the page details.',
+  },
+  {
+    version: '1.77.4',
+    date: '2026-07-28',
+    summary:
+      '3Speak now starts noticeably faster. Each page loads only what it actually needs, so the app appears sooner and moves quicker as you browse.',
+  },
+  {
     version: '1.77.0',
     date: '2026-07-25',
     summary:

@@ -9,7 +9,8 @@ import { useContentBatch } from '../hooks/useContentBatch';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchVideoDetails, fetchPlaySource, fetchTrendingFeed, fetchAuthorVideos, fetchRelatedFeed } from '../lib/videoData';
-import BarLoader from '../components/Loader/BarLoader';
+// BarLoader is intentionally not imported: this page renders immediately rather
+// than blocking on the post-metadata query (see the note above the render return).
 import { useAppStore } from '../lib/store';
 import { hasConsent } from '../lib/consent';
 import { recordWatch, batchCheckWatched } from '../utils/watchHistory';
@@ -178,6 +179,21 @@ function Watch({ v2 = false }) {
   // land here — show an honest hint instead of a stuck/black player. Reset per video.
   const [playbackFailed, setPlaybackFailed] = useState(false);
   useEffect(() => { setPlaybackFailed(false); }, [author, permlink]);
+  // A RECOVERABLE playback failure (CORS-blocked gateway, network drop, 5xx,
+  // timeout) as opposed to genuinely missing media. Kept separate so we never
+  // tell someone their video is gone — or report it as dead — over a transport
+  // hiccup that usually clears on a retry.
+  const [playbackBlocked, setPlaybackBlocked] = useState(false);
+  useEffect(() => { setPlaybackBlocked(false); }, [author, permlink]);
+  // Retrying has to force a NEW gateway race, not replay the poisoned result:
+  // /hls sends `max-age=300`, so the browser would otherwise hand back the same
+  // unreadable manifest for five minutes. Bumping this remounts the load effect
+  // and the SDK requests the source again with a cache-busting reload.
+  const [playbackAttempt, setPlaybackAttempt] = useState(0);
+  const retryPlayback = useCallback(() => {
+    setPlaybackBlocked(false);
+    setPlaybackAttempt((n) => n + 1);
+  }, []);
   const deadVideos = useDeadVideos();
   const mediaUnavailable = playbackFailed
     || (!!author && !!permlink && deadVideos.has(videoKey(author, permlink)));
@@ -317,10 +333,41 @@ function Watch({ v2 = false }) {
     onError: (err) => {
       // A live post has no VOD source — an error here is expected, not a dead
       // video. Never report it unavailable or show the "not available" hint.
-      if (err?.fatal && !isLiveRef.current) {
+      if (!err?.fatal || isLiveRef.current) return;
+
+      // Distinguish "the media is gone" from "we couldn't reach it".
+      //
+      // Every fatal used to be treated as missing media, which meant a TRANSPORT
+      // failure got a permanent-sounding message AND a reportVideoUnavailable()
+      // call — so a perfectly healthy video could be reported dead because one
+      // gateway had a bad moment. The live example: ipfs.3speak.tv serves
+      // manifests without access-control-allow-origin, so when the /hls race
+      // picks it the browser blocks the read. hls.js sees a load failure with NO
+      // http status (a CORS block is opaque to JS), which is indistinguishable
+      // from a network drop and nothing at all like a 404.
+      //
+      // The player hands us `{ message: 'HLS fatal error: <hls details>', code }`
+      // where `code` is the response status when there was one.
+      const status = Number(err.code) || 0;
+      const details = String(err.message || '');
+      // Only a definitive "not there" answer from the origin counts as missing.
+      const mediaIsGone = status === 404 || status === 410;
+      // Everything else — no status (CORS/network), 5xx, or a timeout — is a
+      // transport problem that may well succeed on the next attempt.
+      const transportProblem = !mediaIsGone
+        && (status === 0 || status >= 500 || /timeout/i.test(details));
+
+      if (mediaIsGone) {
         reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
         setPlaybackFailed(true); // swap the player for a "not available" hint
+      } else if (transportProblem) {
+        setPlaybackBlocked(true); // recoverable — offer a retry, report nothing
+      } else {
+        // An unexpected fatal we can't classify (e.g. a decode error): show the
+        // softer hint rather than accusing the video of being gone.
+        setPlaybackBlocked(true);
       }
+      console.warn('[Watch] fatal playback error', { status, details });
     },
     // First frame decoded — drop the branded loader and reveal the player.
     onReady: () => setVideoReady(true),
@@ -534,7 +581,8 @@ function Watch({ v2 = false }) {
       reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
     });
     return () => { active = false; };
-  }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek]);
+    // `playbackAttempt` is in the deps purely so "Try again" re-runs this load.
+  }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek, playbackAttempt]);
 
   // Subscribe to player events (stable effect — uses refs for mutable values)
   useEffect(() => {
@@ -1205,13 +1253,28 @@ function Watch({ v2 = false }) {
     return <ShortsRow shorts={slice} columns={mobilePerRow} />;
   }, [relatedShorts, mobilePerRow]);
 
-  // Plain trending is only a fallback when the related feed is thin.
-  const { data: trendingItems = [], isLoading: trendingLoading } = useQuery({
+  // Plain trending is only a fallback when the related feed is thin — and now it
+  // is only FETCHED then, too. It used to run on every watch page (a ~1.4s
+  // request competing with playback) while the recommendation builder below only
+  // reads it when there are fewer than 5 related videos, which is the uncommon
+  // case. Waiting for `related` costs one sequential request in that rare path
+  // and saves the request entirely in the common one.
+  const relatedIsThin = !relatedLoading && filterValidVideos(relatedItems).length < 5;
+  // NOTE the `= EMPTY_LIST` defaults, not `= []`. A DISABLED query's `data` stays
+  // `undefined` indefinitely, so an inline `[]` default mints a brand-new array on
+  // every render. `trendingItems` is a dependency of the `suggestedVideos` memo
+  // below, which feeds `useContentBatch` — an unstable identity there re-runs its
+  // effect every render and spins the page into an infinite render loop, freezing
+  // the whole tab (no clicks, no navigation). Harmless while the query was always
+  // enabled and its data settled into a stable array; adding `enabled` is what
+  // made the default permanent. Same reasoning as EMPTY_LIST at the top of this file.
+  const { data: trendingItems = EMPTY_LIST, isLoading: trendingLoading } = useQuery({
     queryKey: ['watch-trending'],
     queryFn: () => fetchTrendingFeed(24),
+    enabled: relatedIsThin,
     staleTime: 5 * 60 * 1000,
   });
-  const { data: authorItems = [], isLoading: authorVideosLoading } = useQuery({
+  const { data: authorItems = EMPTY_LIST, isLoading: authorVideosLoading } = useQuery({
     queryKey: ['watch-author-videos', author],
     queryFn: () => fetchAuthorVideos(author, 12),
     enabled: !!author && author !== 'unknown',
@@ -1396,11 +1459,21 @@ function Watch({ v2 = false }) {
     );
   }
 
-  if (isLoading) {
-    return <BarLoader />;
-  }
-
-  if (!videoDetails) {
+  // Do NOT block the whole page on `isLoading`.
+  //
+  // The player needs only author/permlink — both parsed from the URL with zero
+  // I/O — but the <video> element lives in the JSX below and `loadVideo` waits on
+  // `videoAttached`. A full-page loader here made the chain strictly serial:
+  // Hive RPC (condenser_api.get_content) → render → element attaches →
+  // /api/embed → playable URL. Rendering straight away lets /api/embed run
+  // CONCURRENTLY with the RPC, so playback no longer waits on metadata it does
+  // not need. Both this component and PlayVideo treat `videoDetails` as optional
+  // (PlayVideo has zero unguarded derefs plus its own `mediaLoading` prop), so
+  // title/description/stats simply fill in when the RPC lands.
+  //
+  // The "not found" branch must therefore wait for loading to FINISH — otherwise
+  // every video flashes an error before its metadata arrives.
+  if (!isLoading && !videoDetails) {
     return (
       <div className="watch-error">
         <p>{scheduled
@@ -1437,6 +1510,8 @@ function Watch({ v2 = false }) {
         vodAssetPending={vodProcessing}
         onStreamRoomMeta={setStreamRoomMeta}
         mediaUnavailable={!isLive && mediaUnavailable}
+        mediaBlocked={!isLive && playbackBlocked}
+        onRetryPlayback={retryPlayback}
         mediaLoading={!isLive && mediaLoading}
         videoRef={videoRef}
         wrapperRef={wrapperRef}

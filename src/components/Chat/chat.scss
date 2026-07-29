@@ -5,40 +5,9 @@ $chat-width: 380px;
 $chat-z: 1200;
 
 /* ---- Nav button + unread badge ---- */
-.chat-nav-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  // Match the settings icon: muted secondary tone, brightening on hover/active.
-  color: var(--text-secondary);
-  opacity: 0.8;
-  padding: 4px;
-  border-radius: 8px;
-  transition: color 0.15s ease, opacity 0.15s ease;
-
-  &:hover { color: var(--text-primary); opacity: 1; }
-  &.open { color: var(--text-primary); opacity: 1; }
-
-  .chat-nav-badge {
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 8px;
-    background: var(--accent-primary);
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 16px;
-    text-align: center;
-  }
-}
+// Moved to ChatButton.scss (imported by ChatButton) so the always-on Nav button
+// is styled without waiting for this lazy-loaded chat page's CSS — otherwise the
+// unread count renders unstyled and wraps under the icon on first load.
 
 /* ---- Page layout ---- */
 // Fits the area under the sticky nav, inside `.container` (which adds ~20px top

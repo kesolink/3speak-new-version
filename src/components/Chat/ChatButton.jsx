@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
 import { useUnreadCount } from '@snapie/chat-client/react'
 import { useChat } from '../../context/ChatContext'
+import './ChatButton.scss'
 
 // Split out so the unread subscription only mounts once chat is connected —
 // the SDK hook keys its subscription on the client, not on auth state, so we

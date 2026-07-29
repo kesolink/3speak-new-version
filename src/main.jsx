@@ -85,11 +85,13 @@ const boot = () => createRoot(document.getElementById('root')).render(
   </StrictMode>
 );
 
-// Resolve the player backend first (fast + sticky per session; falls back to the next
-// URL when the primary is down), but HARD-cap it so a dead/hanging primary can never
-// block boot — after the cap we render anyway and the resolution finishes in the
-// background for later use.
-Promise.race([
-  ensurePlayerUrl(),
-  new Promise((resolve) => setTimeout(resolve, 3000)),
-]).finally(boot);
+// Render IMMEDIATELY, and resolve the player backend in the background.
+//
+// This used to be `Promise.race([ensurePlayerUrl(), 3s]).finally(boot)`, which held
+// React back until a probe to the player host answered — measured at ~750ms on a
+// cold session (and it 404s, which counts as "up"), with a blank page the whole
+// time. Nothing on first paint needs the player URL: `getPlayerUrl()` reads the
+// resolved value at USE time and `ensurePlayerUrl()` is idempotent + cached, so the
+// watch page can await it where it actually matters.
+ensurePlayerUrl();
+boot();
