@@ -744,12 +744,10 @@ app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
 
 // Resolve the acting Hive user from cookie → HiveSigner token → app-key+username.
 async function resolveDelegatedSignUser(req, res) {
-  const cookieToken = req.cookies?.[SESSION_COOKIE_NAME]
-  if (cookieToken) {
-    const tokenData = await verifyManteAuthToken(cookieToken)
-    if (tokenData?.hiveUsername) return tokenData.hiveUsername.toLowerCase()
-    clearSessionCookie(res)
-  }
+  // Same auto-refresh as /api/broadcast — otherwise the OpenPods / chat handover
+  // silently broke an hour after login while broadcasting still worked.
+  const butrUser = await resolveButrUser(req, res)
+  if (butrUser) return butrUser.toLowerCase()
   const authHeader = req.headers.authorization || ''
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
   if (bearer) {
