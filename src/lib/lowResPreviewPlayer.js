@@ -49,6 +49,36 @@ export function createLowResPreviewPlayer(videoEl, { loop = false, requirePrevie
   });
   player.attach(videoEl);
 
+  // A rung is a real "preview rung" only if it's genuinely small — a 240p/360p
+  // ladder step. A 480p+ lowest rung costs about as much as playback itself.
+  const isCheapRung = (lvl) =>
+    !lvl ? false : lvl.height ? lvl.height <= 360 : (lvl.bitrate || Infinity) <= 500000;
+
+  const findLowest = (levels) => {
+    if (!levels || !levels.length) return -1;
+    let lo = 0;
+    for (let i = 1; i < levels.length; i++) {
+      if ((levels[i].bitrate || Infinity) < (levels[lo].bitrate || Infinity)) lo = i;
+    }
+    return lo;
+  };
+
+  // Would this preview just re-download what playback already streams? Skip if the
+  // smallest rung isn't smaller than the main player's CURRENT rung. When that
+  // height is unknown (native HLS, not yet settled), fall back to a static cutoff:
+  // only a genuinely-small rung (≤360p) earns a separate stream.
+  const wouldDuplicate = (levels, lo) => {
+    const playH = (typeof getPlaybackHeight === 'function' ? getPlaybackHeight() : 0) || 0;
+    const lowH = levels[lo].height || 0;
+    return playH > 0 ? lowH >= playH : !isCheapRung(levels[lo]);
+  };
+
+  const pinTo = (hls, lo) => {
+    if ((hls.levels || []).length < 2) return; // single rendition — nothing to choose
+    hls.autoLevelCapping = lo; // ABR may never climb above the smallest
+    hls.currentLevel = lo;     // and start there immediately
+  };
+
   // Lock to the lowest-bitrate rendition as soon as the manifest's levels are
   // known — order-independent, so it's correct for both encoders. player.hls is
   // created synchronously inside load(), so it exists by the time load() resolves.
@@ -57,34 +87,16 @@ export function createLowResPreviewPlayer(videoEl, { loop = false, requirePrevie
     const res = await origLoad(refOrSource);
     const hls = player.hls;
     if (hls) {
-      // A rung is a real "preview rung" only if it's genuinely small — a 240p/360p
-      // ladder step. A 480p+ lowest rung costs about as much as playback itself.
-      const isCheapRung = (lvl) =>
-        !lvl ? false : lvl.height ? lvl.height <= 360 : (lvl.bitrate || Infinity) <= 500000;
       const pinLowest = () => {
         const levels = hls.levels || [];
-        if (!levels.length) return;
-        let lo = 0;
-        for (let i = 1; i < levels.length; i++) {
-          if ((levels[i].bitrate || Infinity) < (levels[lo].bitrate || Infinity)) lo = i;
+        const lo = findLowest(levels);
+        if (lo < 0) return;
+        if (requirePreviewRung && wouldDuplicate(levels, lo)) {
+          try { hls.stopLoad(); } catch { /* noop */ }
+          if (onNoPreviewRung) onNoPreviewRung();
+          return;
         }
-        // Would this preview just re-download what playback already streams? Skip if
-        // the smallest rung isn't smaller than the main player's CURRENT rung. When
-        // that height is unknown (native HLS, not yet settled), fall back to a static
-        // cutoff: only a genuinely-small rung (≤360p) earns a separate stream.
-        if (requirePreviewRung) {
-          const playH = (typeof getPlaybackHeight === 'function' ? getPlaybackHeight() : 0) || 0;
-          const lowH = levels[lo].height || 0;
-          const wouldDuplicate = playH > 0 ? lowH >= playH : !isCheapRung(levels[lo]);
-          if (wouldDuplicate) {
-            try { hls.stopLoad(); } catch { /* noop */ }
-            if (onNoPreviewRung) onNoPreviewRung();
-            return;
-          }
-        }
-        if (levels.length < 2) return; // single rendition — nothing to choose
-        hls.autoLevelCapping = lo; // ABR may never climb above the smallest
-        hls.currentLevel = lo;     // and start there immediately
+        pinTo(hls, lo);
       };
       if (hls.levels && hls.levels.length) pinLowest();
       else hls.once(Hls.Events.MANIFEST_PARSED, pinLowest);
