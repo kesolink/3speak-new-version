@@ -199,6 +199,12 @@ const OPENPODS_STANDALONE = import.meta.env.VITE_OPENPODS_STANDALONE !== 'false'
 // Gates the OpenPods live-streaming options in the create/share menu (the whole
 // "Live" category). OFF by default — set VITE_ENABLE_OPENPODS=true to show it.
 const ENABLE_OPENPODS = import.meta.env.VITE_ENABLE_OPENPODS === 'true';
+// These accounts can always see/test preview-gated features (OpenPods, the
+// camera-record teleprompter) regardless of the env flags, so the team can keep
+// testing on prod while the features stay hidden for everyone else.
+const ALWAYS_ON_TEST_USERS = ['badadib', 'meno', 'tibfox', 'coolmole'];
+const isTestUser = (user) => !!user && ALWAYS_ON_TEST_USERS.includes(String(user).toLowerCase());
+const openpodsEnabledFor = (user) => ENABLE_OPENPODS || isTestUser(user);
 
 // Hosts whose live streams / rooms are kept OUT of the discovery feeds
 // (discover, follow, new). Same spirit as the checker's LEADERBOARD_EXCLUDED_USERS
@@ -215,6 +221,9 @@ const FEED_EXCLUDED_HOSTS = new Set(
 // (prototype). When on, the video upload step shows a "Record" button on phones
 // that opens a front-camera recording page. Off unless explicitly "true".
 const ENABLE_CAMERA_RECORD = import.meta.env.VITE_ENABLE_CAMERA_RECORD === 'true';
+// Always-on for the test accounts (see ALWAYS_ON_TEST_USERS) so they can keep
+// testing the teleprompter regardless of VITE_ENABLE_CAMERA_RECORD.
+const cameraRecordEnabledFor = (user) => ENABLE_CAMERA_RECORD || isTestUser(user);
 
 // Self-hosted streaming speech-to-text WebSocket for the teleprompter. Empty =
 // use the browser Web Speech API only (which can't share the mic with the audio
@@ -276,8 +285,10 @@ export {
   ENABLE_SUBS,
   OPENPODS_STANDALONE,
   ENABLE_OPENPODS,
+  openpodsEnabledFor,
   FEED_EXCLUDED_HOSTS,
   ENABLE_CAMERA_RECORD,
+  cameraRecordEnabledFor,
   STT_WS_URL,
   ENABLE_PPL,
   THREESPEAK_AUDIO_API_URL,

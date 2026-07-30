@@ -34,9 +34,9 @@ export default function useSeekPreview({ videoId, trackRef, duration, getPlaybac
   const loadedRef = useRef(false); // lazy: only load the stream on first interaction
   const pendingRef = useRef(null); // latest requested preview time
   const [preview, setPreview] = useState({ visible: false, leftPx: 0, time: 0 });
-  // True when this video has no small rung to preview cheaply — we then show the
-  // timestamp only, instead of spawning a second loader for the SAME 480p segments
-  // the main player is already streaming. See lowResPreviewPlayer requirePreviewRung.
+  // Kept for the callers' "timestamp only" styling. Nothing sets it any more — the
+  // rung-based suppression that did is gone (see the createLowResPreviewPlayer note
+  // below) — but the flag stays so a future cheap-preview policy can reuse it.
   const [frameless, setFrameless] = useState(false);
 
   // Apply the pending seek only when the element is idle; the 'seeked' handler
@@ -59,13 +59,13 @@ export default function useSeekPreview({ videoId, trackRef, duration, getPlaybac
     const el = videoRef.current;
     if (!videoId || !el) return undefined;
 
+    // NOTE: deliberately NOT passing requirePreviewRung. 3Speak videos ship a SINGLE
+    // 480p rung, so "is the lowest rung smaller than what playback uses?" is never
+    // true and that guard suppressed the frame on effectively every video. Instead we
+    // bound the cost by only loading while the user is actually scrubbing (below).
     const player = createLowResPreviewPlayer(el, {
       loop: false,
-      // Don't compete with playback: if the video's smallest rung isn't smaller than
-      // the rung the main player is on, skip the frame and show the time only.
-      requirePreviewRung: true,
       getPlaybackHeight,
-      onNoPreviewRung: () => setFrameless(true),
     });
     playerRef.current = player;
 
@@ -109,6 +109,10 @@ export default function useSeekPreview({ videoId, trackRef, duration, getPlaybac
   }, [trackRef, duration, applySeek, ensureLoaded]);
 
   const hide = useCallback(() => {
+    // Only hide the box. Do NOT stop the underlying stream: tearing segment loading
+    // down on mouseleave left the element half-buffered (a black frame) and it did
+    // not recover on the next hover. The stream is lazy, pinned to the lowest rung
+    // and capped at a 10s buffer, so leaving it alone is the cheap, working state.
     setPreview((p) => (p.visible ? { ...p, visible: false } : p));
   }, []);
 
