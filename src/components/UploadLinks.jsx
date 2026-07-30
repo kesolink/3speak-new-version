@@ -5,7 +5,7 @@ import { Clapperboard } from "lucide-react";
 import { MdGraphicEq, MdDesktopWindows, MdSmartphone, MdGroups } from "react-icons/md";
 import { BiCommentDetail } from "react-icons/bi";
 import ShortsIcon from "./icons/ShortsIcon";
-import { FEATURE_EDITOR, ENABLE_OPENPODS } from "../utils/config";
+import { FEATURE_EDITOR, openpodsEnabledFor } from "../utils/config";
 import { getCreatorSettings, isUploadBlocked } from "../utils/creatorSettings";
 import { useSupportBlock } from "../lib/supportBlockStore";
 import { useAppStore } from "../lib/store";
@@ -79,8 +79,9 @@ export default function UploadLinks({ linkClass, iconClass = "icon", onClick }) 
       </a>
 
       {/* OpenPods live streaming — the whole "Live" category is gated behind
-          VITE_ENABLE_OPENPODS (off by default). */}
-      {ENABLE_OPENPODS && (
+          VITE_ENABLE_OPENPODS (off by default), plus an always-on allowlist of
+          test accounts (see openpodsEnabledFor). */}
+      {openpodsEnabledFor(user) && (
         <>
           <div className="share-menu-heading">Live</div>
           <Link

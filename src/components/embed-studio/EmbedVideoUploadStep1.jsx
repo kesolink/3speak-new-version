@@ -14,7 +14,7 @@ import { useAppStore } from '../../lib/store';
 import { canUseUploadFaults, getUploadFaults, setUploadFaults, initUploadFaults } from '../../utils/uploadFaults';
 import { checkPostingRc } from '../../utils/rcCheck';
 import RcInsufficientModal from './RcInsufficientModal';
-import { SHORTS_MAX_DURATION_SEC, shortsMaxDurationLabel, ENABLE_CAMERA_RECORD } from '../../utils/config';
+import { SHORTS_MAX_DURATION_SEC, shortsMaxDurationLabel, cameraRecordEnabledFor } from '../../utils/config';
 import { isChromium } from '../../utils/browser';
 
 function EmbedVideoUploadStep1() {
@@ -432,7 +432,7 @@ function EmbedVideoUploadStep1() {
               ) : loading ? (
                 <TailChase size="30" speed="1.75" color="red" />
               ) : !videoFile ? (
-                (ENABLE_CAMERA_RECORD && isMobile && isChromium()) ? (
+                (cameraRecordEnabledFor(faultUser) && isMobile && isChromium()) ? (
                   // Mobile + Chromium only (Web Speech API): record straight from
                   // the front camera with a voice-driven teleprompter, or pick a file.
                   <div className="button-group">

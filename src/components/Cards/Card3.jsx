@@ -323,7 +323,10 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 <CommentCount
                   count={(() => {
                     const author = video.author?.username || video.author || video.owner;
-                    return getContentForVideo?.(author, video.permlink)?.children ?? null;
+                    // Fall back to the feed's cached count (video-stats), same as
+                    // payout/votes above — feed items have has_stats:true so the
+                    // client-side content batch skips them and children is absent.
+                    return getContentForVideo?.(author, video.permlink)?.children ?? video.stats?.num_comments ?? null;
                   })()}
                 />
               </div>

@@ -7,7 +7,8 @@ import {
 import { useEmbedUpload } from '../../context/EmbedUploadContext';
 import { useVoiceTeleprompter } from '../../hooks/useVoiceTeleprompter';
 import { generateVideoThumbnails } from '../../utils/videoThumbnails';
-import { ENABLE_CAMERA_RECORD, SHORTS_MAX_DURATION_SEC, STT_WS_URL } from '../../utils/config';
+import { cameraRecordEnabledFor, SHORTS_MAX_DURATION_SEC, STT_WS_URL } from '../../utils/config';
+import { useAppStore } from '../../lib/store';
 import { detectScriptLang, modelIdToTag } from '../../utils/detectLang';
 import { createSttStream } from '../../utils/sttClient';
 import './EmbedCameraRecord.scss';
@@ -147,6 +148,7 @@ function useMovable(storageKey, makeDefault) {
 function EmbedCameraRecord() {
   const navigate = useNavigate();
   const location = useLocation();
+  const user = useAppStore((s) => s.user);
   const {
     fromStories, setFromStories, setVideoFile, setPrevVideoFile,
     setVideoDuration, setGeneratedThumbnail, setVideoMode,
@@ -793,7 +795,7 @@ function EmbedCameraRecord() {
     navigate('/embed-studio');
   };
 
-  if (!ENABLE_CAMERA_RECORD) return <Navigate to="/embed-studio" replace />;
+  if (!cameraRecordEnabledFor(user)) return <Navigate to="/embed-studio" replace />;
 
   const capLabel = fromStories && isFinite(shortsCap) ? ` / ${fmtTime(shortsCap)}` : '';
   const showBox = (phase === 'setup' || phase === 'recording') && tp.totalWords > 0;

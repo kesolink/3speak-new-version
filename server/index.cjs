@@ -141,6 +141,72 @@ function clearSessionCookie(res) {
   res.clearCookie(PKCE_COOKIE_NAME, { path: '/' })
 }
 
+// === ButrAuth refresh token (RFC 6749 §6) ===
+// The access token above lives ONE HOUR. Without this the session simply ended
+// there and every proxied op 401'd, because /api/broadcast could no longer tell
+// who the user was. The refresh token is long-lived, httpOnly, and ROTATED on
+// every use — so it is replaced on each refresh and a replay of the old value
+// revokes the whole chain server-side.
+const REFRESH_COOKIE_NAME = 'threespeak_refresh'
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+
+function setRefreshCookie(res, refreshToken) {
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+    httpOnly: true, secure: true, sameSite: 'lax', maxAge: REFRESH_TTL_MS, path: '/'
+  })
+}
+function clearRefreshCookie(res) {
+  res.clearCookie(REFRESH_COOKIE_NAME, { path: '/' })
+}
+
+// Call ButrAuth's token endpoint directly. The published SDK (0.2.0) has no
+// refresh grant and its exchangeCode drops `refresh_token`, so both flows go
+// through here; swap to client.refreshAccessToken() once a newer SDK ships.
+async function butrTokenRequest(body) {
+  const r = await fetch(`${MANTEAUTH_URL}/api/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, client_id: MANTEAUTH_CLIENT_ID, client_secret: MANTEAUTH_CLIENT_SECRET })
+  })
+  const data = await r.json().catch(() => ({}))
+  return { ok: r.ok, status: r.status, data }
+}
+
+/**
+ * Resolve the ButrAuth user for a request, transparently refreshing an expired
+ * access token. Returns the Hive username, or null when there is no usable
+ * session. On a successful refresh the rotated tokens are written back as
+ * cookies, so the caller's response carries the renewed session.
+ */
+async function resolveButrUser(req, res) {
+  const cookieToken = req.cookies?.[SESSION_COOKIE_NAME]
+  if (cookieToken) {
+    const tokenData = await verifyManteAuthToken(cookieToken)
+    if (tokenData?.hiveUsername) return tokenData.hiveUsername
+  }
+  const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME]
+  if (!refreshToken) {
+    if (cookieToken) clearSessionCookie(res) // expired with nothing to renew from
+    return null
+  }
+  try {
+    const { ok, data } = await butrTokenRequest({ grant_type: 'refresh_token', refresh_token: refreshToken })
+    if (!ok || !data.access_token) {
+      // Refused (expired, revoked, or a detected replay) — drop both cookies so
+      // the user is cleanly logged out instead of retrying a dead token forever.
+      clearRefreshCookie(res)
+      clearSessionCookie(res)
+      return null
+    }
+    setSessionCookie(res, data.access_token, data.username)
+    if (data.refresh_token) setRefreshCookie(res, data.refresh_token)
+    return data.username
+  } catch (err) {
+    console.warn('[butrauth] refresh failed:', err.message)
+    return null // transient (ButrAuth down): keep the cookies, retry next request
+  }
+}
+
 function setPkceCookie(res, verifier) {
   // httpOnly cookie carrying the PKCE verifier across the auth redirect.
   // 2 hours — the verifier is set at the START of the flow, so it must outlive
@@ -359,19 +425,46 @@ app.post('/api/manteauth/exchange', exchangeLimiter, async (req, res) => {
     if (!butr) return res.status(503).json({ error: 'ButrAuth not ready' })
 
     let tokens
+    let refreshToken = null
     try {
-      tokens = await butr.exchangeCode({
+      // Direct call so the response's refresh_token survives (the SDK drops it).
+      // Any transport failure falls back to the SDK, which is the proven path.
+      const { ok, data } = await butrTokenRequest({
         code,
-        redirectUri: redirect_uri,
-        codeVerifier: code_verifier
+        redirect_uri,
+        code_verifier,
+        grant_type: 'authorization_code'
       })
-    } catch (err) {
-      clearPkceCookie(res)
-      return res.status(401).json({ error: err.message || 'Token exchange failed' })
+      if (!ok || !data.access_token) {
+        clearPkceCookie(res)
+        return res.status(401).json({ error: data.error || 'Token exchange failed' })
+      }
+      tokens = { accessToken: data.access_token, username: data.username }
+      refreshToken = data.refresh_token || null
+    } catch {
+      try {
+        tokens = await butr.exchangeCode({
+          code,
+          redirectUri: redirect_uri,
+          codeVerifier: code_verifier
+        })
+      } catch (err) {
+        clearPkceCookie(res)
+        return res.status(401).json({ error: err.message || 'Token exchange failed' })
+      }
     }
     clearPkceCookie(res)
 
     setSessionCookie(res, tokens.accessToken, tokens.username)
+    // The access token lasts an hour; the refresh token renews it for 30 days
+    // (see resolveButrUser). Without it the session died at the hour mark and
+    // every proxied op 401'd.
+    if (refreshToken) setRefreshCookie(res, refreshToken)
+    // Belt and braces: also mint our own signed session, the same stateless
+    // 30-day token wallet logins use (auth path 2 in /api/broadcast). It keeps
+    // the user working even if a refresh is ever refused.
+    const buser = String(tokens.username || '').toLowerCase()
+    if (buser && SESSION_SIGNING_SECRET) setWalletSessionCookie(res, mintWalletSession(buser))
     res.json({ username: tokens.username })
   } catch (err) {
     console.error('Exchange error:', err.message)
@@ -396,6 +489,10 @@ app.get('/api/manteauth/me', baseLimiter, async (req, res) => {
 app.post('/api/manteauth/logout', baseLimiter, (req, res) => {
   console.log('[logout] clearing cookies for:', Object.keys(req.cookies || {}))
   clearSessionCookie(res)
+  // A ButrAuth login also carries the refresh token and our own signed session —
+  // clear both, or logging out would leave the user able to act.
+  clearRefreshCookie(res)
+  clearWalletSessionCookie(res)
   res.json({ success: true })
 })
 
@@ -570,13 +667,10 @@ app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
   try {
     let hiveUsername = null
 
-    // 1) ButrAuth httpOnly session cookie
-    const cookieToken = req.cookies?.[SESSION_COOKIE_NAME]
-    if (cookieToken) {
-      const tokenData = await verifyManteAuthToken(cookieToken)
-      if (tokenData?.hiveUsername) hiveUsername = tokenData.hiveUsername
-      else clearSessionCookie(res)
-    }
+    // 1) ButrAuth httpOnly session cookie — auto-refreshed when the (1 hour)
+    //    access token has expired, so the session lasts as long as the refresh
+    //    token rather than dying mid-use.
+    hiveUsername = await resolveButrUser(req, res)
 
     // 2) SIWH wallet session cookie (Keychain/HiveAuth/PeakVault/Ledger): the
     //    user proved posting-key control at login, so the username is bound to a
@@ -650,12 +744,10 @@ app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
 
 // Resolve the acting Hive user from cookie → HiveSigner token → app-key+username.
 async function resolveDelegatedSignUser(req, res) {
-  const cookieToken = req.cookies?.[SESSION_COOKIE_NAME]
-  if (cookieToken) {
-    const tokenData = await verifyManteAuthToken(cookieToken)
-    if (tokenData?.hiveUsername) return tokenData.hiveUsername.toLowerCase()
-    clearSessionCookie(res)
-  }
+  // Same auto-refresh as /api/broadcast — otherwise the OpenPods / chat handover
+  // silently broke an hour after login while broadcasting still worked.
+  const butrUser = await resolveButrUser(req, res)
+  if (butrUser) return butrUser.toLowerCase()
   const authHeader = req.headers.authorization || ''
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
   if (bearer) {
