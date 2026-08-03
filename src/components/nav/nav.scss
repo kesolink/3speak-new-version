@@ -1,4 +1,28 @@
 @use "../../mixins.scss" as mix;
+
+// Mobile form of the top-bar Share control: a "+" in the same red ring as the
+// desktop button, shrunk to the footprint of the search / settings icons beside
+// it (a ring needs a couple of px more than a bare glyph, hence 26 not 19).
+// Included inside .nav-upload-wrapper under the phone/tab breakpoints.
+@mixin nav-upload-compact {
+  .nav-upload-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    gap: 0;
+    border-radius: 50%;   // border + colour stay inherited from the base rule
+  }
+
+  .nav-upload-label,
+  .nav-upload-icon-desktop { display: none; }
+
+  .nav-upload-icon-mobile {
+    display: block;
+    width: 18px;
+    height: 18px;
+  }
+}
+
 .nav-container {
   display: flex;
   align-items: center;
@@ -307,10 +331,10 @@
     .nav-upload-wrapper {
       position: relative;
 
-      // Share now lives in the mobile bottom nav (the centre "+"), so hide the
-      // top-nav Share button wherever the bottom nav is shown (phone + tab).
-      @include mix.respond(phone) { display: none; }
-      @include mix.respond(tab)   { display: none; }
+      // The "+" lives up here on mobile now (the bottom bar's centre item is
+      // Chat), so it shows at every width — just in a compact round form below
+      // the bottom-nav breakpoint (see the overrides at the end of this block).
+      .nav-upload-icon-mobile { display: none; }
 
       .nav-upload-btn {
         display: flex;
@@ -378,6 +402,12 @@
           }
         }
       }
+
+      // Compact "+" wherever the bottom nav is shown. Placed AFTER .nav-upload-btn
+      // on purpose: a media query adds no specificity, so an earlier block would
+      // lose to the base rule below it.
+      @include mix.respond(phone) { @include nav-upload-compact; }
+      @include mix.respond(tab)   { @include nav-upload-compact; }
     }
 
     > span {

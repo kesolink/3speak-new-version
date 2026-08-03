@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { SUGGESTED_CREATORS_URL } from '../../utils/config';
 import { feedParams } from '../../utils/feedParams';
 import { getFeedSeed } from '../../utils/feedSeed';
@@ -14,10 +15,8 @@ import { getTagLabel, getTagEmoji } from '../../utils/tagsV2';
 import HiveAvatar from '../HiveAvatar/HiveAvatar';
 import './SuggestedCreators.scss';
 
-// One deterministic top slice is fetched; the client presents it per tab (discover =
-// seeded-random, interests = top) and per viewport (mobile scrolls, desktop fits).
-const FETCH_LIMIT = 20;    // the pool we pick from — also the discover "top 20"
-const MOBILE_MAX = 15;     // how many the mobile scroller shows
+const FETCH_LIMIT = 20;   // the pool we pick from
+const MAX_SHOWN = 15;     // how many tiles the scroller holds
 
 const fmtFollowers = (n) => {
   if (n == null) return null;
@@ -47,46 +46,40 @@ function seededShuffle(arr, seed) {
 }
 
 /**
- * "Follow these" — a rail of creator tiles interleaved into the discover / interests
- * grids (checker `/feeds/suggested-creators`: interest-matched creators ranked by
- * recent views + comments + reshares, minus the caller and who they follow).
+ * "Follow these" — a horizontal rail of creator tiles interleaved into the discover /
+ * interests grids (checker `/feeds/suggested-creators`: interest-matched creators).
  *
- * Layout is viewport-dependent, by request:
- *   - MOBILE  → a horizontal scroller (fixed-width tiles, swipe sideways).
- *   - DESKTOP → a fit-to-width grid of exactly `perRow` tiles (measured by the
- *               parent from the live grid width), so it fills the row edge-to-edge
- *               with NO horizontal scroll — as many as fit, no more.
- *
- * Tab difference: discover shows a seeded-random slice of the top 20; interests the
- * deterministic top. Both draw from ONE shared fetch.
+ * Behaves like the shorts-stories row: a swipe-able scroller with a hidden scrollbar
+ * and prev/next arrows on desktop (mobile uses swipe). Hidden entirely when logged out.
  */
-export default function SuggestedCreators({ variant = 'discover', perRow = 0 }) {
+export default function SuggestedCreators({ variant = 'discover' }) {
   const user = useAppStore((s) => s.user);
   const interests = useAppStore((s) => s.interests);
   const hasInterests = Array.isArray(interests) && interests.length > 0;
-
-  const [isPhone, setIsPhone] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 600px)').matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 600px)');
-    const on = () => setIsPhone(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
 
   const [followSet, setFollowSet] = useState(null);      // null = not resolved yet
   const [justFollowed, setJustFollowed] = useState({});  // name -> true
   const [pending, setPending] = useState({});
   const [followerCounts, setFollowerCounts] = useState({});
 
-  // ONE deterministic top-N fetch, shared by both tabs (the URL is identical), then
-  // sliced/shuffled client-side. feedParams() carries interests + currentuser, so the
+  // Horizontal scroller with prev/next arrows — same pattern as ShortsStories.
+  const scrollRef = useRef(null);
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(false);
+  const checkScrollButtons = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setShowLeft(el.scrollLeft > 10);
+    setShowRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+  }, []);
+  const scroll = (dir) => scrollRef.current?.scrollBy({ left: dir === 'left' ? -240 : 240, behavior: 'smooth' });
+
+  // ONE deterministic top-N fetch. feedParams() carries interests + currentuser, so the
   // server already excludes the caller and who they follow.
   const params = feedParams();
   const { data: suggested } = useQuery({
     queryKey: ['suggested-creators', params],
-    enabled: hasInterests,
+    enabled: hasInterests && !!user,
     queryFn: async () => {
       const res = await axios.get(`${SUGGESTED_CREATORS_URL}?limit=${FETCH_LIMIT}${params}`);
       return res.data?.creators || [];
@@ -97,8 +90,7 @@ export default function SuggestedCreators({ variant = 'discover', perRow = 0 }) 
   });
 
   // Belt-and-suspenders follow filter (the server excludes follows too, but its set
-  // can be a cold miss on the first request). Logged out → empty set; the row still
-  // shows and the follow button prompts a login.
+  // can be a cold miss on the first request).
   useEffect(() => {
     let alive = true;
     if (!user) { setFollowSet(new Set()); return undefined; }
@@ -116,22 +108,18 @@ export default function SuggestedCreators({ variant = 'discover', perRow = 0 }) 
         name: (c.author || '').toLowerCase(),
         displayName: c.display_name || c.author,
         avatar: c.avatar,
-        // Why we surfaced them: the topic most of their recent videos are tagged in
-        // (checker's basisTopic), falling back to the first matched interest topic.
         basis: c.basisTopic || (Array.isArray(c.matchedTopics) ? c.matchedTopics[0] : null),
       }))
       .filter((c) => c.name && c.name !== (user || '').toLowerCase())
       .filter((c) => !followSet.has(c.name) || justFollowed[c.name]);
   }, [suggested, followSet, user, justFollowed]);
 
-  // What actually renders: discover reshuffles (seeded, stable per session); the count
-  // is `perRow` on desktop (fit exactly, no scroll) or MOBILE_MAX on the phone scroller.
+  // What renders: discover reshuffles (seeded, stable per session); interests keeps order.
   const creators = useMemo(() => {
     if (!pool.length) return [];
     const ordered = variant === 'discover' ? seededShuffle(pool, getFeedSeed()) : pool;
-    const count = isPhone ? MOBILE_MAX : (perRow || 0);
-    return count > 0 ? ordered.slice(0, count) : [];
-  }, [pool, variant, isPhone, perRow]);
+    return ordered.slice(0, MAX_SHOWN);
+  }, [pool, variant]);
 
   // Follower counts, once per creator that makes the cut.
   useEffect(() => {
@@ -149,6 +137,19 @@ export default function SuggestedCreators({ variant = 'discover', perRow = 0 }) 
     });
     return () => { alive = false; };
   }, [creators, followerCounts]);
+
+  // Keep the arrow visibility in sync with scroll position + list/viewport changes.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    checkScrollButtons();
+    el.addEventListener('scroll', checkScrollButtons, { passive: true });
+    window.addEventListener('resize', checkScrollButtons);
+    return () => {
+      el.removeEventListener('scroll', checkScrollButtons);
+      window.removeEventListener('resize', checkScrollButtons);
+    };
+  }, [creators, checkScrollButtons]);
 
   const handleFollow = useCallback(async (name) => {
     if (!isLoggedIn() || !user) {
@@ -168,48 +169,55 @@ export default function SuggestedCreators({ variant = 'discover', perRow = 0 }) 
     }
   }, [user]);
 
-  if (!hasInterests || !creators.length) return null;
-
-  // Desktop: a grid of exactly this many columns (tiles stretch to fill via 1fr, so
-  // the row is edge-to-edge). Mobile: the base `.sc-row` is a flex scroller.
-  const gridMode = !isPhone;
-  const cols = Math.min(perRow || creators.length, creators.length);
+  // Hide entirely when logged out (interests can linger in the persisted store).
+  if (!user || !hasInterests || !creators.length) return null;
 
   return (
     <section className="suggested-creators">
-      <div
-        className={`sc-row${gridMode ? ' sc-row--grid' : ''}`}
-        style={gridMode ? { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` } : undefined}
-      >
-        {creators.map((c) => {
-          const followed = !!justFollowed[c.name];
-          const followers = fmtFollowers(followerCounts[c.name]);
-          return (
-            <div className="sc-card" key={c.name}>
-              <Link to={`/p/${c.name}`} className="sc-avatar" title={`@${c.name}`}>
-                <HiveAvatar username={c.name} size={null} alt="" badgeSize={12} />
-              </Link>
-              <Link to={`/p/${c.name}`} className="sc-name" title={`@${c.name}`}>@{c.name}</Link>
-              {c.basis && (
-                <span className="sc-basis" title={`Mostly posts ${getTagLabel(c.basis)}`}>
-                  <span className="sc-basis-emoji">{getTagEmoji(c.basis)}</span>
-                  {getTagLabel(c.basis)}
+      <div className="sc-scroll-wrapper">
+        {showLeft && (
+          <button className="sc-scroll-btn left" onClick={() => scroll('left')} aria-label="Scroll left">
+            <FaChevronLeft />
+          </button>
+        )}
+
+        <div className="sc-row" ref={scrollRef}>
+          {creators.map((c) => {
+            const followed = !!justFollowed[c.name];
+            const followers = fmtFollowers(followerCounts[c.name]);
+            return (
+              <div className="sc-card" key={c.name}>
+                <Link to={`/p/${c.name}`} className="sc-avatar" title={`@${c.name}`}>
+                  <HiveAvatar username={c.name} size={null} alt="" badgeSize={12} />
+                </Link>
+                <Link to={`/p/${c.name}`} className="sc-name" title={`@${c.name}`}>@{c.name}</Link>
+                {c.basis && (
+                  <span className="sc-basis" title={`Mostly posts ${getTagLabel(c.basis)}`}>
+                    <span className="sc-basis-emoji">{getTagEmoji(c.basis)}</span>
+                    {getTagLabel(c.basis)}
+                  </span>
+                )}
+                <span className="sc-followers">
+                  {followers != null ? `${followers} follower${followers === '1' ? '' : 's'}` : ' '}
                 </span>
-              )}
-              <span className="sc-followers">
-                {followers != null ? `${followers} follower${followers === '1' ? '' : 's'}` : ' '}
-              </span>
-              <button
-                type="button"
-                className={`sc-follow${followed ? ' followed' : ''}`}
-                onClick={() => !followed && handleFollow(c.name)}
-                disabled={followed || !!pending[c.name]}
-              >
-                {followed ? 'Following' : (pending[c.name] ? '…' : 'Follow')}
-              </button>
-            </div>
-          );
-        })}
+                <button
+                  type="button"
+                  className={`sc-follow${followed ? ' followed' : ''}`}
+                  onClick={() => !followed && handleFollow(c.name)}
+                  disabled={followed || !!pending[c.name]}
+                >
+                  {followed ? 'Following' : (pending[c.name] ? '…' : 'Follow')}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {showRight && (
+          <button className="sc-scroll-btn right" onClick={() => scroll('right')} aria-label="Scroll right">
+            <FaChevronRight />
+          </button>
+        )}
       </div>
     </section>
   );

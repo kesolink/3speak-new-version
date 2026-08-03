@@ -20,6 +20,7 @@ import { getVotePower } from '../../utils/hiveUtils';
 import { getHiveUrl, ensureHealthyNode } from '../../utils/hiveNode';
 import LabeledToggle from '../LabeledToggle/LabeledToggle';
 import SettingsModal from '../SettingsModal/SettingsModal';
+import { useAvatarUrl } from '../../utils/avatarCache';
 
 
 
@@ -29,6 +30,8 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
   const navigate = useNavigate()
   const { user, theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, LogOut } = useAppStore();
   const isManteAuth = localStorage.getItem("manteauth_login") === "true";
+  // Serves a freshly uploaded picture instead of the cached hive proxy copy.
+  const myAvatar = useAvatarUrl(user, null);
   const [votingPower, setVotingPower] = useState(0);
   const [rc, setRc] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -68,7 +71,7 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
 
         <div className='pro-top-wrap'style={{ backgroundImage: `url(https://images.hive.blog/u/${user}/cover)`, backgroundSize: "cover", backgroundPosition: "center",}}> 
             {/* <img className='' src={getUserProfile?.images?.cover} alt="" /> */}
-            <img className='avatar-img' src={`https://images.hive.blog/u/${user}/avatar`}  alt="" />
+            <img className='avatar-img' src={myAvatar}  alt="" />
             <span className='username'>{user}</span>
             <div className="power-wrap">
             <div className="wrap-in">

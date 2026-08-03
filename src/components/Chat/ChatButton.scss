@@ -7,6 +7,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
+  // Chat moved to the centre item of the mobile bottom bar (BottomNav), so the
+  // top-bar button hides wherever that bar is shown (phone + tab, ≤1024px).
+  @media screen and (max-width: 1024px) {
+    display: none;
+  }
   background: transparent;
   border: none;
   cursor: pointer;

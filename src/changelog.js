@@ -7,6 +7,48 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.11',
+    date: '2026-08-03',
+    summary:
+      'Discover leans a little more on the newest uploads, hovering a short shows its description, and the suggested creators row now scrolls with arrows.',
+  },
+  {
+    version: '1.78.10',
+    date: '2026-08-03',
+    summary:
+      'Chat keeps your unread count in step with your messages, and you can clear them all at once with Mark all as read on the chat page (/chat).',
+  },
+  {
+    version: '1.78.9',
+    date: '2026-08-03',
+    summary:
+      'Mobile navigation update: the + button for sharing moved up to the top bar, and Chat now sits in the middle of the bottom bar with your unread count on it.',
+  },
+  {
+    version: '1.78.8',
+    date: '2026-08-03',
+    summary:
+      'New on the home page: a row of the creators you follow who posted something you have not watched yet, showing how many new shorts and videos each of them has.',
+  },
+  {
+    version: '1.78.7',
+    date: '2026-08-03',
+    summary:
+      'Profiles now lead with your display name, with your @username and location underneath and a bigger profile picture.',
+  },
+  {
+    version: '1.78.6',
+    date: '2026-08-03',
+    summary:
+      'New to 3Speak? A short welcome introduces what you can do here: videos, shorts, live streams and communities, and helps you set up your profile in one step.',
+  },
+  {
+    version: '1.78.5',
+    date: '2026-08-03',
+    summary:
+      'You can now edit your profile on 3Speak: press Edit (or your picture) on your profile page to set your profile picture, display name, bio and location. It saves to your Hive account, so every Hive app shows it.',
+  },
+  {
     version: '1.78.4',
     date: '2026-07-29',
     summary:

@@ -32,7 +32,7 @@
     "@mantequilla-soft/3speak-player": "^0.3.2",
     "@rajesh896/video-thumbnails-generator": "^2.3.9",
     "@reduxjs/toolkit": "^2.6.1",
-    "@snapie/chat-client": "^0.2.0",
+    "@snapie/chat-client": "^0.3.0",
     "@snapie/hangouts-core": "^0.14.2",
     "@snapie/hangouts-react": "^0.20.0",
     "@snapie/renderer": "^0.1.1",

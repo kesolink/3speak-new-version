@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import PremiumBadge from '../PremiumBadge/PremiumBadge';
+import { useAvatarUrl } from '../../utils/avatarCache';
 import './HiveAvatar.scss';
 
 /**
@@ -33,12 +34,11 @@ const HiveAvatar = forwardRef(function HiveAvatar(
   },
   ref,
 ) {
+  // Hook first: it has to run on every render, including the empty-username one.
+  // Serves a just-uploaded picture directly instead of the cached hive proxy
+  // copy (see utils/avatarCache).
+  const url = useAvatarUrl(username, size || 'small');
   if (!username) return null;
-  // Honor the "no size segment" form some callers use — Hive returns
-  // a medium-ish default for the bare `/avatar` URL.
-  const url = size
-    ? `https://images.hive.blog/u/${encodeURIComponent(username)}/avatar/${size}`
-    : `https://images.hive.blog/u/${encodeURIComponent(username)}/avatar/small`;
   return (
     <span
       className={`hive-avatar${className ? ` ${className}` : ''}`}

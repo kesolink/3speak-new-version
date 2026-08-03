@@ -1,41 +1,67 @@
 @use "../../mixins.scss" as mix;
 
-// "Follow these" — a rail of creator tiles interleaved into the video grid on the
-// discover / interests tabs. No title; compact, so it sits in the feed like a normal
-// row (the grid gap handles the spacing around it).
+// "Follow these" — a horizontal rail of creator tiles interleaved into the discover /
+// interests grids. Behaves like the shorts-stories row: swipe-able scroller, hidden
+// scrollbar, prev/next arrows on desktop.
 .suggested-creators {
   margin: 0;
 
-  // BASE = the mobile horizontal scroller: fixed-width tiles, swipe sideways.
+  .sc-scroll-wrapper {
+    position: relative;
+  }
+
+  // The scroller — fixed-width tiles, swipe sideways, scrollbar hidden.
   .sc-row {
     display: flex;
     gap: 10px;
     overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
+    padding-bottom: 2px;
+    scroll-behavior: smooth;
+    scrollbar-width: none;          // Firefox
+    -ms-overflow-style: none;       // old Edge
+    &::-webkit-scrollbar { display: none; } // WebKit
   }
 
-  // DESKTOP = a fit-to-width grid of exactly `perRow` columns (set inline). Tiles
-  // stretch to fill via `minmax(0, 1fr)`, so the row is edge-to-edge with NO scroll —
-  // only as many tiles as fit are requested/shown.
-  .sc-row--grid {
-    display: grid;
-    gap: 10px;
-    overflow: visible;
-    padding-bottom: 0;
+  // Prev/next arrows — shown on desktop only (mobile swipes), exactly like the
+  // stories row. Visibility is driven by scroll position (showLeft / showRight).
+  .sc-scroll-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    transition: background 0.15s ease;
+
+    &:hover { background: rgba(0, 0, 0, 0.82); }
+    &.left { left: -4px; }
+    &.right { right: -4px; }
+    svg { font-size: 14px; }
+
+    @include mix.respond(phone) { display: none; }
   }
 
+  // Compact tile — small avatar so the rail is no taller than a feed video card.
+  // Height is content-driven; `align-self: start` on the grid-item wrapper below
+  // stops it stretching to fill a tall row in the large/TV grid.
   .sc-card {
-    // Scroller mode: fixed width so tiles don't collapse. Grid mode overrides below.
     flex: 0 0 auto;
-    width: 198px;
+    width: 150px;
     min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 9px;
-    padding: 12px 15px;
+    gap: 5px;
+    padding: 10px;
     border-radius: 14px;
     border: 1px solid var(--border-light);
     background: var(--card-bg);
@@ -44,27 +70,18 @@
 
     &:hover { border-color: var(--border-color); }
 
-    @include mix.respond(phone) {
-      width: 180px;
-      padding: 12px 12px;
-    }
-  }
-
-  // In grid mode the track sizes the card — drop the fixed width so it fills 1fr.
-  .sc-row--grid .sc-card {
-    flex: initial;
-    width: auto;
+    @include mix.respond(phone) { width: 140px; }
   }
 
   .sc-avatar {
     display: block;
-    width: 100px;   // 1.2x the previous 84px
-    height: 100px;
+    width: 54px;
+    height: 54px;
     line-height: 0;
 
     img {
-      width: 100px;
-      height: 100px;
+      width: 54px;
+      height: 54px;
       border-radius: 50%;
       object-fit: cover;
     }
@@ -72,11 +89,10 @@
 
   .sc-name {
     max-width: 100%;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
     text-decoration: none;
-    // Long Hive names must not stretch the card.
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -90,38 +106,37 @@
     align-items: center;
     gap: 4px;
     max-width: 100%;
-    padding: 3px 12px;
+    padding: 2px 10px;
     border-radius: 999px;
     background: var(--bg-hover, rgba(150, 150, 150, 0.14));
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    line-height: 1.4;
-    // Long topic labels must not stretch the tile.
+    line-height: 1.35;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 
-    .sc-basis-emoji { font-size: 14px; line-height: 1; }
+    .sc-basis-emoji { font-size: 13px; line-height: 1; }
   }
 
   // Reserves its line even while the count is still loading, so cards don't jump.
   .sc-followers {
-    min-height: 22px;
-    font-size: 13px;
+    min-height: 15px;
+    font-size: 12px;
     color: var(--text-secondary);
   }
 
   // Red outline, never a red fill (app-wide convention for red controls).
   .sc-follow {
     width: 100%;
-    margin-top: 3px;
-    padding: 9px 0;
+    margin-top: 2px;
+    padding: 4px 0;
     border-radius: 999px;
     border: 1px solid var(--accent-primary);
     background: transparent;
     color: var(--accent-primary);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -137,4 +152,19 @@
 
     &:disabled:not(.followed) { opacity: 0.6; cursor: default; }
   }
+
+  // Respect the card-size setting — track the smaller video tiles in "small" mode.
+  html[data-card-size="small"] & {
+    .sc-card { width: 132px; padding: 9px; }
+    .sc-avatar,
+    .sc-avatar img { width: 46px; height: 46px; }
+    .sc-name { font-size: 13px; }
+  }
+}
+
+// The generic grid-item wrapper Card3 emits for an interleaved row. In the large /
+// "TV" home grid the rows are `1fr` tall — top-align the creator rail so it can never
+// stretch to fill one (that stretch is what made the tiles look "large-card" tall).
+.card-interleave:has(.suggested-creators) {
+  align-self: start;
 }
