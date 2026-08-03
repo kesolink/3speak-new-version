@@ -9,7 +9,7 @@ import { IoCloudUploadSharp } from "react-icons/io5";
 import { useEffect, useRef, useState } from "react";
 import NavSearch from "./NavSearch";
 import { TiThMenu } from "react-icons/ti";
-import { MdOutlineSearch, MdGraphicEq, MdPlaylistPlay, MdWatchLater, MdHistory, MdKeyboardArrowDown } from "react-icons/md";
+import { MdOutlineSearch, MdGraphicEq, MdPlaylistPlay, MdWatchLater, MdHistory, MdKeyboardArrowDown, MdAdd } from "react-icons/md";
 import { FaMedal } from "react-icons/fa6";
 import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 import ShortsIcon from "../icons/ShortsIcon";
@@ -20,6 +20,7 @@ import PremiumBadge from "../PremiumBadge/PremiumBadge";
 import { FiSettings, FiLogIn } from "react-icons/fi";
 import SettingsModal from "../SettingsModal/SettingsModal";
 import { ENABLE_BUTRAUTH } from "../../utils/config";
+import { useAvatarUrl } from "../../utils/avatarCache";
 
 function NavPlaylistsDropdown({ user }) {
   const [open, setOpen] = useState(false);
@@ -79,8 +80,12 @@ function NavUploadDropdown() {
 
   return (
     <div className="nav-upload-wrapper" ref={ref}>
+      {/* Two icons, one shown per breakpoint: the labelled cloud button on
+          desktop, a bare "+" on mobile where this replaces the bottom bar's
+          centre item and has to fit next to the avatar. */}
       <div className="nav-upload-btn" onClick={() => setOpen(!open)} title="Share">
-        <IoCloudUploadSharp size={18} />
+        <IoCloudUploadSharp size={18} className="nav-upload-icon-desktop" />
+        <MdAdd size={21} className="nav-upload-icon-mobile" />
         <span className="nav-upload-label">Share</span>
       </div>
       {open && (
@@ -95,6 +100,9 @@ function NavUploadDropdown() {
 function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
   const { authenticated, LogOut, user, initializeTheme, theme } = useAppStore();
   const sidebarHidden = useAppStore((s) => s.sidebarHidden);
+  // Shows a just-uploaded profile picture immediately instead of the cached
+  // hive proxy copy (utils/avatarCache).
+  const myAvatar = useAvatarUrl(user, 'small');
   const location = useLocation();
   const [nav, setNav] = useState(false)
    const sideNavRef = useRef(null); // Ref for the side nav container
@@ -215,7 +223,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           <NotificationBell />
           <FiSettings size={19} className="nav-settings-btn" onClick={() => setSettingsOpen(true)} title="Settings" />
           <span className="nav-avatar-wrap" onClick={toggleProfileNav}>
-            <img src={`https://images.hive.blog/u/${user}/avatar/small`} alt="" />
+            <img src={myAvatar} alt="" />
             <PremiumBadge username={user} size={10} className="nav-avatar-premium" />
           </span>
         </div>
