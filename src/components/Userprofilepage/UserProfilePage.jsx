@@ -447,6 +447,7 @@ const {
         username={user}
         name={user}
         fetchBio
+        showHandle
         badges={
           <>
             <span className="status-dot">

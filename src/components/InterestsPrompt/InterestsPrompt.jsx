@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
 import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
+import { useWelcomeActive } from '../../utils/welcomeGate';
 import { refreshHomeFeeds } from '../../utils/feedSeed';
 import TagsV2Picker from '../tooltip/TagsV2Picker';
 import './InterestsPrompt.scss';
@@ -35,9 +36,12 @@ export default function InterestsPrompt() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState([]);
   const [saving, setSaving] = useState(false);
+  // The welcome flow gets the screen to itself; we re-run once it's done.
+  const welcomeActive = useWelcomeActive();
 
   useEffect(() => {
     if (!authenticated || !user || wasPrompted(user)) return;
+    if (welcomeActive) return;
     let alive = true;
     // Small delay so we don't collide with the login flow / other modals.
     const t = setTimeout(async () => {
@@ -53,7 +57,7 @@ export default function InterestsPrompt() {
       setOpen(true);
     }, 1200);
     return () => { alive = false; clearTimeout(t); };
-  }, [authenticated, user]);
+  }, [authenticated, user, welcomeActive]);
 
   if (!open) return null;
 

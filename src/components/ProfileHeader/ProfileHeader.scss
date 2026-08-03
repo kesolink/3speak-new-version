@@ -68,12 +68,35 @@
 
       .left-info {
         display: flex;
-        gap: 1rem;
-        align-items: flex-end;
+        flex-direction: column;
+
+        // Avatar + the identity lines only. The avatar stretches to THIS row,
+        // so it spans display name / @handle / bio / location and stops there;
+        // the badges sit underneath it, outside the stretch.
+        .identity-row {
+          display: flex;
+          gap: 1rem;
+          align-items: flex-start;
+          // Offset lives here rather than on .user-meta so the avatar and the
+          // first line of text share a top edge. It absorbs the 10px that used
+          // to sit on the h2 (removed so the measured height is exactly the
+          // text), leaving every page's spacing where it was.
+          margin-top: 50px;
+          @include mix.respond(phone) {
+            margin-top: 32px;
+          }
 
         .avatar {
-          height: 5rem;
-          width: 5rem;
+          // Size is set inline by ProfileHeader, which measures the identity
+          // lines next to it (flexbox can't do "square as tall as my sibling":
+          // it resolves width from content before stretching height, which
+          // gives a capsule). min-* is the old fixed size and the pre-measure
+          // fallback, so it never renders smaller than it used to.
+          position: relative;
+          align-self: flex-start;
+          box-sizing: border-box;
+          min-height: 5rem;
+          min-width: 5rem;
           border-radius: 999px;
           border: 4px solid #020617;
           background: #0f172a;
@@ -84,12 +107,56 @@
           box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
           flex-shrink: 0;
 
-          @media (min-width: 640px) {
-            height: 6rem;
-            width: 6rem;
+          // On a phone the text block wraps to many lines, and a square that
+          // tall would eat the width the text needs. Cap it there only.
+          @media (max-width: 639px) {
+            max-height: 7rem;
+            max-width: 7rem;
           }
 
+          @media (min-width: 640px) {
+            min-height: 6rem;
+            min-width: 6rem;
+          }
+
+          // Own profile: the avatar opens the edit dialog.
+          &--clickable {
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+
+            &:hover,
+            &:focus-visible {
+              border-color: var(--accent-primary, #e53935);
+            }
+
+            &:hover .avatar-edit-overlay,
+            &:focus-visible .avatar-edit-overlay {
+              opacity: 1;
+            }
+          }
+
+          .avatar-edit-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(2, 6, 23, 0.55);
+            color: #fff;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+          }
+
+          // Out of flow on purpose: in flow, the source image's intrinsic size
+          // (avatars are 500px squares) becomes the box's content width, and
+          // with aspect-ratio that made the whole row 500px tall. Absolute
+          // means the box is sized only by the row, and the image follows it.
           .hive-avatar {
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
           }
@@ -103,16 +170,14 @@
         }
 
         .user-meta {
-          margin-top: 40px;
           min-width: 0;
-          @include mix.respond(phone) {
-            margin-top: 20px;
-          }
 
           // Name — default 3Speak font (Roboto), just bigger. Replaces the old
           // outlined / uppercase text-stroke treatment.
           h2 {
-            margin-top: 10px;
+            // No top margin: the row's margin-top covers it, and this way the
+            // measured block height is exactly the text lines.
+            margin-top: 0;
             font-size: 34px;
             font-weight: 700;
             color: #fff;
@@ -120,7 +185,20 @@
             word-break: break-word;
             @include mix.respond(phone) {
               font-size: 24px;
-              margin-top: 12px;
+            }
+          }
+
+          // @account, directly under a display name.
+          .profile-handle {
+            display: block;
+            margin-top: 0.15rem;
+            color: #94a3b8;
+            font-size: 0.95rem;
+            font-weight: 500;
+            line-height: 1.2;
+            word-break: break-all;
+            @include mix.respond(phone) {
+              font-size: 0.85rem;
             }
           }
 
@@ -133,7 +211,24 @@
             max-width: 60ch;
           }
 
-          .user-badges {
+          // Location, under the bio.
+          .profile-location {
+            margin-top: 0.25rem;
+            color: #cbd5e1;
+            font-size: 0.85rem;
+            line-height: 1.4;
+
+            .profile-location-label {
+              color: #94a3b8;
+            }
+          }
+
+          }
+        }
+
+        // Under the avatar + identity row, so the avatar never stretches to
+        // cover the badges.
+        .user-badges {
             margin-top: 0.5rem;
             display: flex;
             flex-wrap: wrap;
@@ -162,7 +257,6 @@
             .divider {
               margin: 0 4px;
             }
-          }
         }
       }
 
