@@ -37,6 +37,9 @@ const INTERESTS_FEED_URL = `${CHECKER_URL}/feeds/interests`;
 // "Follow these" creator suggestions — interest-matched creators ranked by recent
 // engagement (views+comments+reshares). Backs the rail on the discover/interests tabs.
 const SUGGESTED_CREATORS_URL = `${CHECKER_URL}/feeds/suggested-creators`;
+// Creators you follow who posted something in the last week that you haven't
+// watched yet. Returns creators + unwatched shorts/videos counts, not videos.
+const NEW_FROM_FOLLOWING_URL = `${CHECKER_URL}/feeds/new-from-following`;
 const NEW_CONTENT_URL = `${CHECKER_URL}/feeds/new`;
 const FIRST_UPLOADS_URL = `${CHECKER_URL}/feeds/firstUploads`;
 // Max length of a Short, in seconds. Every encoder node supports 2 minutes; keep
@@ -261,6 +264,7 @@ export {
   DISCOVER_FEED_URL,
   INTERESTS_FEED_URL,
   SUGGESTED_CREATORS_URL,
+  NEW_FROM_FOLLOWING_URL,
   NEW_CONTENT_URL,
   FIRST_UPLOADS_URL,
   SHORTS_MAX_DURATION_SEC,

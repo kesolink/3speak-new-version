@@ -12,6 +12,7 @@ import useViewCounts from "../hooks/useViewCounts";
 import { useAppStore } from "../lib/store";
 import { getFeedSeed, refreshHomeFeeds } from "../utils/feedSeed";
 import ShortsStories from "../components/ShortsStories/ShortsStories";
+import NewFromFollowing from "../components/NewFromFollowing/NewFromFollowing";
 import SuggestedCreators from "../components/SuggestedCreators/SuggestedCreators";
 import { useLiveStreams } from "../hooks/useLiveStreams";
 import PullToRefresh from "../components/PullToRefresh/PullToRefresh";
@@ -782,6 +783,8 @@ const HomeGrouped = () => {
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="home-grouped-container home-tabbed" data-card-size={homeCardSize || 'large'}>
       <ShortsStories />
+      {/* Logged-in only, and renders nothing when there's nothing unwatched. */}
+      <NewFromFollowing />
 
       <div className={`home-tabs home-tabs--bar${drag ? ' is-dragging' : ''}`} role="tablist" ref={tabBarRef}>
         {displaySections.map((s) => (

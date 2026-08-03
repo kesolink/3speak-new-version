@@ -1,0 +1,81 @@
+@use "../../mixins.scss" as *;
+
+.new-from-following {
+  margin: 0 0 14px;
+
+  // Holds the rail plus its arrows, which sit on top of the row edges.
+  .nff-wrapper {
+    position: relative;
+  }
+
+  // Same arrows as the stories row above (see ShortsStories.scss): only rendered
+  // when there's something to scroll to, and never on a phone, where you swipe.
+  .nff-scroll-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-light);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+
+    &:hover {
+      background: var(--accent-primary);
+      color: #fff;
+      transform: translateY(-50%) scale(1.1);
+    }
+
+    &.left { left: -10px; }
+    &.right { right: -10px; }
+
+    svg { font-size: 12px; }
+
+    @include respond(phone) {
+      display: none;
+    }
+  }
+
+  // One swipeable row. Badges keep their natural width; the rail scrolls rather
+  // than wrapping, so the section height never depends on how many creators
+  // posted this week.
+  .nff-rail {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+    scroll-behavior: smooth;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+
+    // No visible scrollbar — the arrows and swipe are the affordance.
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar { display: none; }
+
+    .author-badge {
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+      // Breathing room inside the pill. Small on the left so the round avatar
+      // isn't pushed off-centre, wider on the right where the text ends.
+      padding: 4px 14px 4px 4px;
+      gap: 8px;
+    }
+
+    .author-name,
+    .followers-count {
+      font-weight: 400;
+      color: var(--text-primary);
+    }
+  }
+}
