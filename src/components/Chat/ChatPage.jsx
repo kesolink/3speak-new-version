@@ -4,8 +4,10 @@ import {
   useConversations,
   useChatMessages,
   useTyping,
+  useUnreadCount,
 } from '@snapie/chat-client/react'
 import { extractImageUrls } from '@snapie/chat-client'
+import { getChatClient } from '../../lib/snapieChat'
 import { toast } from 'sonner'
 import { useSearchParams } from 'react-router-dom'
 import ChatComposerTools from './ChatComposerTools'
@@ -14,6 +16,7 @@ import ChatLinkCard from './ChatLinkCard'
 import ChatImageLightbox from './ChatImageLightbox'
 import { parseChatLink, timeAgo } from './chatLinks'
 import { useChat } from '../../context/ChatContext'
+import { useServerUnread } from '../../hooks/useServerUnread'
 import { useAppStore } from '../../lib/store'
 import { EMBED_API_KEY } from '../../utils/config'
 import { getAccounts } from '../../hive-api/hiveApi'
@@ -439,6 +442,15 @@ function BrowseChannels() {
 function ConversationList() {
   const { conversations, loading } = useConversations()
   const { openConversation, activeConversation, shareDraft } = useChat()
+  // Per-conversation unread from the same snapshot that drives the nav badge.
+  // The row dot used the server's conv.unread while the badge used a separate
+  // count, so the two could disagree.
+  // Counts come from the server on every check, never from a locally kept
+  // tally that can drift (see useServerUnread). markRead still comes from the
+  // SDK hook; we resync straight after using it.
+  const { markRead } = useUnreadCount()
+  const { unreadCount, byConversation, refresh: refreshUnread } = useServerUnread()
+  const [clearing, setClearing] = useState(false)
   const groups = useGroups()
 
   // Merge polled groups in, deduped by id (a real /conversations entry — which
@@ -452,6 +464,116 @@ function ConversationList() {
     return Array.from(byId.values())
   }, [conversations, groups])
 
+  // Show the button on ANY unread signal, not just the aggregate. The aggregate
+  // can read 0 while rows still show unread (they fall back to the server's
+  // per-conversation flag — see the list below), and gating on it alone made the
+  // button disappear in exactly the stuck-count case it exists to fix.
+  const hasUnread = useMemo(() => {
+    if (unreadCount > 0) return true
+    return merged.some((c) => (byConversation ? (byConversation[c._id] ?? 0) > 0 : !!c.unread))
+  }, [unreadCount, merged, byConversation])
+
+  // Mark every conversation the SERVER says is unread, not just the ones shown
+  // in the list. That distinction is the point: marking on open only reaches
+  // chats the user can see and click, so a count stuck on a conversation that
+  // never appears in their list can never be cleared that way — which is why
+  // it survived the earlier fix.
+  //
+  // byConversation is the server's own breakdown, so it includes those. There
+  // is no bulk endpoint, so this is one POST /read per id, in small batches.
+  async function markAllRead() {
+    if (clearing) return
+    setClearing(true)
+    try {
+      // Go through the raw client, NOT the hook. The hook's markRead returns
+      // undefined either way, and client.markRead swallows its own errors and
+      // returns null — so via the hook there is no way to tell a successful
+      // clear from a failed one, and Promise.allSettled would report every
+      // call as fulfilled regardless.
+      const client = getChatClient()
+
+      // Prefer the server's own breakdown: it can name conversations that are
+      // NOT in the visible list, which is exactly where a stuck count hides.
+      // But the server may return a total with no breakdown at all — in that
+      // case fall back to every conversation we can see, otherwise there is
+      // nothing to iterate and the button silently does nothing.
+      let ids = Object.entries(byConversation || {})
+        .filter(([, n]) => Number(n) > 0)
+        .map(([id]) => id)
+      const usedFallback = ids.length === 0
+      if (usedFallback) ids = merged.map((c) => c._id).filter(Boolean)
+
+      if (!ids.length) {
+        toast.error('No conversations to clear. The count may be stuck server-side.')
+        return
+      }
+
+      // client.markRead swallows its own errors and returns null, so a null
+      // tells us nothing about WHY. Probe auth state around the calls to
+      // separate "we are logged out" from "the server refused" — otherwise the
+      // user just sees a generic failure and we are guessing.
+      const authedBefore = client.isAuthenticated()
+      let last = null
+      let serverError = ''
+      for (let i = 0; i < ids.length; i += 4) {
+        const res = await Promise.all(
+          ids.slice(i, i + 4).map((id) => client.markRead(id).catch(() => null))
+        )
+        for (const r of res) if (r) last = r
+      }
+      const authedAfter = client.isAuthenticated()
+
+      // markRead swallows the server's error, so on total failure repeat ONE
+      // call by hand purely to read the status and body back. Without this the
+      // only signal is `null`, which is why this took several rounds to pin
+      // down. TS `private` is compile-time only, so the token is reachable.
+      if (!last && authedAfter) {
+        try {
+          const svc = client.service || {}
+          const r = await fetch(`${svc.base}/read`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Snapie-Chat-Read-Mode': 'explicit',
+              ...(svc.token ? { Authorization: `Bearer ${svc.token}` } : {})
+            },
+            body: JSON.stringify({ conversationId: ids[0] })
+          })
+          const body = await r.text()
+          serverError = ` (HTTP ${r.status}: ${body.slice(0, 120)})`
+        } catch (e) {
+          serverError = ` (${e?.message || 'request failed'})`
+        }
+      }
+
+      if (last && (last.total || 0) === 0) {
+        toast.success('All caught up')
+      } else if (last) {
+        toast.error(
+          `Still showing ${last.total} unread after clearing ${ids.length} chat${ids.length === 1 ? '' : 's'}.` +
+          (usedFallback ? ' The server reports a count but no matching conversation.' : '')
+        )
+      } else if (!authedBefore) {
+        toast.error('Chat is not signed in. Reconnect chat and try again.')
+      } else if (!authedAfter) {
+        // request() nulls the token on any 401 and rethrows, so one rejected
+        // call silently disarms every call after it.
+        toast.error('Chat session expired while clearing. Reconnect chat and try again.')
+      } else {
+        toast.error(
+          `Server rejected all ${ids.length} request${ids.length === 1 ? '' : 's'}` +
+          `${usedFallback ? ' (ids from the visible list)' : ' (ids from the server\'s own unread map)'}` +
+          `${serverError}`
+        )
+      }
+    } catch {
+      toast.error('Could not mark everything as read')
+    } finally {
+      setClearing(false)
+      refreshUnread()
+    }
+  }
+
   return (
     <div className="chat-list">
       {shareDraft && (
@@ -460,6 +582,18 @@ function ConversationList() {
       <NewDmForm />
       <NewRoomForm />
       <BrowseChannels />
+      {hasUnread && (
+        <button
+          type="button"
+          className="chat-mark-all-read"
+          onClick={markAllRead}
+          disabled={clearing}
+        >
+          {clearing
+            ? 'Marking as read…'
+            : `Mark all as read${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
+        </button>
+      )}
       {loading && merged.length === 0 && (
         <div className="chat-empty">Loading conversations…</div>
       )}
@@ -473,10 +607,15 @@ function ConversationList() {
           const title = convTitle(conv)
           const isDm = conv.type === 'dm'
           const active = activeConversation?._id === conv._id
+          // Fall back to the server flag until the first snapshot lands, so dots
+          // do not blink off on load.
+          const unread = byConversation
+            ? (byConversation[conv._id] ?? 0) > 0
+            : !!conv.unread
           return (
             <li
               key={conv._id}
-              className={`chat-conv-row${conv.unread ? ' unread' : ''}${active ? ' active' : ''}`}
+              className={`chat-conv-row${unread ? ' unread' : ''}${active ? ' active' : ''}`}
               onClick={() => openConversation(conv)}
             >
               <img
@@ -500,7 +639,7 @@ function ConversationList() {
                   </div>
                 )}
               </div>
-              {conv.unread && <span className="chat-conv-dot" />}
+              {unread && <span className="chat-conv-dot" />}
             </li>
           )
         })}
@@ -548,6 +687,17 @@ function Thread({ conv }) {
     conv.type
   )
   const { typingUsers, setTyping } = useTyping(conv._id)
+  const { markRead } = useUnreadCount()
+
+  // Tell the server this conversation has been seen. Nothing did this before,
+  // so the count only ever went UP — including for chats where YOU sent the
+  // last message, which is how you could sit on a badge of 1 with no unread
+  // chat anywhere. Re-runs as messages arrive so a chat you are already
+  // looking at does not start counting again.
+  useEffect(() => {
+    if (!conv?._id) return
+    markRead(conv._id).catch(() => { /* non-fatal: badge clears on next open */ })
+  }, [conv?._id, messages.length, markRead])
   // Draft is seeded from (and saved to) a per-conversation store, so switching
   // chats shows that chat's own unsent text and restores it on return.
   const [draft, setDraft] = useState(() => draftStore.get(conv._id) || '')

@@ -359,6 +359,23 @@ $chat-z: 1200;
   .chat-conv-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-primary); flex: 0 0 auto; }
 }
 
+.chat-mark-all-read {
+  margin: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  flex: 0 0 auto;
+
+  &:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+  &:disabled { opacity: 0.6; cursor: default; }
+}
+
 .chat-empty { padding: 24px 20px; text-align: center; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 
 /* ---- Thread ---- */
