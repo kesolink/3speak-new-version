@@ -130,6 +130,8 @@ import { useAioha } from "@aioha/react-ui";
 import LoginModal from "./components/LoginModal/LoginModal";
 import ActiveAuthModal from "./components/ActiveAuthModal/ActiveAuthModal";
 import InterestsPrompt from "./components/InterestsPrompt/InterestsPrompt";
+import WelcomePrompt from "./components/WelcomePrompt/WelcomePrompt";
+import AvatarSync from "./components/HiveAvatar/AvatarSync";
 import EditorModal from "./components/modal/EditorModal";
 import { FEATURE_EDITOR } from "./utils/config";
 import BottomNav from "./components/BottomNav/BottomNav";
@@ -665,6 +667,10 @@ function App() {
           }}
         />
         <ActiveAuthModal />
+        <AvatarSync />
+        {/* Welcome first, interests after — WelcomePrompt claims the modal slot
+            so the two never stack (see utils/welcomeGate). */}
+        <WelcomePrompt />
         <InterestsPrompt />
         {FEATURE_EDITOR && (
           <EditorModal

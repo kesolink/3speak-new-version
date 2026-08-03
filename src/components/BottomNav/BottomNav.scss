@@ -132,6 +132,25 @@
   animation: bottom-nav-live-pulse 1.6s ease-in-out infinite;
 }
 
+// Unread count on the centre Chat item. Same pill as the top bar's chat badge,
+// ringed in the bar's own background so it stays legible over the icon.
+.bottom-nav-chat-badge {
+  position: absolute;
+  top: -3px;
+  right: -8px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent-primary, #e53935);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--nav-bg, #1a1a1a);
+}
+
 @keyframes bottom-nav-live-pulse {
   0%, 100% { box-shadow: 0 0 0 2px var(--nav-bg, #1a1a1a), 0 0 0 0 rgba(255, 59, 48, 0.55); }
   50%      { box-shadow: 0 0 0 2px var(--nav-bg, #1a1a1a), 0 0 0 5px rgba(255, 59, 48, 0); }

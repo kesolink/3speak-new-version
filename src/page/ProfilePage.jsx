@@ -46,6 +46,8 @@ import UserAudioList from "../components/Userprofilepage/UserAudioList";
 import { createPlaylist } from "../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import ProfileHeader from "../components/ProfileHeader/ProfileHeader";
+import ProfileEditModal from "../components/WelcomePrompt/ProfileEditModal";
+import { FiEdit2 } from "react-icons/fi";
 
 // Reserved playlist name for Watch Later
 const WATCH_LATER_NAME = 'Watch Later';
@@ -98,6 +100,9 @@ function ProfilePage() {
   const [showSocialLinkModal, setShowSocialLinkModal] = useState(false);
   const [showEditHint, setShowEditHint] = useState(false);
   const [socialLinksRefreshKey, setSocialLinksRefreshKey] = useState(0);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  // Bumped after a profile save so the header re-reads the bio from Hive.
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
 
   // Fetch user's playlists (all - public and private)
   const { data: playlists = [], isLoading: playlistsLoading, refetch: refetchPlaylists } = useMyPlaylists();
@@ -444,6 +449,9 @@ function ProfilePage() {
         username={user}
         name={user}
         fetchBio
+        showHandle
+        refreshKey={profileRefreshKey}
+        onAvatarClick={() => setEditProfileOpen(true)}
         badges={
           <>
             <span className="status-dot">
@@ -468,6 +476,14 @@ function ProfilePage() {
         }
         actions={
           <>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setEditProfileOpen(true)}
+              title="Edit your picture, name, bio and location"
+            >
+              <FiEdit2 className="icon" /> Edit
+            </button>
+
             <button
               className="btn btn-primary"
               onClick={() => setShow("follower")}
@@ -734,6 +750,13 @@ function ProfilePage() {
       <EditVideoHintModal
         isOpen={showEditHint}
         onClose={() => setShowEditHint(false)}
+      />
+
+      <ProfileEditModal
+        open={editProfileOpen}
+        username={user}
+        onClose={() => setEditProfileOpen(false)}
+        onSaved={() => setProfileRefreshKey((k) => k + 1)}
       />
     </div>
   );

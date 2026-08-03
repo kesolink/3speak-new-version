@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
-import { useUnreadCount } from '@snapie/chat-client/react'
+import { useServerUnread } from '../../hooks/useServerUnread'
 import { useChat } from '../../context/ChatContext'
 import './ChatButton.scss'
 
@@ -8,7 +8,8 @@ import './ChatButton.scss'
 // the SDK hook keys its subscription on the client, not on auth state, so we
 // remount it (via conditional render) when `ready` flips.
 function UnreadDot() {
-  const { unreadCount } = useUnreadCount()
+  // Server-truth, never a locally accumulated number (see useServerUnread).
+  const { unreadCount } = useServerUnread()
   if (!unreadCount) return null
   return (
     <span className="chat-nav-badge" aria-hidden="true">

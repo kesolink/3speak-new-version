@@ -1,4 +1,5 @@
 import PayoutAmount from "../PayoutAmount/PayoutAmount";
+import { bodyToPlaintext } from '../../hive-api/hiveApi';
 import { useDeadVideos } from '../../lib/deadVideos';
 import UpvoteCount from "../UpvoteCount/UpvoteCount";
 import CommentCount from "../CommentCount/CommentCount";
@@ -51,6 +52,22 @@ function withInterleave(cards, channels) {
     });
   });
   return out;
+}
+
+// Hover hint for a shorts card. Shorts are Hive COMMENTS, so they have no real
+// title — the caption lives in the body (same source the shorts viewer and the
+// watch-page rail use). Feeds hand us either an already-flattened caption (the
+// profile tabs map it into `title`) or the raw `hive_body`, so accept both.
+const SHORT_HINT_MAX = 70;
+function shortsHint(video) {
+  const raw = (
+    video.caption
+    || bodyToPlaintext(video.hive_body || '')
+    || video.title
+    || ''
+  ).trim();
+  if (!raw) return undefined;
+  return raw.length > SHORT_HINT_MAX ? `${raw.slice(0, SHORT_HINT_MAX).trimEnd()}…` : raw;
 }
 
 function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0, renderInterleave = null, communityEvery = 0, renderCommunity = null, creatorsEvery = 0, renderCreators = null, getContentForVideo = null, isWatched = null, getViewCount = null, linkPrefix = '/watch', linkQuery = '', shortTimeAgo = true, shortsGrid = false, priority = false, hideWatched = false, watchedVersion = 0 }) {
@@ -160,6 +177,7 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
             {...(video._liveStream
               ? {}
               : getCardProps(postKey, cardAuthor, video.permlink, video._processedThumbnail, video.status, video.title))}
+            {...(shortsGrid ? { title: shortsHint(video) } : {})}
           >
             {/* Thumbnail — fast fallback so a dead image host can't leave the
                 card blank for ~a minute (see CardThumbnail). */}
