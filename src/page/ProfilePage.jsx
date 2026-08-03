@@ -46,6 +46,7 @@ import UserAudioList from "../components/Userprofilepage/UserAudioList";
 import { createPlaylist } from "../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import ProfileHeader from "../components/ProfileHeader/ProfileHeader";
+import ProfileStats from "../components/ProfileHeader/ProfileStats";
 import ProfileEditModal from "../components/WelcomePrompt/ProfileEditModal";
 import { FiEdit2 } from "react-icons/fi";
 
@@ -450,6 +451,7 @@ function ProfilePage() {
         name={user}
         fetchBio
         showHandle
+        meta={<ProfileStats username={user} followers={follower?.follower_count} />}
         refreshKey={profileRefreshKey}
         onAvatarClick={() => setEditProfileOpen(true)}
         badges={

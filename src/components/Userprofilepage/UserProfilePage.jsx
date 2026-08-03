@@ -16,7 +16,7 @@ import axios from 'axios';
 import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
-import { MdAdd, MdClose, MdPlayArrow, MdFlag } from 'react-icons/md';
+import { MdAdd, MdClose, MdPlayArrow, MdFlag, MdChatBubbleOutline } from 'react-icons/md';
 import ReportModal, { isReported } from '../modal/ReportModal';
 import { RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
 import { BiDollar } from 'react-icons/bi';
@@ -43,6 +43,7 @@ import { fetchSnaps } from '../../lib/snaps';
 import SocialLinks from './SocialLinks';
 import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
+import ProfileStats from '../ProfileHeader/ProfileStats';
 
 
 
@@ -385,7 +386,13 @@ const {
       }, [authenticated, authenticatedUser, user]);
 
       const handleFollowToggle = async () => {
-        if (!authenticated || followLoading) return;
+        // Follow is the point of a profile, so the button shows to signed-out
+        // visitors too — it just asks them to sign in (same as AuthorBadge).
+        if (!authenticated) {
+          toast.error('Please login to follow users');
+          return;
+        }
+        if (followLoading) return;
         setFollowLoading(true);
         try {
           await followWithAioha(user, !isFollowing);
@@ -448,6 +455,31 @@ const {
         name={user}
         fetchBio
         showHandle
+        meta={<ProfileStats username={user} followers={follower?.follower_count} />}
+        nameActions={!isOwnProfile ? (
+          <>
+            {/* Own classes, not btn-follow: a global
+                `[data-theme="dark"] .btn-follow` rule forces the red outline
+                with !important, and these are deliberately not red. */}
+            <button
+              className={`btn ${isFollowing ? 'btn-hero-following' : 'btn-hero-follow'}`}
+              onClick={handleFollowToggle}
+              disabled={followLoading}
+            >
+              {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
+            </button>
+            <button
+              className="btn btn-hero-message"
+              title={`Message @${user}`}
+              onClick={() => {
+                if (!authenticated) { toast.error('Please login to send a message'); return; }
+                navigate(`/chat?dm=${encodeURIComponent(user)}`);
+              }}
+            >
+              <MdChatBubbleOutline /> Message
+            </button>
+          </>
+        ) : null}
         badges={
           <>
             <span className="status-dot">
@@ -459,7 +491,7 @@ const {
         }
         actions={
           <>
-            <button className="btn btn-primary" onClick={() => setShow("follower")}>
+            <button className="btn btn-secondary" onClick={() => setShow("follower")}>
               Followers{" "}
               {follower?.follower_count !== undefined ? (
                 follower.follower_count
@@ -467,15 +499,6 @@ const {
                 <Quantum size="15" speed="1.75" color="red" />
               )}
             </button>
-            {authenticated && (
-              <button
-                className={`btn ${isFollowing ? 'btn-following' : 'btn-follow'}`}
-                onClick={handleFollowToggle}
-                disabled={followLoading}
-              >
-                {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
-              </button>
-            )}
             {authenticated && !isOwnProfile && (
               <button
                 className={`btn ${isCreatorHidden ? 'btn-hidden-creator' : 'btn-secondary'}`}
@@ -490,15 +513,6 @@ const {
                   : isCreatorHidden
                     ? <><IoEyeOutline /> Unhide</>
                     : <><IoBanOutline /> Hide</>}
-              </button>
-            )}
-            {authenticated && !isOwnProfile && (
-              <button
-                className="btn btn-secondary"
-                title={`Message @${user}`}
-                onClick={() => navigate(`/chat?dm=${encodeURIComponent(user)}`)}
-              >
-                Write message
               </button>
             )}
             <button
@@ -555,8 +569,11 @@ const {
           {canSeeStats && (
             <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Analytics</span>
           )}
+          {/* Wallet navigates away rather than switching tabs, but it lives IN
+              the tab flow: floated outside it, it took its own line on a phone
+              and pushed the last tab onto a third. */}
+          <span className="tab-wallet" onClick={()=>{handleWalletNavigate(user)}}>Wallet</span>
         </div>
-        <span className="followers" onClick={()=>{handleWalletNavigate(user)}}>wallet</span>
       </div>
       <div className="container-video">
   {show === "video" ? (

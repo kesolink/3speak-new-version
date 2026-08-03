@@ -30,6 +30,13 @@ export default function ProfileHeader({
   fetchBio = false,
   badges,
   actions,
+  // Sits inline with the display name — the page's focal point — so the two
+  // actions a visitor came for (Follow, Message) are read together with WHO
+  // they'd be following, not parked in the corner with share/report.
+  nameActions,
+  // Slot between the bio/location and the badge row — user profiles put their
+  // stat line here (see ProfileStats); community pages pass nothing.
+  meta,
   avatarBadgeSize = 16,
   refreshKey = 0,
   showHandle = false,
@@ -141,7 +148,10 @@ export default function ProfileHeader({
               ) : null}
             </div>
             <div className="user-meta" ref={metaRef}>
-              <h2>{heading}</h2>
+              <div className="name-row">
+                <h2>{heading}</h2>
+                {nameActions ? <div className="name-actions">{nameActions}</div> : null}
+              </div>
               {displayName ? <span className="profile-handle">@{username}</span> : null}
               {bioText ? <p className="profile-bio">{bioText}</p> : null}
               {locationText ? (
@@ -149,6 +159,7 @@ export default function ProfileHeader({
                   <span className="profile-location-label">Location:</span> {locationText}
                 </p>
               ) : null}
+              {meta}
             </div>
             </div>
             {badges ? <div className="user-badges">{badges}</div> : null}

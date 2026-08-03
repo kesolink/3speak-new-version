@@ -321,6 +321,25 @@
       font-size: 13.5px;
       cursor: pointer;
     }
+
+    // Wallet lives in the tab row but isn't a tab (it navigates away), so it
+    // keeps a quieter weight and no active underline. `margin-left: auto` holds
+    // it at the right while the row fits on one line; on a phone that is
+    // dropped so it simply wraps with everything else instead of taking a line
+    // of its own and pushing the last tab onto a third.
+    .wrap .tab-wallet {
+      margin-left: auto;
+      color: var(--text-secondary);
+      font-weight: 400;
+
+      &::after { content: none; }
+
+      &:hover { color: var(--text-primary); }
+
+      @include mix.respond(phone) {
+        margin-left: 0;
+      }
+    }
   }
 }
 

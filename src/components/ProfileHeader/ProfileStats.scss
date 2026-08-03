@@ -1,0 +1,27 @@
+@use "../../mixins.scss" as mix;
+
+// Stat line under the bio. Deliberately plain text, not chips: the badge row
+// right below is already chip-shaped, and two rows of pills read as noise.
+.profile-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.9rem;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: #94a3b8;
+
+  strong {
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+
+  .profile-stat--since {
+    font-size: 0.8rem;
+  }
+
+  @include mix.respond(phone) {
+    gap: 0.25rem 0.7rem;
+    font-size: 0.8rem;
+  }
+}
