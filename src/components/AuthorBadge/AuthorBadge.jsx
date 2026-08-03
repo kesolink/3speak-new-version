@@ -7,7 +7,9 @@ import { useAppStore } from '../../lib/store';
 import PremiumBadge from '../PremiumBadge/PremiumBadge';
 import './AuthorBadge.scss';
 
-function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing: isFollowingProp, onFollow, noLink, compact, reputation, color, tabHint }) {
+// `subtitle` replaces the followers line — used by rails that describe the
+// creator by something other than their follower count ("3 shorts / 2 videos").
+function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFollow, isFollowing: isFollowingProp, onFollow, noLink, compact, reputation, color, tabHint, subtitle }) {
   const navigate = useNavigate();
   const { user } = useAppStore();
   const [localFollowers, setLocalFollowers] = useState(null);
@@ -91,7 +93,9 @@ function AuthorBadge({ author, onClick, followersCount, fetchFollowers, showFoll
           <span className="author-name">@{author}{reputation != null ? ` (${Math.round(reputation)})` : ''}</span>
           <PremiumBadge username={author} size={11} />
         </span>
-        {displayFollowers != null && (
+        {subtitle ? (
+          <span className="followers-count">{subtitle}</span>
+        ) : displayFollowers != null && (
           <span className="followers-count">{displayFollowers} Followers</span>
         )}
       </div>

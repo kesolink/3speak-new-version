@@ -5,7 +5,7 @@
  * Based on snapie.io implementation
  */
 
-const REPUTATION_API = 'https://api.syncad.com/reputation-api/accounts';
+import { hiveClient } from './hiveNode';
 
 export const LOW_REP_THRESHOLD = 15;
 
@@ -14,8 +14,11 @@ const repCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Get user reputation from Syncad API
- * Returns the raw reputation score (can be negative)
+ * Get user reputation from the app's own Hive RPC pool (hiveNode.js — health-picked
+ * node + dhive failover). `bridge.get_profile` returns the human-readable score
+ * (e.g. 73.54), the same scale the old third-party endpoint returned; the raw
+ * `reputation` field on condenser_api accounts is 0 since it left consensus, so
+ * bridge is the lookup to use. Negative = spammer.
  * @param {string} username - Hive username
  * @returns {Promise<number>} - Reputation score
  */
@@ -27,23 +30,19 @@ export async function getUserReputation(username) {
       return cached.rep;
     }
 
-    const response = await fetch(`${REPUTATION_API}/${username}/reputation`);
-    
-    if (!response.ok) {
-      return 25; // Default to neutral reputation on error
-    }
+    const profile = await hiveClient.call('bridge', 'get_profile', { account: username });
 
-    const reputation = await response.json();
-    // 0 means no reputation data (new account) — treat as neutral (25)
-    const score = reputation || 25;
+    // No profile / no reputation data (new account) — treat as neutral (25)
+    const score = Number(profile?.reputation);
+    const rep = Number.isFinite(score) && score !== 0 ? score : 25;
 
     // Cache the result
     repCache.set(username, {
-      rep: score,
+      rep,
       timestamp: Date.now()
     });
 
-    return score;
+    return rep;
   } catch (error) {
     console.error('Error fetching reputation for', username, error);
     return 25; // Default to neutral on error (fail-open)
@@ -117,6 +116,38 @@ function collectAllAuthors(content) {
 }
 
 /**
+ * Seed the cache from `author_reputation`, the raw bigint Hive already ships on
+ * every comment from condenser_api.get_content_replies. Comment threads therefore
+ * cost ZERO extra RPCs — without this a 24-reply thread would fire 24
+ * bridge.get_profile calls at the shared node. Items without the field fall
+ * through to the normal lookup.
+ * @param {Array} content - Array of comments/posts (possibly nested)
+ */
+function seedFromAuthorReputation(content) {
+  const now = Date.now();
+
+  function seed(items) {
+    for (const item of items) {
+      const authorName = typeof item.author === 'string'
+        ? item.author
+        : item.author?.username;
+
+      if (authorName && item.author_reputation != null && !repCache.has(authorName)) {
+        const score = hiveRepToScore(item.author_reputation);
+        if (score != null) repCache.set(authorName, { rep: score, timestamp: now });
+      }
+
+      const nested = item.children || item.replies;
+      if (nested && nested.length > 0) {
+        seed(nested);
+      }
+    }
+  }
+
+  seed(content);
+}
+
+/**
  * Filter content by reputation
  * Removes items from authors with negative reputation (spammers/bots)
  * Also filters nested children/replies recursively
@@ -129,8 +160,9 @@ function collectAllAuthors(content) {
  */
 export async function filterByReputation(content) {
   if (!content || content.length === 0) return [];
-  
+
   // Pre-fetch all reputations in parallel (huge performance win!)
+  seedFromAuthorReputation(content);
   const allAuthors = collectAllAuthors(content);
   const reputations = await batchGetReputations(allAuthors);
   
@@ -183,6 +215,7 @@ export async function filterByReputation(content) {
 export async function markByReputation(content) {
   if (!content || content.length === 0) return [];
 
+  seedFromAuthorReputation(content);
   const allAuthors = collectAllAuthors(content);
   const reputations = await batchGetReputations(allAuthors);
 

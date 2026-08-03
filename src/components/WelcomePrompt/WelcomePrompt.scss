@@ -1,0 +1,375 @@
+@use "../../mixins.scss" as *;
+
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500; // above the other app-root prompts
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px);
+
+  @include respond(phone) {
+    align-items: flex-end;
+    padding: 0;
+  }
+}
+
+.welcome-modal {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 26px 26px 22px;
+  background: var(--bg-secondary, #1a1a1a);
+  color: var(--text-primary, #f1f1f1);
+  border: 1px solid var(--border-light, #2d2d2d);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  animation: welcome-pop 0.24s ease-out;
+
+  @include respond(phone) {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+    padding: 22px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+    animation: welcome-slide-up 0.28s ease forwards;
+  }
+}
+
+@keyframes welcome-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes welcome-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: none; }
+}
+
+/* Close button, used by the standalone edit dialog */
+.welcome-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--bg-elevated, #2d2d2d);
+    color: var(--text-primary, #f1f1f1);
+  }
+
+  &:disabled { opacity: 0.5; cursor: default; }
+}
+
+.welcome-loading {
+  margin: 0 0 16px;
+  padding: 26px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary, #aaa);
+}
+
+/* ---------- step 1: the welcome ---------- */
+
+.welcome-hero {
+  text-align: center;
+  margin-bottom: 20px;
+
+  .welcome-wave {
+    display: inline-block;
+    font-size: 34px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+}
+
+.welcome-hero-sub {
+  margin: 0 auto;
+  max-width: 44ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary, #aaa);
+
+  strong { color: var(--accent-primary, #ff5252); font-weight: 700; }
+}
+
+.welcome-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+
+  @include respond(phone) {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.welcome-card {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, #242424);
+  border: 1px solid var(--border-light, #2d2d2d);
+
+  h4 {
+    margin: 0 0 3px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-primary, #f1f1f1);
+  }
+
+  p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-secondary, #aaa);
+  }
+}
+
+.welcome-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--accent-light, rgba(255, 82, 82, 0.15));
+  color: var(--accent-primary, #ff5252);
+}
+
+.welcome-note {
+  margin: 0 0 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary, #aaa);
+}
+
+/* ---------- step 2: the profile form ---------- */
+
+.welcome-head {
+  margin-bottom: 18px;
+  padding-right: 40px; // clears the close button when there is one
+
+  h2 {
+    margin: 0 0 6px;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary, #aaa);
+  }
+}
+
+.welcome-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, #242424);
+  border: 1px solid var(--border-light, #2d2d2d);
+}
+
+.welcome-avatar {
+  position: relative;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 2px solid var(--border-color, #3d3d3d);
+  border-radius: 50%;
+  background: var(--bg-elevated, #2d2d2d);
+  cursor: pointer;
+  overflow: visible;
+  transition: border-color 0.2s ease;
+
+  &:hover:not(:disabled) { border-color: var(--accent-primary, #ff5252); }
+  &:disabled { cursor: default; opacity: 0.8; }
+
+  img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.welcome-avatar-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-primary, #ff5252);
+  color: #fff;
+  border: 2px solid var(--bg-secondary, #1a1a1a);
+}
+
+.welcome-spin { animation: welcome-rotate 0.9s linear infinite; }
+@keyframes welcome-rotate { to { transform: rotate(360deg); } }
+
+.welcome-avatar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+
+  strong { font-size: 14px; font-weight: 700; }
+  span { font-size: 12.5px; line-height: 1.4; color: var(--text-secondary, #aaa); }
+}
+
+.welcome-field {
+  display: block;
+  margin-bottom: 14px;
+
+  input,
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text-primary, #f1f1f1);
+    background: var(--input-bg, #2d2d2d);
+    border: 1px solid var(--input-border, #3d3d3d);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &::placeholder { color: var(--text-muted, #717171); }
+
+    &:focus {
+      border-color: var(--accent-primary, #ff5252);
+      box-shadow: 0 0 0 3px var(--input-focus, rgba(255, 82, 82, 0.3));
+    }
+
+    &:disabled { opacity: 0.6; }
+  }
+
+  textarea { resize: vertical; line-height: 1.5; }
+}
+
+.welcome-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary, #aaa);
+
+  em {
+    font-style: normal;
+    font-weight: 500;
+    font-size: 11.5px;
+    color: var(--text-muted, #717171);
+  }
+}
+
+.welcome-input-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  svg {
+    position: absolute;
+    left: 11px;
+    color: var(--text-muted, #717171);
+    pointer-events: none;
+  }
+
+  input { padding-left: 34px; }
+}
+
+.welcome-fineprint {
+  margin: 0 0 16px;
+  font-size: 11.5px;
+  color: var(--text-muted, #717171);
+}
+
+/* ---------- shared actions ---------- */
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+
+  @include respond(phone) {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}
+
+.welcome-skip,
+.welcome-primary {
+  padding: 11px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+
+  &:disabled { opacity: 0.6; cursor: default; }
+}
+
+.welcome-skip {
+  background: transparent;
+  color: var(--text-secondary, #aaa);
+  border: 1px solid var(--border-color, #3d3d3d);
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary, #f1f1f1);
+    background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  }
+}
+
+.welcome-primary {
+  background: var(--accent-primary, #ff5252);
+  color: #fff;
+  border: 1px solid var(--accent-primary, #ff5252);
+
+  &:hover:not(:disabled) {
+    background: var(--accent-hover, #ff1744);
+    border-color: var(--accent-hover, #ff1744);
+  }
+}

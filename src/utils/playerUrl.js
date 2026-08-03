@@ -20,8 +20,15 @@ const PROBE_TIMEOUT_MS = 2000;
 // the health pick resolves.
 const CANDIDATES = [...new Set((PLAYER_URLS || []).filter(Boolean))];
 
+// A pin written earlier in the session can name a backend that is no longer a
+// candidate — e.g. prod dropping the dev player from VITE_PLAYER_URLS after a
+// session pinned it during a play.3speak.tv outage. Only honour a pin that is
+// still in the configured list, otherwise ignore it and re-probe.
 function sessionUrl() {
-  try { return sessionStorage.getItem(SESSION_KEY) || null; } catch { return null; }
+  try {
+    const u = sessionStorage.getItem(SESSION_KEY);
+    return u && CANDIDATES.includes(u) ? u : null;
+  } catch { return null; }
 }
 function pin(url) {
   try { sessionStorage.setItem(SESSION_KEY, url); } catch { /* storage disabled */ }
