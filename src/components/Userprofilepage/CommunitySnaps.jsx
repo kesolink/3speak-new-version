@@ -570,7 +570,9 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
  * The profile's "Community" tab. Everyone sees the owner's snaps; only the owner
  * (canPost) gets the composer.
  */
-export default function CommunitySnaps({ user, canPost = false }) {
+// `limit` renders only the newest N, and `hideEmpty` skips the empty-state
+// block entirely — both for the Overview tab's preview row.
+export default function CommunitySnaps({ user, canPost = false, limit = 0, hideEmpty = false }) {
   const [optimistic, setOptimistic] = useState([]);
   const queryClient = useQueryClient();
 
@@ -605,12 +607,15 @@ export default function CommunitySnaps({ user, canPost = false }) {
       {isLoading && snaps.length === 0 ? (
         <BarLoader />
       ) : snaps.length === 0 ? (
-        <div className="snap-empty">
-          {canPost ? 'No community posts yet — share your first update above.' : 'No community posts yet.'}
-        </div>
+        hideEmpty ? null : (
+          <div className="snap-empty">
+            {canPost ? 'No community posts yet — share your first update above.' : 'No community posts yet.'}
+          </div>
+        )
       ) : (
         <div className="snap-list">
-          {snaps.map((s) => <SnapCard key={s._id || `${s.owner}/${s.permlink}`} snap={s} />)}
+          {(limit > 0 ? snaps.slice(0, limit) : snaps)
+            .map((s) => <SnapCard key={s._id || `${s.owner}/${s.permlink}`} snap={s} />)}
         </div>
       )}
     </div>

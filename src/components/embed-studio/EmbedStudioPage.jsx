@@ -22,6 +22,7 @@ function EmbedStudioPage() {
 
   const {
     user,
+    setIsChannelTrailer,
     setCommunitiesData,
     step, setStep,
     fromStories, setFromStories,
@@ -36,6 +37,17 @@ function EmbedStudioPage() {
     videoMode, setVideoMode,
     clearVideoSelection,
   } = useEmbedUpload();
+
+  // `?trailer=1` — arrived from the "Upload a channel trailer" button on an own
+  // profile with no trailer set. Preselect the checkbox so the upload lands as
+  // the trailer without the user having to find it on the details step. Only on
+  // entry: resetUpload() clears it, and a later plain upload is unaffected.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('trailer') === '1') {
+      setIsChannelTrailer(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   // Detect stories origin from URL param. If a video that was picked in the OTHER
   // mode (e.g. a longform video) is still selected from a previous session, clear it

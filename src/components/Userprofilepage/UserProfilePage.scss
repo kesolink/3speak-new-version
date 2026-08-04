@@ -229,11 +229,35 @@
       padding: 0px 5px;
       padding-bottom: 7px;
     }
+    // One scrolling row, never a wrapping block. With ten-plus tabs this took
+    // three lines on a phone and pushed the content below the fold.
     .wrap {
       display: flex;
       align-items: center;
       gap: 22px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      // Setting overflow-x alone computes overflow-y to `auto`, which would clip
+      // the active tab's underline (drawn at bottom: -8px) and could add a
+      // vertical scrollbar. Hide that axis and reserve room for the underline
+      // with padding, then pull the extra height back off with a negative
+      // margin so the row sits exactly where it did before.
+      overflow-y: hidden;
+      padding-bottom: 10px;
+      margin-bottom: -10px;
+      // Without this a flex child refuses to shrink below its content width, so
+      // overflow-x never engages and it just widens the page instead.
+      flex: 1 1 auto;
+      min-width: 0;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+      &::-webkit-scrollbar { display: none; }
+
+      // Tabs keep their natural width; squashing them is what made the labels
+      // wrap mid-word in the first place.
+      > span { flex: 0 0 auto; white-space: nowrap; }
+
       @include mix.respond(phone) {
         gap: 16px;
       }
@@ -320,6 +344,25 @@
       box-shadow: 0px 1px 7px 0px #00000040;
       font-size: 13.5px;
       cursor: pointer;
+    }
+
+    // Wallet lives in the tab row but isn't a tab (it navigates away), so it
+    // keeps a quieter weight and no active underline. `margin-left: auto` holds
+    // it at the right while the row fits on one line; on a phone that is
+    // dropped so it simply wraps with everything else instead of taking a line
+    // of its own and pushing the last tab onto a third.
+    .wrap .tab-wallet {
+      margin-left: auto;
+      color: var(--text-secondary);
+      font-weight: 400;
+
+      &::after { content: none; }
+
+      &:hover { color: var(--text-primary); }
+
+      @include mix.respond(phone) {
+        margin-left: 0;
+      }
     }
   }
 }

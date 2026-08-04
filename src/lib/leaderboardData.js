@@ -98,6 +98,9 @@ export function fetchLeaderboardBadges(username) {
 // Badges sit in a crowded profile header next to the follower count and social
 // links, so the label stays terse ("#1 Videos") and the icon carries the topic.
 // The full sentence lives in the hover title.
+// Only overrides — anything not listed falls back to the metric's own label in
+// METRICS above. These five are shortened because the board label is too long
+// for a header chip ("Video watch time" → "Watched").
 const BADGE_NOUNS = {
   video_uploads: 'Videos',
   short_uploads: 'Shorts',
@@ -111,8 +114,28 @@ const BADGE_NOUNS = {
 const BADGE_TIERS = ['top1', 'top3', 'top10', 'top50'];
 export const MAX_PROFILE_BADGES = 3;
 
+// A rank means nothing while a board is nearly empty: the streaming boards are
+// new, so #1 on them was worth 1 stream and 4 peak viewers — three such chips
+// pushed a creator's real Videos/Shorts standings off the profile (only
+// MAX_PROFILE_BADGES fit). A badge has to clear a floor of actual activity
+// before it earns header space. The video metrics have organic scale already
+// and stay unthresholded.
+const MIN_BADGE_VALUE = {
+  streams: 5,
+  stream_secs: 3600,          // an hour live, total
+  stream_peak_viewers: 10,
+  stream_viewers: 25,
+  boosts_received: 5,
+  boost_amount_received: 10,
+  boosts_given: 5,
+  boost_amount_given: 10,
+};
+
 export function badgeLabel(badge) {
-  return `${badge.tier_label} ${BADGE_NOUNS[badge.metric] || badge.metric}`;
+  // Fall back to the metric's board label, NOT the raw id — a metric added to
+  // the checker without a noun here used to render as "#1 stream_peak_viewers".
+  const metric = METRICS.find((m) => m.id === badge.metric);
+  return `${badge.tier_label} ${BADGE_NOUNS[badge.metric] || metric?.label || badge.metric}`;
 }
 
 export function badgeTitle(badge) {
@@ -125,6 +148,7 @@ export function badgeTitle(badge) {
 export function visibleBadges(badges) {
   return (badges || [])
     .filter((b) => BADGE_TIERS.includes(b.tier))
+    .filter((b) => Number(b.value || 0) >= (MIN_BADGE_VALUE[b.metric] || 0))
     .slice(0, MAX_PROFILE_BADGES);
 }
 

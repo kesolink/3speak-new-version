@@ -7,6 +7,60 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.20',
+    date: '2026-08-04',
+    summary:
+      'Community pages look tidier on a phone, with the community picture centred above its name.',
+  },
+  {
+    version: '1.78.19',
+    date: '2026-08-04',
+    summary:
+      'No channel trailer yet? Your profile now has an Upload a channel trailer button that takes you straight to the upload with the trailer option already ticked.',
+  },
+  {
+    version: '1.78.18',
+    date: '2026-08-04',
+    summary:
+      'Followers and Following now show who they actually are: each person\'s follower count, plus how many videos and shorts they have on 3Speak. Big lists load in pages as you scroll.',
+  },
+  {
+    version: '1.78.17',
+    date: '2026-08-04',
+    summary:
+      'Free live streams can now run for a full hour, and the stream setup screen shows exactly what 3Speak Pro adds.',
+  },
+  {
+    version: '1.78.16',
+    date: '2026-08-04',
+    summary:
+      '3Speak Pro has a fresh look in your wallet: perks grouped into tabs for uploads, live streaming and bonus features, with clear pricing and the free 24-hour trial in one place.',
+  },
+  {
+    version: '1.78.15',
+    date: '2026-08-04',
+    summary:
+      'The Wallet page is tidier: Overview and Transactions are now separate tabs, and your HIVE and HBD sit side by side, including on a phone.',
+  },
+  {
+    version: '1.78.14',
+    date: '2026-08-04',
+    summary:
+      'Profiles have a cover image: set yours when you sign up, or later from your profile. Notification avatars are clearer too.',
+  },
+  {
+    version: '1.78.13',
+    date: '2026-08-04',
+    summary:
+      'Profile tabs now sit on one line you can swipe through, and the Overview rows show many more videos and shorts — scroll them sideways.',
+  },
+  {
+    version: '1.78.12',
+    date: '2026-08-04',
+    summary:
+      'Profiles now open on a new Overview tab: a channel trailer plays at the top, followed by preview rows of your videos, shorts, audio and playlists. Mark any video as your trailer from its details while uploading.',
+  },
+  {
     version: '1.78.11',
     date: '2026-08-03',
     summary:

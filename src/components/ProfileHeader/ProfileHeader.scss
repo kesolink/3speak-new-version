@@ -5,35 +5,29 @@
 // -webkit-text-stroke name treatment is replaced with the default 3Speak font,
 // just larger, and the banner now always has a faded bottom.)
 .profile-card {
+  position: relative;
   border: 1px solid #0f172a;
   overflow: hidden;
   border-radius: 16px;
   background: rgba(2, 6, 23, 0.8);
 
+  // The cover fills the WHOLE card rather than a fixed 10rem strip, so it ends
+  // where the profile panel ends instead of being cut off behind it. The band
+  // of bare image above the panel is made by .profile-body's top padding.
   .profile-header {
-    position: relative;
+    position: absolute;
+    inset: 0;
     width: 100%;
-    height: 10rem;
+    height: 100%;
 
-    @include mix.respond(phone) {
-      height: 6rem;
-    }
-
-    // Faded bottom: the banner fades into the card so the avatar and name
-    // sit cleanly on top of it.
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to top, rgba(2, 6, 23, 1) 0%, rgba(2, 6, 23, 0.6) 40%, transparent 100%);
-      pointer-events: none;
-      z-index: 1;
-    }
+    // No fade-to-black any more: the banner is shown in full, and readability
+    // comes from the translucent panel the profile data sits in (.profile-body)
+    // rather than from erasing the bottom of the creator's artwork.
 
     .gradient-bg {
       position: absolute;
       inset: 0;
-      opacity: 0.9;
+      opacity: 1;
       width: 100%;
       height: 100%;
       object-fit: cover;
@@ -41,20 +35,44 @@
       @include mix.respond(phone) {
         height: 100%;
       }
+
+      // Our own default banner is a fixed lockup, not a photo: `cover` crops the
+      // sides on a narrow card and the top and bottom on a wide one, which cuts
+      // the logo or the tagline. `contain` keeps all of it visible at every
+      // width, and since the image's own background matches the colour below,
+      // the letterboxing is invisible. Nested so it beats the `cover` above
+      // regardless of source order.
+      &.gradient-bg--default {
+        object-fit: contain;
+        background: #22262b;
+
+        // Phone: the card turns portrait (roughly 378x495), so fitting the WIDTH
+        // would leave the banner as a thin strip floating in empty space. Fill
+        // the height instead and let the sides crop — the mark is centred and
+        // narrow enough to survive it.
+        @include mix.respond(phone) {
+          object-fit: cover;
+        }
+      }
     }
   }
 
   .profile-body {
-    padding: 0 1rem 1.5rem;
     position: relative;
     z-index: 2;
+    // Top padding is the visible band of cover image above the panel (the image
+    // itself now spans the whole card, see .profile-header). On a phone top and
+    // bottom match so the panel sits centred in the card.
+    padding: 2.75rem 0.6rem 2.75rem;
 
     @media (min-width: 640px) {
-      padding: 0 2rem 2rem;
+      padding: 7rem 1rem 1.6rem;
     }
 
     .top-section {
-      margin-top: -2.5rem;
+      // The panel provides the banner overlap now, so the row itself no longer
+      // pulls upward — otherwise the two stack and the avatar rides too high.
+      margin-top: 0;
       display: flex;
       gap: 1rem;
       flex-direction: column;
@@ -63,10 +81,55 @@
         flex-direction: row;
         justify-content: space-between;
         align-items: flex-end;
-        margin-top: -3rem;
+        margin-top: 0;
       }
 
+      // ONLY the identity block gets the translucent panel — it hugs the avatar
+      // and text instead of running the full width, so the banner stays visible
+      // to the right of it. The buttons on the right carry their own chip
+      // backgrounds and are legible over the image as they are.
       .left-info {
+        align-self: flex-start;
+        border-radius: 14px;
+        padding: 0.75rem 1rem;
+
+        // Phone: the panel is the whole screen's worth of width anyway, so it
+        // centres — avatar above the text, every row centred under it.
+        @include mix.respond(phone) {
+          align-self: center;
+          align-items: center;
+          text-align: center;
+
+          // (.identity-row's phone stacking lives inside its own rule below —
+          // declaring it here loses to the base rule on source order.)
+          .name-row,
+          .profile-stats,
+          .user-badges,
+          // .lb-badges is its own wrapping flex row inside .user-badges, so
+          // centring the parent alone leaves its second line hanging left.
+          .user-badges .lb-badges,
+          .user-badges .social-links {
+            justify-content: center;
+          }
+
+          .profile-bio,
+          .profile-location {
+            max-width: 34ch;
+          }
+        }
+        // Light veil: enough to hold the text against a busy cover, not enough
+        // to hide the artwork behind it. The blur does most of the work.
+        //
+        // --panel-scrim is set inline by ProfileHeader from the MEDIAN luminance
+        // of the cover image (see utils/imageLuminance): a pale banner pushes it
+        // toward 0.82 so white text stays readable, a dark one stays at 0.42 and
+        // the artwork shows through. The 0.42 here is the fallback for covers we
+        // can't sample (missing image, or a host that blocks canvas reads).
+        background: rgba(2, 6, 23, var(--panel-scrim, 0.42));
+        transition: background 0.35s ease;
+        backdrop-filter: blur(14px);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+
         display: flex;
         flex-direction: column;
 
@@ -77,13 +140,18 @@
           display: flex;
           gap: 1rem;
           align-items: flex-start;
-          // Offset lives here rather than on .user-meta so the avatar and the
-          // first line of text share a top edge. It absorbs the 10px that used
-          // to sit on the h2 (removed so the measured height is exactly the
-          // text), leaving every page's spacing where it was.
-          margin-top: 50px;
+          // Small, even offset inside the panel. (It used to be ~50px to clear
+          // the banner overlap; the panel owns that now.)
+          margin-top: 0.25rem;
+
+          // Phone: avatar above the text, both centred. MUST live here rather
+          // than in the .left-info phone block above — that compiles to the
+          // same selector, and a media query adds no specificity, so the
+          // flex-start on this line simply won on source order.
           @include mix.respond(phone) {
-            margin-top: 32px;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.6rem;
           }
 
         .avatar {
@@ -94,6 +162,11 @@
           // fallback, so it never renders smaller than it used to.
           position: relative;
           align-self: flex-start;
+          // align-self on the item overrides align-items on the row, so the row
+          // centring above cannot move it without this.
+          @include mix.respond(phone) {
+            align-self: center;
+          }
           box-sizing: border-box;
           min-height: 5rem;
           min-width: 5rem;
@@ -188,6 +261,86 @@
             }
           }
 
+          // Name + the two primary actions on one line. They wrap under the
+          // name on narrow screens rather than squeezing it.
+          .name-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem 0.9rem;
+          }
+
+          // Deliberately NOT the brand red: the header already carries red in
+          // the Pro chip and the avatar ring, and three reds in one block fight
+          // each other. These earn their prominence from SIZE and contrast
+          // instead — they're a step larger than the utility buttons on the
+          // right (share / report / hide).
+          .name-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+
+            .btn {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              gap: 6px;
+              padding: 0.5rem 1.15rem;
+              border-radius: 999px;
+              font-size: 0.9rem;
+              font-weight: 600;
+              line-height: 1.1;
+              white-space: nowrap;
+              cursor: pointer;
+              border: 1px solid transparent;
+              transition: all 0.2s ease;
+
+              svg { font-size: 16px; }
+
+              &:disabled { opacity: 0.6; cursor: not-allowed; }
+
+              @include mix.respond(phone) {
+                padding: 0.45rem 0.95rem;
+                font-size: 0.85rem;
+              }
+            }
+
+            // Follow — the one filled control in the header.
+            .btn-hero-follow {
+              background: #f1f5f9;
+              color: #0f172a;
+              border-color: #f1f5f9;
+
+              &:hover { background: #fff; border-color: #fff; }
+            }
+
+            // Already following: quiet outline, turns to "unfollow" red on hover
+            // (the only place red belongs here, as a destructive hint).
+            .btn-hero-following {
+              background: rgba(15, 23, 42, 0.85);
+              border-color: #475569;
+              color: #e2e8f0;
+
+              &:hover {
+                border-color: #ef4444;
+                color: #ef4444;
+                background: rgba(239, 68, 68, 0.1);
+              }
+            }
+
+            .btn-hero-message {
+              background: rgba(15, 23, 42, 0.85);
+              border-color: #475569;
+              color: #e2e8f0;
+
+              &:hover {
+                background: rgba(148, 163, 184, 0.18);
+                border-color: #94a3b8;
+                color: #fff;
+              }
+            }
+          }
+
           // @account, directly under a display name.
           .profile-handle {
             display: block;
@@ -260,12 +413,24 @@
         }
       }
 
+      // Utility actions (hide / share / report) live in the banner's top-right
+      // corner, out of the identity block's way. Absolute against .profile-body,
+      // whose top edge IS the card's top edge (the band of cover image above the
+      // panel is this element's top padding).
       .button-group {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        z-index: 3;
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
+        justify-content: flex-end;
+
         @include mix.respond(phone) {
-          justify-content: center;
+          top: 0.5rem;
+          right: 0.5rem;
+          gap: 0.35rem;
         }
 
         .btn {
@@ -340,6 +505,24 @@
           &:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+          }
+        }
+
+        // Message sits next to Follow as the second real action: outlined in the
+        // accent rather than filled, so the pair reads as primary + secondary
+        // instead of competing.
+        .btn-message {
+          gap: 5px;
+          border-color: var(--accent-primary, #e53935);
+          color: var(--accent-primary, #e53935);
+          background: transparent;
+          font-weight: 600;
+
+          svg { font-size: 14px; }
+
+          &:hover {
+            background: var(--accent-light, rgba(229, 57, 53, 0.1));
+            border-color: var(--accent-primary, #e53935);
           }
         }
       }
