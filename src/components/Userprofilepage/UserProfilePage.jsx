@@ -455,7 +455,7 @@ const {
         name={user}
         fetchBio
         showHandle
-        meta={<ProfileStats username={user} followers={follower?.follower_count} />}
+        meta={<ProfileStats username={user} followers={follower?.follower_count} onFollowersClick={() => setShow("follower")} />}
         nameActions={!isOwnProfile ? (
           <>
             {/* Own classes, not btn-follow: a global
@@ -491,14 +491,8 @@ const {
         }
         actions={
           <>
-            <button className="btn btn-secondary" onClick={() => setShow("follower")}>
-              Followers{" "}
-              {follower?.follower_count !== undefined ? (
-                follower.follower_count
-              ) : (
-                <Quantum size="15" speed="1.75" color="red" />
-              )}
-            </button>
+            {/* The follower pill is gone — the count lives in the stat line
+                under the bio, which opens this same list when clicked. */}
             {authenticated && !isOwnProfile && (
               <button
                 className={`btn ${isCreatorHidden ? 'btn-hidden-creator' : 'btn-secondary'}`}

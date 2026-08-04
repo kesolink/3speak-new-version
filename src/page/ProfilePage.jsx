@@ -451,7 +451,7 @@ function ProfilePage() {
         name={user}
         fetchBio
         showHandle
-        meta={<ProfileStats username={user} followers={follower?.follower_count} />}
+        meta={<ProfileStats username={user} followers={follower?.follower_count} onFollowersClick={() => setShow("follower")} />}
         refreshKey={profileRefreshKey}
         onAvatarClick={() => setEditProfileOpen(true)}
         badges={
@@ -486,16 +486,8 @@ function ProfilePage() {
               <FiEdit2 className="icon" /> Edit
             </button>
 
-            <button
-              className="btn btn-primary"
-              onClick={() => setShow("follower")}
-            >
-              Followers{" "}
-              {follower?.follower_count ?? (
-                <Quantum size="15" speed="1.75" color="red" />
-              )}
-            </button>
-
+            {/* Follower pill removed — the count in the stat line under the bio
+                opens this list instead. */}
             <button
               className="btn btn-secondary"
               onClick={async () => {

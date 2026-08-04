@@ -25,7 +25,7 @@ const fmt = (n) => {
   return String(v);
 };
 
-export default function ProfileStats({ username, followers }) {
+export default function ProfileStats({ username, followers, onFollowersClick }) {
   const { data } = useQuery({
     queryKey: ['profile-counts', username],
     enabled: !!username,
@@ -53,11 +53,20 @@ export default function ProfileStats({ username, followers }) {
 
   // Only render the parts that are actually true for this creator — a row of
   // zeroes says less than a shorter row.
+  // Every number here is abbreviated ("3.8K"), so each carries the exact figure
+  // in its tooltip — the short form is for scanning, not a loss of detail.
+  const exact = (n) => Number(n || 0).toLocaleString();
   const items = [
-    followers != null && { key: 'followers', value: fmt(followers), label: followers === 1 ? 'follower' : 'followers' },
-    data.videos > 0 && { key: 'videos', value: fmt(data.videos), label: data.videos === 1 ? 'video' : 'videos' },
-    data.shorts > 0 && { key: 'shorts', value: fmt(data.shorts), label: data.shorts === 1 ? 'short' : 'shorts' },
-    data.views > 0 && { key: 'views', value: fmt(data.views), label: data.views === 1 ? 'view' : 'views' },
+    followers != null && {
+      key: 'followers',
+      value: fmt(followers),
+      label: followers === 1 ? 'follower' : 'followers',
+      title: `${exact(followers)} followers`,
+      onClick: onFollowersClick,
+    },
+    data.videos > 0 && { key: 'videos', value: fmt(data.videos), label: data.videos === 1 ? 'video' : 'videos', title: `${exact(data.videos)} videos` },
+    data.shorts > 0 && { key: 'shorts', value: fmt(data.shorts), label: data.shorts === 1 ? 'short' : 'shorts', title: `${exact(data.shorts)} shorts` },
+    data.views > 0 && { key: 'views', value: fmt(data.views), label: data.views === 1 ? 'view' : 'views', title: `${exact(data.views)} views` },
   ].filter(Boolean);
 
   if (!items.length) return null;
@@ -65,7 +74,17 @@ export default function ProfileStats({ username, followers }) {
   return (
     <div className="profile-stats">
       {items.map((i) => (
-        <span className="profile-stat" key={i.key}>
+        <span
+          className={`profile-stat${i.onClick ? ' profile-stat--action' : ''}`}
+          key={i.key}
+          title={i.title}
+          {...(i.onClick ? {
+            role: 'button',
+            tabIndex: 0,
+            onClick: i.onClick,
+            onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); i.onClick(); } },
+          } : {})}
+        >
           <strong>{i.value}</strong> {i.label}
         </span>
       ))}

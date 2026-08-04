@@ -42,8 +42,9 @@
     position: relative;
     z-index: 2;
     // Top padding is the visible band of cover image above the panel (the image
-    // itself now spans the whole card, see .profile-header).
-    padding: 4.5rem 0.6rem 1.4rem;
+    // itself now spans the whole card, see .profile-header). On a phone top and
+    // bottom match so the panel sits centred in the card.
+    padding: 2.75rem 0.6rem 2.75rem;
 
     @media (min-width: 640px) {
       padding: 7rem 1rem 1.6rem;
@@ -72,6 +73,35 @@
         align-self: flex-start;
         border-radius: 14px;
         padding: 0.75rem 1rem;
+
+        // Phone: the panel is the whole screen's worth of width anyway, so it
+        // centres — avatar above the text, every row centred under it.
+        @include mix.respond(phone) {
+          align-self: center;
+          align-items: center;
+          text-align: center;
+
+          .identity-row {
+            flex-direction: column;
+            align-items: center;
+            gap: 0.6rem;
+          }
+
+          .name-row,
+          .profile-stats,
+          .user-badges,
+          // .lb-badges is its own wrapping flex row inside .user-badges, so
+          // centring the parent alone leaves its second line hanging left.
+          .user-badges .lb-badges,
+          .user-badges .social-links {
+            justify-content: center;
+          }
+
+          .profile-bio,
+          .profile-location {
+            max-width: 34ch;
+          }
+        }
         // Light veil: enough to hold the text against a busy cover, not enough
         // to hide the artwork behind it. The blur does most of the work.
         background: rgba(2, 6, 23, 0.42);
@@ -346,12 +376,24 @@
         }
       }
 
+      // Utility actions (hide / share / report) live in the banner's top-right
+      // corner, out of the identity block's way. Absolute against .profile-body,
+      // whose top edge IS the card's top edge (the band of cover image above the
+      // panel is this element's top padding).
       .button-group {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        z-index: 3;
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
+        justify-content: flex-end;
+
         @include mix.respond(phone) {
-          justify-content: center;
+          top: 0.5rem;
+          right: 0.5rem;
+          gap: 0.35rem;
         }
 
         .btn {
