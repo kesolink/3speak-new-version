@@ -100,12 +100,8 @@
           align-items: center;
           text-align: center;
 
-          .identity-row {
-            flex-direction: column;
-            align-items: center;
-            gap: 0.6rem;
-          }
-
+          // (.identity-row's phone stacking lives inside its own rule below —
+          // declaring it here loses to the base rule on source order.)
           .name-row,
           .profile-stats,
           .user-badges,
@@ -148,6 +144,16 @@
           // the banner overlap; the panel owns that now.)
           margin-top: 0.25rem;
 
+          // Phone: avatar above the text, both centred. MUST live here rather
+          // than in the .left-info phone block above — that compiles to the
+          // same selector, and a media query adds no specificity, so the
+          // flex-start on this line simply won on source order.
+          @include mix.respond(phone) {
+            flex-direction: column;
+            align-items: center;
+            gap: 0.6rem;
+          }
+
         .avatar {
           // Size is set inline by ProfileHeader, which measures the identity
           // lines next to it (flexbox can't do "square as tall as my sibling":
@@ -156,6 +162,11 @@
           // fallback, so it never renders smaller than it used to.
           position: relative;
           align-self: flex-start;
+          // align-self on the item overrides align-items on the row, so the row
+          // centring above cannot move it without this.
+          @include mix.respond(phone) {
+            align-self: center;
+          }
           box-sizing: border-box;
           min-height: 5rem;
           min-width: 5rem;

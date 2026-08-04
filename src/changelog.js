@@ -7,6 +7,24 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.20',
+    date: '2026-08-04',
+    summary:
+      'Community pages look tidier on a phone, with the community picture centred above its name.',
+  },
+  {
+    version: '1.78.19',
+    date: '2026-08-04',
+    summary:
+      'No channel trailer yet? Your profile now has an Upload a channel trailer button that takes you straight to the upload with the trailer option already ticked.',
+  },
+  {
+    version: '1.78.18',
+    date: '2026-08-04',
+    summary:
+      'Followers and Following now show who they actually are: each person\'s follower count, plus how many videos and shorts they have on 3Speak. Big lists load in pages as you scroll.',
+  },
+  {
     version: '1.78.17',
     date: '2026-08-04',
     summary:

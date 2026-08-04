@@ -46,6 +46,7 @@ function Section({ title, count, onViewMore, children }) {
 
 export default function ProfileOverview({
   username,
+  isOwnProfile = false,
   videos = [],
   shorts = [],
   playlists = [],
@@ -74,7 +75,7 @@ export default function ProfileOverview({
 
   return (
     <div className="profile-overview">
-      <ChannelTrailer username={username} />
+      <ChannelTrailer username={username} isOwnProfile={isOwnProfile} />
 
       <Section title="Videos" count={videoSlice.length} onViewMore={() => onOpenTab('video')}>
         <Card3

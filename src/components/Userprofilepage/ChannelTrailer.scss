@@ -141,3 +141,46 @@
 
   &:hover { background: rgba(2, 6, 23, 0.9); }
 }
+
+// Owner-only prompt shown in place of the trailer when none is set.
+.channel-trailer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+
+  .cte-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+
+    strong { font-size: 0.95rem; color: var(--text-primary); }
+    span { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.35; }
+  }
+
+  .cte-btn {
+    flex: 0 0 auto;
+    padding: 0.5rem 0.9rem;
+    border-radius: 10px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--text-inverse, #fff);
+    background: var(--accent-primary);
+    transition: background 0.15s ease;
+
+    &:hover { background: var(--accent-hover); }
+  }
+
+  @include mix.respond(phone) {
+    align-items: stretch;
+    .cte-btn { text-align: center; }
+  }
+}

@@ -588,6 +588,7 @@ const {
   {show === "overview" ? (
     <ProfileOverview
       username={user}
+      isOwnProfile={isOwnProfile}
       videos={videos}
       shorts={shortsVideos}
       playlists={playlists}
@@ -653,7 +654,7 @@ const {
       )}
     </>
   ) : (
-    <Follower count={follower} />
+    <Follower count={follower} username={user} />
   )}
 </div>
 

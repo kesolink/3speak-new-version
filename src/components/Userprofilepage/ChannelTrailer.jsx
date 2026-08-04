@@ -38,7 +38,7 @@ export function useChannelTrailer(username) {
   });
 }
 
-export default function ChannelTrailer({ username }) {
+export default function ChannelTrailer({ username, isOwnProfile = false }) {
   const { data: trailer } = useChannelTrailer(username);
   const [attached, setAttached] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -140,7 +140,21 @@ export default function ChannelTrailer({ username }) {
     },
   });
 
-  if (!valid) return null;
+  // No trailer yet. A visitor sees nothing; the owner gets a way to set one,
+  // since the feature is invisible otherwise — there's no empty frame to click.
+  if (!valid) {
+    if (!isOwnProfile) return null;
+    return (
+      <div className="channel-trailer-empty">
+        <div className="cte-text">
+          <strong>Add a channel trailer</strong>
+          <span>It plays at the top of your profile, so visitors see what your channel is about.</span>
+        </div>
+        {/* trailer=1 preselects "Mark as channel trailer" on the upload. */}
+        <Link className="cte-btn" to="/embed-studio?trailer=1">Upload a channel trailer</Link>
+      </div>
+    );
+  }
 
   const fmtViews = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K` : String(n));
 

@@ -668,7 +668,7 @@ function ProfilePage() {
             )}
           </>
         ) : (
-          <Follower count={follower} />
+          <Follower count={follower} username={user} />
         )}
       </div>
 
