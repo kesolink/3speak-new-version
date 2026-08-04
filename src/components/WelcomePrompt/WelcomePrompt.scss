@@ -191,6 +191,57 @@
   }
 }
 
+// Banner picker. 4:1 preview, so what you see here is what the profile header
+// gets (minus the crop on narrow screens, which the hint explains).
+.welcome-cover-row {
+  margin-bottom: 14px;
+}
+
+.welcome-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 1;
+  padding: 0;
+  border: 1px solid var(--border-color, #3d3d3d);
+  border-radius: 12px;
+  background-color: #22262b;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+
+  &:hover:not(:disabled) { border-color: var(--accent-primary, #e53935); }
+  &:disabled { cursor: default; opacity: 0.8; }
+}
+
+.welcome-cover-action {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.welcome-cover-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted, #717171);
+
+  strong { color: var(--text-secondary, #aaa); }
+}
+
 .welcome-avatar-row {
   display: flex;
   align-items: center;

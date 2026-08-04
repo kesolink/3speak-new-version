@@ -65,13 +65,72 @@ $indigo-500: #6366f1;
       }
     }
 
+    .wallet-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-light);
+
+      @include mix.respond(phone) {
+        margin-bottom: 1rem;
+        gap: 0.25rem;
+      }
+
+      .wallet-tab {
+        padding: 0.6rem 1rem;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        // Transparent border on the inactive state too, so switching tabs
+        // doesn't shift the row by the height of the indicator.
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        transition: color 0.15s ease, border-color 0.15s ease;
+
+        &:hover { color: var(--text-primary); }
+        &:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
+
+        @include mix.respond(phone) {
+          padding: 0.5rem 0.75rem;
+          font-size: 0.85rem;
+        }
+      }
+
+      .wallet-tab--active {
+        color: var(--text-primary);
+        border-bottom-color: var(--accent-primary);
+      }
+    }
+
+    // Matches the SDK's .hh-pro__title (1.6875rem / 700) so "Assets" and
+    // "3Speak Pro" read as sibling section headings on the same page.
+    .wallet-section-title {
+      font-size: 1.6875rem;
+      font-weight: 700;
+      margin: 0 0 1rem;
+      color: $gray-900;
+      [data-theme="dark"] & {
+        color: var(--text-primary);
+      }
+      @include mix.respond(phone) {
+        font-size: 1.1625rem;
+        margin-bottom: 0.6rem;
+      }
+    }
+
     .coins-grid {
       display: grid;
       gap: 2rem;
-      grid-template-columns: repeat(1, 1fr);
+      // Two up at EVERY width: HIVE and HBD are a matched pair and read better
+      // side by side than stacked, especially on a phone where stacking pushed
+      // everything below them off the first screen.
+      grid-template-columns: repeat(2, 1fr);
 
-      @media (min-width: 768px) {
-        grid-template-columns: repeat(2, 1fr);
+      @include mix.respond(phone) {
+        gap: 0.6rem;
       }
 
       .coin-card {
@@ -94,6 +153,15 @@ $indigo-500: #6366f1;
           justify-content: space-between;
           align-items: flex-start;
           margin-bottom: 1rem;
+
+          // Half-width tiles on a phone leave no room for name and button on
+          // one line — stack them rather than let the button squeeze the name.
+          @include mix.respond(phone) {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.45rem;
+            margin-bottom: 0.6rem;
+          }
 
           .coin-info {
             h2 {
@@ -138,8 +206,9 @@ $indigo-500: #6366f1;
             }
 
             @include mix.respond(phone) {
-              padding: 0.4rem 1rem;
+              padding: 0.4rem 0.5rem;
               font-size: 0.675rem;
+              width: 100%;
             }
 
             &:hover {
@@ -160,18 +229,24 @@ $indigo-500: #6366f1;
           }
 
           .balance-amount {
-            font-size: 2.25rem;
+            // Half the previous 2.25rem: at that size the number dominated the
+            // tile and crowded the Pro panel below it.
+            font-size: 1.125rem;
             font-weight: 700;
             color: $gray-900;
             [data-theme="dark"] & {
               color: var(--text-primary);
             }
+            // Was 1.25rem, which left the phone LARGER than the halved desktop
+            // size. Keep it a step below so the hierarchy is consistent.
             @include mix.respond(phone) {
-              font-size: 1.25rem;
+              font-size: 1rem;
             }
 
             span {
               margin-left: 0.5rem;
+              // Relative so the ticker tracks the amount at either breakpoint.
+              font-size: 0.8em;
               color: $gray-500;
               @include mix.respond(phone) {
                 font-size: 1rem;

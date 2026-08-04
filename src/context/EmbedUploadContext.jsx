@@ -13,7 +13,8 @@ import { commentWithAioha, broadcastWithAioha, signMessageWithAioha, isLoggedIn,
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../utils/postingAuthority';
 import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
-import { enforceLockedBeneficiaries, chargesEncoder, LOCKED_FUND_ACCOUNT, LOCKED_ENCODER_ACCOUNT } from '../utils/beneficiaries';
+import { setChannelTrailer } from '../utils/channelTrailer';
+import { enforceLockedBeneficiaries, getLockedBeneficiaries, chargesEncoder, LOCKED_FUND_ACCOUNT, LOCKED_ENCODER_ACCOUNT } from '../utils/beneficiaries';
 import axios from 'axios';
 
 // Hosts that support TUS resume (tusd-backed). The legacy embed.3speak.tv origin
@@ -96,6 +97,8 @@ export function EmbedUploadProvider({ children }) {
   const [declineRewards, SetDeclineRewards] = useState(false);
   const [rewardPowerup, setRewardPowerup] = useState(false);
   const [isNsfw, setIsNsfw] = useState(false);
+  // "Mark as channel trailer" — pinned to the creator's profile after publish.
+  const [isChannelTrailer, setIsChannelTrailer] = useState(false);
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState('');
 
@@ -257,6 +260,7 @@ export function EmbedUploadProvider({ children }) {
     setCommunity('hive-181335');
     setBeneficiaries([]);
     setIsNsfw(false);
+    setIsChannelTrailer(false);
     SetDeclineRewards(false);
     setRewardPowerup(false);
     setIsScheduled(false);
@@ -274,8 +278,18 @@ export function EmbedUploadProvider({ children }) {
     setEmbedUrl('');
     setPublishedPermlink('');
     setBeneficiaryList([]);
-    setList([]);
-    setRemaingPercent(100);
+    // Re-seed the LOCKED rows instead of emptying the list. Emptying left a
+    // non-Pro user looking like they had no splits at all after their first
+    // upload (this reset runs on re-entering the studio once one completed),
+    // while the publish path went on applying them — the UI just stopped
+    // saying so. Seeded from the CURRENT Pro status, so Pro still gets none.
+    const lockedOnReset = getLockedBeneficiaries({
+      isPremium,
+      username: user,
+      includeEncoder: true,
+    });
+    setList(lockedOnReset);
+    setRemaingPercent(100 - lockedOnReset.reduce((sum, b) => sum + b.percent, 0));
     setPrefilled(false);
     setPrefilledPermlink('');
     setPrefilledOwner('');
@@ -1316,6 +1330,23 @@ export function EmbedUploadProvider({ children }) {
         }
       }
 
+      // ─── Channel trailer ───
+      // After the post exists, never before: the checker verifies the permlink
+      // really belongs to this creator before pinning it. Non-fatal — the video
+      // is published either way, so a failure here is a warning, not an error.
+      if (isChannelTrailer) {
+        try {
+          await setChannelTrailer(user, hivePermlink, { author: user });
+          addMessage('Set as your channel trailer', 'success');
+        } catch (trailerErr) {
+          console.warn('Failed to set channel trailer:', trailerErr);
+          addMessage('Published, but could not set it as your channel trailer', 'warning');
+          // Surfaced, not just logged into the status list: the video publishes
+          // fine either way, so a quiet failure looks like the toggle did nothing.
+          toast.error('Published, but could not set it as your channel trailer.');
+        }
+      }
+
       // ─── Done ───
       setStatusText('Completed');
       setPublishedPermlink(hivePermlink);
@@ -1357,6 +1388,7 @@ export function EmbedUploadProvider({ children }) {
     declineRewards, SetDeclineRewards,
     rewardPowerup, setRewardPowerup,
     isNsfw, setIsNsfw,
+    isChannelTrailer, setIsChannelTrailer,
     isScheduled, setIsScheduled,
     scheduleDateTime, setScheduleDateTime,
     // Community data

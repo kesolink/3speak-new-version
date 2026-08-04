@@ -595,6 +595,23 @@ export const getCurrentUser = () => {
   return aioha.getCurrentUser();
 };
 
+/**
+ * The account an operation should be attributed to.
+ *
+ * A ButrAuth session never logs into aioha (there is no wallet provider behind
+ * it), so `aioha.getCurrentUser()` is null for those users. Building an op with
+ * that null puts `required_posting_auths: [null]` on the wire, and the server
+ * rejects it as "Operation not allowed" — which is why every broadcast helper
+ * above reads `user_id` on the ButrAuth branch. Anything assembling ops BY HAND
+ * must use this instead of getCurrentUser().
+ */
+export const getOperationUser = () => {
+  if (isManteAuthLogin()) {
+    try { return localStorage.getItem('user_id') || null; } catch { return null; }
+  }
+  return aioha.getCurrentUser();
+};
+
 // Get current provider
 export const getCurrentProvider = () => {
   return aioha.getCurrentProvider();

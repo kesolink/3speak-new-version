@@ -1,0 +1,126 @@
+@use "../../mixins.scss" as mix;
+
+.profile-overview {
+  .pov-section {
+    margin-bottom: 2rem;
+
+    @include mix.respond(phone) {
+      margin-bottom: 1.4rem;
+    }
+  }
+
+  .pov-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.6rem;
+    padding: 0 0.25rem;
+
+    h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-primary);
+
+      @include mix.respond(phone) {
+        font-size: 0.95rem;
+      }
+    }
+  }
+
+  .pov-more {
+    flex-shrink: 0;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+      background: var(--bg-hover);
+    }
+  }
+
+  // An empty audio list renders its own "nothing here" block; in a preview row
+  // that reads as a broken section, so the whole section hides instead.
+  .pov-section--audio:has(.empty-wrap) {
+    display: none;
+  }
+
+  // ── Every preview list is a horizontal rail ────────────────────────────────
+  // These containers are grids in their own tabs. Here they scroll sideways, so
+  // a section is always exactly one row tall and the page stays scannable no
+  // matter how much a creator has published. Scrollbars are hidden; swipe (or
+  // shift+wheel) does the work, as on the shorts-stories row.
+  .card-container,
+  .playlist-card-container,
+  .audio-tile-grid,
+  .snap-list {
+    display: flex;
+    // Explicit: .snap-list is a COLUMN in its own tab, so without this the
+    // community rail stacks vertically instead of scrolling sideways.
+    flex-direction: row;
+    flex-wrap: nowrap;
+    // Rails always start at the left edge. The tab versions of these lists
+    // centre themselves, which in a one-item rail parks it mid-screen.
+    justify-content: flex-start;
+    gap: 0.75rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.35rem;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar { display: none; }
+
+    > * {
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+      margin-left: 0;      // some of these cards centre themselves with auto
+      margin-right: 0;     // margins, which breaks the rail's spacing
+    }
+  }
+
+  // CommunitySnaps is a centred 720px column in its own tab; as a rail it has to
+  // give that up or the row starts a third of the way across the page.
+  .community-snaps {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  // A snap has no natural height limit (long posts truncate at "Read more"), so
+  // cap it here — one over-long post shouldn't set the height of the whole rail.
+  .snap-list > * {
+    max-height: 320px;
+    overflow: hidden;
+  }
+
+  // Fixed widths per kind, so a rail reads as a row of comparable things.
+  .card-container > * { width: 280px; }
+  .playlist-card-container > * { width: 240px; }
+  .audio-tile-grid > * { width: 200px; }
+  .snap-list > * { width: 330px; white-space: normal; }
+
+  // Shorts are 9:16, so a video-width tile would tower over everything else.
+  // They're the smallest tile here, but not narrower than their own metadata
+  // needs: below ~170px the payout / likes / age row wraps onto a second line.
+  .card-container--shorts > * { width: 172px; }
+
+  @include mix.respond(phone) {
+    .card-container > * { width: 240px; }
+    .playlist-card-container > * { width: 200px; }
+    .audio-tile-grid > * { width: 168px; }
+    .snap-list > * { width: 280px; }
+    .card-container--shorts > * { width: 156px; }
+  }
+}

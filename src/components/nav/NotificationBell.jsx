@@ -194,12 +194,7 @@ function NotificationBell() {
                   >
                     <div className="notif-avatar-wrap">
                       {actor && (
-                        <img
-                          className="notif-avatar"
-                          src={`https://images.hive.blog/u/${actor}/avatar/small`}
-                          alt={actor}
-                          onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-                        />
+                        <NotifAvatar actor={actor} />
                       )}
                       {tier && <span className={`notif-tier-badge notif-tier-${tier}`}>{tier === 'whale' ? '🐋' : '🐬'}</span>}
                     </div>
@@ -241,6 +236,35 @@ function NotificationBell() {
 }
 
 /** Renders a collapsed group row (votes or follows). */
+/**
+ * A notification's actor avatar, with a visible fallback.
+ *
+ * The hive avatar proxy doesn't always answer — on some networks and mobile
+ * browsers (tracking protection, DNS filtering) the request just fails. The old
+ * handler set `visibility: hidden`, which left a blank 32px hole in the row and
+ * made the tier badge look like it was floating on its own. Falling back to the
+ * account's initial keeps the row's shape and still says who it was.
+ */
+function NotifAvatar({ actor, className = 'notif-avatar', style }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span className={`${className} notif-avatar-fallback`} style={style} aria-label={actor}>
+        {String(actor || '?').charAt(0).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    <img
+      className={className}
+      style={style}
+      src={`https://images.hive.blog/u/${actor}/avatar/small`}
+      alt={actor}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function GroupRow({ group, isUnread, is3Speak, getWhaleTier, onClick, hovered, onHover, onLeave }) {
   const { actors = [], items, notifType, date } = group;
   const hasUnread = items.some((n) => isUnread(n));
@@ -276,13 +300,11 @@ function GroupRow({ group, isUnread, is3Speak, getWhaleTier, onClick, hovered, o
     >
       <div className="notif-avatar-stack">
         {topActors.map((actor, i) => (
-          <img
+          <NotifAvatar
             key={actor}
+            actor={actor}
             className="notif-stacked-avatar"
             style={{ zIndex: MAX_STACKED_AVATARS - i, marginLeft: i === 0 ? 0 : -10 }}
-            src={`https://images.hive.blog/u/${actor}/avatar/small`}
-            alt={actor}
-            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
           />
         ))}
         {remaining > 0 && <span className="notif-avatar-more">+{remaining}</span>}
