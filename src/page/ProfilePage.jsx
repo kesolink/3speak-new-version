@@ -47,6 +47,7 @@ import { createPlaylist } from "../utils/playlistOperations";
 import { useQueryClient } from "@tanstack/react-query";
 import ProfileHeader from "../components/ProfileHeader/ProfileHeader";
 import ProfileStats from "../components/ProfileHeader/ProfileStats";
+import ProfileOverview from "../components/Userprofilepage/ProfileOverview";
 import ProfileEditModal from "../components/WelcomePrompt/ProfileEditModal";
 import { FiEdit2 } from "react-icons/fi";
 
@@ -70,7 +71,9 @@ function ProfilePage() {
     if (tab === 'community') return 'community';
     if (tab === 'links') return 'links';
     if (tab === 'stats') return 'stats';
-    return 'video';
+    if (tab === 'video') return 'video';
+    // Same landing tab as the public profile — one profile screen, one behaviour.
+    return 'overview';
   });
   // Sync tab state when URL search params change (e.g. navigating from sidebar)
   useEffect(() => {
@@ -81,14 +84,15 @@ function ProfilePage() {
     else if (tab === 'community') setShow('community');
     else if (tab === 'links') setShow('links');
     else if (tab === 'stats') setShow('stats');
-    else if (!tab) setShow('video');
+    else if (tab === 'video') setShow('video');
+    else if (!tab) setShow('overview');
   }, [searchParams]);
 
   // Switch tab AND reflect it in the URL so browser back-navigation
   // (e.g. returning from an opened short/playlist) lands on the same tab.
   const selectTab = useCallback((tab) => {
     setShow(tab);
-    const q = tab && tab !== 'video' ? `?tab=${tab}` : '';
+    const q = tab && tab !== 'overview' ? `?tab=${tab}` : '';
     navigate(`/profile${q}`, { replace: true });
   }, [navigate]);
 
@@ -517,6 +521,7 @@ function ProfilePage() {
       {/* ================= TOGGLE ================= */}
       <div className="toggle-wrap">
         <div className="wrap">
+          <span className={show === "overview" ? "active" : ""} onClick={() => selectTab("overview")}>Overview</span>
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
@@ -580,7 +585,19 @@ function ProfilePage() {
 
       {/* ================= VIDEO LIST / PLAYLISTS ================= */}
       <div className="container-video">
-        {show === "video" ? (
+        {show === "overview" ? (
+          <ProfileOverview
+            username={user}
+            videos={videoListItems}
+            shorts={shortsVideos}
+            playlists={playlists}
+            snapCount={snapCount}
+            onOpenTab={selectTab}
+            getContentForVideo={getContentForVideo}
+            isWatched={isWatched}
+            getViewCount={getViewCount}
+          />
+        ) : show === "video" ? (
           isLoading ? (
             <BarLoader />
           ) : videoListItems.length === 0 ? (

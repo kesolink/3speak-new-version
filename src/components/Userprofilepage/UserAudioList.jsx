@@ -6,7 +6,8 @@ import BarLoader from '../Loader/BarLoader';
 import icon from '../../../public/images/stack.png';
 import './UserAudioList.scss';
 
-function UserAudioList({ user }) {
+// `limit` renders only the newest N (the Overview tab shows a preview row).
+function UserAudioList({ user, limit = 0 }) {
   const { data: audio = [], isLoading } = useQuery({
     queryKey: ['user-audio', user],
     queryFn: async () => {
@@ -26,9 +27,11 @@ function UserAudioList({ user }) {
     );
   }
 
+  const shown = limit > 0 ? audio.slice(0, limit) : audio;
+
   return (
     <div className="audio-tile-grid user-audio-list-grid">
-      {audio.map((item) => (
+      {shown.map((item) => (
         <AudioTile key={item._id || item.permlink} item={item} contextItems={audio} />
       ))}
     </div>

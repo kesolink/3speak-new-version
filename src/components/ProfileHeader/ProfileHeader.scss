@@ -35,6 +35,25 @@
       @include mix.respond(phone) {
         height: 100%;
       }
+
+      // Our own default banner is a fixed lockup, not a photo: `cover` crops the
+      // sides on a narrow card and the top and bottom on a wide one, which cuts
+      // the logo or the tagline. `contain` keeps all of it visible at every
+      // width, and since the image's own background matches the colour below,
+      // the letterboxing is invisible. Nested so it beats the `cover` above
+      // regardless of source order.
+      &.gradient-bg--default {
+        object-fit: contain;
+        background: #22262b;
+
+        // Phone: the card turns portrait (roughly 378x495), so fitting the WIDTH
+        // would leave the banner as a thin strip floating in empty space. Fill
+        // the height instead and let the sides crop — the mark is centred and
+        // narrow enough to survive it.
+        @include mix.respond(phone) {
+          object-fit: cover;
+        }
+      }
     }
   }
 
@@ -104,7 +123,14 @@
         }
         // Light veil: enough to hold the text against a busy cover, not enough
         // to hide the artwork behind it. The blur does most of the work.
-        background: rgba(2, 6, 23, 0.42);
+        //
+        // --panel-scrim is set inline by ProfileHeader from the MEDIAN luminance
+        // of the cover image (see utils/imageLuminance): a pale banner pushes it
+        // toward 0.82 so white text stays readable, a dark one stays at 0.42 and
+        // the artwork shows through. The 0.42 here is the fallback for covers we
+        // can't sample (missing image, or a host that blocks canvas reads).
+        background: rgba(2, 6, 23, var(--panel-scrim, 0.42));
+        transition: background 0.35s ease;
         backdrop-filter: blur(14px);
         border: 1px solid rgba(148, 163, 184, 0.14);
 
