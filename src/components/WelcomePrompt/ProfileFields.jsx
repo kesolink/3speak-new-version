@@ -4,6 +4,7 @@ import { Camera, MapPin, Loader2 } from 'lucide-react';
 import { saveProfileToHive } from '../../utils/profileMeta';
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
 import { setAvatarOverride, clearAvatarOverride, useAvatarUrl } from '../../utils/avatarCache';
+import defaultCover from '../../assets/image/default-cover.svg';
 
 // The profile picture / display name / bio / location block, shared by the
 // new-user welcome flow and the "Edit" button on your own profile page.
@@ -12,8 +13,8 @@ export const NAME_MAX = 30;
 export const ABOUT_MAX = 160;
 export const LOCATION_MAX = 30;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const EMPTY = { name: '', about: '', location: '', profile_image: '' };
-const FIELDS = ['name', 'about', 'location', 'profile_image'];
+const EMPTY = { name: '', about: '', location: '', profile_image: '', cover_image: '' };
+const FIELDS = ['name', 'about', 'location', 'profile_image', 'cover_image'];
 
 /**
  * Form state + upload + save for the profile block. `seed` fills it from an
@@ -30,6 +31,7 @@ export function useProfileEditor(username) {
       about: profile?.about || '',
       location: profile?.location || '',
       profile_image: profile?.profile_image || '',
+      cover_image: profile?.cover_image || '',
     });
   }, []);
 
@@ -38,7 +40,8 @@ export function useProfileEditor(username) {
     [],
   );
 
-  const pickImage = useCallback(async (e) => {
+  // `field` is 'profile_image' or 'cover_image' — same upload path, different slot.
+  const pickImage = useCallback((field = 'profile_image') => async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file) return;
@@ -55,7 +58,7 @@ export function useProfileEditor(username) {
       // preferStatic: delegated logins (ButrAuth, HiveSigner) can't sign the
       // hive.blog challenge client-side, so skip that fallback.
       const url = await uploadThumbnail(file, username, { preferStatic: true });
-      setForm((f) => ({ ...f, profile_image: url }));
+      setForm((f) => ({ ...f, [field]: url }));
     } catch (err) {
       toast.error(err?.message || 'Could not upload that image');
     } finally {
@@ -89,11 +92,42 @@ export function useProfileEditor(username) {
 
 export default function ProfileFields({ username, form, setField, pickImage, uploading, saving }) {
   const fileRef = useRef(null);
+  const coverRef = useRef(null);
   const currentAvatar = useAvatarUrl(username, null);
   const avatar = form.profile_image || currentAvatar;
+  const cover = form.cover_image || defaultCover;
 
   return (
     <>
+      {/* Banner first: it's the biggest thing on a profile, so it reads as the
+          headline choice rather than an afterthought below the text fields. */}
+      <div className="welcome-cover-row">
+        <button
+          type="button"
+          className="welcome-cover"
+          onClick={() => coverRef.current && coverRef.current.click()}
+          disabled={uploading || saving}
+          aria-label="Upload a profile banner"
+          style={{ backgroundImage: `url(${cover})` }}
+        >
+          <span className="welcome-cover-action">
+            {uploading ? <Loader2 size={15} className="welcome-spin" /> : <Camera size={15} />}
+            {form.cover_image ? 'Change banner' : 'Add a banner'}
+          </span>
+        </button>
+        <span className="welcome-cover-hint">
+          Best at <strong>2800 × 684</strong> px (or any 4:1 image). Keep the important part
+          centred: the sides crop on narrow screens and your name sits over the lower left.
+        </span>
+        <input
+          ref={coverRef}
+          type="file"
+          accept="image/*"
+          onChange={pickImage('cover_image')}
+          style={{ display: 'none' }}
+        />
+      </div>
+
       <div className="welcome-avatar-row">
         <button
           type="button"
@@ -109,9 +143,13 @@ export default function ProfileFields({ username, form, setField, pickImage, upl
         </button>
         <div className="welcome-avatar-text">
           <strong>Profile picture</strong>
-          <span>{uploading ? 'Uploading…' : 'A face or a logo works best. JPG or PNG, up to 8MB.'}</span>
+          <span>
+            {uploading
+              ? 'Uploading…'
+              : 'A face or a logo works best. Square, 400 × 400 px or larger. Up to 8MB.'}
+          </span>
         </div>
-        <input ref={fileRef} type="file" accept="image/*" onChange={pickImage} style={{ display: 'none' }} />
+        <input ref={fileRef} type="file" accept="image/*" onChange={pickImage('profile_image')} style={{ display: 'none' }} />
       </div>
 
       <label className="welcome-field">

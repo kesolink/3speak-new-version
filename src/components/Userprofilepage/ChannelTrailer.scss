@@ -1,0 +1,186 @@
+@use "../../mixins.scss" as mix;
+
+// Trailer on the left, then the post's title + description, then the newest
+// community note. The PLAYER is the reference: it holds a strict 16:9 box and
+// its height sets the height of both text columns, which clip rather than
+// stretch it. (align-items: stretch would have squashed the video to whatever
+// height the text happened to want.)
+.channel-trailer-row {
+  --ct-player-w: 675px;                                  // 75% of the old 900px
+  --ct-player-h: calc(var(--ct-player-w) * 9 / 16);
+  --ct-gap: 1.25rem;
+
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--ct-gap);
+  margin: 0 auto 1.5rem;
+
+  @include mix.respond(phone) {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+}
+
+.channel-trailer {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--ct-player-w);
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  @include mix.respond(phone) {
+    width: 100%;
+    border-radius: 10px;
+  }
+}
+
+// The two side columns split what's left beside the player, and each is exactly
+// the player's height. Overflow is clipped, not scrolled: a scrollbar next to an
+// autoplaying video reads as a second, competing pane.
+.channel-trailer-meta,
+.channel-trailer-snap {
+  flex: 0 1 auto;
+  width: calc((100% - var(--ct-player-w) - (2 * var(--ct-gap))) / 2);
+  min-width: 240px;
+  height: var(--ct-player-h);
+  overflow: hidden;
+  // Fade the last visible line so a clipped block looks deliberate.
+  mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
+
+  @include mix.respond(phone) {
+    // Stacked: no player height to match, and the halving only makes sense
+    // side by side.
+    width: 100%;
+    height: auto;
+    max-height: 7.5rem;
+  }
+}
+
+.channel-trailer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.15rem;
+
+  .ct-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text-primary);
+    text-decoration: none;
+
+    &:hover { color: var(--accent-primary); }
+
+    @include mix.respond(phone) {
+      font-size: 1rem;
+    }
+  }
+
+  // Views + age, between the title and the description. Dimmer than both: it's
+  // context, not content.
+  .ct-sub {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+
+    .ct-dot { opacity: 0.7; }
+  }
+
+  .ct-desc {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    white-space: pre-line;   // keep the author's paragraph breaks
+  }
+}
+
+// SnapCard is built for a centred 720px column; here it just fills its slot.
+.channel-trailer-snap {
+  .community-snaps,
+  .snap-card {
+    max-width: none;
+    margin: 0;
+    width: 100%;
+  }
+}
+
+// Autoplay only works muted, so the way back to sound has to be obvious.
+.channel-trailer-unmute {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 2;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.7);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover { background: rgba(2, 6, 23, 0.9); }
+}
+
+// Owner-only prompt shown in place of the trailer when none is set.
+.channel-trailer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+
+  .cte-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+
+    strong { font-size: 0.95rem; color: var(--text-primary); }
+    span { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.35; }
+  }
+
+  .cte-btn {
+    flex: 0 0 auto;
+    padding: 0.5rem 0.9rem;
+    border-radius: 10px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--text-inverse, #fff);
+    background: var(--accent-primary);
+    transition: background 0.15s ease;
+
+    &:hover { background: var(--accent-hover); }
+  }
+
+  @include mix.respond(phone) {
+    align-items: stretch;
+    .cte-btn { text-align: center; }
+  }
+}

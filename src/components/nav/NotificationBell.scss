@@ -173,9 +173,15 @@
 }
 
 // ─── Avatar ──────────────────────────
+// Fixed box, even when there's no avatar to show. The tier badge is positioned
+// against this wrapper (right: -4px), so with no actor image the wrapper
+// collapsed to 0 wide and threw the 🐬 / 🐋 badge out past the row's left
+// padding, where the dropdown clipped it.
 .notif-avatar-wrap {
   position: relative;
   flex-shrink: 0;
+  width: 32px;
+  height: 32px;
 }
 
 .notif-avatar {
@@ -187,12 +193,32 @@
   background: var(--bg-tertiary);
 }
 
+// Shown when the avatar image can't be fetched (see NotifAvatar): the account's
+// initial, so the row keeps its shape and still identifies who it was.
+.notif-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+// Tucked INSIDE the avatar box rather than hanging off it: on a phone the row
+// starts at the dropdown's edge, so a badge overhanging to the left was cut off.
 .notif-tier-badge {
   position: absolute;
-  bottom: -2px;
-  right: -4px;
+  bottom: -1px;
+  right: -1px;
   font-size: 12px;
   line-height: 1;
+  // A dark disc behind the emoji so it reads against any avatar.
+  background: var(--bg-secondary);
+  border-radius: 50%;
+  padding: 1px;
 }
 
 // ─── Stacked avatars (groups) ────────

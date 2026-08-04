@@ -1,4 +1,4 @@
-import { customJsonWithAioha, broadcastWithAioha, getCurrentUser } from '../hive-api/aioha';
+import { customJsonWithAioha, broadcastWithAioha, getOperationUser } from '../hive-api/aioha';
 import { KeyTypes } from '@aioha/aioha';
 
 const PLAYLIST_PREFIX = '3speak_playlist_';
@@ -175,7 +175,11 @@ export async function deletePlaylist(playlistId) {
  * @returns {Promise<object>} Result from Aioha
  */
 export async function createPlaylistAndAdd(name, access, playlistId, author, permlink, tags = []) {
-  const user = getCurrentUser();
+  // These two ops are hand-assembled (they're batched into ONE transaction), so
+  // they need the ButrAuth-aware username — aioha has no user for those sessions
+  // and `[null]` auths come back as "Operation not allowed".
+  const user = getOperationUser();
+  if (!user) throw new Error('Not logged in');
 
   const createPayload = {
     name,

@@ -4,6 +4,7 @@ import '@snapie/hangouts-react/src/styles/hangouts.css';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAioha } from '@aioha/react-ui';
 import { useHangout } from '../context/HangoutContext';
+import { broadcastWithAioha, getOperationUser } from '../hive-api/aioha';
 import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
 import { providerSignPrompt } from '../utils/aiohaProviderUi';
@@ -19,6 +20,9 @@ import './OpenPods.scss';
 const API_URL = (import.meta.env.VITE_HANGOUTS_API_URL || '').replace(/\/$/, '');
 const LK_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://livekit.3speak.tv';
 const IMAGE_KEY = import.meta.env.VITE_IMAGE_SERVER_API_KEY;
+// Premium/Pro (/premium/*) is served by the hangouts deployment that has those
+// routes — not (yet) the prod rooms API. Empty ⇒ falls back to apiBaseUrl.
+const PREMIUM_API = (import.meta.env.VITE_HANGOUTS_PREMIUM_API_URL || '').replace(/\/$/, '');
 
 export default function OpenPods() {
   const { openRoom, activeRoom, sessionToken, sessionLoading, hangoutsUser, retryLogin } = useHangout();
@@ -149,6 +153,10 @@ export default function OpenPods() {
     navigate(`/openpods/${encodeURIComponent(name)}`, { replace: true });
   }, [navigate, openRoom]);
 
+  // The Pro offer now lives in the SDK, rendered by CreateRoomDialog right
+  // beside the locked recording checkboxes — a better moment than this page's
+  // old post-create interception, which could only fire once the host had
+  // already committed. Nothing to defer here any more.
   const handleRoomCreated = async (room, options) => {
     // Open the modal immediately — don't wait for the Hive post
     openRoomAtUrl(room.name);
@@ -212,6 +220,17 @@ export default function OpenPods() {
         sessionToken={sessionToken || undefined}
         username={hangoutsUser || undefined}
         aioha={aioha}
+        /* Premium + the free trial are served by the hangouts deployment that
+           has /premium routes, which is not (yet) the prod rooms API. */
+        premiumApiBaseUrl={PREMIUM_API || undefined}
+        theme={hhTheme}
+        pro={{
+          /* 3Speak's wrapper, not raw aioha: it handles the ButrAuth /
+             HiveSigner proxy paths. And ButrAuth sessions carry no aioha user,
+             so the username has to come from getOperationUser(). */
+          broadcastOps: (ops, keyType) => broadcastWithAioha(ops, keyType),
+          getUsername: () => getOperationUser() || user,
+        }}
       >
         <RoomLobby
           key={`create-${createReq.mode ?? 'any'}-${createReq.seq}`}

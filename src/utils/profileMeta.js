@@ -19,7 +19,7 @@ function parseMeta(raw) {
 
 // The fields the welcome flow is allowed to write. Anything else already in the
 // profile (cover_image, website, …) is copied through untouched.
-export const EDITABLE_PROFILE_FIELDS = ['name', 'about', 'location', 'profile_image'];
+export const EDITABLE_PROFILE_FIELDS = ['name', 'about', 'location', 'profile_image', 'cover_image'];
 
 // Fields that count as "this account has been set up already".
 const PRESENCE_FIELDS = ['name', 'about', 'location', 'profile_image', 'cover_image'];

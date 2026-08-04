@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '../../hive-api/api';
 // Aliased: this component already has a local `isCreatorHidden` boolean (the
@@ -16,7 +16,7 @@ import axios from 'axios';
 import { MY_VIDEOS_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
-import { MdAdd, MdClose, MdPlayArrow, MdFlag } from 'react-icons/md';
+import { MdAdd, MdClose, MdPlayArrow, MdFlag, MdChatBubbleOutline } from 'react-icons/md';
 import ReportModal, { isReported } from '../modal/ReportModal';
 import { RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
 import { BiDollar } from 'react-icons/bi';
@@ -43,6 +43,8 @@ import { fetchSnaps } from '../../lib/snaps';
 import SocialLinks from './SocialLinks';
 import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
+import ProfileStats from '../ProfileHeader/ProfileStats';
+import ProfileOverview from './ProfileOverview';
 
 
 
@@ -64,7 +66,10 @@ function UserProfilePage() {
       if (tab === 'community') return 'community';
       if (tab === 'links') return 'links';
       if (tab === 'stats') return 'stats';
-      return 'video';
+      if (tab === 'video') return 'video';
+      // Overview is the landing tab: it shows what KIND of channel this is
+      // before dropping the visitor into one endless list.
+      return 'overview';
     });
 
     // Keep tab state in sync with the URL (browser back/forward, sidebar links)
@@ -76,16 +81,26 @@ function UserProfilePage() {
       else if (tab === 'community') setShow('community');
       else if (tab === 'links') setShow('links');
       else if (tab === 'stats') setShow('stats');
-      else if (!tab) setShow('video');
+      else if (tab === 'video') setShow('video');
+      else if (!tab) setShow('overview');
     }, [searchParams]);
 
     // Switch tab AND reflect it in the URL so browser back-navigation
     // (e.g. returning from an opened short/playlist) lands on the same tab.
     const selectTab = useCallback((tab) => {
       setShow(tab);
-      const q = tab && tab !== 'video' ? `?tab=${tab}` : '';
+      const q = tab && tab !== 'overview' ? `?tab=${tab}` : '';
       navigate(`${location.pathname}${q}`, { replace: true });
     }, [navigate, location.pathname]);
+
+    // Tabs are a horizontal scroll rail, so the selected one can start out
+    // off-screen — most obviously when a deep link lands on a late tab like
+    // Analytics. Bring it into view on change.
+    const tabsRef = useRef(null);
+    useEffect(() => {
+      const active = tabsRef.current?.querySelector('span.active');
+      active?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+    }, [show]);
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -385,7 +400,13 @@ const {
       }, [authenticated, authenticatedUser, user]);
 
       const handleFollowToggle = async () => {
-        if (!authenticated || followLoading) return;
+        // Follow is the point of a profile, so the button shows to signed-out
+        // visitors too — it just asks them to sign in (same as AuthorBadge).
+        if (!authenticated) {
+          toast.error('Please login to follow users');
+          return;
+        }
+        if (followLoading) return;
         setFollowLoading(true);
         try {
           await followWithAioha(user, !isFollowing);
@@ -448,6 +469,31 @@ const {
         name={user}
         fetchBio
         showHandle
+        meta={<ProfileStats username={user} followers={follower?.follower_count} onFollowersClick={() => setShow("follower")} />}
+        nameActions={!isOwnProfile ? (
+          <>
+            {/* Own classes, not btn-follow: a global
+                `[data-theme="dark"] .btn-follow` rule forces the red outline
+                with !important, and these are deliberately not red. */}
+            <button
+              className={`btn ${isFollowing ? 'btn-hero-following' : 'btn-hero-follow'}`}
+              onClick={handleFollowToggle}
+              disabled={followLoading}
+            >
+              {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
+            </button>
+            <button
+              className="btn btn-hero-message"
+              title={`Message @${user}`}
+              onClick={() => {
+                if (!authenticated) { toast.error('Please login to send a message'); return; }
+                navigate(`/chat?dm=${encodeURIComponent(user)}`);
+              }}
+            >
+              <MdChatBubbleOutline /> Message
+            </button>
+          </>
+        ) : null}
         badges={
           <>
             <span className="status-dot">
@@ -459,23 +505,8 @@ const {
         }
         actions={
           <>
-            <button className="btn btn-primary" onClick={() => setShow("follower")}>
-              Followers{" "}
-              {follower?.follower_count !== undefined ? (
-                follower.follower_count
-              ) : (
-                <Quantum size="15" speed="1.75" color="red" />
-              )}
-            </button>
-            {authenticated && (
-              <button
-                className={`btn ${isFollowing ? 'btn-following' : 'btn-follow'}`}
-                onClick={handleFollowToggle}
-                disabled={followLoading}
-              >
-                {followLoading ? 'Loading...' : isFollowing ? 'Following' : 'Follow'}
-              </button>
-            )}
+            {/* The follower pill is gone — the count lives in the stat line
+                under the bio, which opens this same list when clicked. */}
             {authenticated && !isOwnProfile && (
               <button
                 className={`btn ${isCreatorHidden ? 'btn-hidden-creator' : 'btn-secondary'}`}
@@ -490,15 +521,6 @@ const {
                   : isCreatorHidden
                     ? <><IoEyeOutline /> Unhide</>
                     : <><IoBanOutline /> Hide</>}
-              </button>
-            )}
-            {authenticated && !isOwnProfile && (
-              <button
-                className="btn btn-secondary"
-                title={`Message @${user}`}
-                onClick={() => navigate(`/chat?dm=${encodeURIComponent(user)}`)}
-              >
-                Write message
               </button>
             )}
             <button
@@ -534,7 +556,8 @@ const {
         }
       />
       <div className="toggle-wrap">
-        <div className="wrap">
+        <div className="wrap" ref={tabsRef}>
+          <span className={show === "overview" ? "active" : ""} onClick={() => selectTab("overview")}>Overview</span>
           <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
           <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
@@ -555,11 +578,27 @@ const {
           {canSeeStats && (
             <span className={show === "stats" ? "active" : ""} onClick={() => selectTab("stats")}>Analytics</span>
           )}
+          {/* Wallet navigates away rather than switching tabs, but it lives IN
+              the tab flow: floated outside it, it took its own line on a phone
+              and pushed the last tab onto a third. */}
+          <span className="tab-wallet" onClick={()=>{handleWalletNavigate(user)}}>Wallet</span>
         </div>
-        <span className="followers" onClick={()=>{handleWalletNavigate(user)}}>wallet</span>
       </div>
       <div className="container-video">
-  {show === "video" ? (
+  {show === "overview" ? (
+    <ProfileOverview
+      username={user}
+      isOwnProfile={isOwnProfile}
+      videos={videos}
+      shorts={shortsVideos}
+      playlists={playlists}
+      snapCount={snapCount}
+      onOpenTab={selectTab}
+      getContentForVideo={getContentForVideo}
+      isWatched={isWatched}
+      getViewCount={getViewCount}
+    />
+  ) : show === "video" ? (
     isLoading ? (
       <BarLoader />
     ) : videos?.length === 0 ? (
@@ -615,7 +654,7 @@ const {
       )}
     </>
   ) : (
-    <Follower count={follower} />
+    <Follower count={follower} username={user} />
   )}
 </div>
 

@@ -34,6 +34,7 @@ function EmbedDetails() {
     fromStories,
     reusable, setReusable,
     isNsfw, setIsNsfw,
+    isChannelTrailer, setIsChannelTrailer,
     originalAuthor, originalPermlink,
     startEarlyUpload,
   } = useEmbedUpload();
@@ -286,6 +287,23 @@ function EmbedDetails() {
                     <span className="toggle-track"><span className="toggle-thumb" /></span>
                   </label>
                 </div>
+                {/* Not offered for shorts: the Overview trailer frame is 16:9. */}
+                {!fromStories && (
+                  <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                    <div className="wrap">
+                      <span>Mark as channel trailer</span>
+                      <span>Plays automatically at the top of your profile's <strong>Overview</strong> tab, replacing any trailer you set before.</span>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={!!isChannelTrailer}
+                        onChange={(e) => setIsChannelTrailer(e.target.checked)}
+                      />
+                      <span className="toggle-track"><span className="toggle-thumb" /></span>
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Schedule section — only for regular videos (not shorts). When toggled on,

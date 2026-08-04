@@ -425,7 +425,14 @@
     .profile {
       width: 40px;
     }
-    img {
+    // ⚠️ Scoped to the nav's OWN avatar. As a bare `img` this matched every
+    // image inside .nav-right — including all the avatars and icons in the
+    // notifications dropdown, which sits in this subtree — so on phone and
+    // tablet every notification row lost its avatar and its 3Speak icon.
+    // The avatar itself is still hidden on mobile on purpose: the bottom bar
+    // carries the profile entry there.
+    > img,
+    > .nav-avatar-wrap img {
       width: 35px;
       height: 35px;
       border-radius: 50%;
