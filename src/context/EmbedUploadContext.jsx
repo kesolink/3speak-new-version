@@ -154,6 +154,18 @@ export function EmbedUploadProvider({ children }) {
   const [completed, setCompleted] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
+  // Structured detail for the progress bar's diagnostics line. The percentage
+  // alone cannot distinguish "slow" from "wedged", which is the whole problem
+  // with an upload that sits at 0%: the user needs to see WHICH method is in
+  // play, WHAT it is waiting on, and whether bytes are actually moving.
+  //   method:  'resumable' (TUS) | 'reliable' (chunked fallback)
+  //   phase:   short human label for the current step
+  //   sent/total, chunksDone/chunksTotal: byte + chunk counters (may be absent)
+  //   attempt/attempts: retry position, when retrying
+  const [uploadDetail, setUploadDetail] = useState(null);
+  const patchUploadDetail = useCallback((patch) => {
+    setUploadDetail((prev) => ({ ...(prev || {}), ...patch }));
+  }, []);
   const [statusMessages, setStatusMessages] = useState([]);
   const [embedUrl, setEmbedUrl] = useState('');
   // Hive permlink of the just-published post — used by the success screen to
@@ -274,6 +286,7 @@ export function EmbedUploadProvider({ children }) {
     setCompleted(false);
     setUploadProgress(0);
     setStatusText('');
+    setUploadDetail(null);
     setStatusMessages([]);
     setEmbedUrl('');
     setPublishedPermlink('');
@@ -426,11 +439,25 @@ export function EmbedUploadProvider({ children }) {
       // accept and then black-hole. First ack ⇒ PATCH works ⇒ disarm the watchdog.
       onChunkComplete: (chunkSize, bytesAccepted) => {
         if (bytesAccepted > 0 && !firstAck) { firstAck = true; clearWatchdog(); }
+        // Server-confirmed bytes. Distinct from onProgress below, which is only
+        // "pushed into the socket" — the gap between the two is exactly what a
+        // black-holing proxy looks like, so show both.
+        patchUploadDetail({ acked: bytesAccepted, phase: 'Uploading' });
       },
       onProgress: (bytesUploaded, bytesTotal) => {
         const pct = Math.round((bytesUploaded / bytesTotal) * 100);
         setUploadProgress(pct);
         setStatusText(`Uploading video... ${pct}%`);
+        patchUploadDetail({
+          method: 'resumable',
+          phase: firstAck ? 'Uploading' : 'Waiting for first server ack…',
+          // Keep the spinner up through the pre-ack window even though bytes are
+          // leaving: that gap is exactly where a PATCH-eating proxy hides, so
+          // "sending, nothing acknowledged" must not look like healthy progress.
+          waitingOn: firstAck ? undefined : 'first server ack — 15s watchdog',
+          sent: bytesUploaded,
+          total: bytesTotal,
+        });
       },
       onSuccess: () => { clearWatchdog(); resolveDone(); },
       onAfterResponse: (req, res) => {
@@ -492,8 +519,10 @@ export function EmbedUploadProvider({ children }) {
       let selfAborted = null;
       let lastByteAt = Date.now();
       let stallTimer = null;
+      let deadlineTimer = null;
       const done = () => {
         if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
+        if (deadlineTimer) { clearTimeout(deadlineTimer); deadlineTimer = null; }
         uploadXhrsRef.current.delete(xhr);
       };
 
@@ -508,6 +537,11 @@ export function EmbedUploadProvider({ children }) {
           if (Date.now() - lastByteAt > opts.stallMs) {
             selfAborted = 'STALLED';
             try { xhr.abort(); } catch { /* already gone */ }
+            // Settle directly, same reasoning as the deadline below: a swallowed
+            // request may never dispatch ANY event, so the watchdog cannot depend
+            // on abort() producing one.
+            done();
+            reject(Object.assign(new Error('Upload stalled — no data moved'), { code: 'STALLED', retryable: true }));
           }
         }, 2000);
       }
@@ -519,6 +553,24 @@ export function EmbedUploadProvider({ children }) {
           done();
           reject(Object.assign(new Error('Request timed out'), { code: 'TIMEOUT', retryable: true }));
         };
+        // `xhr.timeout` only starts counting once send() actually dispatches the
+        // request. A middlebox that swallows the request whole never lets it get
+        // that far, so ontimeout never fires and the promise hangs forever — the
+        // "stuck at 0%, upload never starts" report. Own the deadline ourselves so
+        // it holds even when the request never leaves. Slightly later than
+        // xhr.timeout so the native event wins when the request DID go out.
+        //
+        // Settle the promise HERE rather than relying on abort() to fire onabort:
+        // when the request never really left, there is no guarantee any event is
+        // dispatched at all, and a deadline that depends on the very machinery it
+        // is guarding against is not a deadline. reject() after settle is a no-op,
+        // so the native onabort path staying is harmless.
+        deadlineTimer = setTimeout(() => {
+          selfAborted = 'TIMEOUT';
+          try { xhr.abort(); } catch { /* already gone */ }
+          done();
+          reject(Object.assign(new Error('Request timed out'), { code: 'TIMEOUT', retryable: true }));
+        }, opts.timeoutMs + 1000);
       }
       xhr.onload = () => {
         done();
@@ -534,7 +586,10 @@ export function EmbedUploadProvider({ children }) {
       xhr.onabort = () => {
         done();
         if (selfAborted) {
-          reject(Object.assign(new Error('Upload stalled — no data moved'), { code: selfAborted, retryable: true }));
+          const msg = selfAborted === 'TIMEOUT'
+            ? 'Request timed out'
+            : 'Upload stalled — no data moved';
+          reject(Object.assign(new Error(msg), { code: selfAborted, retryable: true }));
         } else {
           reject(Object.assign(new Error('Aborted'), { code: 'ABORTED' }));
         }
@@ -592,7 +647,7 @@ export function EmbedUploadProvider({ children }) {
     try { stored = localStorage.getItem(fpKey); } catch { /* ignore */ }
     if (stored) {
       try {
-        const st = await postForm(`${base}/upload/chunk/status`, { sessionId: stored });
+        const st = await postForm(`${base}/upload/chunk/status`, { sessionId: stored }, null, { timeoutMs: 15000 });
         if (st && Number.isFinite(st.totalChunks)) {
           sessionId = stored;
           totalChunks = st.totalChunks;
@@ -612,13 +667,59 @@ export function EmbedUploadProvider({ children }) {
       embedFromServer = tokenRes.data?.embed_url || '';
       if (!token) throw new Error('Failed to obtain upload token');
 
-      const created = await postForm(`${base}/upload/chunk/create`, {
-        token,
-        filename: file.name,
-        duration: String(Math.round(videoDuration)),
-        size: String(size),
-        chunkSize: String(chunkSize),
-      });
+      // The control-plane calls (create/status/finish) carry no payload worth
+      // speaking of, so the byte-based stall watchdog cannot guard them — nothing
+      // ever "moves" for it to notice. They get a hard deadline instead, and
+      // create is retried: a middlebox that swallows chunk POSTs swallows THIS
+      // one too, and an unguarded create is precisely the failure where the bar
+      // sits at 0% and the upload never starts at all.
+      // Short deadline on purpose: create carries a handful of form fields, so if
+      // it has not answered in 15s the path is dead, not slow. A long timeout here
+      // buys nothing and just leaves the bar sitting at 0% with no explanation.
+      const CREATE_TIMEOUT_MS = 15000;
+      const CREATE_ATTEMPTS = 3;
+      let created = null;
+      let createErr = null;
+      for (let attempt = 0; attempt < CREATE_ATTEMPTS && !created; attempt++) {
+        // Say something BEFORE the first attempt too. Otherwise the whole first
+        // deadline elapses with the bar frozen at 0% and no status change, which
+        // reads exactly like the hang this guard was added to prevent.
+        setStatusText(attempt === 0
+          ? 'Starting upload…'
+          : `Connection unstable — retrying… (${attempt + 1}/${CREATE_ATTEMPTS})`);
+        patchUploadDetail({
+          method: 'reliable',
+          phase: attempt === 0 ? 'Opening upload session' : 'Retrying upload session',
+          waitingOn: `POST /upload/chunk/create — ${CREATE_TIMEOUT_MS / 1000}s deadline`,
+          attempt: attempt + 1,
+          attempts: CREATE_ATTEMPTS,
+          sent: 0,
+          total: size,
+        });
+        if (attempt > 0) {
+          await sleep(2000 * attempt);
+        }
+        try {
+          created = await postForm(
+            `${base}/upload/chunk/create`,
+            {
+              token,
+              filename: file.name,
+              duration: String(Math.round(videoDuration)),
+              size: String(size),
+              chunkSize: String(chunkSize),
+            },
+            null,
+            { timeoutMs: CREATE_TIMEOUT_MS },
+          );
+        } catch (e) {
+          if (e?.code === 'ABORTED') throw e;   // user hit reset — stop
+          createErr = e;
+        }
+      }
+      if (!created) {
+        throw createErr || new Error('Could not start the upload — please retry');
+      }
       sessionId = created.sessionId;
       totalChunks = created.totalChunks;
       chunkSize = created.chunkSize;
@@ -638,6 +739,18 @@ export function EmbedUploadProvider({ children }) {
       const pct = size ? Math.min(99, Math.floor((live / size) * 100)) : 0;
       setUploadProgress(pct);
       setStatusText(`Uploading video... ${pct}%`);
+      patchUploadDetail({
+        method: 'reliable',
+        phase: 'Uploading',
+        waitingOn: undefined,   // session is open; we are moving, not waiting
+        attempt: undefined,
+        attempts: undefined,
+        sent: live,
+        acked: serverBytes,
+        total: size,
+        chunksDone: received.size,
+        chunksTotal: totalChunks,
+      });
     };
     paint();
 
@@ -719,9 +832,78 @@ export function EmbedUploadProvider({ children }) {
     await Promise.all(Array.from({ length: workers }, worker));
     if (failed) throw failed;
 
-    const fin = await postForm(`${base}/upload/chunk/finish`, { sessionId });
+    const fin = await postForm(`${base}/upload/chunk/finish`, { sessionId }, null, { timeoutMs: 60000 });
     try { localStorage.removeItem(fpKey); } catch { /* ignore */ }
     return fin.embed_url || embedFromServer || '';
+  }, [user, fromStories, videoFile, videoDuration, postForm]);
+
+  // TIER 3, last resort: ONE multipart POST carrying the whole file.
+  //
+  // Why it can help when the other two are dead: it is the smallest possible
+  // request shape. No PATCH (tier 1's weak spot), no session handshake and no
+  // repeated same-shaped POSTs (tier 2's), just a single ordinary form upload of
+  // the kind every proxy on earth already passes. A middlebox that mangles the
+  // chunk protocol often waves this straight through.
+  //
+  // The trade is real and it is why this is LAST, not first: there is no resume.
+  // One drop and the whole file starts over, so on a genuinely bad link this can
+  // burn a lot of bandwidth for nothing. Guarded by stallMs (byte-based) and
+  // deliberately NOT by a hard timeout — a slow-but-moving upload must never be
+  // killed for being slow, which is the whole point of offering it.
+  const runSimpleUpload = useCallback(async () => {
+    const base = (EMBED_API_URL || '').replace(/\/+$/, '');
+    const file = videoFile;
+    if (!file) throw new Error('No video selected');
+    const size = file.size;
+
+    setStatusText('Trying one last method — sending in a single request…');
+    patchUploadDetail({
+      method: 'single-shot',
+      phase: 'Sending whole file in one request (no resume)',
+      waitingOn: 'POST /upload/simple',
+      attempt: undefined,
+      attempts: undefined,
+      chunksDone: undefined,
+      chunksTotal: undefined,
+      acked: undefined,
+      sent: 0,
+      total: size,
+    });
+
+    const tokenRes = await axios.post(
+      `${base}/uploads/token`,
+      { owner: user, frontend_app: '3speak-tv', short: !!fromStories },
+      { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } },
+    );
+    const token = tokenRes.data?.token;
+    if (!token) throw new Error('Failed to obtain upload token');
+
+    const res = await postForm(
+      `${base}/upload/simple`,
+      {
+        token,
+        filename: file.name,
+        duration: String(Math.round(videoDuration)),
+        frontend_app: '3speak-tv',
+      },
+      { file },
+      {
+        stallMs: 60000,
+        onProgress: (loaded) => {
+          const pct = size ? Math.min(99, Math.floor((loaded / size) * 100)) : 0;
+          setUploadProgress(pct);
+          setStatusText(`Uploading in a single request… ${pct}%`);
+          patchUploadDetail({
+            sent: loaded,
+            total: size,
+            waitingOn: loaded > 0 ? undefined : 'POST /upload/simple',
+          });
+        },
+      },
+    );
+
+    if (!res || !res.embed_url) throw new Error('Single-request upload did not return an embed URL');
+    return res.embed_url;
   }, [user, fromStories, videoFile, videoDuration, postForm]);
 
   // Upload with automatic fallback. Primary path is TUS on the least-busy host;
@@ -732,10 +914,24 @@ export function EmbedUploadProvider({ children }) {
   const runUploadWithFallback = useCallback(async (generatedPermlink) => {
     const reliableBase = (EMBED_API_URL || '').replace(/\/+$/, '');
 
+    // Chunked, then the single-request last resort if chunked itself is dead.
+    // A user reset (ABORTED) is deliberate and must never escalate to another
+    // attempt — only genuine transport failures fall through.
+    const chunkedThenSimple = async () => {
+      try {
+        return await runChunkedUpload();
+      } catch (chunkErr) {
+        if (chunkErr?.code === 'ABORTED') throw chunkErr;
+        console.warn('Chunked upload failed — trying single-request fallback', chunkErr);
+        toast.message('Still stuck — trying one last upload method.');
+        return await runSimpleUpload();
+      }
+    };
+
     if (forceReliableUpload || sessionForcedReliableRef.current) {
       chosenEmbedBaseRef.current = reliableBase;
       setSelectedEndpoint(reliableBase);
-      return await runChunkedUpload();
+      return await chunkedThenSimple();
     }
 
     const { base, uploadUrl } = await pickEmbedEndpoint();
@@ -752,11 +948,11 @@ export function EmbedUploadProvider({ children }) {
         setUploadProgress(0);
         chosenEmbedBaseRef.current = reliableBase;
         setSelectedEndpoint(reliableBase);
-        return await runChunkedUpload();
+        return await chunkedThenSimple();
       }
       throw err;
     }
-  }, [forceReliableUpload, runTusUpload, runChunkedUpload]);
+  }, [forceReliableUpload, runTusUpload, runChunkedUpload, runSimpleUpload]);
 
   // Kick off the background upload (called when the user reaches "Add details").
   // Idempotent: only starts once per selected video. The embed asset gets its own
@@ -795,6 +991,11 @@ export function EmbedUploadProvider({ children }) {
         earlyUploadStartedRef.current = false;
         earlyUploadPromiseRef.current = null;
         setVideoUploadStatus('error');
+        // Say WHY, in the bar the user is actually looking at. Without this the
+        // last thing on screen stays "retrying…" forever, which is
+        // indistinguishable from the hang these guards exist to prevent.
+        setStatusText(err?.message || 'Upload failed — please retry');
+        toast.error(err?.message || 'Upload failed — please retry');
         return '';
       }
     })();
@@ -1404,6 +1605,7 @@ export function EmbedUploadProvider({ children }) {
     completed, setCompleted,
     uploadProgress, setUploadProgress,
     statusText, setStatusText,
+    uploadDetail, setUploadDetail,
     statusMessages, setStatusMessages,
     embedUrl, setEmbedUrl,
     publishedPermlink,
