@@ -7,6 +7,48 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.27',
+    date: '2026-08-11',
+    summary:
+      'Notifications read more naturally, with mentions and replies now worded correctly whether one other person is involved or several.',
+  },
+  {
+    version: '1.78.26',
+    date: '2026-08-11',
+    summary:
+      'Interests got easier to set: you can now pick a whole area (like Gaming) as an interest, and find any area just by typing its name. Discover follows your picks more closely, with related topics just behind them.',
+  },
+  {
+    version: '1.78.25',
+    date: '2026-08-11',
+    summary:
+      'Subtitles now load more dependably on the watch page. Turn them on with the CC button in the player and pick your language.',
+  },
+  {
+    version: '1.78.24',
+    date: '2026-08-11',
+    summary:
+      'Creator Analytics are sharper: each video now reports its true length, so the retention graph and the most replayed bar on your Analytics tab reflect how people really watch.',
+  },
+  {
+    version: '1.78.23',
+    date: '2026-08-11',
+    summary:
+      'Uploading is smoother: smaller files take a quicker single-step path, and larger uploads keep moving steadily from start to finish.',
+  },
+  {
+    version: '1.78.22',
+    date: '2026-08-11',
+    summary:
+      'Profile tabs now show counts at a glance: Videos, Shorts and Audio each display how many there are, alongside the Community and Playlists counts.',
+  },
+  {
+    version: '1.78.21',
+    date: '2026-08-11',
+    summary:
+      'Profile Overview links now go where you expect: Read more under the channel trailer opens that video, and Read more on a community post opens it in the Community tab.',
+  },
+  {
     version: '1.78.20',
     date: '2026-08-04',
     summary:
