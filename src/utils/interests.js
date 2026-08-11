@@ -60,11 +60,44 @@ function parsePostingMeta(account) {
   return {};
 }
 
+// v1 slugs that v2 dropped, mapped to their nearest surviving topic so an old
+// pick keeps expressing something. `tutorial` was v1-only and the v2 auto-tagger
+// never emits it, so it matches literally zero videos site-wide; education is the
+// closest thing the taxonomy still has.
+const LEGACY_TAG_MIGRATIONS = { tutorial: 'education' };
+
+/**
+ * Canonicalise an interest list: migrate retired slugs, drop unknowns, dedupe.
+ *
+ * Both ends of this file used to filter against INTEREST_ID_SET, the RETIRED v1
+ * vocabulary of 16 tags, while the picker had long since moved to v2. So every
+ * one of the 7 categories AND every v2-only topic (programming, business,
+ * film-tv, lifestyle, comedy, story-time, commercial, diy-crafts, photography,
+ * pets, gardening, fitness, spirituality, politics) was silently discarded — on
+ * SAVE before broadcasting, and again on READ. Picking "Programming" appeared to
+ * work and stored nothing. Accept the full v2 vocabulary, keeping v1 ids valid so
+ * accounts saved by the old prod picker still load.
+ */
+function normalizeInterestList(list) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of list || []) {
+    const t = String(raw || '').trim().toLowerCase().replace(/^#/, '');
+    if (!t) continue;
+    const slug = LEGACY_TAG_MIGRATIONS[t] || t;
+    if (!isKnownTagV2(slug) && !INTEREST_ID_SET.has(slug)) continue;
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    out.push(slug);
+  }
+  return out;
+}
+
 // Pull the saved interests out of an already-fetched account object.
 export function readInterestsFromAccount(account) {
   const meta = parsePostingMeta(account);
   const arr = meta && meta[META_NS] && meta[META_NS].interests;
-  return Array.isArray(arr) ? arr.filter((t) => INTEREST_ID_SET.has(t)) : [];
+  return Array.isArray(arr) ? normalizeInterestList(arr) : [];
 }
 
 // Fetch a user's saved interests from Hive. Returns an array, or null on a
@@ -88,8 +121,10 @@ export async function fetchUserInterests(username) {
 export async function saveInterestsToHive(username, interests) {
   const u = clean(username);
   if (!u) throw new Error('Not logged in');
-  const list = [...new Set((interests || []).map((t) => String(t).trim().toLowerCase()))]
-    .filter((t) => INTEREST_ID_SET.has(t));
+  // Same canonicalisation as the read path — this used to filter to the retired
+  // v1 vocabulary, which quietly dropped categories and v2-only topics on the way
+  // to the chain.
+  const list = normalizeInterestList(interests);
 
   // Merge into current metadata (fetch fresh so we don't clobber the profile).
   const [account] = await getAccounts([u]);

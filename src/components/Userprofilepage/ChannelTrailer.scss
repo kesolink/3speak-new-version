@@ -48,26 +48,18 @@
   }
 }
 
-// The two side columns split what's left beside the player, and each is exactly
-// the player's height. Overflow is clipped, not scrolled: a scrollbar next to an
-// autoplaying video reads as a second, competing pane.
+// The two side columns split what's left beside the player. Widths always match;
+// height handling differs (see each block below).
 .channel-trailer-meta,
 .channel-trailer-snap {
   flex: 0 1 auto;
   width: calc((100% - var(--ct-player-w) - (2 * var(--ct-gap))) / 2);
   min-width: 240px;
-  height: var(--ct-player-h);
-  overflow: hidden;
-  // Fade the last visible line so a clipped block looks deliberate.
-  mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent 100%);
 
   @include mix.respond(phone) {
     // Stacked: no player height to match, and the halving only makes sense
     // side by side.
     width: 100%;
-    height: auto;
-    max-height: 7.5rem;
   }
 }
 
@@ -76,6 +68,13 @@
   flex-direction: column;
   gap: 0.5rem;
   padding-top: 0.15rem;
+  height: var(--ct-player-h);
+
+  @include mix.respond(phone) {
+    height: auto;
+    max-height: 7.5rem;
+    overflow: hidden;
+  }
 
   .ct-title {
     font-size: 1.15rem;
@@ -83,6 +82,7 @@
     line-height: 1.25;
     color: var(--text-primary);
     text-decoration: none;
+    flex: 0 0 auto;
 
     &:hover { color: var(--accent-primary); }
 
@@ -99,26 +99,73 @@
     gap: 0.4rem;
     font-size: 0.8rem;
     color: var(--text-muted);
+    flex: 0 0 auto;
 
     .ct-dot { opacity: 0.7; }
   }
 
+  // The description is the only part that clips — title/sub/read-more stay put,
+  // and "Read more" (a sibling, not a mask victim) is always fully visible.
   .ct-desc {
     margin: 0;
     font-size: 0.9rem;
     line-height: 1.5;
     color: var(--text-secondary);
     white-space: pre-line;   // keep the author's paragraph breaks
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, #000 75%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent 100%);
+
+    @include mix.respond(phone) {
+      mask-image: none;
+      -webkit-mask-image: none;
+    }
+  }
+
+  .ct-readmore {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent-primary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover { text-decoration: underline; }
   }
 }
 
 // SnapCard is built for a centred 720px column; here it just fills its slot.
+// Unlike .channel-trailer-meta, this ISN'T clipped to the player's height —
+// SnapCard's own body clamp (maxVh={0.16}, passed from ChannelTrailer) already
+// keeps the card short; capping the column on top of that was what cropped the
+// card's own "Read more"/actions row. A max-height safety net still applies,
+// but as a scroll, never a hard clip, so those controls stay reachable.
 .channel-trailer-snap {
+  max-height: var(--ct-player-h);
+  overflow-y: auto;
+
+  // Desktop only — on phones the trailer stacks and the snap just clutters it.
+  @include mix.respond(phone) {
+    display: none;
+  }
+
   .community-snaps,
   .snap-card {
     max-width: none;
     margin: 0;
     width: 100%;
+  }
+
+  // Strip only the container's own 8px 0 40px — the .snap-card keeps its
+  // internal 14px 16px card padding.
+  .community-snaps {
+    padding: 0;
   }
 }
 

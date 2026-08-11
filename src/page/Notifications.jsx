@@ -13,6 +13,7 @@ import {
   getNotificationActor,
   getNotificationTypeLabel,
   formatNotifTime,
+  formatNotificationMsg,
   getNotificationPostKey,
 } from '../utils/notificationHelpers';
 import {
@@ -491,7 +492,7 @@ function Notifications() {
                         </div>
                         <div className="notifications-body">
                           <div className="notifications-msg">
-                            {n.msg || getNotificationTypeLabel(n.type)}
+                            {formatNotificationMsg(n.msg) || getNotificationTypeLabel(n.type)}
                           </div>
                           <div className="notifications-meta">
                             <span className="notifications-type">{getNotificationTypeLabel(n.type)}</span>
@@ -714,7 +715,7 @@ function GroupRow({ group, isUnread, is3Speak, getWhaleTier, onClick }) {
               {tier && <span className={`notifications-tier-badge tier-${tier}`}>{tier === 'whale' ? '🐋' : '🐬'}</span>}
             </div>
             <div className="notifications-body">
-              <div className="notifications-msg">{n.msg}</div>
+              <div className="notifications-msg">{formatNotificationMsg(n.msg)}</div>
               <div className="notifications-meta">
                 <span className="notifications-time">{formatNotifTime(n.date)}</span>
               </div>

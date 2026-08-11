@@ -90,6 +90,15 @@
     }
   }
 
+  // Video/playlist/audio tiles are fixed-aspect, so clipping vertical overflow
+  // on the row is a no-op for them. Snap cards are text and now size to their
+  // own (already height-capped) content — `overflow-y: hidden` above would clip
+  // that height right back off, so this rail alone scrolls both axes instead.
+  .snap-list {
+    overflow-y: visible;
+    align-items: flex-start;
+  }
+
   // CommunitySnaps is a centred 720px column in its own tab; as a rail it has to
   // give that up or the row starts a third of the way across the page.
   .community-snaps {
@@ -98,11 +107,12 @@
     padding: 0;
   }
 
-  // A snap has no natural height limit (long posts truncate at "Read more"), so
-  // cap it here — one over-long post shouldn't set the height of the whole rail.
+  // SnapCard clamps its OWN body (33vh, "Read more" beneath it) — that's already
+  // the height limit for an over-long post. A second, shorter cap here on top of
+  // that clipped the card's own "Read more"/actions row instead of the rail ever
+  // reaching 320px. Cards size to their (already-clamped) content instead.
   .snap-list > * {
-    max-height: 320px;
-    overflow: hidden;
+    height: auto;
   }
 
   // Fixed widths per kind, so a rail reads as a row of comparable things.

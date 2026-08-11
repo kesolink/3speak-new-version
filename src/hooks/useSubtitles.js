@@ -1,9 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TRANSLATE_API_URL } from '../utils/config';
+import { TRANSLATE_API_URL, CHECKER_URL } from '../utils/config';
 import { parseSrt } from '../utils/srtParser';
 
 const SUBTITLE_LANG_KEY = '3speak-subtitle-lang';
 const SUBTITLE_STYLE_KEY = '3speak-subtitle-style';
+
+// The CDN is fronted by a specific hot-pinning node — content not yet
+// propagated to IT 500s ("block was not found locally") even though
+// ipfs.3speak.tv already serves it fine. Try the CDN first (fast, direct);
+// on failure go through OUR OWN backend rather than fetching ipfs.3speak.tv
+// straight from the browser — that gateway sends `access-control-allow-origin`
+// TWICE on every response, which every real browser rejects outright
+// ("Failed to fetch", confirmed live) even though the value itself is fine.
+// The proxy fetches server-to-server (no CORS involved) and re-serves it
+// with a single, correct header via our own cors() middleware.
+async function fetchSrtWithFallback(cid) {
+  try {
+    const res = await fetch(`https://hotipfs-3speak-1.b-cdn.net/ipfs/${cid}`);
+    if (res.ok) return await res.text();
+  } catch { /* fall through to the proxy */ }
+
+  const res = await fetch(`${CHECKER_URL}/subtitle-proxy/${cid}`);
+  if (!res.ok) throw new Error(`subtitle-proxy responded ${res.status}`);
+  return await res.text();
+}
 
 const DEFAULT_STYLE = {
   fontSize: 'medium',
@@ -110,11 +130,7 @@ export default function useSubtitles(author, permlink, { autoEnglish = false } =
 
     (async () => {
       try {
-        const res = await fetch(
-          `https://hotipfs-3speak-1.b-cdn.net/ipfs/${langEntry.cid}`
-        );
-        if (cancelled) return;
-        const srtText = await res.text();
+        const srtText = await fetchSrtWithFallback(langEntry.cid);
         if (cancelled) return;
         const parsed = parseSrt(srtText);
         console.log('[useSubtitles] Parsed', parsed.length, 'cues from', langEntry.cid);

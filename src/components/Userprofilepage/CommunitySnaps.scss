@@ -291,6 +291,14 @@
     border-radius: 12px;
     padding: 14px 16px;
 
+    // The one card a visitor was routed to from Overview (comment button →
+    // Community tab, comments pre-opened). A brief ring, not a permanent
+    // background change — it's a "here it is", not a new steady state.
+    &--highlighted {
+      border-color: var(--accent-primary, #e53935);
+      box-shadow: 0 0 0 1px var(--accent-primary, #e53935);
+    }
+
     .snap-card-head {
       display: flex;
       align-items: center;
