@@ -41,13 +41,17 @@ function TagsV2Picker({
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
 
-  // Search → flat list of matches. Topics always; categories only in single mode
-  // (they aren't selectable interests in multi).
+  // Search → flat list of matches. Both topics AND categories, in both modes: a
+  // whole area is a selectable interest now, so it has to be findable by typing
+  // its name and not only by browsing the tiles.
   const matches = useMemo(() => {
     if (!q) return null;
     const out = [];
     for (const cat of TAG_CATEGORIES) {
-      if (!multi && cat.label.toLowerCase().includes(q)) {
+      // Categories are searchable in BOTH modes now. They used to be hidden from
+      // multi-select results, which made a whole area findable by browsing but not
+      // by typing its name — the one way most people look for it.
+      if (cat.label.toLowerCase().includes(q)) {
         out.push({ slug: cat.slug, label: cat.label, emoji: cat.emoji, isCat: true });
       }
       for (const t of cat.topics) {
@@ -65,8 +69,16 @@ function TagsV2Picker({
 
   const pickCategory = (slug) => {
     if (disabled) return;
-    if (multi) setOpenCatMulti((prev) => (prev === slug ? null : slug)); // expand/collapse
-    else onChange(value === slug ? '' : slug);                            // select/clear
+    if (multi) {
+      // Clicking a whole area SELECTS it, which is what people expect from a tile
+      // that looks like every other pickable chip. It used to only expand, so a
+      // parent category was browsable but unpickable. It still expands too, so the
+      // topics stay one click away if you want to narrow down instead.
+      toggleMulti(slug);
+      setOpenCatMulti((prev) => (prev === slug ? null : slug));
+    } else {
+      onChange(value === slug ? '' : slug);                              // select/clear
+    }
   };
 
   const pickTopic = (slug) => {
@@ -154,10 +166,13 @@ function TagsV2Picker({
                 <button
                   type="button"
                   key={cat.slug}
-                  className={`tagsv2-cat${isOpen ? ' open' : ''}${value === cat.slug ? ' selected' : ''}${cnt > 0 ? ' has-selected' : ''}`}
+                  // `value === cat.slug` only ever worked in single mode: in multi,
+                  // `value` is an ARRAY, so a selected category could never render
+                  // as selected. isSel() handles both shapes.
+                  className={`tagsv2-cat${isOpen ? ' open' : ''}${isSel(cat.slug) ? ' selected' : ''}${cnt > 0 ? ' has-selected' : ''}`}
                   onClick={() => pickCategory(cat.slug)}
                   disabled={disabled}
-                  aria-pressed={isOpen}
+                  aria-pressed={isSel(cat.slug)}
                 >
                   <span className="tagsv2-emoji">{cat.emoji}</span>
                   <span className="tagsv2-label">{cat.label}</span>
@@ -172,7 +187,9 @@ function TagsV2Picker({
             <div className="tagsv2-topics">
               <p className="tagsv2-hint">
                 {multi
-                  ? 'Pick the topics you care about:'
+                  ? (isSel(openCategory.slug)
+                      ? `All of ${openCategory.label} is selected. Add individual topics only to go narrower:`
+                      : 'Or pick individual topics:')
                   : isCategorySlug(value)
                     ? 'Good enough — or get more specific (optional):'
                     : 'More specific:'}
