@@ -13,7 +13,7 @@ import { Quantum } from 'ldrs/react'
 import 'ldrs/react/Quantum.css'
 import { useInfiniteQuery, useQuery, useQueryClient as useReactQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { MY_VIDEOS_URL } from '../../utils/config';
+import { MY_VIDEOS_URL, CHECKER_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
 import { MdAdd, MdClose, MdPlayArrow, MdFlag, MdChatBubbleOutline } from 'react-icons/md';
@@ -87,11 +87,22 @@ function UserProfilePage() {
 
     // Switch tab AND reflect it in the URL so browser back-navigation
     // (e.g. returning from an opened short/playlist) lands on the same tab.
-    const selectTab = useCallback((tab) => {
+    // `permlink`/`opts` are the Overview page's community cards routing to one
+    // specific snap (`opts.openComments` additionally opens + focuses its thread)
+    // — see ProfileOverview's openCommunityTab and SnapCard's onOpenTab.
+    const selectTab = useCallback((tab, permlink, opts) => {
       setShow(tab);
-      const q = tab && tab !== 'overview' ? `?tab=${tab}` : '';
+      const params = new URLSearchParams();
+      if (tab && tab !== 'overview') params.set('tab', tab);
+      if (permlink) params.set('snap', permlink);
+      if (opts?.openComments) params.set('comments', '1');
+      const q = params.toString() ? `?${params.toString()}` : '';
       navigate(`${location.pathname}${q}`, { replace: true });
     }, [navigate, location.pathname]);
+
+    // The specific snap an Overview card routed here for (if any).
+    const targetSnap = searchParams.get('snap') || null;
+    const openSnapComments = searchParams.get('comments') === '1';
 
     // Tabs are a horizontal scroll rail, so the selected one can start out
     // off-screen — most obviously when a deep link lands on a late tab like
@@ -137,6 +148,30 @@ function UserProfilePage() {
       staleTime: 60 * 1000,
     });
     const snapCount = snapCountData?.total || 0;
+
+    // Video/shorts counts for their tab headers — SAME query key ProfileStats
+    // uses for the "50 videos / 14 shorts" stat line, so this is a cache hit,
+    // not a second request.
+    const { data: profileCounts } = useQuery({
+      queryKey: ['profile-counts', user],
+      queryFn: async () => (await axios.get(`${CHECKER_URL}/user/${encodeURIComponent(user)}/counts`)).data,
+      enabled: !!user && user !== 'unknown',
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+    });
+    const videoCount = profileCounts?.videos || 0;
+    const shortsCount = profileCounts?.shorts || 0;
+
+    // Audio count for its tab header — the /audio endpoint already returns a
+    // `total` alongside the page of items; limit=1 keeps this a count-only call.
+    const { data: audioCountData } = useQuery({
+      queryKey: ['audio-count', user],
+      queryFn: async () => (await axios.get(`${CHECKER_URL}/audio?owner=${encodeURIComponent(user)}&limit=1`)).data,
+      enabled: !!user && user !== 'unknown',
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+    });
+    const audioCount = audioCountData?.total || 0;
 
     // The Streams tab only exists when there's something to show — a running
     // OpenPods session, or the VOD of a finished one. Counts both.
@@ -201,10 +236,11 @@ function UserProfilePage() {
     // Redirect to /profile if viewing own profile
     useEffect(() => {
       if (isOwnProfile) {
-        // Preserve the tab parameter when redirecting
-        const tab = searchParams.get('tab');
-        const redirectUrl = tab ? `/profile?tab=${tab}` : '/profile';
-        navigate(redirectUrl, { replace: true });
+        // Carry the WHOLE query through, not just `tab` — the Overview page's
+        // community cards also pass `snap`/`comments`, and dropping those landed
+        // the owner on a bare Community tab instead of the snap they clicked.
+        const qs = searchParams.toString();
+        navigate(qs ? `/profile?${qs}` : '/profile', { replace: true });
       }
     }, [isOwnProfile, navigate, searchParams]);
 
@@ -558,9 +594,15 @@ const {
       <div className="toggle-wrap">
         <div className="wrap" ref={tabsRef}>
           <span className={show === "overview" ? "active" : ""} onClick={() => selectTab("overview")}>Overview</span>
-          <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
-          <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
-          <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>
+            Videos {videoCount > 0 && `(${videoCount})`}
+          </span>
+          <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>
+            Shorts {shortsCount > 0 && `(${shortsCount})`}
+          </span>
+          <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>
+            Audio {audioCount > 0 && `(${audioCount})`}
+          </span>
           {streamCount > 0 && (
             <span className={show === "streams" ? "active" : ""} onClick={() => selectTab("streams")}>
               Streams ({streamCount})
@@ -625,7 +667,7 @@ const {
   ) : show === "streams" ? (
     <ProfileStreams user={user} getViewCount={getViewCount} />
   ) : show === "community" ? (
-    <CommunitySnaps user={user} canPost={false} />
+    <CommunitySnaps user={user} canPost={false} targetPermlink={targetSnap} openComments={openSnapComments} />
   ) : show === "links" ? (
     <SpotlightEditor username={user} />
   ) : show === "stats" ? (
