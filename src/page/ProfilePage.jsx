@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { useAppStore } from "../lib/store";
 import { getFollowers } from "../hive-api/api";
-import { MY_VIDEOS_URL } from "../utils/config";
+import { MY_VIDEOS_URL, CHECKER_URL } from "../utils/config";
 
 import Card3 from "../components/Cards/Card3";
 import Follower from "../components/Userprofilepage/Follower";
@@ -90,11 +90,22 @@ function ProfilePage() {
 
   // Switch tab AND reflect it in the URL so browser back-navigation
   // (e.g. returning from an opened short/playlist) lands on the same tab.
-  const selectTab = useCallback((tab) => {
+  // `permlink`/`opts` are the Overview page's community cards routing to one
+  // specific snap (`opts.openComments` additionally opens + focuses its thread)
+  // — see ProfileOverview's openCommunityTab and SnapCard's onOpenTab.
+  const selectTab = useCallback((tab, permlink, opts) => {
     setShow(tab);
-    const q = tab && tab !== 'overview' ? `?tab=${tab}` : '';
+    const params = new URLSearchParams();
+    if (tab && tab !== 'overview') params.set('tab', tab);
+    if (permlink) params.set('snap', permlink);
+    if (opts?.openComments) params.set('comments', '1');
+    const q = params.toString() ? `?${params.toString()}` : '';
     navigate(`/profile${q}`, { replace: true });
   }, [navigate]);
+
+  // The specific snap an Overview card routed here for (if any).
+  const targetSnap = searchParams.get('snap') || null;
+  const openSnapComments = searchParams.get('comments') === '1';
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -321,6 +332,30 @@ function ProfilePage() {
   });
   const snapCount = snapCountData?.total || 0;
 
+  // Video/shorts counts for their tab headers — SAME query key ProfileStats
+  // uses for the "50 videos / 14 shorts" stat line, so this is a cache hit,
+  // not a second request.
+  const { data: profileCounts } = useQuery({
+    queryKey: ["profile-counts", user],
+    queryFn: async () => (await axios.get(`${CHECKER_URL}/user/${encodeURIComponent(user)}/counts`)).data,
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+  const videoCount = profileCounts?.videos || 0;
+  const shortsCount = profileCounts?.shorts || 0;
+
+  // Audio count for its tab header — the /audio endpoint already returns a
+  // `total` alongside the page of items; limit=1 keeps this a count-only call.
+  const { data: audioCountData } = useQuery({
+    queryKey: ["audio-count", user],
+    queryFn: async () => (await axios.get(`${CHECKER_URL}/audio?owner=${encodeURIComponent(user)}&limit=1`)).data,
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+  const audioCount = audioCountData?.total || 0;
+
   // Streams tab only exists when there's something to show — a running
   // OpenPods session, or the VOD of a finished one. Counts both.
   const { data: streamCount = 0 } = useQuery({
@@ -522,9 +557,15 @@ function ProfilePage() {
       <div className="toggle-wrap">
         <div className="wrap">
           <span className={show === "overview" ? "active" : ""} onClick={() => selectTab("overview")}>Overview</span>
-          <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>Videos</span>
-          <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>Shorts</span>
-          <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>Audio</span>
+          <span className={show === "video" ? "active" : ""} onClick={() => selectTab("video")}>
+            Videos {videoCount > 0 && `(${videoCount})`}
+          </span>
+          <span className={show === "shorts" ? "active" : ""} onClick={() => selectTab("shorts")}>
+            Shorts {shortsCount > 0 && `(${shortsCount})`}
+          </span>
+          <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>
+            Audio {audioCount > 0 && `(${audioCount})`}
+          </span>
           {streamCount > 0 && (
             <span className={show === "streams" ? "active" : ""} onClick={() => selectTab("streams")}>
               Streams ({streamCount})
@@ -588,6 +629,12 @@ function ProfilePage() {
         {show === "overview" ? (
           <ProfileOverview
             username={user}
+            /* /profile IS the signed-in user's own profile, and /p/<self>
+               redirects here, so this is unconditionally true. Without it
+               ChannelTrailer defaulted to isOwnProfile=false and swallowed the
+               "Add a channel trailer" prompt, leaving the feature undiscoverable
+               for anyone who hadn't already set one. */
+            isOwnProfile
             videos={videoListItems}
             shorts={shortsVideos}
             playlists={playlists}
@@ -624,7 +671,7 @@ function ProfilePage() {
         ) : show === "streams" ? (
           <ProfileStreams user={user} getViewCount={getViewCount} />
         ) : show === "community" ? (
-          <CommunitySnaps user={user} canPost={!!user} />
+          <CommunitySnaps user={user} canPost={!!user} targetPermlink={targetSnap} openComments={openSnapComments} />
         ) : show === "links" ? (
           <SpotlightEditor username={user} />
         ) : show === "stats" ? (

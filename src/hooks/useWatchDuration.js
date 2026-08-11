@@ -80,7 +80,17 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
       if (meta?.owner) owner = meta.owner;
       if (meta?.permlink) vPermlink = meta.permlink;
 
-      const duration = Number(playerState?.duration) || undefined;
+      // Prefer the STORED duration from the embed metadata we just resolved
+      // over playerState.duration. Under HLS/MSE the player's own duration,
+      // read at first play, can transiently report only the buffered-so-far
+      // segment span instead of the full manifest total — that race is what
+      // recorded 6s for a 120s video and poisoned retention/heatmap data.
+      // The live reading stays as the fallback for anything the metadata
+      // doesn't cover (e.g. legacy videos with no stored duration).
+      const storedDuration = Number(meta?.duration);
+      const duration = (Number.isFinite(storedDuration) && storedDuration > 0)
+        ? storedDuration
+        : (Number(playerState?.duration) || undefined);
       // A video lives in exactly one collection — try embed (also matches
       // hive_permlink) then legacy; whichever owns it opens the session.
       for (const type of ['embed', 'legacy']) {

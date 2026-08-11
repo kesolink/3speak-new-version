@@ -29,7 +29,8 @@ export function canUseUploadFaults(user) {
 
 const DEFAULTS = {
   blockPatch: false,       // carrier eats the TUS PATCH → should trip the watchdog → auto-fallback
-  blackholeChunks: false,  // middlebox swallows the fallback's chunk POSTs → should trip the stall watchdog
+  blackholeChunks: false,  // middlebox swallows the chunk-protocol POSTs → create/stall watchdogs → tier 3
+  blackholeSimple: false,  // ALSO swallow the single-request last resort → total blackout, nothing can pass
   chunkFailRate: 0,        // 0..1 — flaky link: fail this share of chunk POSTs → should retry + resync
 };
 
@@ -56,12 +57,21 @@ export function clearUploadFaults() {
 }
 
 function isArmed(f) {
-  return !!(f.blockPatch || f.blackholeChunks || f.chunkFailRate > 0);
+  return !!(f.blockPatch || f.blackholeChunks || f.blackholeSimple || f.chunkFailRate > 0);
 }
 
 // Only ever touch the upload endpoints — never the rest of the app's traffic.
+//
+// The chunk PROTOCOL (create/status/finish + the data POSTs) and the
+// single-request last resort are DIFFERENT transports and must be blockable
+// independently. They used to share one matcher, which meant the "black-hole the
+// chunks" switch silently killed the single-request fallback too — so tier 3
+// could never be exercised, and the harness reported "nothing works" for a
+// network on which something would in fact have worked.
 const isTusUrl = (url) => /\/uploads(\/|$)/.test(url);
-const isChunkUrl = (url) => /\/upload\/(chunk|simple)/.test(url);
+const isChunkUrl = (url) => /\/upload\/chunk/.test(url);
+const isSimpleUrl = (url) => /\/upload\/simple/.test(url);
+const isUploadUrl = (url) => isTusUrl(url) || isChunkUrl(url) || isSimpleUrl(url);
 
 const log = (...a) => console.warn('[upload-faults]', ...a);
 
@@ -87,12 +97,13 @@ export function installUploadFaults() {
     const f = getUploadFaults();
     const { method = '', url = '' } = this.__fault || {};
 
-    if (isArmed(f) && (isTusUrl(url) || isChunkUrl(url))) {
+    if (isArmed(f) && isUploadUrl(url)) {
       // A black hole: the request leaves and NOTHING ever comes back. No response,
       // no error, no timeout — the case that hangs a naive uploader forever.
       const blackhole =
         (f.blockPatch && method === 'PATCH') ||
-        (f.blackholeChunks && method === 'POST' && isChunkUrl(url));
+        (f.blackholeChunks && method === 'POST' && isChunkUrl(url)) ||
+        (f.blackholeSimple && method === 'POST' && isSimpleUrl(url));
 
       if (blackhole) {
         log(`black-holed ${method} ${url}`);

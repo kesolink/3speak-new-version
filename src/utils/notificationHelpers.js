@@ -90,6 +90,23 @@ export function getNotificationTypeLabel(type) {
   return TYPE_LABELS[type] || type || 'did something';
 }
 
+/**
+ * Tidy the notification text Hive hands us.
+ *
+ * `bridge.account_notifications` builds `msg` from a raw count with no
+ * pluralisation, so a mention of nobody else arrives as
+ * "@alice mentioned you and 0 others" and one other as "... and 1 others".
+ * Verified straight off the API, so this is upstream text, not ours to fix at
+ * the source: drop the clause when there is nobody else, and singularise it
+ * when there is exactly one. Any other count is already correct and untouched.
+ */
+export function formatNotificationMsg(msg) {
+  if (typeof msg !== 'string' || !msg) return msg;
+  return msg
+    .replace(/\s+and\s+0\s+others\b/i, '')
+    .replace(/\s+and\s+1\s+others\b/i, ' and 1 other');
+}
+
 /** Short relative time like "5m", "3h", "2d". */
 export function formatNotifTime(dateString) {
   if (!dateString) return '';

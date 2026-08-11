@@ -38,7 +38,7 @@ export function useChannelTrailer(username) {
   });
 }
 
-export default function ChannelTrailer({ username, isOwnProfile = false }) {
+export default function ChannelTrailer({ username, isOwnProfile = false, onOpenCommunityTab }) {
   const { data: trailer } = useChannelTrailer(username);
   const [attached, setAttached] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -195,12 +195,27 @@ export default function ChannelTrailer({ username, isOwnProfile = false }) {
           </div>
         ) : null}
         {description ? <p className="ct-desc">{description}</p> : null}
+        {/* The description clips (CSS mask-fade) at the player's height, so a
+            long post always has a way out to the full text on the watch page —
+            same destination as clicking the title. */}
+        {description ? (
+          <Link className="ct-readmore" to={`/watch?v=${author}/${permlink}`}>Read more</Link>
+        ) : null}
       </div>
 
-      {/* Newest community note fills the other half beside the player. */}
+      {/* Newest community note fills the other half beside the player. Desktop
+          only (hidden on phones via CSS). Wrapped in .community-snaps so the
+          SnapCard picks up the same card styling the Community tab gives it —
+          those styles are scoped under that class. Clamped tighter than the
+          Community tab's own cards (maxVh 0.16 vs 0.33) so the card fits the
+          trailer row without being cropped. onOpenCommunityTab makes "Read
+          more" and the comment button hand off to the Community tab instead
+          of expanding/opening inline — there's no room for that here. */}
       {latestSnap ? (
         <div className="channel-trailer-snap">
-          <SnapCard snap={latestSnap} />
+          <div className="community-snaps">
+            <SnapCard snap={latestSnap} maxVh={0.16} onOpenTab={onOpenCommunityTab} />
+          </div>
         </div>
       ) : null}
     </div>

@@ -89,8 +89,11 @@ const FEATURE_EDITOR = import.meta.env.VITE_FEATURE_EDITOR === 'true';
 const COMPACT_SIDEBAR = import.meta.env.VITE_COMPACT_SIDEBAR === 'true';
 
 // 3Speak Embed upload (for video reactions)
-const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed.3speak.tv/uploads';
-const EMBED_API_URL = import.meta.env.VITE_EMBED_API_URL || 'https://embed.3speak.tv';
+// Defaults point at embed2, NOT the legacy embed.3speak.tv: that box runs an
+// older build and is the one instance still missing the hive-link rebind guard,
+// so it must not be what an unset env var falls back to.
+const EMBED_UPLOAD_URL = import.meta.env.VITE_EMBED_UPLOAD_URL || 'https://embed2.3speak.tv/uploads';
+const EMBED_API_URL = import.meta.env.VITE_EMBED_API_URL || 'https://embed2.3speak.tv';
 const EMBED_API_KEY = import.meta.env.VITE_EMBED_API_KEY || '';
 
 // Pool of embed-upload server BASE hosts (no trailing /uploads), e.g.
