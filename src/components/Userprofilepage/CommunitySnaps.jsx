@@ -38,7 +38,10 @@ async function fetchReplies(author, permlink) {
 // Body with "read more"/"show less" — a very long snap is capped at a fraction of
 // the viewport (`maxVh`), but only when it actually overflows (no fade on short
 // posts). The feed uses a tighter cap than the profile tab.
-function SnapBody({ body, maxVh = 0.33 }) {
+// `onReadMore`, when given, replaces the expand-in-place toggle with a plain
+// navigation (used on the Overview page, where the card is too short a preview
+// to expand inline — "Read more" instead jumps to the full Community tab).
+function SnapBody({ body, maxVh = 0.33, onReadMore }) {
   const [html, setHtml] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -84,8 +87,8 @@ function SnapBody({ body, maxVh = 0.33 }) {
         dangerouslySetInnerHTML={{ __html: html }}
       />
       {overflowing && (
-        <button type="button" className="snap-readmore" onClick={() => setExpanded((e) => !e)}>
-          {expanded ? 'Show less' : 'Read more'}
+        <button type="button" className="snap-readmore" onClick={onReadMore || (() => setExpanded((e) => !e))}>
+          {onReadMore ? 'Read more' : (expanded ? 'Show less' : 'Read more')}
         </button>
       )}
     </div>
@@ -198,7 +201,7 @@ function SnapComment({ comment }) {
   );
 }
 
-function SnapComments({ owner, permlink, onCommented }) {
+function SnapComments({ owner, permlink, onCommented, autoFocus = false }) {
   const { data: comments = [], isLoading, refetch } = useQuery({
     queryKey: ['snap-comments', owner, permlink],
     queryFn: () => fetchReplies(owner, permlink),
@@ -207,7 +210,7 @@ function SnapComments({ owner, permlink, onCommented }) {
 
   return (
     <div className="snap-comments">
-      <ReplyBox parentAuthor={owner} parentPermlink={permlink} onSigned={onCommented} onPosted={refetch} />
+      <ReplyBox parentAuthor={owner} parentPermlink={permlink} onSigned={onCommented} onPosted={refetch} autoFocus={autoFocus} />
       {isLoading ? (
         <div className="snap-comments-status">Loading comments…</div>
       ) : comments.length === 0 ? (
@@ -394,14 +397,31 @@ function SnapCommentsModal({ owner, permlink, onClose, onCommented }) {
   );
 }
 
-export function SnapCard({ snap, feedMode = false, onRemove }) {
+// `onOpenTab(permlink)` marks the card as an OVERVIEW preview: "Read more" and
+// the comment button stop expanding/opening inline (there's no room for that in
+// a preview rail) and instead hand off to the Community tab — same pattern the
+// feed's comments-popup uses, just landing on a full tab instead of a modal.
+// `maxVh` overrides the default profile-tab clamp (33vh) for tighter spots, e.g.
+// the trailer's side-by-side snap column.
+// `autoOpenComments` is the landing side of that hand-off: the Community tab
+// passes it on the ONE card the visitor was routed to, so its thread opens (and
+// the reply box grabs focus) without another click.
+export function SnapCard({ snap, feedMode = false, onRemove, onOpenTab, maxVh, autoOpenComments = false }) {
   const user = useAppStore((s) => s.user);
   const client = getHiveClient();
   const queryClient = useQueryClient();
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(autoOpenComments);
   const [commentsPopup, setCommentsPopup] = useState(false);
   const [editing, setEditing] = useState(false);
   const [localEdit, setLocalEdit] = useState(null); // optimistic body/tags after an edit
+  const cardRef = useRef(null);
+
+  // Scroll the targeted card into view once — the tab can land anywhere in a
+  // long list, so the visitor needs to actually see the thread that opened.
+  useEffect(() => {
+    if (autoOpenComments) cardRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Vote-dialog state (the reused CommentVoteTooltip owns the actual vote).
   const [showVote, setShowVote] = useState(false);
@@ -470,7 +490,7 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
   const tags = effTags.filter((t) => t && t !== 'nsfw' && t !== SNAP_TAG);
 
   return (
-    <article className="snap-card">
+    <article className={`snap-card${autoOpenComments ? ' snap-card--highlighted' : ''}`} ref={cardRef}>
       <div className={`snap-card-head${feedMode ? ' snap-card-head--feed' : ''}`}>
         {/* In the home feed the snap is from any creator — show the author badge so
             the viewer can follow them right there; on a profile Community tab it's
@@ -507,7 +527,11 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
           onSaved={(edit) => { setLocalEdit(edit); setEditing(false); }}
         />
       ) : (
-        <SnapBody body={effBody} maxVh={feedMode ? 0.15 : 0.33} />
+        <SnapBody
+          body={effBody}
+          maxVh={maxVh ?? (feedMode ? 0.15 : 0.33)}
+          onReadMore={onOpenTab ? () => onOpenTab(snap.permlink) : undefined}
+        />
       )}
 
       {!editing && tags.length > 0 && (
@@ -542,7 +566,9 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
         <button
           type="button"
           className={`snap-action${showComments || commentsPopup ? ' active' : ''}`}
-          onClick={() => (feedMode ? setCommentsPopup(true) : setShowComments((v) => !v))}
+          onClick={() => (onOpenTab
+            ? onOpenTab(snap.permlink, { openComments: true })
+            : feedMode ? setCommentsPopup(true) : setShowComments((v) => !v))}
         >
           <BiCommentDetail />
           <span>{comments}</span>
@@ -550,9 +576,10 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
       </div>
 
       {/* Profile tab expands the thread inline; the feed opens a popup so the
-          grid row doesn't stretch. */}
+          grid row doesn't stretch. autoFocus only on the card the visitor was
+          actually routed here for — not every already-expanded thread. */}
       {showComments && !feedMode && (
-        <SnapComments owner={snap.owner} permlink={snap.permlink} onCommented={onCommented} />
+        <SnapComments owner={snap.owner} permlink={snap.permlink} onCommented={onCommented} autoFocus={autoOpenComments} />
       )}
       {commentsPopup && (
         <SnapCommentsModal
@@ -572,7 +599,13 @@ export function SnapCard({ snap, feedMode = false, onRemove }) {
  */
 // `limit` renders only the newest N, and `hideEmpty` skips the empty-state
 // block entirely — both for the Overview tab's preview row.
-export default function CommunitySnaps({ user, canPost = false, limit = 0, hideEmpty = false }) {
+// `targetPermlink` + `openComments` land the visitor on one specific snap after
+// being routed here from the Overview page's trailer/preview cards — see
+// UserProfilePage's `?snap=`/`comments=1` query params.
+// `onOpenTab`, when given, marks every card as an OVERVIEW preview (see SnapCard)
+// — used only for the Overview page's own "Community" rail, never on the actual
+// Community tab, where cards behave normally (expand/open inline).
+export default function CommunitySnaps({ user, canPost = false, limit = 0, hideEmpty = false, targetPermlink = null, openComments = false, onOpenTab = null }) {
   const [optimistic, setOptimistic] = useState([]);
   const queryClient = useQueryClient();
 
@@ -615,7 +648,14 @@ export default function CommunitySnaps({ user, canPost = false, limit = 0, hideE
       ) : (
         <div className="snap-list">
           {(limit > 0 ? snaps.slice(0, limit) : snaps)
-            .map((s) => <SnapCard key={s._id || `${s.owner}/${s.permlink}`} snap={s} />)}
+            .map((s) => (
+              <SnapCard
+                key={s._id || `${s.owner}/${s.permlink}`}
+                snap={s}
+                onOpenTab={onOpenTab}
+                autoOpenComments={openComments && !!targetPermlink && s.permlink === targetPermlink}
+              />
+            ))}
         </div>
       )}
     </div>

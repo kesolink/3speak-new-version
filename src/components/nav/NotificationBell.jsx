@@ -8,6 +8,7 @@ import {
   getNotificationActor,
   getNotificationTypeLabel,
   formatNotifTime,
+  formatNotificationMsg,
   getNotificationPostKey,
 } from '../../utils/notificationHelpers';
 import {
@@ -189,8 +190,6 @@ function NotificationBell() {
                     key={group.id}
                     className={`notif-row${unread ? ' notif-row-unread' : ''}${tier ? ` notif-${tier}` : ''}`}
                     onClick={() => handleRowClick(n)}
-                    onMouseEnter={() => setHoveredId(group.id)}
-                    onMouseLeave={() => setHoveredId(null)}
                   >
                     <div className="notif-avatar-wrap">
                       {actor && (
@@ -200,7 +199,7 @@ function NotificationBell() {
                     </div>
                     <div className="notif-body">
                       <div className="notif-msg">
-                        {n.msg || getNotificationTypeLabel(n.type)}
+                        {formatNotificationMsg(n.msg) || getNotificationTypeLabel(n.type)}
                       </div>
                       <div className="notif-meta">
                         <span className="notif-type">{getNotificationTypeLabel(n.type)}</span>
@@ -212,18 +211,12 @@ function NotificationBell() {
                       <img className="notif-3speak-icon" src={threeSpeakLogo} alt="3Speak" title="3Speak video" />
                     )}
                     {unread && <span className="notif-unread-dot" aria-hidden="true" />}
-
-                    {/* Rich preview tooltip */}
-                    {hoveredId === group.id && n.msg && (
-                      <div className="notif-tooltip">
-                        <div className="notif-tooltip-msg">{n.msg}</div>
-                        {tier && (
-                          <span className="notif-tooltip-tier">
-                            {tier === 'whale' ? '🐋 Whale' : '🐬 Orca'} account
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    {/* No hover tooltip on single rows: it repeated `n.msg`, which is
+                        already the row's own text above, and restated a tier the
+                        badge beside the avatar already shows. It covered the rows
+                        below it to tell you nothing new. The GROUPED row keeps its
+                        tooltip because that one does add something: the collapsed
+                        row says "2 Follows" without naming who. */}
                   </li>
                 );
               })}

@@ -73,9 +73,13 @@ export default function ProfileOverview({
   const shortSlice = shorts.slice(0, RAIL_COUNT);
   const playlistSlice = playlists.slice(0, perRow);
 
+  // Community cards route through here for "Read more" and the comment button —
+  // `permlink`/`opts` come straight from SnapCard's onOpenTab(permlink, opts).
+  const openCommunityTab = (permlink, opts) => onOpenTab('community', permlink, opts);
+
   return (
     <div className="profile-overview">
-      <ChannelTrailer username={username} isOwnProfile={isOwnProfile} />
+      <ChannelTrailer username={username} isOwnProfile={isOwnProfile} onOpenCommunityTab={openCommunityTab} />
 
       <Section title="Videos" count={videoSlice.length} onViewMore={() => onOpenTab('video')}>
         <Card3
@@ -111,7 +115,7 @@ export default function ProfileOverview({
             <h3>Community</h3>
             <button type="button" className="pov-more" onClick={() => onOpenTab('community')}>View more</button>
           </div>
-          <CommunitySnaps user={username} limit={perRow} hideEmpty />
+          <CommunitySnaps user={username} limit={perRow} hideEmpty onOpenTab={openCommunityTab} />
         </section>
       )}
 

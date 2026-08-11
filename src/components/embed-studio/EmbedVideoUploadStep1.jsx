@@ -372,7 +372,16 @@ function EmbedVideoUploadStep1() {
                           checked={!!faults.blackholeChunks}
                           onChange={(e) => applyFault({ blackholeChunks: e.target.checked })}
                         />
-                        <span>Black-hole the fallback&rsquo;s chunks — the reported bug. Expect: bar stalls, then the 45s stall-watchdog cuts in and retries (before the fix it hung at 0% forever).</span>
+                        <span>Black-hole the chunk protocol — the reported bug. Swallows the session <em>create</em> POST too, not just the data chunks. Expect: &ldquo;Starting upload…&rdquo;, ~50s of &ldquo;Connection unstable — retrying… (n/3)&rdquo;, then it gives up on chunks and <strong>the single-request last resort takes over and finishes the upload</strong>. Before the fix, create had no deadline at all and the bar sat at 0% forever with nothing on screen.</span>
+                      </label>
+
+                      <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer', marginBottom: '5px' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!faults.blackholeSimple}
+                          onChange={(e) => applyFault({ blackholeSimple: e.target.checked })}
+                        />
+                        <span>Black-hole the single-request fallback too — total blackout, every transport dead. Only useful with the box above ticked. Expect: all three tiers tried in order, then a clean <em>Request timed out</em> failure. Nothing can upload under this by construction; it verifies we FAIL LOUDLY rather than hang.</span>
                       </label>
 
                       <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer' }}>
@@ -385,7 +394,11 @@ function EmbedVideoUploadStep1() {
                       </label>
 
                       <p style={{ margin: '6px 0 0', opacity: 0.75 }}>
-                        Tick the first two together to reproduce the exact user report. Clears when the tab closes.
+                        Tick the first two together to reproduce the exact user report — it should now RECOVER via the
+                        single-request tier instead of hanging. Add the third for a total blackout. Clears when the tab closes.
+                        <br />
+                        These simulate 100% loss, not a slow link: under a black-hole nothing gets through no matter how
+                        long you wait, so &ldquo;upload anyway, just slowly&rdquo; is only meaningful for the flaky/throttled cases below.
                         <br />
                         For a genuinely SLOW upload (the 408s), DevTools throttling does <strong>not</strong> work —
                         browser throttling is request-level, so the request body already went out at full speed.

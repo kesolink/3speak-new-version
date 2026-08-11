@@ -22,9 +22,50 @@
     transition: width 0.3s ease;
   }
 
+  // Detail text + spinner share a row, spinner pushed to the right edge. The row
+  // owns the colour because Ring2 draws with `currentColor`, which resolves
+  // through its shadow DOM from this element's computed colour — so the indicator
+  // matches the line it belongs to, in either theme, with no second palette.
+  .embed-upload-progress-detailrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted, #999);
+  }
+
+  .embed-upload-progress-spinner {
+    display: inline-flex;
+    line-height: 0;
+    flex-shrink: 0;      // never squeezed by a long detail string
+    margin-left: auto;   // hold the right edge even when the text wraps
+  }
+
   .embed-upload-progress-label {
     font-size: 12.5px;
     color: var(--text-secondary, #777);
+  }
+
+  // Which method / step / byte counters. Sits directly under the label so the
+  // "is it moving?" question is answered without opening devtools.
+  // Same typography as the "Upload server:" line below — these are all machine
+  // facts (counters, endpoints), so they read as one block rather than three
+  // competing styles.
+  .embed-upload-progress-detail {
+    font-size: 11.5px;
+    color: var(--text-muted, #999);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    line-height: 1.35;
+  }
+
+  // The specific request being awaited, incl. its deadline. Monospace because it
+  // names an endpoint path.
+  .embed-upload-progress-waiting {
+    font-size: 11px;
+    color: var(--text-muted, #999);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    opacity: 0.85;
+    line-height: 1.35;
+    word-break: break-word;
   }
 
   .embed-upload-progress-endpoint {
