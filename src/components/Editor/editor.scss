@@ -143,32 +143,17 @@
 // position: absolute;
 // }
 
-em-emoji-picker {
+// emoji-picker-react's root node. Sizing comes from the component's width/height
+// props; only placement lives here.
+.EmojiPickerReact {
   position: absolute !important;
   top: 40px !important;
   left: 10px!important;
   z-index: 2000 !important;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: white;
-  width: 250px;
-  height: 300px;
-    //     @include respond(phone) {
-    //   right: 10px !important;
-    // }
-//     @media (max-width: 600px) {
-
-//     right: 20px !important;
-  
-// }
-
-
-
 }
 
 @media (max-width: 768px) {
-  em-emoji-picker,
-  .em-emoji-picker {
+  .EmojiPickerReact {
     left: auto !important;            /* IMPORTANT: clear left so right can take effect */
     right: 20px !important;           /* desired mobile position */
     top: 40px !important;             /* re-assert top in case other rules differ */
@@ -193,10 +178,6 @@ em-emoji-picker {
     }
 }
 
-.em-emoji-picker {
-  --em-picker-height: 100px;
-  --em-picker-width: 300px;
-}
 
 .upload-overlay {
   position: absolute;
