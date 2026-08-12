@@ -7,7 +7,6 @@ import { convert } from 'html-to-text';
 import axios from 'axios';
 import { API_URL_FROM_WEST, CHECKER_URL, CHECKER_API_KEY } from '../utils/config';
 import { getHiveClient } from '../utils/hiveNode';
-import TextEditor from '../components/studio/TextEditor';
 import { useAppStore } from '../lib/store';
 import * as dhive from '@hiveio/dhive';
 import MarkdownComposer from '../components/studio/MarkdownComposer';
@@ -277,7 +276,6 @@ const handleSubmit = async (e) => {
                 className="form-textarea"
                 rows={8}
               /> */}
-              {/* <TextEditor description={description} setDescription={setDescription} style={{ height: "100%", }} /> */}
               <MarkdownComposer value={description} onChange={setDescription} placeholder="Write your video description here... Supports markdown formatting!" show={true} />
             </div>
             

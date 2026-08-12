@@ -6,8 +6,7 @@ import {
   FaEye, FaEdit, FaColumns, FaSmile
 } from 'react-icons/fa';
 import { MdFormatClear } from 'react-icons/md';
-import EmojiPicker from '@emoji-mart/react';
-import data from '@emoji-mart/data';
+import EmojiPicker from 'emoji-picker-react';
 import { uploadImageToHive } from '../Editor/uploadImageToHiv';
 import { toast } from 'sonner';
 import './MarkdownComposer.scss';
@@ -197,8 +196,8 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
   }, [value, onChange]);
 
   // Emoji handler
-  const handleEmojiSelect = (emoji) => {
-    insertText(emoji.native);
+  const handleEmojiSelect = (emojiData) => {
+    insertText(emojiData.emoji);
     setShowEmojiPicker(false);
   };
 
@@ -377,10 +376,13 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
             {showEmojiPicker && (
               <div className="emoji-picker-container">
                 <EmojiPicker
-                  data={data}
-                  onEmojiSelect={handleEmojiSelect}
-                  theme={theme}
-                  previewPosition="none"
+                  onEmojiClick={handleEmojiSelect}
+                  theme={theme === 'light' ? 'light' : 'dark'}
+                  lazyLoadEmojis
+                  width={340}
+                  height={380}
+                  previewConfig={{ showPreview: false }}
+                  searchPlaceholder="Search emoji"
                 />
               </div>
             )}
