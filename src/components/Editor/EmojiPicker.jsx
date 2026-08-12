@@ -1,13 +1,25 @@
-import React from "react";
-import Picker from "@emoji-mart/react";
-import data from "@emoji-mart/data";
+import EmojiPickerReact from "emoji-picker-react";
+import { useAppStore } from "../../lib/store";
 
+/**
+ * Emoji picker for the Tiptap toolbar. Wraps emoji-picker-react — the same
+ * picker the chat and comment composers use — so the app ships one emoji
+ * library instead of two. The `onSelect(char)` contract is unchanged, so
+ * TiptapEditor needs no edit; positioning still comes from `.EmojiPickerReact`
+ * in editor.scss.
+ */
 export default function EmojiPicker({ onSelect }) {
+  const appTheme = useAppStore((s) => s.theme);
+
   return (
-    <Picker
-      data={data}
-      onEmojiSelect={(emoji) => onSelect(emoji.native)}
-      previewPosition="none"
+    <EmojiPickerReact
+      onEmojiClick={(d) => onSelect(d.emoji)}
+      theme={appTheme === "light" ? "light" : "dark"}
+      lazyLoadEmojis
+      width={250}
+      height={300}
+      previewConfig={{ showPreview: false }}
+      searchPlaceholder="Search emoji"
     />
   );
 }

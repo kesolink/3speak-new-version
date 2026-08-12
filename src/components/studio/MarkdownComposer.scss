@@ -161,9 +161,10 @@
         }
       }
       @media (max-width: 768px) {
-        em-emoji-picker,
-        .em-emoji-picker {
-          width: 270px;
+        // emoji-picker-react sets its width inline from the `width` prop, so the
+        // mobile narrowing has to win with !important.
+        .EmojiPickerReact {
+          width: 270px !important;
         }
       }
 
