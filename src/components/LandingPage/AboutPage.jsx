@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Users, Zap, HelpCircle, ChevronDown, Video, MessageCircle, Facebook, Twitter,    } from 'lucide-react';
+import { Shield, Users, Zap, HelpCircle, ChevronDown, Video, MessageCircle } from 'lucide-react';
 import './AboutPage.scss';
 import speak from "../../assets/image/3speak.png"
-import { FaDiscord } from "react-icons/fa6";
+// lucide-react v1 dropped brand icons; the X mark comes from react-icons, like
+// the sibling Discord/Telegram icons in the same row.
+import { FaDiscord, FaXTwitter } from "react-icons/fa6";
 import { FaTelegramPlane } from "react-icons/fa";
 import spk_network from "../../assets/image/spk_network.png"
 import { Link, useNavigate } from 'react-router-dom';
@@ -387,9 +389,6 @@ const AboutPage = () => {
               Connect with 3Speak
             </h3>
             <div className="social-icons">
-              {/* <a href="https://x.com/3speaktv?utm_source=3speak.tv" className="social-link" target="_blank" rel="noopener noreferrer">
-                <Facebook />
-              </a> */}
               <a href="https://t.me/threespeak?utm_source=3speak.tv" className="social-link red-accent" target="_blank" rel="noopener noreferrer">
                 <FaTelegramPlane />
               </a>
@@ -397,7 +396,7 @@ const AboutPage = () => {
                 <FaDiscord size={30} />
               </a>
               <a href="https://x.com/3speaktv?utm_source=3speak.tv" className="social-link" target="_blank" rel="noopener noreferrer">
-                <Twitter />
+                <FaXTwitter />
               </a>
               <a href="https://spk.network/" className="social-link red-accent spk" target="_blank" rel="noopener noreferrer" aria-label="SPK Network">
                 {/* Flat PNG mask so the mark takes the foreground colour (like the

@@ -7,6 +7,24 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.30',
+    date: '2026-08-12',
+    summary:
+      'The same emoji picker now opens everywhere you write, from video descriptions to community posts and stream details, matching the one already used in chat and comments.',
+  },
+  {
+    version: '1.78.29',
+    date: '2026-08-12',
+    summary:
+      'Links inside video descriptions, posts and comments are now checked more strictly, so only genuine web links can open.',
+  },
+  {
+    version: '1.78.28',
+    date: '2026-08-12',
+    summary:
+      'Housekeeping: 3Speak\'s foundations got a big update, with security improvements throughout and a clear-out of unused code.',
+  },
+  {
     version: '1.78.27',
     date: '2026-08-11',
     summary:

@@ -173,16 +173,12 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    esbuildOptions: {
-      define: {
-        global: "globalThis",
-      },
-      // ❌ REMOVED Buffer inject (this caused duplicate declaration)
-    },
+    // Vite 8 pre-bundles with Rolldown, which ignores `esbuildOptions` entirely
+    // and warns on startup. The only thing that block set was
+    // `define: { global: "globalThis" }`, already covered by the root-level
+    // `define` above, so it was dropped rather than ported to rolldownOptions.
     include: [
       "buffer",
-      "react-quilljs",
-      "quill",
       "qrcode.react",
       "hive-auth-wrapper",
       "keychain-sdk",
