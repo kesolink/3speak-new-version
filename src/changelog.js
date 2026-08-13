@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.31',
+    date: '2026-08-13',
+    summary:
+      'Text stays selectable while a video plays, so you can copy from the description, comments and reaction threads without losing your selection.',
+  },
+  {
     version: '1.78.30',
     date: '2026-08-12',
     summary:
