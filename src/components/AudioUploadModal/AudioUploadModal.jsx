@@ -14,6 +14,7 @@ import { uploadThumbnail } from '../../utils/uploadThumbnail';
 import { broadcastWithAioha, broadcastViaThreespeak, getCurrentProvider, Providers } from '../../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
 import { checkPostingRc } from '../../utils/rcCheck';
+import { oaEnvelope, threespeakAudio, OA_ARTICLE, OA_MICROPOST, OA_COMMENT } from '../../utils/openAttribute';
 import RcInsufficientModal from '../embed-studio/RcInsufficientModal';
 import CommunityModal from '../modal/Community_modal';
 import Beneficiary_modal from '../modal/Beneficiary_modal';
@@ -693,7 +694,18 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     const desc = (postDescription || '').trim() || (track.title || '').trim();
     const cover = postThumb ? `![${(track.title || 'cover').replace(/[[\]]/g, '')}](${postThumb})\n\n` : '';
     const body = `${cover}${playUrl}\n\n${desc}`.trim();
-    const metaObj = { app: HIVE_APP_NAME, tags, audio: audioMetaFor(track) };
+    // A standalone track is a top-level titled post, so an Article carrying one
+    // audio attribute. `threespeak.audio` mirrors the bare `audio` key above it:
+    // the bare one is what our own readers already parse, the namespaced one is
+    // the version other frontends can look up.
+    const audioMeta = audioMetaFor(track);
+    const metaObj = {
+      app: HIVE_APP_NAME,
+      tags,
+      audio: audioMeta,
+      ...oaEnvelope(OA_ARTICLE),
+      ...threespeakAudio({ ...audioMeta, duration: track.durationSec }),
+    };
     if (postThumb) metaObj.image = [postThumb];
 
     const ops = [[
@@ -729,7 +741,9 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     const hivePermlink = generatePermlink(mainTitle) || `audio-album-${Date.now().toString(36)}`;
     const cover = postThumb ? `![cover](${postThumb})\n\n` : '';
     const body = `${cover}${(postDescription || '').trim()}`.trim() || (mainTitle || 'Audio album');
-    const metaObj = { app: HIVE_APP_NAME, tags };
+    // The album's own post carries no audio — the tracks hang off it as replies
+    // — so it gets the envelope and no audio attribute.
+    const metaObj = { app: HIVE_APP_NAME, tags, ...oaEnvelope(OA_ARTICLE) };
     if (postThumb) metaObj.image = [postThumb];
     const ops = [[
       'comment',
@@ -769,7 +783,18 @@ function AudioUploadModal({ isOpen, onClose, initialTrack }) {
     const tThumb = track.thumb || postThumb || '';
     const cover = tThumb ? `![${(track.title || 'cover').replace(/[[\]]/g, '')}](${tThumb})\n\n` : '';
     const body = `${cover}${playUrl}\n\n${desc}`.trim();
-    const metaObj = { app: HIVE_APP_NAME, tags, audio: audioMetaFor(track) };
+    // Both modes post the track as a reply, but to different parents, and the
+    // object follows the parent: an album track replies to our own album post,
+    // so it is a Comment; a snap replies to the peak.snaps container, which
+    // makes it a MicroPost and keeps it readable in other apps' snap feeds.
+    const audioMeta = audioMetaFor(track);
+    const metaObj = {
+      app: HIVE_APP_NAME,
+      tags,
+      audio: audioMeta,
+      ...oaEnvelope(mode === 'album' ? OA_COMMENT : OA_MICROPOST),
+      ...threespeakAudio({ ...audioMeta, duration: track.durationSec }),
+    };
     if (tThumb) metaObj.image = [tThumb];
 
     const ops = [[

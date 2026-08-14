@@ -1,3 +1,4 @@
+import MarkdownView from '../common/MarkdownView';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { getHiveClient } from '../../utils/hiveNode';
 import './CommentSection.scss';
@@ -704,7 +705,7 @@ function Comment({
             )}
             <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>
           </div>
-          <div className="markdown-view" dangerouslySetInnerHTML={{ __html: processedBody(comment?.body || '', comment?.permlink) }} />
+          <MarkdownView html={processedBody(comment?.body || '', comment?.permlink)} />
           {translatedText && (
             <div className="comment-translation">
               <div className="comment-translation-header">

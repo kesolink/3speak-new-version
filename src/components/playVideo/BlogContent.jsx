@@ -1,3 +1,4 @@
+import MarkdownView from '../common/MarkdownView';
 import React, { useEffect, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { getUersContent } from "../../utils/hiveUtils";
@@ -206,10 +207,7 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
             </div>
           </div>
         ) : (
-          <div
-            className="markdown-view"
-            dangerouslySetInnerHTML={{ __html: renderedContent }}
-          />
+          <MarkdownView html={renderedContent} />
         )}
         {needsExpansion && !isExpanded && <div className="fade-overlay" />}
       </div>

@@ -1,3 +1,4 @@
+import MarkdownView from '../common/MarkdownView';
 import { Fragment, useRef, useState, useEffect, useCallback } from 'react';
 import { getHiveClient } from '../../utils/hiveNode';
 import { MdChevronLeft, MdChevronRight, MdClose, MdAspectRatio, MdVideocam, MdComment, MdKeyboardArrowDown, MdKeyboardArrowUp, MdTranslate, MdFlag } from 'react-icons/md';
@@ -88,7 +89,7 @@ function CommentNode({ comment, depth, collapsible = true }) {
         <span className="rct-thread-author">@{comment.author}</span>
         {collapsible && <span className="comment-collapse-chevron" onClick={() => setCollapsed(true)}><MdKeyboardArrowUp size={18} /></span>}
       </div>
-      <div className="rct-thread-body markdown-view" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+      <MarkdownView className="rct-thread-body" html={bodyHtml} />
       {translatedText && (
         <div className="comment-translation">
           <div className="comment-translation-header">
