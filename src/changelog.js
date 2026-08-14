@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.33',
+    date: '2026-08-14',
+    summary:
+      'Announcing an OpenPod room now brings people straight into the conversation with a "Join the live session" link (/openpods), while solo streams keep their player so followers can watch right from their feed.',
+  },
+  {
+    version: '1.78.32',
+    date: '2026-08-14',
+    summary:
+      'Your 3Speak posts now describe themselves in a shared format that other Hive apps can read, so your videos, shorts and audio show up the way you meant them to wherever people follow you. It uses the open Hive standard from openattribute.app.',
+  },
+  {
     version: '1.78.31',
     date: '2026-08-13',
     summary:
