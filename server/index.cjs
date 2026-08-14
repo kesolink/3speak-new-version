@@ -259,12 +259,29 @@ function verifyWalletSession(token) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
   return username
 }
+// `domain` makes the session readable across 3speak.tv subdomains. Without it
+// the cookie is host-only, so a session minted on preview.3speak.tv is never
+// sent to gate.3speak.tv — and the gate identifies the viewer from this cookie,
+// so gated playback would show the paywall to everyone, Pro subscribers
+// included. SameSite=lax is already satisfied: the subdomains are same-site.
+//
+// Existing host-only cookies keep working, so nobody is logged out; new logins
+// get a domain cookie. A browser holding both sends both, and verifyWalletSession
+// checks an HMAC, so either one satisfies it.
+const WSESSION_COOKIE_DOMAIN = process.env.WSESSION_COOKIE_DOMAIN || '.3speak.tv'
 function setWalletSessionCookie(res, token) {
   res.cookie(WSESSION_COOKIE_NAME, token, {
-    httpOnly: true, secure: true, sameSite: 'lax', maxAge: WSESSION_TTL_MS, path: '/'
+    httpOnly: true, secure: true, sameSite: 'lax', maxAge: WSESSION_TTL_MS, path: '/',
+    ...(WSESSION_COOKIE_DOMAIN ? { domain: WSESSION_COOKIE_DOMAIN } : {})
   })
 }
 function clearWalletSessionCookie(res) {
+  // Cleared with AND without the domain: a browser may still hold a host-only
+  // cookie from before this change, and clearing only the domain form would
+  // leave the old one behind and keep the user silently logged in.
+  if (WSESSION_COOKIE_DOMAIN) {
+    res.clearCookie(WSESSION_COOKIE_NAME, { path: '/', domain: WSESSION_COOKIE_DOMAIN })
+  }
   res.clearCookie(WSESSION_COOKIE_NAME, { path: '/' })
 }
 
