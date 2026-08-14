@@ -10,6 +10,7 @@ import { useEmbedUpload } from '../../context/EmbedUploadContext';
 import MarkdownComposer from '../studio/MarkdownComposer';
 import { getMinMaxDates } from '../../utils/schedulingHelpers';
 import EmbedUploadProgressBar from './EmbedUploadProgressBar';
+import { usePremiumStatus } from '../../hooks/usePremiumStatus';
 
 function EmbedDetails() {
   const {
@@ -34,10 +35,24 @@ function EmbedDetails() {
     fromStories,
     reusable, setReusable,
     isNsfw, setIsNsfw,
+    gated, setGated,
+    user,
     isChannelTrailer, setIsChannelTrailer,
     originalAuthor, originalPermlink,
     startEarlyUpload,
   } = useEmbedUpload();
+
+  // 🔐 Pro status decides whether the supporters-only control is offered. The
+  // hook returns null while loading, so the toggle stays hidden until we have a
+  // definite yes rather than flashing in and out.
+  const premiumStatus = usePremiumStatus(user);
+  const isPro = premiumStatus?.premium === true;
+
+  // Never leave a stale gated intent behind: if Pro lapses mid-session, or the
+  // user switches to a short, the flag must not survive into the token request.
+  useEffect(() => {
+    if (gated && (!isPro || fromStories)) setGated(false);
+  }, [gated, isPro, fromStories, setGated]);
 
   const isRemix = !!(originalAuthor && originalPermlink);
   const descLimitToastRef = useRef(null);
@@ -287,6 +302,32 @@ function EmbedDetails() {
                     <span className="toggle-track"><span className="toggle-thumb" /></span>
                   </label>
                 </div>
+                {/* 🔐 Supporters-only. Pro-gated in the UI, but the backend
+                    re-checks Pro status when it mints the upload token, so
+                    hiding this control is presentation, not enforcement. Not
+                    offered for shorts: a paywalled short is a worse product
+                    than a free one, and the preview would be most of the clip. */}
+                {!fromStories && isPro && (
+                  <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                    <div className="wrap">
+                      <span>Supporters only</span>
+                      <span>
+                        Encrypts this video so only 3Speak Pro subscribers can play it.
+                        A short unencrypted preview is published alongside it, so the post
+                        still shows a trailer everywhere on Hive.
+                        {' '}<strong>This cannot be changed after upload.</strong>
+                      </span>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={!!gated}
+                        onChange={(e) => setGated(e.target.checked)}
+                      />
+                      <span className="toggle-track"><span className="toggle-thumb" /></span>
+                    </label>
+                  </div>
+                )}
                 {/* Not offered for shorts: the Overview trailer frame is 16:9. */}
                 {!fromStories && (
                   <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>

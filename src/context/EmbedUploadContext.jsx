@@ -141,6 +141,10 @@ export function EmbedUploadProvider({ children }) {
 
   // Entry origin (stories → "Share a Short", default → "Share a Video")
   const [fromStories, setFromStories] = useState(false);
+  // 🔐 Gated (paid) upload. Only offered to 3Speak Pro users, and only ever
+  // honoured because the embed backend re-checks Pro status when it mints the
+  // upload token — this flag is a UI intent, not an authorisation.
+  const [gated, setGated] = useState(false);
 
   // Original video attribution (for remix/clip)
   const [originalAuthor, setOriginalAuthor] = useState(null);
@@ -661,7 +665,7 @@ export function EmbedUploadProvider({ children }) {
     if (!sessionId) {
       const tokenRes = await axios.post(
         `${base}/uploads/token`,
-        { owner: user, frontend_app: '3speak-tv', short: !!fromStories },
+        { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated },
         { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } }
       );
       const token = tokenRes.data?.token;
@@ -836,7 +840,7 @@ export function EmbedUploadProvider({ children }) {
     const fin = await postForm(`${base}/upload/chunk/finish`, { sessionId }, null, { timeoutMs: 60000 });
     try { localStorage.removeItem(fpKey); } catch { /* ignore */ }
     return fin.embed_url || embedFromServer || '';
-  }, [user, fromStories, videoFile, videoDuration, postForm]);
+  }, [user, fromStories, gated, videoFile, videoDuration, postForm]);
 
   // TIER 3, last resort: ONE multipart POST carrying the whole file.
   //
@@ -873,7 +877,7 @@ export function EmbedUploadProvider({ children }) {
 
     const tokenRes = await axios.post(
       `${base}/uploads/token`,
-      { owner: user, frontend_app: '3speak-tv', short: !!fromStories },
+      { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated },
       { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } },
     );
     const token = tokenRes.data?.token;
@@ -905,7 +909,7 @@ export function EmbedUploadProvider({ children }) {
 
     if (!res || !res.embed_url) throw new Error('Single-request upload did not return an embed URL');
     return res.embed_url;
-  }, [user, fromStories, videoFile, videoDuration, postForm]);
+  }, [user, fromStories, gated, videoFile, videoDuration, postForm]);
 
   // Upload with automatic fallback. Primary path is TUS on the least-busy host;
   // if the user forced the reliable path (checkbox) or PATCH was already detected
@@ -929,7 +933,15 @@ export function EmbedUploadProvider({ children }) {
       }
     };
 
-    if (forceReliableUpload || sessionForcedReliableRef.current) {
+    // 🔐 A gated upload MUST take a token-bearing path. The TUS path
+    // authenticates with the embed API key and carries its flags in TUS
+    // metadata, and the backend deliberately refuses to read `gated` from
+    // metadata (that key ships inside this bundle, so it proves nothing). Left
+    // on TUS, a gated upload would succeed and quietly publish in the clear —
+    // the one failure mode with no remedy, since IPFS content cannot be
+    // withdrawn. The token paths ask the backend to mint a gated token, which
+    // is where Pro status is actually verified.
+    if (gated || forceReliableUpload || sessionForcedReliableRef.current) {
       chosenEmbedBaseRef.current = reliableBase;
       setSelectedEndpoint(reliableBase);
       return await chunkedThenSimple();
@@ -953,7 +965,7 @@ export function EmbedUploadProvider({ children }) {
       }
       throw err;
     }
-  }, [forceReliableUpload, runTusUpload, runChunkedUpload, runSimpleUpload]);
+  }, [gated, forceReliableUpload, runTusUpload, runChunkedUpload, runSimpleUpload]);
 
   // Kick off the background upload (called when the user reaches "Add details").
   // Idempotent: only starts once per selected video. The embed asset gets its own
@@ -1251,6 +1263,14 @@ export function EmbedUploadProvider({ children }) {
           orientation: oaOrientation,
           duration: videoDuration,
         }),
+        // 🔐 Marks the post as supporters-only so a watch page knows to ask the
+        // gate before trying to play anything. It is a HINT for rendering, never
+        // the access decision: the gate re-checks entitlement on every manifest
+        // and key request, so editing this out of the post buys nothing.
+        // The gate knows the asset by its EMBED permlink, which is not always
+        // the Hive permlink (a remix reuses an existing asset), so it is stored
+        // explicitly rather than re-derived by every reader.
+        ...(gated ? { gated: true, gatedVideoId: embedAssetPermlink } : {}),
       };
 
       // Build comment_options. When the author is declining payout, skip
@@ -1644,6 +1664,7 @@ export function EmbedUploadProvider({ children }) {
     setPrefilledFromQuery,
     // Entry origin
     fromStories, setFromStories,
+    gated, setGated,
     // Original video attribution
     originalAuthor, setOriginalAuthor,
     originalPermlink, setOriginalPermlink,
