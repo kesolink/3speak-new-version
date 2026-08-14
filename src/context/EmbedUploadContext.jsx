@@ -15,6 +15,7 @@ import { useAppStore } from '../lib/store';
 import { usePremiumStatus } from '../hooks/usePremiumStatus';
 import { setChannelTrailer } from '../utils/channelTrailer';
 import { enforceLockedBeneficiaries, getLockedBeneficiaries, chargesEncoder, LOCKED_FUND_ACCOUNT, LOCKED_ENCODER_ACCOUNT } from '../utils/beneficiaries';
+import { oaEnvelope, threespeakVideo, probeVideoOrientation, OA_ARTICLE, OA_MICROPOST, OA_COMMENT } from '../utils/openAttribute';
 import axios from 'axios';
 
 // Hosts that support TUS resume (tusd-backed). The legacy embed.3speak.tv origin
@@ -1195,6 +1196,11 @@ export function EmbedUploadProvider({ children }) {
         if (p) embedAssetPermlink = p;
       } catch { /* fall back to user / hive permlink */ }
 
+      // OpenAttribute: read the source aspect off the file we are publishing.
+      // Resolves null (and the attribute is then omitted) when there is no local
+      // file — a remix that reuses an existing embed never had one.
+      const oaOrientation = await probeVideoOrientation(videoFile);
+
       const jsonMetadata = {
         app: '3speak/embed',
         format: 'markdown',
@@ -1232,6 +1238,19 @@ export function EmbedUploadProvider({ children }) {
             ...(thumbnailUrl ? { sourceMap: [{ url: thumbnailUrl, type: 'thumbnail' }] } : {}),
           },
         },
+        // OpenAttribute. A short is a MicroPost: without this it depends on the
+        // reading app having peak.snaps in its own container list, and any app
+        // that does not falls through to plain `Comment`. A regular upload is an
+        // Article, which is what the spec's rules would infer anyway — the value
+        // there is that the reader stops guessing and gets the attribute below.
+        ...oaEnvelope(fromStories ? OA_MICROPOST : OA_ARTICLE),
+        // `surface` is where this was published to be watched, not how long it
+        // is: a 16-second landscape clip is still a `watch` video.
+        ...threespeakVideo({
+          surface: fromStories ? 'shorts' : 'watch',
+          orientation: oaOrientation,
+          duration: videoDuration,
+        }),
       };
 
       // Build comment_options. When the author is declining payout, skip
@@ -1438,7 +1457,9 @@ export function EmbedUploadProvider({ children }) {
           permlink: replyPermlink,
           title: '',
           body: replyBody,
-          json_metadata: JSON.stringify({ app: '3speak/embed', tags: ['3speak'] }),
+          // A notification pointing at the remix, not the remix itself, so it
+          // carries no video attribute — only the envelope saying what it is.
+          json_metadata: JSON.stringify({ app: '3speak/embed', tags: ['3speak'], ...oaEnvelope(OA_COMMENT) }),
         }];
 
         const remixOps = [mainPostOp, commentOptionsOp, replyOp];
