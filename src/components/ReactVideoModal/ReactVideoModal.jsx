@@ -6,6 +6,7 @@ import { EMBED_UPLOAD_URL, EMBED_API_URL, EMBED_API_KEY, SHORTS_MAX_DURATION_SEC
 import { commentWithAioha, broadcastViaThreespeak, getCurrentProvider, Providers } from '../../hive-api/aioha';
 import { hasThreespeakPostingAuth, addThreespeakToPostingAuth } from '../../utils/postingAuthority';
 import { useAppStore } from '../../lib/store';
+import { oaEnvelope, threespeakVideo, probeVideoOrientation, OA_COMMENT } from '../../utils/openAttribute';
 import './ReactVideoModal.scss';
 
 /**
@@ -289,6 +290,11 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
       }
       const newPermlink = `re-${permlink}-${Date.now()}`;
 
+      // OpenAttribute: a reaction is a reply carrying its own video, so it is a
+      // Comment that still gets the video attribute. Orientation comes off the
+      // recorded blob when the reaction was filmed here rather than uploaded.
+      const oaOrientation = await probeVideoOrientation(videoFile || recordedBlob);
+
       const metadata = {
         app: '3speak/new-version',
         format: 'markdown',
@@ -298,6 +304,12 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
           platform: '3speak',
           url: embedUrl,
         },
+        ...oaEnvelope(OA_COMMENT),
+        ...threespeakVideo({
+          surface: isShort ? 'shorts' : 'watch',
+          orientation: oaOrientation,
+          duration: videoDuration,
+        }),
       };
 
       // Broadcast the reaction. Every aioha login posts via @threespeak (the
@@ -366,7 +378,7 @@ function ReactVideoTab({ author, permlink, currentTime, formatTime, onPosted, on
     } finally {
       setUploading(false);
     }
-  }, [videoFile, user, videoDuration, currentTime, description, isShort, author, permlink, onPosted, videoPreviewUrl, recordedUrl]);
+  }, [videoFile, user, videoDuration, currentTime, description, isShort, author, permlink, onPosted, videoPreviewUrl, recordedUrl, recordedBlob]);
 
   const hasVideo = !!(videoFile || recordedBlob);
   const canSubmit = hasVideo && !uploading;
