@@ -69,6 +69,9 @@ function EmbedDetails() {
 
   const rewardsSelectRef = useRef(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
+  const [guestsOpen, setGuestsOpen] = useState(false);
+  const [rewardChoice, setRewardChoice] = useState('default');
   const [allowlistDraft, setAllowlistDraft] = useState('');
   const addAllowlistNames = () => {
     const names = allowlistDraft
@@ -137,7 +140,8 @@ function EmbedDetails() {
   };
 
   const handleSelect = (e) => {
-    const value = e.target.value;
+    const value = typeof e === 'string' ? e : e.target.value;
+    setRewardChoice(value);
     if (value === "powerup") {
       setRewardPowerup(true)
       SetDeclineRewards(false)
@@ -286,7 +290,7 @@ function EmbedDetails() {
                     </div>
                   </div>
                 )}
-                <div className="beneficiary-wrap mb is-clickable" onClick={() => rewardsSelectRef.current?.showPicker?.() ?? rewardsSelectRef.current?.focus()}>
+                <div className="beneficiary-wrap mb is-clickable" onClick={() => { if (window.matchMedia('(max-width: 720px)').matches) { setRewardsOpen(true); } else if (rewardsSelectRef.current?.showPicker) { rewardsSelectRef.current.showPicker(); } else { rewardsSelectRef.current?.focus(); } }}>
                   <div className="wrap">
                     <span>Rewards<SettingInfo title="Rewards">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
                       <span>How rewards are paid out.</span>
@@ -349,11 +353,15 @@ function EmbedDetails() {
                     <div className="wrap">
                       <span>Supporters only<SettingInfo title="Supporters only">
                           Encrypts this video so only 3Speak Pro subscribers can play it.
-                          A short unencrypted preview is published alongside it, so the post
-                          still shows a trailer everywhere on Hive.
+                          A <strong>10 second unencrypted preview</strong> is published alongside
+                          it, so the post still shows a trailer everywhere on Hive.
+                          {' '}Your title, description and tags are ordinary Hive post content and
+                          are <strong>not encrypted</strong> — only the video is.
                           {' '}<strong>This cannot be changed after upload.</strong>
                         </SettingInfo></span>
-                      <span>Pro subscribers only.</span>
+                      <span>{gated && gatedAllowlist.length
+                        ? `Pro subscribers + ${gatedAllowlist.length} guest${gatedAllowlist.length === 1 ? '' : 's'}.`
+                        : 'Pro subscribers only.'}</span>
                     </div>
                     <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -369,46 +377,6 @@ function EmbedDetails() {
                     is what makes this usable for sending a video to specific
                     people. Stored on our servers only — never in the Hive post,
                     so the recipient list is not published on-chain. */}
-                {!fromStories && isPro && gated && (
-                  <div className="beneficiary-wrap gated-guests" onClick={(e) => e.stopPropagation()}>
-                    <div className="wrap">
-                      <span>Also allow specific accounts<SettingInfo title="Also allow specific accounts">
-                          These Hive accounts can watch without 3Speak Pro. The list is kept
-                          private on our servers and is never published to your post, so
-                          nobody can see who you shared it with.
-                        </SettingInfo></span>
-                      <span>Specific accounts that can watch.</span>
-                    </div>
-                    <div className="gated-guests__editor">
-                      <div className="gated-guests__input-row">
-                        <input
-                          type="text"
-                          value={allowlistDraft}
-                          placeholder="username, another.user"
-                          onChange={(e) => setAllowlistDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') { e.preventDefault(); addAllowlistNames(); }
-                          }}
-                        />
-                        <button type="button" onClick={addAllowlistNames}>Add</button>
-                      </div>
-                      {gatedAllowlist.length > 0 && (
-                        <div className="gated-guests__chips">
-                          {gatedAllowlist.map((name) => (
-                            <span className="gated-guests__chip" key={name}>
-                              @{name}
-                              <button
-                                type="button"
-                                aria-label={`Remove ${name}`}
-                                onClick={() => setGatedAllowlist(gatedAllowlist.filter((n) => n !== name))}
-                              >×</button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
                 {/* Not offered for shorts: the Overview trailer frame is 16:9. */}
                 {!fromStories && (
                   <div className="beneficiary-wrap" onClick={() => setIsChannelTrailer(!isChannelTrailer)}>
@@ -467,6 +435,60 @@ function EmbedDetails() {
                   </div>
                 )}
               </div>
+
+              <SettingSheet title="Rewards" open={rewardsOpen} onClose={() => setRewardsOpen(false)}>
+                <div className="option-sheet">
+                  {[
+                    { value: 'default', label: 'Default 50% 50%', hint: 'Half HBD, half Hive Power.' },
+                    { value: 'powerup', label: 'Power up 100%', hint: 'All rewards as Hive Power.' },
+                    { value: 'decline', label: 'Decline payout', hint: 'Take no rewards for this post.' },
+                  ].map((opt) => (
+                    <button
+                      type="button"
+                      key={opt.value}
+                      className={`option-sheet__item${rewardChoice === opt.value ? ' is-active' : ''}`}
+                      onClick={() => { handleSelect(opt.value); setRewardsOpen(false); }}
+                    >
+                      <strong>{opt.label}</strong>
+                      <span>{opt.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </SettingSheet>
+
+              <SettingSheet title="Guest list" open={guestsOpen} onClose={() => setGuestsOpen(false)}>
+                <p className="schedule-sheet__note" style={{ marginTop: 0 }}>
+                  These Hive accounts can watch without 3Speak Pro. The list is kept private on
+                  our servers and is never published to your post, so nobody can see who you
+                  shared it with.
+                </p>
+                <div className="gated-guests__editor">
+                  <div className="gated-guests__input-row">
+                    <input
+                      type="text"
+                      value={allowlistDraft}
+                      placeholder="username, another.user"
+                      onChange={(e) => setAllowlistDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAllowlistNames(); } }}
+                    />
+                    <button type="button" onClick={addAllowlistNames}>Add</button>
+                  </div>
+                  {gatedAllowlist.length > 0 && (
+                    <div className="gated-guests__chips">
+                      {gatedAllowlist.map((name) => (
+                        <span className="gated-guests__chip" key={name}>
+                          @{name}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${name}`}
+                            onClick={() => setGatedAllowlist(gatedAllowlist.filter((n) => n !== name))}
+                          >×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </SettingSheet>
 
               <SettingSheet title="Schedule this post" open={scheduleOpen} onClose={() => setScheduleOpen(false)}>
                 {(() => {
