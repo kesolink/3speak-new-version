@@ -154,9 +154,9 @@
 .advance-option.advance-option.advance-option {
   /* No outer frame: the tiles are the visual container now, and a box around a
      grid of boxes just adds noise. */
-  border: 0;
-  box-shadow: none;
-  padding: 0;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
 
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -212,7 +212,27 @@
         width: 100%;
         max-width: 100%;
         box-sizing: border-box;
+        text-align: center;
+        text-align-last: center;
       }
+    }
+
+    /* The community picker is a control like the others, so it sits on the
+       bottom line and fills the tile width. */
+    .community-wrap {
+      margin-top: auto;
+      padding-top: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      min-width: 0;
+
+      .wrap { flex-direction: row; align-items: center; gap: 6px; }
+      img { width: 20px; height: 20px; border-radius: 50%; }
     }
 
     .bene-btn-wrap {
@@ -301,5 +321,8 @@
 
   @media (max-width: 900px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* Rows size to their own content: with two columns the trailing rows were
+       being stretched to match the tallest tile on the page. */
+    grid-auto-rows: auto;
   }
 }

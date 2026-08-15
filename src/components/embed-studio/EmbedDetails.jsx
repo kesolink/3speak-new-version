@@ -262,21 +262,21 @@ function EmbedDetails() {
                   ))}</span>
                 </div>
               </div>
-              {!fromStories && (
-                <div className="community-box-wrap">
-                  <div className="community-wrap" onClick={openCommunityModal}>
-                    {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar/small`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar/small`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
-                    <IoIosArrowDropdownCircle size={16} />
-                  </div>
-                  <span>Select Community </span>
-                </div>
-              )}
-
               <div className="advance-option">
+                {!fromStories && (
+                  <div className="beneficiary-wrap community-tile">
+                    <div className="wrap">
+                      <span>Community<SettingInfo title="Community">Which Hive community this video is posted to. It becomes the post&apos;s category, so community feeds and moderation follow it.</SettingInfo></span>
+                    </div>
+                    <div className="community-wrap" onClick={openCommunityModal}>
+                      {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar/small`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar/small`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
+                      <IoIosArrowDropdownCircle size={16} />
+                    </div>
+                  </div>
+                )}
                 <div className="beneficiary-wrap mb">
                   <div className="wrap">
-                    <span>Rewards Distribution</span>
-                    <span>How rewards are paid out.<SettingInfo title="Rewards Distribution">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
+                    <span>Rewards Distribution<SettingInfo title="Rewards Distribution">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
                   </div>
                   <div className="select-wrap">
                     <select name="" id="" onChange={handleSelect}>
@@ -288,8 +288,7 @@ function EmbedDetails() {
                 </div>
                 <div className="beneficiary-wrap">
                   <div className="wrap">
-                    <span>Beneficiaries</span>
-                    <span>Share rewards with others.<SettingInfo title="Beneficiaries">Other accounts that should get a percentage of this post's rewards. Useful for co-creators, editors, or the original author of a clip.</SettingInfo></span>
+                    <span>Beneficiaries<SettingInfo title="Beneficiaries">Other accounts that should get a percentage of this post's rewards. Useful for co-creators, editors, or the original author of a clip.</SettingInfo></span>
                   </div>
                   <div className="bene-btn-wrap" onClick={toggleBeneficiaryModal}>
                     {list.length > 0 && <spa>{list.length}</spa>}
@@ -297,10 +296,9 @@ function EmbedDetails() {
                     <MdPeopleAlt />
                   </div>
                 </div>
-                <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                <div className="beneficiary-wrap">
                   <div className="wrap">
-                    <span>Allow Remix/Clip</span>
-                    <span>Let others remix this.<SettingInfo title="Allow Remix/Clip">Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</SettingInfo></span>
+                    <span>Allow Remix/Clip<SettingInfo title="Allow Remix/Clip">Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</SettingInfo></span>
                   </div>
                   <label className={`toggle-switch${isRemix ? ' disabled' : ''}`}>
                     <input
@@ -312,10 +310,9 @@ function EmbedDetails() {
                     <span className="toggle-track"><span className="toggle-thumb" /></span>
                   </label>
                 </div>
-                <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                <div className="beneficiary-wrap">
                   <div className="wrap">
-                    <span>Mark as adult / NSFW</span>
-                    <span>Adult content.<SettingInfo title="Mark as adult / NSFW">Flags this video as adult content. It will be hidden from feeds and search for viewers who have not enabled NSFW, and tagged <code>nsfw</code> across Hive.</SettingInfo></span>
+                    <span>Mark as adult / NSFW<SettingInfo title="Mark as adult / NSFW">Flags this video as adult content. It will be hidden from feeds and search for viewers who have not enabled NSFW, and tagged <code>nsfw</code> across Hive.</SettingInfo></span>
                   </div>
                   <label className="toggle-switch">
                     <input
@@ -332,18 +329,14 @@ function EmbedDetails() {
                     offered for shorts: a paywalled short is a worse product
                     than a free one, and the preview would be most of the clip. */}
                 {!fromStories && isPro && (
-                  <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                  <div className="beneficiary-wrap">
                     <div className="wrap">
-                      <span>Supporters only</span>
-                      <span>
-                        Pro subscribers only.
-                        <SettingInfo title="Supporters only">
+                      <span>Supporters only<SettingInfo title="Supporters only">
                           Encrypts this video so only 3Speak Pro subscribers can play it.
                           A short unencrypted preview is published alongside it, so the post
                           still shows a trailer everywhere on Hive.
                           {' '}<strong>This cannot be changed after upload.</strong>
-                        </SettingInfo>
-                      </span>
+                        </SettingInfo></span>
                     </div>
                     <label className="toggle-switch">
                       <input
@@ -360,17 +353,13 @@ function EmbedDetails() {
                     people. Stored on our servers only — never in the Hive post,
                     so the recipient list is not published on-chain. */}
                 {!fromStories && isPro && gated && (
-                  <div className="beneficiary-wrap gated-guests" style={{ marginTop: '12px' }}>
+                  <div className="beneficiary-wrap gated-guests">
                     <div className="wrap">
-                      <span>Also allow specific accounts</span>
-                      <span>
-                        Specific accounts that can watch.
-                        <SettingInfo title="Also allow specific accounts">
+                      <span>Also allow specific accounts<SettingInfo title="Also allow specific accounts">
                           These Hive accounts can watch without 3Speak Pro. The list is kept
                           private on our servers and is never published to your post, so
                           nobody can see who you shared it with.
-                        </SettingInfo>
-                      </span>
+                        </SettingInfo></span>
                     </div>
                     <div className="gated-guests__editor">
                       <div className="gated-guests__input-row">
@@ -404,10 +393,9 @@ function EmbedDetails() {
                 )}
                 {/* Not offered for shorts: the Overview trailer frame is 16:9. */}
                 {!fromStories && (
-                  <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                  <div className="beneficiary-wrap">
                     <div className="wrap">
-                      <span>Mark as channel trailer</span>
-                      <span>Autoplays on your profile.<SettingInfo title="Mark as channel trailer">Plays automatically at the top of your profile&apos;s <strong>Overview</strong> tab, replacing any trailer you set before.</SettingInfo></span>
+                      <span>Mark as channel trailer<SettingInfo title="Mark as channel trailer">Plays automatically at the top of your profile&apos;s <strong>Overview</strong> tab, replacing any trailer you set before.</SettingInfo></span>
                     </div>
                     <label className="toggle-switch">
                       <input
@@ -426,7 +414,7 @@ function EmbedDetails() {
                   time by the @threespeak account (requires the user to grant threespeak as
                   a posting account_auth on first schedule). */}
               {!fromStories && (
-                <div className="schedule-box-wrap" style={{ marginTop: '12px' }}>
+                <div className="schedule-box-wrap">
                   <div className="schedule-wrap toggle-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>Schedule this post</span>
                     <label className="toggle-switch">
