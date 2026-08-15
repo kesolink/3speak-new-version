@@ -351,3 +351,52 @@
     grid-auto-rows: auto;
   }
 }
+
+/* ── Page type scale ───────────────────────────────────────────────────────────
+   The whole details page holds to the same two sizes as the tiles: 12.35px for
+   anything that labels something, 11px for everything else. Both are the
+   studio's existing values, not new ones.
+
+   Hierarchy comes from weight and opacity rather than a third size, which is
+   what stops a form this dense from looking like six different components
+   bolted together. Scoped to this page so the rest of the studio is untouched. */
+.embed-details-page {
+  font-size: 11px;
+
+  /* Labels: the one larger size. */
+  label,
+  > .studio-page-header h1,
+  .wrap > :first-child {
+    font-size: 12.35px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  /* Everything that takes or shows input, plus helper text and buttons. */
+  input,
+  textarea,
+  select,
+  button,
+  .preview-tags .item,
+  .tag-count,
+  .schedule-wrap,
+  .toggle-row,
+  .proceed-btn,
+  .studio-btn,
+  p, span, li {
+    font-size: 11px;
+  }
+
+  /* The markdown editor's own chrome: its buttons and body follow the same
+     smaller size rather than shipping a third. */
+  .markdown-composer,
+  .markdown-composer * {
+    font-size: 11px;
+  }
+
+  /* Placeholders read as supporting text, so they lean on opacity, not size. */
+  ::placeholder { font-size: 11px; opacity: 0.55; }
+
+  /* The step labels under the progress dots are labels. */
+  .step-progress span { font-size: 11px; }
+}

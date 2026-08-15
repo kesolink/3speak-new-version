@@ -201,7 +201,7 @@ function EmbedDetails() {
 
   return (
     <>
-      <div className="studio-main-container">
+      <div className="studio-main-container embed-details-page">
         <div className="studio-page-header">
           <h1>{fromStories ? "Share a Short" : "Share a Video"}</h1>
         </div>
