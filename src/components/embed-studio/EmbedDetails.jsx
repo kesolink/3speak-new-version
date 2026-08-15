@@ -371,12 +371,21 @@ function EmbedDetails() {
                       />
                       <span className="toggle-track"><span className="toggle-thumb" /></span>
                     </label>
+                    {/* 🔐 Guest list. Named accounts watch without needing Pro, which
+                        is what makes this usable for sending a video to specific
+                        people. Stored on our servers only — never in the Hive post,
+                        so the recipient list is not published on-chain. */}
+                    {gated && isPro && (
+                      <button
+                        type="button"
+                        className="schedule-tile__change"
+                        onClick={(e) => { e.stopPropagation(); setGuestsOpen(true); }}
+                      >
+                        Guest list
+                      </button>
+                    )}
                   </div>
                 )}
-                {/* 🔐 Guest list. Named accounts watch without needing Pro, which
-                    is what makes this usable for sending a video to specific
-                    people. Stored on our servers only — never in the Hive post,
-                    so the recipient list is not published on-chain. */}
                 {/* Not offered for shorts: the Overview trailer frame is 16:9. */}
                 {!fromStories && (
                   <div className="beneficiary-wrap" onClick={() => setIsChannelTrailer(!isChannelTrailer)}>
