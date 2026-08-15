@@ -13,6 +13,11 @@ import './SettingInfo.scss';
  * Rendered through a portal: the tiles sit inside a bordered panel with its own
  * stacking context, so an inline popover would be clipped by it. On phones it
  * comes up as a bottom sheet, matching the rest of the app's dialogs.
+ *
+ * ⚠️ Every click inside stops propagation. A portal moves the DOM node to
+ * <body>, but React still bubbles synthetic events through the REACT tree, so a
+ * click on the overlay reaches the tile that renders this component — closing
+ * the dialog would silently toggle whatever setting it was explaining.
  */
 
 /**
@@ -37,7 +42,7 @@ export function SettingSheet({ title, open, onClose, children }) {
   if (!open) return null;
 
   return createPortal(
-    <div className="setting-info__overlay" onClick={onClose}>
+    <div className="setting-info__overlay" onClick={(e) => { e.stopPropagation(); onClose(); }}>
       <div
         className="setting-info__sheet"
         role="dialog"
@@ -47,7 +52,7 @@ export function SettingSheet({ title, open, onClose, children }) {
       >
         <div className="setting-info__head">
           <strong>{title}</strong>
-          <button type="button" aria-label="Close" onClick={onClose}>×</button>
+          <button type="button" aria-label="Close" onClick={(e) => { e.stopPropagation(); onClose(); }}>×</button>
         </div>
         <div className="setting-info__body">{children}</div>
       </div>
@@ -91,7 +96,7 @@ export default function SettingInfo({ title, children }) {
       </button>
 
       {open && createPortal(
-        <div className="setting-info__overlay" onClick={() => setOpen(false)}>
+        <div className="setting-info__overlay" onClick={(e) => { e.stopPropagation(); setOpen(false); }}>
           <div
             className="setting-info__sheet"
             role="dialog"
@@ -101,7 +106,7 @@ export default function SettingInfo({ title, children }) {
           >
             <div className="setting-info__head">
               <strong>{title}</strong>
-              <button type="button" aria-label="Close" onClick={() => setOpen(false)}>×</button>
+              <button type="button" aria-label="Close" onClick={(e) => { e.stopPropagation(); setOpen(false); }}>×</button>
             </div>
             <div className="setting-info__body">{children}</div>
           </div>
