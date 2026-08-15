@@ -233,34 +233,36 @@
     /* Every control sits on the same baseline: pushed to the bottom, one fixed
        height, so a dropdown, a button and a checkbox all line up across the row
        instead of each ending wherever its own box happens to. */
+    /* Every control sits on the same baseline. The three button-ish ones fill
+       the tile width; the checkbox stays its own size and centres, because a
+       full-width checkbox just pins the box to the left edge. */
     .select-wrap,
     .bene-btn-wrap,
     .community-wrap,
     .toggle-switch {
       margin-top: auto;
       padding-top: 10px;
-      width: 100%;
       box-sizing: border-box;
     }
 
     .select-wrap,
     .bene-btn-wrap,
     .community-wrap {
+      width: 100%;
+      min-height: 36px;
       display: flex;
       align-items: center;
       justify-content: center;
-
-      > * { width: 100%; }
     }
 
-    .select-wrap select,
-    .bene-btn-wrap,
-    .community-wrap {
-      min-height: 36px;
-    }
+    /* Only the select stretches: the button's own children must not, or its
+       label and icon get pushed to opposite edges. */
+    .select-wrap select { width: 100%; }
 
-    .bene-btn-wrap,
-    .community-wrap { padding-bottom: 0; }
+    .toggle-switch {
+      width: auto;
+      align-self: center;
+    }
 
     .select-wrap {
       width: 100%;
