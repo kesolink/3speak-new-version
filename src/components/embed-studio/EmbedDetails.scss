@@ -148,10 +148,10 @@
    Every setting in the advanced panel is a tile: four across on desktop, two on
    mobile, all the same height, content centred.
 
-   Selectors are deliberately doubled (`.advance-option.advance-option`). The
+   Selectors are deliberately tripled (`.advance-option.advance-option...`). The
    originals in StudioPage.scss are nested several levels deep, so a plain
    single-class rule loses on specificity and the sliders stay sliders. */
-.advance-option.advance-option {
+.advance-option.advance-option.advance-option {
   /* No outer frame: the tiles are the visual container now, and a box around a
      grid of boxes just adds noise. */
   border: 0;
@@ -167,6 +167,10 @@
 
   > .beneficiary-wrap {
     position: relative;
+    /* Belt and braces with grid-auto-rows: an inherited align-self elsewhere
+       would otherwise leave tiles shrink-wrapped to their content. */
+    height: 100%;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -255,13 +259,17 @@
         &::after {
           content: '';
           position: absolute;
-          top: 3px;
-          left: 7.5px;
+          /* Centred by transform rather than hand-tuned offsets: the tick's
+             optical centre sits below its bounding box once rotated, hence the
+             -55% rather than -50%. */
+          top: 50%;
+          left: 50%;
           width: 5px;
           height: 10px;
+          margin: -6px 0 0 -3px;
           border: solid var(--accent-primary, #e53935);
           border-width: 0 2px 2px 0;
-          transform: rotate(45deg) scale(0.6);
+          transform: translate(0, -5%) rotate(45deg) scale(0.6);
           opacity: 0;
           transition: opacity 0.12s ease, transform 0.12s ease;
         }
@@ -274,7 +282,7 @@
 
       .toggle-thumb {
         transform: none;
-        &::after { opacity: 1; transform: rotate(45deg) scale(1); }
+        &::after { opacity: 1; transform: translate(0, -5%) rotate(45deg) scale(1); }
       }
     }
 
