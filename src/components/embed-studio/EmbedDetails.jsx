@@ -15,7 +15,7 @@ import { usePremiumStatus } from '../../hooks/usePremiumStatus';
 // than relying on EmbedStudioPage having mounted first and pulled it in.
 // ScheduledPostEditor already does the same for the same reason; Vite dedupes.
 import '../legacy-studio/StudioPage.scss';
-import SettingInfo from './SettingInfo';
+import SettingInfo, { SettingSheet } from './SettingInfo';
 import './EmbedDetails.scss';
 
 function EmbedDetails() {
@@ -67,6 +67,7 @@ function EmbedDetails() {
     if (!gated && gatedAllowlist.length) setGatedAllowlist([]);
   }, [gated, gatedAllowlist, setGatedAllowlist]);
 
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [allowlistDraft, setAllowlistDraft] = useState('');
   const addAllowlistNames = () => {
     const names = allowlistDraft
@@ -424,16 +425,19 @@ function EmbedDetails() {
                     </label>
                   </div>
                 )}
-              </div>
-
-              {/* Schedule section — only for regular videos (not shorts). When toggled on,
-                  the post is queued on our checker backend and auto-broadcast at the chosen
-                  time by the @threespeak account (requires the user to grant threespeak as
-                  a posting account_auth on first schedule). */}
-              {!fromStories && (
-                <div className="schedule-box-wrap">
-                  <div className="schedule-wrap toggle-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>Schedule this post</span>
+                {/* Schedule — only for regular videos, not shorts. When on, the post
+                    is queued on the checker backend and broadcast at the chosen time
+                    by @threespeak (the user grants that posting auth once). The
+                    picker lives in a sheet so the tile stays the size of its
+                    neighbours instead of growing an input inline. */}
+                {!fromStories && (
+                  <div className="beneficiary-wrap schedule-tile">
+                    <div className="wrap">
+                      <span>Schedule this post<SettingInfo title="Schedule this post">Queues the post and publishes it automatically at the time you choose, at least 15 minutes from now and up to 90 days out. It is broadcast by @threespeak on your behalf, so you will be asked to authorize that once.</SettingInfo></span>
+                      <span>{isScheduled && scheduleDateTime
+                        ? new Date(scheduleDateTime).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+                        : 'Publish immediately.'}</span>
+                    </div>
                     <label className="toggle-switch">
                       <input
                         type="checkbox"
@@ -441,35 +445,49 @@ function EmbedDetails() {
                         onChange={(e) => {
                           const checked = e.target.checked;
                           setIsScheduled(checked);
-                          if (checked && !scheduleDateTime) {
-                            // Prefill with min (now + 1h) so the input isn't empty.
-                            const { minFormatted, minDate } = getMinMaxDates();
-                            setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16));
+                          if (checked) {
+                            if (!scheduleDateTime) {
+                              // Prefill with the minimum so the picker is never empty.
+                              const { minFormatted, minDate } = getMinMaxDates();
+                              setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16));
+                            }
+                            // Turning it on is a request to pick a time, so ask now.
+                            setScheduleOpen(true);
                           }
                         }}
                       />
                       <span className="toggle-track"><span className="toggle-thumb" /></span>
                     </label>
+                    {isScheduled && (
+                      <button type="button" className="schedule-tile__change" onClick={() => setScheduleOpen(true)}>
+                        Change time
+                      </button>
+                    )}
                   </div>
-                  {isScheduled && (() => {
-                    const { minFormatted, maxFormatted } = getMinMaxDates();
-                    return (
-                      <div style={{ marginTop: '8px' }}>
-                        <input
-                          type="datetime-local"
-                          value={scheduleDateTime}
-                          min={minFormatted}
-                          max={maxFormatted}
-                          onChange={(e) => setScheduleDateTime(e.target.value)}
-                        />
-                        <div style={{ opacity: 0.7, marginTop: '4px' }}>
-                          Range: at least 15 minutes from now, up to 90 days. Posted automatically by @threespeak on your behalf — you'll be asked to authorize this once.
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
+                )}
+              </div>
+
+              <SettingSheet title="Schedule this post" open={scheduleOpen} onClose={() => setScheduleOpen(false)}>
+                {(() => {
+                  const { minFormatted, maxFormatted } = getMinMaxDates();
+                  return (
+                    <>
+                      <input
+                        type="datetime-local"
+                        className="schedule-sheet__input"
+                        value={scheduleDateTime}
+                        min={minFormatted}
+                        max={maxFormatted}
+                        onChange={(e) => setScheduleDateTime(e.target.value)}
+                      />
+                      <p className="schedule-sheet__note">
+                        At least 15 minutes from now, up to 90 days. Posted automatically by
+                        @threespeak on your behalf — you will be asked to authorize this once.
+                      </p>
+                    </>
+                  );
+                })()}
+              </SettingSheet>
 
               <div className="submit-btn-wrap">
                 <button

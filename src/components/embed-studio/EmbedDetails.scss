@@ -334,6 +334,18 @@
     &.disabled { opacity: 0.5; cursor: not-allowed; }
   }
 
+  /* "Change time" sits under the checkbox on the schedule tile. Small and quiet:
+     the tile's own description already shows the chosen time. */
+  .schedule-tile__change {
+    margin-top: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-primary, #e53935);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
   /* The guest list holds an input and a chip list that grows, so it spans the
      whole row and keeps its left alignment. */
   > .beneficiary-wrap.gated-guests {
