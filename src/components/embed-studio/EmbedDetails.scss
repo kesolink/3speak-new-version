@@ -249,15 +249,34 @@
     .bene-btn-wrap,
     .community-wrap {
       width: 100%;
+      /* A fixed height, not a minimum: the three controls wrap different things
+         (an avatar, a native select, a label and icon) and any difference in
+         their natural height left them ending at different points even with
+         margin-top: auto pushing each to the bottom. */
+      height: 36px;
       min-height: 36px;
+      /* Nothing below them, so the tile's own 14px padding is the only gap. */
+      margin-bottom: 0;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    /* Only the select stretches: the button's own children must not, or its
-       label and icon get pushed to opposite edges. */
-    .select-wrap select { width: 100%; }
+    /* Whatever sits inside those controls fills the fixed height rather than
+       floating within it. */
+    .select-wrap select,
+    .bene-btn-wrap > *,
+    .community-wrap > * {
+      margin: 0;
+    }
+
+    .select-wrap select {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Only the select stretches internally: the button's own children must not,
+       or its label and icon get pushed to opposite edges. */
 
     .toggle-switch {
       width: auto;
