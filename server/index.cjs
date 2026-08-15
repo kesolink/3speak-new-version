@@ -680,6 +680,100 @@ app.post('/api/auth/wallet/logout', (req, res) => {
   res.json({ success: true })
 })
 
+// ── 🔐 Gated content: guest list ──────────────────────────────────────────────
+// Lets a creator add or remove the named accounts that can watch one of their
+// supporters-only videos without 3Speak Pro.
+//
+// This lives HERE rather than in embedvideos on purpose. embedvideos only has
+// app-level API keys, and the embed key ships inside the browser bundle, so a
+// route there would let anyone edit anyone else's guest list. This service knows
+// WHICH USER is calling, which is exactly what the check needs.
+const GATE_URL = process.env.GATE_URL || ''
+const GATE_INTERNAL_API_KEY = process.env.GATE_INTERNAL_API_KEY || ''
+const EMBED_API_BASE = process.env.EMBED_API_BASE || 'https://embed2.3speak.tv'
+
+app.patch('/api/gated/:permlink/allowlist', async (req, res) => {
+  try {
+    if (!GATE_URL || !GATE_INTERNAL_API_KEY) {
+      return res.status(503).json({ error: 'Gate is not configured on this instance' })
+    }
+
+    // Same identity resolution as /api/broadcast, minus the legacy app-key path:
+    // that path trusts a CLAIMED username, which is fine for posting ops the user
+    // signs anyway, and not fine for deciding who may watch a paid video.
+    let hiveUsername = await resolveButrUser(req, res)
+    if (!hiveUsername) {
+      const ws = req.cookies?.[WSESSION_COOKIE_NAME]
+      const wu = ws && verifyWalletSession(ws)
+      if (wu) hiveUsername = wu
+    }
+    if (!hiveUsername) {
+      const authHeader = req.headers.authorization || ''
+      const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+      if (bearer) hiveUsername = await verifyHiveSignerToken(bearer)
+    }
+    if (!hiveUsername) return res.status(401).json({ error: 'Sign in to manage your guest list' })
+
+    const permlink = String(req.params.permlink || '').trim()
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(permlink)) {
+      return res.status(400).json({ error: 'invalid permlink' })
+    }
+
+    const list = req.body?.allowlist
+    if (!Array.isArray(list) || list.length > 500) {
+      return res.status(422).json({ error: 'allowlist must be an array of at most 500 usernames' })
+    }
+    const names = [...new Set(list.map((u) => String(u).trim().toLowerCase().replace(/^@/, '')))]
+    const bad = names.find((n) => !HIVE_USER_RE.test(n))
+    if (bad !== undefined) {
+      return res.status(422).json({ error: `"${bad}" is not a valid Hive account name` })
+    }
+
+    // Ownership check against the embed record, which is the source of truth for
+    // who uploaded the asset. Never trust a client-supplied owner here.
+    let video
+    try {
+      const r = await fetch(`${EMBED_API_BASE.replace(/\/+$/, '')}/video/${encodeURIComponent(permlink)}`, {
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!r.ok) return res.status(404).json({ error: 'video not found' })
+      video = await r.json()
+    } catch {
+      return res.status(502).json({ error: 'could not verify video ownership' })
+    }
+
+    if (String(video?.owner || '').toLowerCase() !== hiveUsername.toLowerCase()) {
+      console.warn(`[gated] @${hiveUsername} tried to edit the guest list of ${permlink} owned by @${video?.owner}`)
+      return res.status(403).json({ error: 'You can only manage guest lists on your own videos' })
+    }
+    if (video?.gated !== true) {
+      return res.status(400).json({ error: 'That video is not supporters-only' })
+    }
+
+    const gateRes = await fetch(
+      `${GATE_URL.replace(/\/+$/, '')}/internal/videos/${encodeURIComponent(video.gate_video_id || permlink)}/allowlist`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': GATE_INTERNAL_API_KEY },
+        body: JSON.stringify({ allowlist: names }),
+        signal: AbortSignal.timeout(8000),
+      }
+    )
+    if (!gateRes.ok) {
+      const text = await gateRes.text().catch(() => '')
+      console.error(`[gated] gate rejected allowlist update for ${permlink}: ${gateRes.status} ${text}`)
+      return res.status(502).json({ error: 'Could not update the guest list' })
+    }
+
+    const body = await gateRes.json()
+    console.log(`[gated] @${hiveUsername} set ${names.length} guest(s) on ${permlink}`)
+    return res.json({ success: true, allowlist: body.allowlist ?? names })
+  } catch (err) {
+    console.error('PATCH /api/gated/:permlink/allowlist error:', err.message)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 app.post('/api/broadcast', broadcastLimiter, async (req, res) => {
   try {
     let hiveUsername = null
