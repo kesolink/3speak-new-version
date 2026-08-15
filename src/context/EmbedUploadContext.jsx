@@ -72,7 +72,19 @@ export function EmbedUploadProvider({ children }) {
   const isPremium = !!premiumStatus?.premium;
 
   // Step tracking
-  const [step, setStep] = useState(1);
+  // 🔧 TEMPORARY DEV HACK — remove before this ships.
+  // `?devstep=3` drops straight onto the details/description step so the form
+  // can be styled without clicking through upload and thumbnail every reload.
+  // Nothing is uploaded, so publishing from a jumped-to step will not work.
+  const [step, setStep] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    const forced = parseInt(new URLSearchParams(window.location.search).get('devstep') || '', 10);
+    if (Number.isInteger(forced) && forced >= 1 && forced <= 4) {
+      console.warn(`[dev] jumping to wizard step ${forced} via ?devstep — remove this hack before release`);
+      return forced;
+    }
+    return 1;
+  });
 
   // Video file state
   const [videoFile, setVideoFile] = useState(null);

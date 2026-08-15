@@ -267,6 +267,7 @@ function EmbedDetails() {
                   <div className="beneficiary-wrap community-tile">
                     <div className="wrap">
                       <span>Community<SettingInfo title="Community">Which Hive community this video is posted to. It becomes the post&apos;s category, so community feeds and moderation follow it.</SettingInfo></span>
+                      <span>Where this video is posted.</span>
                     </div>
                     <div className="community-wrap" onClick={openCommunityModal}>
                       {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar/small`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar/small`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
@@ -277,6 +278,7 @@ function EmbedDetails() {
                 <div className="beneficiary-wrap mb">
                   <div className="wrap">
                     <span>Rewards Distribution<SettingInfo title="Rewards Distribution">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
+                      <span>How rewards are paid out.</span>
                   </div>
                   <div className="select-wrap">
                     <select name="" id="" onChange={handleSelect}>
@@ -289,6 +291,7 @@ function EmbedDetails() {
                 <div className="beneficiary-wrap">
                   <div className="wrap">
                     <span>Beneficiaries<SettingInfo title="Beneficiaries">Other accounts that should get a percentage of this post's rewards. Useful for co-creators, editors, or the original author of a clip.</SettingInfo></span>
+                      <span>Share rewards with others.</span>
                   </div>
                   <div className="bene-btn-wrap" onClick={toggleBeneficiaryModal}>
                     {list.length > 0 && <spa>{list.length}</spa>}
@@ -299,6 +302,7 @@ function EmbedDetails() {
                 <div className="beneficiary-wrap">
                   <div className="wrap">
                     <span>Allow Remix/Clip<SettingInfo title="Allow Remix/Clip">Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</SettingInfo></span>
+                      <span>Let others remix this.</span>
                   </div>
                   <label className={`toggle-switch${isRemix ? ' disabled' : ''}`}>
                     <input
@@ -313,6 +317,7 @@ function EmbedDetails() {
                 <div className="beneficiary-wrap">
                   <div className="wrap">
                     <span>Mark as adult / NSFW<SettingInfo title="Mark as adult / NSFW">Flags this video as adult content. It will be hidden from feeds and search for viewers who have not enabled NSFW, and tagged <code>nsfw</code> across Hive.</SettingInfo></span>
+                      <span>Adult content.</span>
                   </div>
                   <label className="toggle-switch">
                     <input
@@ -337,6 +342,7 @@ function EmbedDetails() {
                           still shows a trailer everywhere on Hive.
                           {' '}<strong>This cannot be changed after upload.</strong>
                         </SettingInfo></span>
+                      <span>Pro subscribers only.</span>
                     </div>
                     <label className="toggle-switch">
                       <input
@@ -360,6 +366,7 @@ function EmbedDetails() {
                           private on our servers and is never published to your post, so
                           nobody can see who you shared it with.
                         </SettingInfo></span>
+                      <span>Specific accounts that can watch.</span>
                     </div>
                     <div className="gated-guests__editor">
                       <div className="gated-guests__input-row">
@@ -396,6 +403,7 @@ function EmbedDetails() {
                   <div className="beneficiary-wrap">
                     <div className="wrap">
                       <span>Mark as channel trailer<SettingInfo title="Mark as channel trailer">Plays automatically at the top of your profile&apos;s <strong>Overview</strong> tab, replacing any trailer you set before.</SettingInfo></span>
+                      <span>Autoplays on your profile.</span>
                     </div>
                     <label className="toggle-switch">
                       <input
