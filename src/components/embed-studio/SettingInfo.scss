@@ -88,7 +88,7 @@
     max-width: none;
     border-radius: 14px 14px 0 0;
     border-bottom: 0;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     animation: setting-info-up 0.18s ease-out;
   }
 
@@ -204,7 +204,51 @@
     font-size: 12px;
   }
 
-  .bene-text { opacity: 0.7; line-height: 1.45; }
+  /* One padding rule for the whole dialog body rather than each block bringing
+     its own, which is what made the beneficiary modal look uneven: the header
+     had padding, the text and the list did not. */
+  > *:not(.modal-header) {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Every dialog ends with the same breathing room, so content never sits flush
+     against the bottom edge (or the home indicator on a phone). */
+  padding-bottom: 16px;
+
+  .bene-text {
+    opacity: 0.7;
+    line-height: 1.45;
+    margin: 0 0 12px;
+  }
+
+  .bene-content-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .beneficiary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  }
+
+  .user-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    input { flex: 1 1 auto; min-width: 0; }
+  }
+
+  .error { display: block; margin-bottom: 8px; color: var(--accent-primary, #e53935); }
 
   input, select {
     box-sizing: border-box;
@@ -234,6 +278,6 @@
     transform: none;
     border-radius: 14px 14px 0 0;
     border-bottom: 0;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
 }
