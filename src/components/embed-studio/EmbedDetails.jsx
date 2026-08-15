@@ -109,7 +109,13 @@ function EmbedDetails() {
     setStep(3)
   }, [])
 
-  if (!selectedThumbnail) {
+  // 🔧 TEMPORARY DEV HACK — remove with the other ?devstep handling.
+  // /embed-studio/details?devstep=3 renders the form with no upload behind it,
+  // purely so the layout can be worked on. Publishing from here will not work.
+  const devStep = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('devstep');
+
+  if (!selectedThumbnail && !devStep) {
     return <Navigate to="/embed-studio" replace />;
   }
 
