@@ -27,6 +27,7 @@ import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { batchCheckHidden, isCreatorHidden } from '../utils/hiddenCreators';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { useGatedPlayback } from '../hooks/useGatedPlayback';
+import GuestListEditor from '../components/gated/GuestListEditor';
 import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
@@ -1555,6 +1556,13 @@ function Watch({ v2 = false }) {
         />
       )}
       <AmbientGlow getVideoEl={() => player?.element} glowMode={glowMode} />
+      {/* 🔐 The creator's own guest list, shown only to them. Server re-checks
+          ownership on every call, so rendering this is a convenience, not a
+          permission. Keyed on the EMBED asset id, which is what the gate knows
+          the video by and is not always the Hive permlink. */}
+      {isGatedPost && user && author && user.toLowerCase() === String(author).toLowerCase() && (
+        <GuestListEditor permlink={gateVideoId || permlink} />
+      )}
       {/* 🔐 Paywall banner for supporters-only posts. Sits above the player
           rather than covering it: what is playing underneath is the free
           preview, and hiding that would remove the very thing meant to sell

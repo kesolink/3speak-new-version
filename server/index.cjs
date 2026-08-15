@@ -692,32 +692,97 @@ const GATE_URL = process.env.GATE_URL || ''
 const GATE_INTERNAL_API_KEY = process.env.GATE_INTERNAL_API_KEY || ''
 const EMBED_API_BASE = process.env.EMBED_API_BASE || 'https://embed2.3speak.tv'
 
+/**
+ * Shared gate for both guest-list routes: who is calling, and do they own this
+ * video. Returns { user, video } or null after having already answered.
+ *
+ * Identity resolution mirrors /api/broadcast minus the legacy app-key path:
+ * that path trusts a CLAIMED username, which is fine for posting ops the user
+ * signs anyway, and not fine for deciding who may watch a paid video.
+ */
+async function resolveGatedVideoOwner(req, res) {
+  if (!GATE_URL || !GATE_INTERNAL_API_KEY) {
+    res.status(503).json({ error: 'Gate is not configured on this instance' })
+    return null
+  }
+
+  let hiveUsername = await resolveButrUser(req, res)
+  if (!hiveUsername) {
+    const ws = req.cookies?.[WSESSION_COOKIE_NAME]
+    const wu = ws && verifyWalletSession(ws)
+    if (wu) hiveUsername = wu
+  }
+  if (!hiveUsername) {
+    const authHeader = req.headers.authorization || ''
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+    if (bearer) hiveUsername = await verifyHiveSignerToken(bearer)
+  }
+  if (!hiveUsername) {
+    res.status(401).json({ error: 'Sign in to manage your guest list' })
+    return null
+  }
+
+  const permlink = String(req.params.permlink || '').trim()
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(permlink)) {
+    res.status(400).json({ error: 'invalid permlink' })
+    return null
+  }
+
+  // Ownership is checked against the embed record, which is the source of truth
+  // for who uploaded the asset. Never trust a client-supplied owner.
+  let video
+  try {
+    const r = await fetch(`${EMBED_API_BASE.replace(/\/+$/, '')}/video/${encodeURIComponent(permlink)}`, {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!r.ok) { res.status(404).json({ error: 'video not found' }); return null }
+    video = await r.json()
+  } catch {
+    res.status(502).json({ error: 'could not verify video ownership' })
+    return null
+  }
+
+  if (String(video?.owner || '').toLowerCase() !== hiveUsername.toLowerCase()) {
+    console.warn(`[gated] @${hiveUsername} tried to touch the guest list of ${permlink} owned by @${video?.owner}`)
+    res.status(403).json({ error: 'You can only manage guest lists on your own videos' })
+    return null
+  }
+  if (video?.gated !== true) {
+    res.status(400).json({ error: 'That video is not supporters-only' })
+    return null
+  }
+
+  return { user: hiveUsername, video, permlink }
+}
+
+// Read the current guest list, so the editor can show who is already invited.
+app.get('/api/gated/:permlink/allowlist', async (req, res) => {
+  try {
+    const ctx = await resolveGatedVideoOwner(req, res)
+    if (!ctx) return undefined
+
+    const r = await fetch(
+      `${GATE_URL.replace(/\/+$/, '')}/internal/videos/${encodeURIComponent(ctx.video.gate_video_id || ctx.permlink)}`,
+      { headers: { 'X-API-Key': GATE_INTERNAL_API_KEY }, signal: AbortSignal.timeout(8000) }
+    )
+    // A gated video that finished encoding is registered with the gate; one that
+    // has not got there yet simply has no list to show.
+    if (r.status === 404) return res.json({ allowlist: [], registered: false })
+    if (!r.ok) return res.status(502).json({ error: 'Could not read the guest list' })
+
+    const body = await r.json()
+    return res.json({ allowlist: body.allowlist ?? [], registered: true })
+  } catch (err) {
+    console.error('GET /api/gated/:permlink/allowlist error:', err.message)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 app.patch('/api/gated/:permlink/allowlist', async (req, res) => {
   try {
-    if (!GATE_URL || !GATE_INTERNAL_API_KEY) {
-      return res.status(503).json({ error: 'Gate is not configured on this instance' })
-    }
-
-    // Same identity resolution as /api/broadcast, minus the legacy app-key path:
-    // that path trusts a CLAIMED username, which is fine for posting ops the user
-    // signs anyway, and not fine for deciding who may watch a paid video.
-    let hiveUsername = await resolveButrUser(req, res)
-    if (!hiveUsername) {
-      const ws = req.cookies?.[WSESSION_COOKIE_NAME]
-      const wu = ws && verifyWalletSession(ws)
-      if (wu) hiveUsername = wu
-    }
-    if (!hiveUsername) {
-      const authHeader = req.headers.authorization || ''
-      const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
-      if (bearer) hiveUsername = await verifyHiveSignerToken(bearer)
-    }
-    if (!hiveUsername) return res.status(401).json({ error: 'Sign in to manage your guest list' })
-
-    const permlink = String(req.params.permlink || '').trim()
-    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(permlink)) {
-      return res.status(400).json({ error: 'invalid permlink' })
-    }
+    const ctx = await resolveGatedVideoOwner(req, res)
+    if (!ctx) return undefined
+    const { user: hiveUsername, video, permlink } = ctx
 
     const list = req.body?.allowlist
     if (!Array.isArray(list) || list.length > 500) {
@@ -727,27 +792,6 @@ app.patch('/api/gated/:permlink/allowlist', async (req, res) => {
     const bad = names.find((n) => !HIVE_USER_RE.test(n))
     if (bad !== undefined) {
       return res.status(422).json({ error: `"${bad}" is not a valid Hive account name` })
-    }
-
-    // Ownership check against the embed record, which is the source of truth for
-    // who uploaded the asset. Never trust a client-supplied owner here.
-    let video
-    try {
-      const r = await fetch(`${EMBED_API_BASE.replace(/\/+$/, '')}/video/${encodeURIComponent(permlink)}`, {
-        signal: AbortSignal.timeout(8000),
-      })
-      if (!r.ok) return res.status(404).json({ error: 'video not found' })
-      video = await r.json()
-    } catch {
-      return res.status(502).json({ error: 'could not verify video ownership' })
-    }
-
-    if (String(video?.owner || '').toLowerCase() !== hiveUsername.toLowerCase()) {
-      console.warn(`[gated] @${hiveUsername} tried to edit the guest list of ${permlink} owned by @${video?.owner}`)
-      return res.status(403).json({ error: 'You can only manage guest lists on your own videos' })
-    }
-    if (video?.gated !== true) {
-      return res.status(400).json({ error: 'That video is not supporters-only' })
     }
 
     const gateRes = await fetch(
