@@ -11,6 +11,7 @@ import MarkdownComposer from '../studio/MarkdownComposer';
 import { getMinMaxDates } from '../../utils/schedulingHelpers';
 import EmbedUploadProgressBar from './EmbedUploadProgressBar';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import SettingInfo from './SettingInfo';
 import './EmbedDetails.scss';
 
 function EmbedDetails() {
@@ -275,7 +276,7 @@ function EmbedDetails() {
                 <div className="beneficiary-wrap mb">
                   <div className="wrap">
                     <span>Rewards Distribution</span>
-                    <span>Optional "Hive Reward Pool" distribution method.</span>
+                    <span>How rewards are paid out.<SettingInfo title="Rewards Distribution">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
                   </div>
                   <div className="select-wrap">
                     <select name="" id="" onChange={handleSelect}>
@@ -288,7 +289,7 @@ function EmbedDetails() {
                 <div className="beneficiary-wrap">
                   <div className="wrap">
                     <span>Beneficiaries</span>
-                    <span>Other accounts that should get a % of the post rewards.</span>
+                    <span>Share rewards with others.<SettingInfo title="Beneficiaries">Other accounts that should get a percentage of this post's rewards. Useful for co-creators, editors, or the original author of a clip.</SettingInfo></span>
                   </div>
                   <div className="bene-btn-wrap" onClick={toggleBeneficiaryModal}>
                     {list.length > 0 && <spa>{list.length}</spa>}
@@ -299,7 +300,7 @@ function EmbedDetails() {
                 <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
                   <div className="wrap">
                     <span>Allow Remix/Clip</span>
-                    <span>Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</span>
+                    <span>Let others remix this.<SettingInfo title="Allow Remix/Clip">Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</SettingInfo></span>
                   </div>
                   <label className={`toggle-switch${isRemix ? ' disabled' : ''}`}>
                     <input
@@ -314,7 +315,7 @@ function EmbedDetails() {
                 <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
                   <div className="wrap">
                     <span>Mark as adult / NSFW</span>
-                    <span>Flags this video as adult content. It will be hidden from feeds and search for viewers who haven't enabled NSFW, and tagged <code>nsfw</code> across Hive.</span>
+                    <span>Adult content.<SettingInfo title="Mark as adult / NSFW">Flags this video as adult content. It will be hidden from feeds and search for viewers who have not enabled NSFW, and tagged <code>nsfw</code> across Hive.</SettingInfo></span>
                   </div>
                   <label className="toggle-switch">
                     <input
@@ -335,10 +336,13 @@ function EmbedDetails() {
                     <div className="wrap">
                       <span>Supporters only</span>
                       <span>
-                        Encrypts this video so only 3Speak Pro subscribers can play it.
-                        A short unencrypted preview is published alongside it, so the post
-                        still shows a trailer everywhere on Hive.
-                        {' '}<strong>This cannot be changed after upload.</strong>
+                        Pro subscribers only.
+                        <SettingInfo title="Supporters only">
+                          Encrypts this video so only 3Speak Pro subscribers can play it.
+                          A short unencrypted preview is published alongside it, so the post
+                          still shows a trailer everywhere on Hive.
+                          {' '}<strong>This cannot be changed after upload.</strong>
+                        </SettingInfo>
                       </span>
                     </div>
                     <label className="toggle-switch">
@@ -360,8 +364,12 @@ function EmbedDetails() {
                     <div className="wrap">
                       <span>Also allow specific accounts</span>
                       <span>
-                        These Hive accounts can watch without 3Speak Pro. Kept private
-                        on our servers, never published to your post.
+                        Specific accounts that can watch.
+                        <SettingInfo title="Also allow specific accounts">
+                          These Hive accounts can watch without 3Speak Pro. The list is kept
+                          private on our servers and is never published to your post, so
+                          nobody can see who you shared it with.
+                        </SettingInfo>
                       </span>
                     </div>
                     <div className="gated-guests__editor">
@@ -399,7 +407,7 @@ function EmbedDetails() {
                   <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
                     <div className="wrap">
                       <span>Mark as channel trailer</span>
-                      <span>Plays automatically at the top of your profile's <strong>Overview</strong> tab, replacing any trailer you set before.</span>
+                      <span>Autoplays on your profile.<SettingInfo title="Mark as channel trailer">Plays automatically at the top of your profile&apos;s <strong>Overview</strong> tab, replacing any trailer you set before.</SettingInfo></span>
                     </div>
                     <label className="toggle-switch">
                       <input

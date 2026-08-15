@@ -145,34 +145,30 @@
 }
 
 /* ── Settings tiles ────────────────────────────────────────────────────────────
-   The on/off settings in the advanced panel render as a GRID of tiles rather
-   than a stack of sliders: each is a card that takes a red outline and shows a
-   checkmark once active, so the enabled ones are readable at a glance.
+   Every setting in the advanced panel is a tile: four across on desktop, two on
+   mobile. Tiles carry a short line each, with the full wording behind the (i)
+   so the grid stays even instead of some cards being three times as tall.
 
-   Scoped to `.advance-option` on purpose. `.beneficiary-wrap` and
-   `.toggle-switch` are shared with the legacy studio, and the "Schedule this
-   post" switch sits OUTSIDE this panel, so both keep the original slider. */
+   On/off tiles take a red OUTLINE and a checkmark when active, never a red
+   fill: several can be on at once and a filled red card reads as an error.
+
+   Scoped to `.advance-option`. `.beneficiary-wrap` and `.toggle-switch` are
+   shared with the legacy studio, and the "Schedule this post" switch sits
+   OUTSIDE this panel, so both keep their original look. */
 .advance-option {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   align-items: stretch;
 
-  /* Rewards Distribution and Beneficiaries live in the same panel but are
-     buttons with no on/off state, so they stay full-width rows rather than
-     becoming tiles a checkmark would make no sense on. */
-  > .beneficiary-wrap:not(:has(.toggle-switch)) {
-    grid-column: 1 / -1;
-  }
-
-  > .beneficiary-wrap:has(.toggle-switch) {
+  > .beneficiary-wrap {
     position: relative;
+    display: flex;
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    gap: 4px;
-    /* Room for the checkbox pinned top-right. */
-    padding: 14px 46px 14px 14px;
+    gap: 6px;
+    padding: 14px;
     margin: 0;
     border: 1px solid var(--border-color, #333);
     border-radius: 10px;
@@ -181,84 +177,103 @@
 
     &:hover { border-color: var(--border-light, #555); }
 
-    .wrap { width: 100%; }
-
-    /* Active: red OUTLINE, never a red fill. Several can be on at once, and a
-       filled red card at this size reads as an error. */
-    &:has(.toggle-switch input:checked) {
-      border-color: var(--accent-primary, #e53935);
-      background: rgba(229, 57, 53, 0.06);
+    .wrap {
+      width: 100%;
+      /* Room for the checkbox pinned top-right on the toggle tiles. */
+      padding-right: 30px;
     }
 
-    /* The slider becomes a checkbox tile, pinned to the corner. The markup is
-       untouched: the track is restyled into the box and the thumb into the
-       checkmark, so this stays CSS-only and the input still drives it. */
-    .toggle-switch {
-      position: absolute;
-      top: 12px;
-      right: 12px;
+    /* The control sits at the bottom of the card so every tile's text starts at
+       the same height regardless of what it holds. */
+    .select-wrap,
+    .bene-btn-wrap {
+      margin-top: auto;
+      width: 100%;
+    }
 
-      .toggle-track {
-        width: 24px;
-        height: 24px;
-        border-radius: 7px;
-        background-color: transparent;
-        border: 1.5px solid var(--border-light, #666);
-        transition: border-color 0.15s ease;
+    .select-wrap select { width: 100%; }
 
-        .toggle-thumb {
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          border-radius: inherit;
-          background-color: transparent;
-          box-shadow: none;
-          transform: none;
-          transition: none;
-
-          /* Drawn as a rotated L rather than a glyph so it renders identically
-             across platforms. */
-          &::after {
-            content: '';
-            position: absolute;
-            top: 3px;
-            left: 7.5px;
-            width: 5px;
-            height: 10px;
-            border: solid var(--accent-primary, #e53935);
-            border-width: 0 2px 2px 0;
-            transform: rotate(45deg) scale(0.6);
-            opacity: 0;
-            transition: opacity 0.12s ease, transform 0.12s ease;
-          }
-        }
-      }
-
-      input:checked + .toggle-track {
-        background-color: transparent;
-        border-color: var(--accent-primary, #e53935);
-
-        .toggle-thumb {
-          transform: none;
-          &::after { opacity: 1; transform: rotate(45deg) scale(1); }
-        }
-      }
-
-      &.disabled { opacity: 0.5; cursor: not-allowed; }
+    .bene-btn-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
     }
   }
 
-  /* The guest list belongs to the gated tile but holds an input and a growing
-     chip list, so it spans the full width underneath rather than squeezing
-     into one column. */
+  /* Active on/off tile: red outline, faint wash, never a fill. */
+  > .beneficiary-wrap:has(.toggle-switch input:checked) {
+    border-color: var(--accent-primary, #e53935);
+    background: rgba(229, 57, 53, 0.06);
+  }
+
+  /* The slider becomes a checkbox pinned to the corner. Markup untouched: the
+     track is restyled into the box and the thumb into the checkmark. */
+  .toggle-switch {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+
+    .toggle-track {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background-color: transparent;
+      border: 1.5px solid var(--border-light, #666);
+      transition: border-color 0.15s ease;
+
+      .toggle-thumb {
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: inherit;
+        background-color: transparent;
+        box-shadow: none;
+        transform: none;
+        transition: none;
+
+        /* A rotated L rather than a glyph, so it renders identically anywhere. */
+        &::after {
+          content: '';
+          position: absolute;
+          top: 3px;
+          left: 7.5px;
+          width: 5px;
+          height: 10px;
+          border: solid var(--accent-primary, #e53935);
+          border-width: 0 2px 2px 0;
+          transform: rotate(45deg) scale(0.6);
+          opacity: 0;
+          transition: opacity 0.12s ease, transform 0.12s ease;
+        }
+      }
+    }
+
+    input:checked + .toggle-track {
+      background-color: transparent;
+      border-color: var(--accent-primary, #e53935);
+
+      .toggle-thumb {
+        transform: none;
+        &::after { opacity: 1; transform: rotate(45deg) scale(1); }
+      }
+    }
+
+    &.disabled { opacity: 0.5; cursor: not-allowed; }
+  }
+
+  /* The guest list holds an input and a chip list that grows, so it spans the
+     whole row instead of being squeezed into a quarter. */
   > .beneficiary-wrap.gated-guests {
     grid-column: 1 / -1;
-    flex-direction: column;
     align-items: stretch;
+
+    .wrap { padding-right: 0; }
   }
 
-  @media (max-width: 720px) {
-    grid-template-columns: minmax(0, 1fr);
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

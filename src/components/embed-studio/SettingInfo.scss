@@ -1,0 +1,99 @@
+/* The (i) trigger sits inline after a tile's short description. */
+.setting-info__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 5px;
+  padding: 0;
+  border: 1px solid var(--border-light, #666);
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.65;
+  vertical-align: middle;
+
+  &:hover { opacity: 1; border-color: var(--accent-primary, #e53935); }
+}
+
+.setting-info__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.setting-info__sheet {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #333);
+  background: var(--bg-elevated, #1c1c1c);
+  color: var(--text-primary, #eee);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+
+  [data-theme="light"] & {
+    background: #fff;
+    color: #222;
+  }
+}
+
+.setting-info__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 8px;
+  font-size: 15px;
+
+  button {
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: 22px;
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+    opacity: 0.7;
+
+    &:hover { opacity: 1; }
+  }
+}
+
+.setting-info__body {
+  padding: 0 16px 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+/* Phones get a bottom sheet, matching the app's other dialogs. */
+@media (max-width: 720px) {
+  .setting-info__overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .setting-info__sheet {
+    max-width: none;
+    border-radius: 14px 14px 0 0;
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    animation: setting-info-up 0.18s ease-out;
+  }
+
+  @keyframes setting-info-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+}
