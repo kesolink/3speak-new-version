@@ -231,7 +231,6 @@ function EmbedDetails() {
                     className="char-counter"
                     style={{
                       textAlign: 'right',
-                      fontSize: '0.78rem',
                       marginTop: '4px',
                       color: description.length >= 240 ? '#e05252' : description.length >= 200 ? '#e0a852' : 'var(--text-muted, #888)',
                       fontVariantNumeric: 'tabular-nums',
@@ -247,7 +246,7 @@ function EmbedDetails() {
                   Tag
                   <span
                     className="tag-count"
-                    style={{ marginLeft: 8, fontSize: 12, color: allTags.length >= 10 ? '#e0a852' : 'var(--text-muted, #888)' }}
+                    style={{ marginLeft: 8, color: allTags.length >= 10 ? '#e0a852' : 'var(--text-muted, #888)' }}
                   >
                     {allTags.length}/10 tags{!fromStories ? ' · at least 1 required' : ''}
                   </span>
@@ -463,7 +462,7 @@ function EmbedDetails() {
                           max={maxFormatted}
                           onChange={(e) => setScheduleDateTime(e.target.value)}
                         />
-                        <div style={{ fontSize: '0.85em', opacity: 0.7, marginTop: '4px' }}>
+                        <div style={{ opacity: 0.7, marginTop: '4px' }}>
                           Range: at least 15 minutes from now, up to 90 days. Posted automatically by @threespeak on your behalf — you'll be asked to authorize this once.
                         </div>
                       </div>
