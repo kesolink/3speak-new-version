@@ -67,6 +67,7 @@ function EmbedDetails() {
     if (!gated && gatedAllowlist.length) setGatedAllowlist([]);
   }, [gated, gatedAllowlist, setGatedAllowlist]);
 
+  const rewardsSelectRef = useRef(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [allowlistDraft, setAllowlistDraft] = useState('');
   const addAllowlistNames = () => {
@@ -274,42 +275,42 @@ function EmbedDetails() {
               </div>
               <div className="advance-option">
                 {!fromStories && (
-                  <div className="beneficiary-wrap community-tile">
+                  <div className="beneficiary-wrap community-tile is-clickable" onClick={openCommunityModal}>
                     <div className="wrap">
                       <span>Community<SettingInfo title="Community">Which Hive community this video is posted to. It becomes the post&apos;s category, so community feeds and moderation follow it.</SettingInfo></span>
                       <span>Where this video is posted.</span>
                     </div>
-                    <div className="community-wrap" onClick={openCommunityModal}>
+                    <div className="community-wrap">
                       {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar/small`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar/small`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
                       <IoIosArrowDropdownCircle size={16} />
                     </div>
                   </div>
                 )}
-                <div className="beneficiary-wrap mb">
+                <div className="beneficiary-wrap mb is-clickable" onClick={() => rewardsSelectRef.current?.showPicker?.() ?? rewardsSelectRef.current?.focus()}>
                   <div className="wrap">
-                    <span>Rewards Distribution<SettingInfo title="Rewards Distribution">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
+                    <span>Rewards<SettingInfo title="Rewards">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
                       <span>How rewards are paid out.</span>
                   </div>
                   <div className="select-wrap">
-                    <select name="" id="" onChange={handleSelect}>
+                    <select name="" id="" ref={rewardsSelectRef} onChange={handleSelect}>
                       <option value="default"> Default 50% 50% </option>
                       <option value="powerup">Power up 100%</option>
                       <option value="decline">Decline Payout</option>
                     </select>
                   </div>
                 </div>
-                <div className="beneficiary-wrap">
+                <div className="beneficiary-wrap is-clickable" onClick={toggleBeneficiaryModal}>
                   <div className="wrap">
                     <span>Beneficiaries<SettingInfo title="Beneficiaries">Other accounts that should get a percentage of this post's rewards. Useful for co-creators, editors, or the original author of a clip.</SettingInfo></span>
                       <span>Share rewards with others.</span>
                   </div>
-                  <div className="bene-btn-wrap" onClick={toggleBeneficiaryModal}>
+                  <div className="bene-btn-wrap">
                     {list.length > 0 && <spa>{list.length}</spa>}
                     <span> BENEFICIARIES</span>
                     <MdPeopleAlt />
                   </div>
                 </div>
-                <div className="beneficiary-wrap">
+                <div className="beneficiary-wrap" onClick={() => setIsRemix(!isRemix)}>
                   <div className="wrap">
                     <span>Allow Remix/Clip<SettingInfo title="Allow Remix/Clip">Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</SettingInfo></span>
                       <span>Let others remix this.</span>
@@ -324,12 +325,12 @@ function EmbedDetails() {
                     <span className="toggle-track"><span className="toggle-thumb" /></span>
                   </label>
                 </div>
-                <div className="beneficiary-wrap">
+                <div className="beneficiary-wrap" onClick={() => setIsNsfw(!isNsfw)}>
                   <div className="wrap">
-                    <span>Mark as adult / NSFW<SettingInfo title="Mark as adult / NSFW">Flags this video as adult content. It will be hidden from feeds and search for viewers who have not enabled NSFW, and tagged <code>nsfw</code> across Hive.</SettingInfo></span>
+                    <span>Mark as NSFW<SettingInfo title="Mark as NSFW">Flags this video as adult content. It will be hidden from feeds and search for viewers who have not enabled NSFW, and tagged <code>nsfw</code> across Hive.</SettingInfo></span>
                       <span>Adult content.</span>
                   </div>
-                  <label className="toggle-switch">
+                  <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={!!isNsfw}
@@ -344,7 +345,7 @@ function EmbedDetails() {
                     offered for shorts: a paywalled short is a worse product
                     than a free one, and the preview would be most of the clip. */}
                 {!fromStories && isPro && (
-                  <div className="beneficiary-wrap">
+                  <div className="beneficiary-wrap" onClick={() => setGated(!gated)}>
                     <div className="wrap">
                       <span>Supporters only<SettingInfo title="Supporters only">
                           Encrypts this video so only 3Speak Pro subscribers can play it.
@@ -354,7 +355,7 @@ function EmbedDetails() {
                         </SettingInfo></span>
                       <span>Pro subscribers only.</span>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={!!gated}
@@ -369,7 +370,7 @@ function EmbedDetails() {
                     people. Stored on our servers only — never in the Hive post,
                     so the recipient list is not published on-chain. */}
                 {!fromStories && isPro && gated && (
-                  <div className="beneficiary-wrap gated-guests">
+                  <div className="beneficiary-wrap gated-guests" onClick={(e) => e.stopPropagation()}>
                     <div className="wrap">
                       <span>Also allow specific accounts<SettingInfo title="Also allow specific accounts">
                           These Hive accounts can watch without 3Speak Pro. The list is kept
@@ -410,12 +411,12 @@ function EmbedDetails() {
                 )}
                 {/* Not offered for shorts: the Overview trailer frame is 16:9. */}
                 {!fromStories && (
-                  <div className="beneficiary-wrap">
+                  <div className="beneficiary-wrap" onClick={() => setIsChannelTrailer(!isChannelTrailer)}>
                     <div className="wrap">
-                      <span>Mark as channel trailer<SettingInfo title="Mark as channel trailer">Plays automatically at the top of your profile&apos;s <strong>Overview</strong> tab, replacing any trailer you set before.</SettingInfo></span>
+                      <span>Channel trailer<SettingInfo title="Channel trailer">Plays automatically at the top of your profile&apos;s <strong>Overview</strong> tab, replacing any trailer you set before.</SettingInfo></span>
                       <span>Autoplays on your profile.</span>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={!!isChannelTrailer}
@@ -431,14 +432,14 @@ function EmbedDetails() {
                     picker lives in a sheet so the tile stays the size of its
                     neighbours instead of growing an input inline. */}
                 {!fromStories && (
-                  <div className="beneficiary-wrap schedule-tile">
+                  <div className="beneficiary-wrap schedule-tile" onClick={() => { const next = !isScheduled; setIsScheduled(next); if (next) { if (!scheduleDateTime) { const { minFormatted, minDate } = getMinMaxDates(); setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16)); } setScheduleOpen(true); } }}>
                     <div className="wrap">
                       <span>Schedule this post<SettingInfo title="Schedule this post">Queues the post and publishes it automatically at the time you choose, at least 15 minutes from now and up to 90 days out. It is broadcast by @threespeak on your behalf, so you will be asked to authorize that once.</SettingInfo></span>
                       <span>{isScheduled && scheduleDateTime
                         ? new Date(scheduleDateTime).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
                         : 'Publish immediately.'}</span>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={isScheduled}
@@ -459,7 +460,7 @@ function EmbedDetails() {
                       <span className="toggle-track"><span className="toggle-thumb" /></span>
                     </label>
                     {isScheduled && (
-                      <button type="button" className="schedule-tile__change" onClick={() => setScheduleOpen(true)}>
+                      <button type="button" className="schedule-tile__change" onClick={(e) => { e.stopPropagation(); setScheduleOpen(true); }}>
                         Change time
                       </button>
                     )}

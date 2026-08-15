@@ -187,6 +187,11 @@
 
     &:hover { border-color: var(--border-light, #555); }
 
+    /* The whole tile is the click target, so it says so. Inner controls keep
+       their own cursor. */
+    &.is-clickable,
+    &:has(.toggle-switch) { cursor: pointer; }
+
     /* ── Type scale ──────────────────────────────────────────────────────────
        Exactly two sizes on this panel, both taken from the studio's existing
        values rather than invented: 14px for a label and 12px for supporting
@@ -216,8 +221,11 @@
     /* Controls sit on the smaller size too, so the panel only ever shows two. */
     .select-wrap select,
     .bene-btn-wrap,
-    .community-wrap {
+    .bene-btn-wrap span,
+    .community-wrap,
+    .community-wrap .wrap {
       font-size: 12px;
+      text-transform: none;
     }
 
     /* Controls sit at the bottom, so every tile's title starts at the same
@@ -260,7 +268,13 @@
       img { width: 20px; height: 20px; border-radius: 50%; }
     }
 
+    /* The beneficiaries button matched neither the community picker nor the
+       rewards select: it was uppercase and a different size. All three controls
+       now read the same. */
     .bene-btn-wrap {
+      text-transform: none;
+      font-size: 12px;
+      font-weight: 500;
       display: flex;
       align-items: center;
       justify-content: center;
