@@ -146,18 +146,22 @@
 
 /* ── Settings tiles ────────────────────────────────────────────────────────────
    Every setting in the advanced panel is a tile: four across on desktop, two on
-   mobile. Tiles carry a short line each, with the full wording behind the (i)
-   so the grid stays even instead of some cards being three times as tall.
+   mobile, all the same height, content centred.
 
-   On/off tiles take a red OUTLINE and a checkmark when active, never a red
-   fill: several can be on at once and a filled red card reads as an error.
+   Selectors are deliberately doubled (`.advance-option.advance-option`). The
+   originals in StudioPage.scss are nested several levels deep, so a plain
+   single-class rule loses on specificity and the sliders stay sliders. */
+.advance-option.advance-option {
+  /* No outer frame: the tiles are the visual container now, and a box around a
+     grid of boxes just adds noise. */
+  border: 0;
+  box-shadow: none;
+  padding: 0;
 
-   Scoped to `.advance-option`. `.beneficiary-wrap` and `.toggle-switch` are
-   shared with the legacy studio, and the "Schedule this post" switch sits
-   OUTSIDE this panel, so both keep their original look. */
-.advance-option {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Every row matches the tallest tile in it, so the grid stays even. */
+  grid-auto-rows: 1fr;
   gap: 10px;
   align-items: stretch;
 
@@ -165,11 +169,13 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     justify-content: flex-start;
+    text-align: center;
     gap: 6px;
     padding: 14px;
     margin: 0;
+    min-width: 0;
     border: 1px solid var(--border-color, #333);
     border-radius: 10px;
     background: var(--card-bg, rgba(255, 255, 255, 0.02));
@@ -179,42 +185,53 @@
 
     .wrap {
       width: 100%;
-      /* Room for the checkbox pinned top-right on the toggle tiles. */
-      padding-right: 30px;
+      min-width: 0;
+      align-items: center;
+      text-align: center;
+      padding-right: 0;
     }
 
-    /* The control sits at the bottom of the card so every tile's text starts at
-       the same height regardless of what it holds. */
+    /* Controls sit at the bottom, so every tile's title starts at the same
+       height and each card ends with the same gap beneath its control. */
     .select-wrap,
-    .bene-btn-wrap {
+    .bene-btn-wrap,
+    .toggle-switch {
       margin-top: auto;
-      width: 100%;
+      padding-top: 10px;
     }
 
-    .select-wrap select { width: 100%; }
+    .select-wrap {
+      width: 100%;
+      min-width: 0;
+
+      select {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+    }
 
     .bene-btn-wrap {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
+      width: 100%;
+      box-sizing: border-box;
       cursor: pointer;
     }
   }
 
-  /* Active on/off tile: red outline, faint wash, never a fill. */
+  /* Active on/off tile: red OUTLINE and a checkmark, never a red fill. Several
+     can be on at once, and a filled red card reads as an error. */
   > .beneficiary-wrap:has(.toggle-switch input:checked) {
     border-color: var(--accent-primary, #e53935);
     background: rgba(229, 57, 53, 0.06);
   }
 
-  /* The slider becomes a checkbox pinned to the corner. Markup untouched: the
-     track is restyled into the box and the thumb into the checkmark. */
-  .toggle-switch {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-
+  /* The slider becomes a checkbox. Markup untouched: the track is restyled into
+     the box and the thumb into the checkmark. */
+  .beneficiary-wrap .toggle-switch {
     .toggle-track {
       width: 24px;
       height: 24px;
@@ -265,12 +282,13 @@
   }
 
   /* The guest list holds an input and a chip list that grows, so it spans the
-     whole row instead of being squeezed into a quarter. */
+     whole row and keeps its left alignment. */
   > .beneficiary-wrap.gated-guests {
     grid-column: 1 / -1;
     align-items: stretch;
+    text-align: left;
 
-    .wrap { padding-right: 0; }
+    .wrap { align-items: flex-start; text-align: left; }
   }
 
   @media (max-width: 900px) {
