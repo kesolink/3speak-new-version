@@ -296,7 +296,7 @@ function EmbedDetails() {
                     </div>
                   </div>
                 )}
-                <div className="beneficiary-wrap mb is-clickable" onClick={() => setRewardsOpen(true)}>
+                <div className="beneficiary-wrap is-clickable" onClick={() => setRewardsOpen(true)}>
                   <div className="wrap">
                     <span>Rewards<SettingInfo title="Rewards">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
                       <span>How rewards are paid out.</span>
