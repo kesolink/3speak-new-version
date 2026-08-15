@@ -75,6 +75,9 @@ function EmbedDetails() {
   }, [gated, gatedAllowlist, setGatedAllowlist]);
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  // The sheet edits a draft; only OK writes it back, so closing or pressing
+  // Escape leaves the previously chosen time alone.
+  const [scheduleDraft, setScheduleDraft] = useState('');
   const [rewardsOpen, setRewardsOpen] = useState(false);
   const [guestsOpen, setGuestsOpen] = useState(false);
   const [rewardChoice, setRewardChoice] = useState('default');
@@ -410,7 +413,7 @@ function EmbedDetails() {
                     picker lives in a sheet so the tile stays the size of its
                     neighbours instead of growing an input inline. */}
                 {!fromStories && (
-                  <div className="beneficiary-wrap schedule-tile" onClick={() => { const next = !isScheduled; setIsScheduled(next); if (next) { if (!scheduleDateTime) { const { minFormatted, minDate } = getMinMaxDates(); setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16)); } setScheduleOpen(true); } }}>
+                  <div className="beneficiary-wrap schedule-tile" onClick={() => { const next = !isScheduled; setIsScheduled(next); if (next) { if (!scheduleDateTime) { const { minFormatted, minDate } = getMinMaxDates(); setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16)); } setScheduleDraft(scheduleDateTime || ''); setScheduleOpen(true); } }}>
                     <div className="wrap">
                       <span>Schedule this post<SettingInfo title="Schedule this post">Queues the post and publishes it automatically at the time you choose, at least 15 minutes from now and up to 90 days out. It is broadcast by @threespeak on your behalf, so you will be asked to authorize that once.</SettingInfo></span>
                       <span>{isScheduled && scheduleDateTime
@@ -431,6 +434,7 @@ function EmbedDetails() {
                               setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16));
                             }
                             // Turning it on is a request to pick a time, so ask now.
+                            setScheduleDraft(scheduleDateTime || '');
                             setScheduleOpen(true);
                           }
                         }}
@@ -438,7 +442,7 @@ function EmbedDetails() {
                       <span className="toggle-track"><span className="toggle-thumb" /></span>
                     </label>
                     {isScheduled && (
-                      <button type="button" className="schedule-tile__change" onClick={(e) => { e.stopPropagation(); setScheduleOpen(true); }}>
+                      <button type="button" className="schedule-tile__change" onClick={(e) => { e.stopPropagation(); setScheduleDraft(scheduleDateTime || ''); setScheduleOpen(true); }}>
                         Change time
                       </button>
                     )}
@@ -508,15 +512,25 @@ function EmbedDetails() {
                       <input
                         type="datetime-local"
                         className="schedule-sheet__input"
-                        value={scheduleDateTime}
+                        value={scheduleDraft}
                         min={minFormatted}
                         max={maxFormatted}
-                        onChange={(e) => setScheduleDateTime(e.target.value)}
+                        onChange={(e) => setScheduleDraft(e.target.value)}
                       />
                       <p className="schedule-sheet__note">
                         At least 15 minutes from now, up to 90 days. Posted automatically by
                         @threespeak on your behalf — you will be asked to authorize this once.
                       </p>
+                      <div className="sheet-actions">
+                        <button
+                          type="button"
+                          className="sheet-actions__ok"
+                          disabled={!scheduleDraft}
+                          onClick={() => { setScheduleDateTime(scheduleDraft); setScheduleOpen(false); }}
+                        >
+                          OK
+                        </button>
+                      </div>
                     </>
                   );
                 })()}

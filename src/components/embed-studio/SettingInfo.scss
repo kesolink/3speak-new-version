@@ -281,3 +281,24 @@
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* Confirm row for sheets that stage their changes (the schedule picker). */
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+
+  &__ok {
+    padding: 8px 20px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent-primary, #e53935);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover:not(:disabled) { filter: brightness(1.08); }
+    &:disabled { opacity: 0.45; cursor: default; }
+  }
+}
