@@ -41,7 +41,7 @@
   }
 
   .embed-upload-progress-label {
-    font-size: 12.5px;
+    font-size: 9.4px;
     color: var(--text-secondary, #777);
   }
 
@@ -51,7 +51,7 @@
   // facts (counters, endpoints), so they read as one block rather than three
   // competing styles.
   .embed-upload-progress-detail {
-    font-size: 11.5px;
+    font-size: 8.6px;
     color: var(--text-muted, #999);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     line-height: 1.35;
@@ -60,7 +60,7 @@
   // The specific request being awaited, incl. its deadline. Monospace because it
   // names an endpoint path.
   .embed-upload-progress-waiting {
-    font-size: 11px;
+    font-size: 8.25px;
     color: var(--text-muted, #999);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     opacity: 0.85;
@@ -69,7 +69,7 @@
   }
 
   .embed-upload-progress-endpoint {
-    font-size: 11.5px;
+    font-size: 8.6px;
     color: var(--text-muted, #999);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
