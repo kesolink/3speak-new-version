@@ -68,7 +68,6 @@ function EmbedDetails() {
     if (!gated && gatedAllowlist.length) setGatedAllowlist([]);
   }, [gated, gatedAllowlist, setGatedAllowlist]);
 
-  const rewardsSelectRef = useRef(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [rewardsOpen, setRewardsOpen] = useState(false);
   const [guestsOpen, setGuestsOpen] = useState(false);
@@ -285,35 +284,27 @@ function EmbedDetails() {
                       <span>Community<SettingInfo title="Community">Which Hive community this video is posted to. It becomes the post&apos;s category, so community feeds and moderation follow it.</SettingInfo></span>
                       <span>Where this video is posted.</span>
                     </div>
-                    <div className="community-wrap">
+                    <div className="tile-value community-value">
                       {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar/small`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar/small`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
                       <IoIosArrowDropdownCircle size={16} />
                     </div>
                   </div>
                 )}
-                <div className="beneficiary-wrap mb is-clickable" onClick={() => { if (window.matchMedia('(max-width: 720px)').matches) { setRewardsOpen(true); } else if (rewardsSelectRef.current?.showPicker) { rewardsSelectRef.current.showPicker(); } else { rewardsSelectRef.current?.focus(); } }}>
+                <div className="beneficiary-wrap mb is-clickable" onClick={() => setRewardsOpen(true)}>
                   <div className="wrap">
                     <span>Rewards<SettingInfo title="Rewards">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
                       <span>How rewards are paid out.</span>
                   </div>
-                  <div className="select-wrap">
-                    <select name="" id="" ref={rewardsSelectRef} onChange={handleSelect}>
-                      <option value="default"> Default 50% 50% </option>
-                      <option value="powerup">Power up 100%</option>
-                      <option value="decline">Decline Payout</option>
-                    </select>
-                  </div>
+                  <div className="tile-value">{REWARD_LABELS[rewardChoice] || REWARD_LABELS.default}</div>
                 </div>
                 <div className="beneficiary-wrap is-clickable" onClick={toggleBeneficiaryModal}>
                   <div className="wrap">
                     <span>Beneficiaries<SettingInfo title="Beneficiaries">Other accounts that should get a percentage of this post's rewards. Useful for co-creators, editors, or the original author of a clip.</SettingInfo></span>
                       <span>Share rewards with others.</span>
                   </div>
-                  <div className="bene-btn-wrap">
-                    <span>{list.length > 0
-                      ? `${list.length} account${list.length === 1 ? '' : 's'}`
-                      : 'None'}</span>
-                  </div>
+                  <div className="tile-value">{list.length > 0
+                    ? `${list.length} account${list.length === 1 ? '' : 's'}`
+                    : 'None'}</div>
                 </div>
                 <div className="beneficiary-wrap" onClick={() => setIsRemix(!isRemix)}>
                   <div className="wrap">

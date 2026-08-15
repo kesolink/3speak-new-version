@@ -262,68 +262,31 @@
       justify-content: center;
     }
 
-    /* These three tiles show their CURRENT VALUE rather than a button. The whole
-       tile is the click target, so a boxed control inside it was a second
-       affordance for the same action, and three differently-shaped boxes never
-       quite matched. Plain text on one baseline instead. */
-    .select-wrap,
-    .bene-btn-wrap,
-    .community-wrap {
+    /* These three tiles have no control inside them at all any more. The tile
+       IS the button, so the only thing left is the current value, rendered the
+       same way in all three: community name, rewards split, beneficiary count. */
+    .tile-value {
       width: 100%;
-      /* Fixed, not a minimum: the select's intrinsic height differs from a span
-         and from the community row's avatar, which left its text sitting a few
-         pixels higher than the other two. */
       height: 22px;
+      margin-top: auto;
       margin-bottom: 0;
+      padding-top: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      cursor: pointer;
-
-      /* !important because StudioPage.scss gives .bene-btn-wrap a background,
-         radius and padding from six levels deep, which outranks anything
-         reasonable here. Its pill was the last piece of button styling left. */
-      padding: 10px 0 0 !important;
-      border: 0 !important;
-      border-radius: 0 !important;
-      background: none !important;
-      background-color: transparent !important;
-      font-size: 12px !important;
-      font-weight: 600 !important;
-      text-transform: none !important;
-    }
-
-    /* All three read as the same value text, matching the community name. */
-    .select-wrap select,
-    .bene-btn-wrap span,
-    .community-wrap,
-    .community-wrap .wrap {
       font-size: 12px;
       font-weight: 600;
       color: var(--text-primary, #eee);
+      box-sizing: content-box;
     }
 
-    /* The select keeps working (it is what desktop's showPicker opens) but is
-       drawn as the same plain value text, arrow and chrome removed. */
-    .select-wrap select {
-      appearance: none;
-      -webkit-appearance: none;
-      width: 100%;
-      height: 22px;
-      line-height: 22px;
-      border: 0;
-      background: none;
-      padding: 0;
-      color: inherit;
-      font: inherit;
-      text-align: center;
-      text-align-last: center;
-      cursor: pointer;
+    .community-value {
+      img { width: 18px; height: 18px; border-radius: 50%; }
+      svg { display: none; }
+      .wrap { flex-direction: row; align-items: center; gap: 6px; }
+      span { font-size: 12px; font-weight: 600; }
     }
-
-    .community-wrap img { width: 18px; height: 18px; border-radius: 50%; }
-    .community-wrap svg { display: none; }
 
     .toggle-switch {
       width: auto;
