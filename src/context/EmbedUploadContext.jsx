@@ -145,6 +145,11 @@ export function EmbedUploadProvider({ children }) {
   // honoured because the embed backend re-checks Pro status when it mints the
   // upload token — this flag is a UI intent, not an authorisation.
   const [gated, setGated] = useState(false);
+  // 🔐 Named accounts that may watch a gated video without 3Speak Pro. Sent with
+  // the upload token, stored server-side, and deliberately NOT written into the
+  // Hive post: post metadata is public and permanent, so an on-chain list would
+  // publish who the video was sent to, forever.
+  const [gatedAllowlist, setGatedAllowlist] = useState([]);
 
   // Original video attribution (for remix/clip)
   const [originalAuthor, setOriginalAuthor] = useState(null);
@@ -665,7 +670,7 @@ export function EmbedUploadProvider({ children }) {
     if (!sessionId) {
       const tokenRes = await axios.post(
         `${base}/uploads/token`,
-        { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated },
+        { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
         { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } }
       );
       const token = tokenRes.data?.token;
@@ -840,7 +845,7 @@ export function EmbedUploadProvider({ children }) {
     const fin = await postForm(`${base}/upload/chunk/finish`, { sessionId }, null, { timeoutMs: 60000 });
     try { localStorage.removeItem(fpKey); } catch { /* ignore */ }
     return fin.embed_url || embedFromServer || '';
-  }, [user, fromStories, gated, videoFile, videoDuration, postForm]);
+  }, [user, fromStories, gated, gatedAllowlist, videoFile, videoDuration, postForm]);
 
   // TIER 3, last resort: ONE multipart POST carrying the whole file.
   //
@@ -877,7 +882,7 @@ export function EmbedUploadProvider({ children }) {
 
     const tokenRes = await axios.post(
       `${base}/uploads/token`,
-      { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated },
+      { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
       { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } },
     );
     const token = tokenRes.data?.token;
@@ -909,7 +914,7 @@ export function EmbedUploadProvider({ children }) {
 
     if (!res || !res.embed_url) throw new Error('Single-request upload did not return an embed URL');
     return res.embed_url;
-  }, [user, fromStories, gated, videoFile, videoDuration, postForm]);
+  }, [user, fromStories, gated, gatedAllowlist, videoFile, videoDuration, postForm]);
 
   // Upload with automatic fallback. Primary path is TUS on the least-busy host;
   // if the user forced the reliable path (checkbox) or PATCH was already detected
@@ -1665,6 +1670,7 @@ export function EmbedUploadProvider({ children }) {
     // Entry origin
     fromStories, setFromStories,
     gated, setGated,
+    gatedAllowlist, setGatedAllowlist,
     // Original video attribution
     originalAuthor, setOriginalAuthor,
     originalPermlink, setOriginalPermlink,

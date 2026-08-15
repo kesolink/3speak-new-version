@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { StepProgress } from '../legacy-studio/StepProgress';
 import { IoIosArrowDropdownCircle } from 'react-icons/io';
@@ -36,6 +36,7 @@ function EmbedDetails() {
     reusable, setReusable,
     isNsfw, setIsNsfw,
     gated, setGated,
+    gatedAllowlist, setGatedAllowlist,
     user,
     isChannelTrailer, setIsChannelTrailer,
     originalAuthor, originalPermlink,
@@ -53,6 +54,27 @@ function EmbedDetails() {
   useEffect(() => {
     if (gated && (!isPro || fromStories)) setGated(false);
   }, [gated, isPro, fromStories, setGated]);
+
+  // Turning the paywall off drops the guest list with it, so a list cannot be
+  // silently attached to an ungated upload.
+  useEffect(() => {
+    if (!gated && gatedAllowlist.length) setGatedAllowlist([]);
+  }, [gated, gatedAllowlist, setGatedAllowlist]);
+
+  const [allowlistDraft, setAllowlistDraft] = useState('');
+  const addAllowlistNames = () => {
+    const names = allowlistDraft
+      .split(/[\s,]+/)
+      .map((n) => n.trim().toLowerCase().replace(/^@/, ''))
+      .filter(Boolean);
+    const valid = names.filter((n) => /^[a-z][a-z0-9.-]{2,15}$/.test(n));
+    const rejected = names.filter((n) => !valid.includes(n));
+    if (rejected.length) toast.error(`Not valid Hive accounts: ${rejected.join(', ')}`);
+    if (valid.length) {
+      setGatedAllowlist([...new Set([...gatedAllowlist, ...valid])]);
+      setAllowlistDraft('');
+    }
+  };
 
   const isRemix = !!(originalAuthor && originalPermlink);
   const descLimitToastRef = useRef(null);
@@ -326,6 +348,49 @@ function EmbedDetails() {
                       />
                       <span className="toggle-track"><span className="toggle-thumb" /></span>
                     </label>
+                  </div>
+                )}
+                {/* 🔐 Guest list. Named accounts watch without needing Pro, which
+                    is what makes this usable for sending a video to specific
+                    people. Stored on our servers only — never in the Hive post,
+                    so the recipient list is not published on-chain. */}
+                {!fromStories && isPro && gated && (
+                  <div className="beneficiary-wrap gated-guests" style={{ marginTop: '12px' }}>
+                    <div className="wrap">
+                      <span>Also allow specific accounts</span>
+                      <span>
+                        These Hive accounts can watch without 3Speak Pro. Kept private
+                        on our servers, never published to your post.
+                      </span>
+                    </div>
+                    <div className="gated-guests__editor">
+                      <div className="gated-guests__input-row">
+                        <input
+                          type="text"
+                          value={allowlistDraft}
+                          placeholder="username, another.user"
+                          onChange={(e) => setAllowlistDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); addAllowlistNames(); }
+                          }}
+                        />
+                        <button type="button" onClick={addAllowlistNames}>Add</button>
+                      </div>
+                      {gatedAllowlist.length > 0 && (
+                        <div className="gated-guests__chips">
+                          {gatedAllowlist.map((name) => (
+                            <span className="gated-guests__chip" key={name}>
+                              @{name}
+                              <button
+                                type="button"
+                                aria-label={`Remove ${name}`}
+                                onClick={() => setGatedAllowlist(gatedAllowlist.filter((n) => n !== name))}
+                              >×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 {/* Not offered for shorts: the Overview trailer frame is 16:9. */}
