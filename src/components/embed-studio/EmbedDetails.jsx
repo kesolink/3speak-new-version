@@ -19,6 +19,12 @@ import '../legacy-studio/StudioPage.scss';
 import SettingInfo, { SettingSheet } from './SettingInfo';
 import './EmbedDetails.scss';
 
+const REWARD_LABELS = {
+  default: 'Default 50% 50%',
+  powerup: 'Power up 100%',
+  decline: 'Decline payout',
+};
+
 function EmbedDetails() {
   const {
     title, setTitle,
