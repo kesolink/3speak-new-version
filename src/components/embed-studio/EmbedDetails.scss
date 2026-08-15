@@ -143,3 +143,110 @@
     }
   }
 }
+
+/* ── Settings tiles ────────────────────────────────────────────────────────────
+   The on/off settings inside the advanced panel render as tiles rather than
+   sliders: a bordered card that takes a red outline and shows a checkmark once
+   it is on, so the active ones are readable at a glance instead of needing the
+   thumb position decoded.
+
+   Scoped to `.advance-option` on purpose. `.beneficiary-wrap` and
+   `.toggle-switch` are shared with the legacy studio, and the "Schedule this
+   post" switch sits OUTSIDE this panel, so both keep the original slider.
+
+   Only rows that actually contain a switch become tiles. Rewards Distribution
+   and Beneficiaries live in the same panel but are buttons with no on/off
+   state, so a checkmark would mean nothing there. */
+.advance-option {
+  .beneficiary-wrap:has(.toggle-switch) {
+    gap: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 10px;
+    background: var(--card-bg, rgba(255, 255, 255, 0.02));
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+
+    &:hover {
+      border-color: var(--border-light, #555);
+    }
+
+    /* Active: red OUTLINE, never a red fill. A filled tile at this size reads as
+       an error state, and the panel can have several on at once. */
+    &:has(.toggle-switch input:checked) {
+      border-color: var(--accent-primary, #e53935);
+      background: rgba(229, 57, 53, 0.06);
+    }
+
+    /* The slider becomes a checkbox tile. The markup is untouched: the track is
+       restyled into the box and the thumb into the checkmark, so this stays
+       CSS-only and the input still drives everything. */
+    .toggle-switch {
+      flex: 0 0 auto;
+
+      .toggle-track {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        background-color: transparent;
+        border: 1.5px solid var(--border-light, #666);
+        transition: border-color 0.15s ease, background-color 0.15s ease;
+
+        .toggle-thumb {
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border-radius: inherit;
+          background-color: transparent;
+          box-shadow: none;
+          transform: none;
+          transition: none;
+
+          /* Checkmark, hidden until checked. Drawn as a rotated L rather than a
+             glyph so it renders identically across platforms. */
+          &::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 8.5px;
+            width: 5px;
+            height: 10px;
+            border: solid var(--accent-primary, #e53935);
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg) scale(0.6);
+            opacity: 0;
+            transition: opacity 0.12s ease, transform 0.12s ease;
+          }
+        }
+      }
+
+      input:checked + .toggle-track {
+        background-color: transparent;
+        border-color: var(--accent-primary, #e53935);
+
+        .toggle-thumb {
+          transform: none;
+
+          &::after {
+            opacity: 1;
+            transform: rotate(45deg) scale(1);
+          }
+        }
+      }
+
+      /* Remix is disabled in some states; keep that legible as a tile too. */
+      &.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  /* The guest list is a child of the gated tile, so it inherits the red outline
+     from its parent and does not need a second one. */
+  .beneficiary-wrap.gated-guests {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

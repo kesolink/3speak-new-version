@@ -11,6 +11,7 @@ import MarkdownComposer from '../studio/MarkdownComposer';
 import { getMinMaxDates } from '../../utils/schedulingHelpers';
 import EmbedUploadProgressBar from './EmbedUploadProgressBar';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import './EmbedDetails.scss';
 
 function EmbedDetails() {
   const {
