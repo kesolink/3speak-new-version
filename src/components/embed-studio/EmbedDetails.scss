@@ -272,16 +272,33 @@
       width: 100%;
       min-height: 22px;
       margin-bottom: 0;
-      padding: 10px 0 0;
-      border: 0;
-      background: none;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
+      cursor: pointer;
+
+      /* !important because StudioPage.scss gives .bene-btn-wrap a background,
+         radius and padding from six levels deep, which outranks anything
+         reasonable here. Its pill was the last piece of button styling left. */
+      padding: 10px 0 0 !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      background: none !important;
+      background-color: transparent !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      text-transform: none !important;
+    }
+
+    /* All three read as the same value text, matching the community name. */
+    .select-wrap select,
+    .bene-btn-wrap span,
+    .community-wrap,
+    .community-wrap .wrap {
       font-size: 12px;
       font-weight: 600;
-      cursor: pointer;
+      color: var(--text-primary, #eee);
     }
 
     /* The select keeps working (it is what desktop's showPicker opens) but is
