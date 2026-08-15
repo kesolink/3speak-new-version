@@ -676,6 +676,18 @@ export function EmbedUploadProvider({ children }) {
       const token = tokenRes.data?.token;
       embedFromServer = tokenRes.data?.embed_url || '';
       if (!token) throw new Error('Failed to obtain upload token');
+      // 🔐 Refuse to continue if we asked for a gated upload and the embed
+      // instance did not confirm it. An older instance returns a perfectly valid
+      // token with the flag silently dropped, and uploading against it would
+      // publish a supporters-only video in the clear. IPFS content cannot be
+      // withdrawn, so failing loudly here is the only safe response.
+      if (gated && tokenRes.data?.gated !== true) {
+        throw new Error(
+          'This upload server does not support supporters-only videos yet. ' +
+          'Nothing was uploaded. Turn the toggle off to publish publicly, or try again later.'
+        );
+      }
+
 
       // The control-plane calls (create/status/finish) carry no payload worth
       // speaking of, so the byte-based stall watchdog cannot guard them — nothing
@@ -887,6 +899,18 @@ export function EmbedUploadProvider({ children }) {
     );
     const token = tokenRes.data?.token;
     if (!token) throw new Error('Failed to obtain upload token');
+    // 🔐 Refuse to continue if we asked for a gated upload and the embed
+    // instance did not confirm it. An older instance returns a perfectly valid
+    // token with the flag silently dropped, and uploading against it would
+    // publish a supporters-only video in the clear. IPFS content cannot be
+    // withdrawn, so failing loudly here is the only safe response.
+    if (gated && tokenRes.data?.gated !== true) {
+      throw new Error(
+        'This upload server does not support supporters-only videos yet. ' +
+        'Nothing was uploaded. Turn the toggle off to publish publicly, or try again later.'
+      );
+    }
+
 
     const res = await postForm(
       `${base}/upload/simple`,
