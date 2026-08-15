@@ -11,6 +11,10 @@ import MarkdownComposer from '../studio/MarkdownComposer';
 import { getMinMaxDates } from '../../utils/schedulingHelpers';
 import EmbedUploadProgressBar from './EmbedUploadProgressBar';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+// This route renders on its own, so it imports the studio stylesheet rather
+// than relying on EmbedStudioPage having mounted first and pulled it in.
+// ScheduledPostEditor already does the same for the same reason; Vite dedupes.
+import '../legacy-studio/StudioPage.scss';
 import SettingInfo from './SettingInfo';
 import './EmbedDetails.scss';
 
