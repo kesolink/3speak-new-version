@@ -11,6 +11,7 @@ import MarkdownComposer from '../studio/MarkdownComposer';
 import { getMinMaxDates } from '../../utils/schedulingHelpers';
 import EmbedUploadProgressBar from './EmbedUploadProgressBar';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import { isTestUser } from '../../utils/config';
 // This route renders on its own, so it imports the studio stylesheet rather
 // than relying on EmbedStudioPage having mounted first and pulled it in.
 // ScheduledPostEditor already does the same for the same reason; Vite dedupes.
@@ -58,8 +59,8 @@ function EmbedDetails() {
   // Never leave a stale gated intent behind: if Pro lapses mid-session, or the
   // user switches to a short, the flag must not survive into the token request.
   useEffect(() => {
-    if (gated && (!isPro || fromStories)) setGated(false);
-  }, [gated, isPro, fromStories, setGated]);
+    if (gated && (!isPro || fromStories || !isTestUser(user))) setGated(false);
+  }, [gated, isPro, fromStories, user, setGated]);
 
   // Turning the paywall off drops the guest list with it, so a list cannot be
   // silently attached to an ungated upload.
@@ -348,7 +349,10 @@ function EmbedDetails() {
                     hiding this control is presentation, not enforcement. Not
                     offered for shorts: a paywalled short is a worse product
                     than a free one, and the preview would be most of the clip. */}
-                {!fromStories && isPro && (
+                {/* Still under test: visible only to the team's test accounts, the
+                    same list that gates OpenPods and the camera recorder. Drop
+                    `isTestUser` here to open it to every Pro user. */}
+                {!fromStories && isPro && isTestUser(user) && (
                   <div className="beneficiary-wrap" onClick={() => setGated(!gated)}>
                     <div className="wrap">
                       <span>Supporters only<SettingInfo title="Supporters only">

@@ -230,12 +230,37 @@
 
     /* Controls sit at the bottom, so every tile's title starts at the same
        height and each card ends with the same gap beneath its control. */
+    /* Every control sits on the same baseline: pushed to the bottom, one fixed
+       height, so a dropdown, a button and a checkbox all line up across the row
+       instead of each ending wherever its own box happens to. */
     .select-wrap,
     .bene-btn-wrap,
+    .community-wrap,
     .toggle-switch {
       margin-top: auto;
       padding-top: 10px;
+      width: 100%;
+      box-sizing: border-box;
     }
+
+    .select-wrap,
+    .bene-btn-wrap,
+    .community-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      > * { width: 100%; }
+    }
+
+    .select-wrap select,
+    .bene-btn-wrap,
+    .community-wrap {
+      min-height: 36px;
+    }
+
+    .bene-btn-wrap,
+    .community-wrap { padding-bottom: 0; }
 
     .select-wrap {
       width: 100%;
