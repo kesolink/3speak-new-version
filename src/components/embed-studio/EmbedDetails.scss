@@ -262,6 +262,40 @@
       justify-content: center;
     }
 
+    /* One look for all three controls. The rewards select was the odd one out:
+       a native select brings its own background, border and arrow, so it needs
+       appearance: none before it can match a plain button. The arrow is drawn
+       back as a background image, since removing it entirely would hide that
+       the control opens a list. */
+    .select-wrap select,
+    .bene-btn-wrap,
+    .community-wrap {
+      border: 1px solid var(--border-color, #3d3d3d);
+      border-radius: 8px;
+      background-color: var(--input-bg, rgba(255, 255, 255, 0.05));
+      color: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: none;
+      padding: 0 12px;
+      cursor: pointer;
+
+      &:hover { border-color: var(--border-light, #555); }
+    }
+
+    .select-wrap select {
+      appearance: none;
+      -webkit-appearance: none;
+      text-align: center;
+      text-align-last: center;
+      padding-right: 28px;
+      background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                        linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position: calc(100% - 15px) calc(50% + 1px), calc(100% - 11px) calc(50% + 1px);
+      background-size: 4px 4px, 4px 4px;
+      background-repeat: no-repeat;
+    }
+
     /* Whatever sits inside those controls fills the fixed height rather than
        floating within it. */
     .select-wrap select,
