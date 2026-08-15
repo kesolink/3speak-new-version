@@ -310,9 +310,9 @@ function EmbedDetails() {
                       <span>Share rewards with others.</span>
                   </div>
                   <div className="bene-btn-wrap">
-                    {list.length > 0 && <spa>{list.length}</spa>}
-                    <span> BENEFICIARIES</span>
-                    <MdPeopleAlt />
+                    <span>{list.length > 0
+                      ? `${list.length} account${list.length === 1 ? '' : 's'}`
+                      : 'None'}</span>
                   </div>
                 </div>
                 <div className="beneficiary-wrap" onClick={() => setIsRemix(!isRemix)}>

@@ -262,55 +262,46 @@
       justify-content: center;
     }
 
-    /* One look for all three controls. The rewards select was the odd one out:
-       a native select brings its own background, border and arrow, so it needs
-       appearance: none before it can match a plain button. The arrow is drawn
-       back as a background image, since removing it entirely would hide that
-       the control opens a list. */
-    .select-wrap select,
+    /* These three tiles show their CURRENT VALUE rather than a button. The whole
+       tile is the click target, so a boxed control inside it was a second
+       affordance for the same action, and three differently-shaped boxes never
+       quite matched. Plain text on one baseline instead. */
+    .select-wrap,
     .bene-btn-wrap,
     .community-wrap {
-      border: 1px solid var(--border-color, #3d3d3d);
-      border-radius: 8px;
-      background-color: var(--input-bg, rgba(255, 255, 255, 0.05));
-      color: inherit;
+      width: 100%;
+      min-height: 22px;
+      margin-bottom: 0;
+      padding: 10px 0 0;
+      border: 0;
+      background: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       font-size: 12px;
-      font-weight: 500;
-      text-transform: none;
-      padding: 0 12px;
+      font-weight: 600;
       cursor: pointer;
-
-      &:hover { border-color: var(--border-light, #555); }
     }
 
+    /* The select keeps working (it is what desktop's showPicker opens) but is
+       drawn as the same plain value text, arrow and chrome removed. */
     .select-wrap select {
       appearance: none;
       -webkit-appearance: none;
+      width: 100%;
+      border: 0;
+      background: none;
+      padding: 0;
+      color: inherit;
+      font: inherit;
       text-align: center;
       text-align-last: center;
-      padding-right: 28px;
-      background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
-                        linear-gradient(135deg, currentColor 50%, transparent 50%);
-      background-position: calc(100% - 15px) calc(50% + 1px), calc(100% - 11px) calc(50% + 1px);
-      background-size: 4px 4px, 4px 4px;
-      background-repeat: no-repeat;
+      cursor: pointer;
     }
 
-    /* Whatever sits inside those controls fills the fixed height rather than
-       floating within it. */
-    .select-wrap select,
-    .bene-btn-wrap > *,
-    .community-wrap > * {
-      margin: 0;
-    }
-
-    .select-wrap select {
-      width: 100%;
-      height: 100%;
-    }
-
-    /* Only the select stretches internally: the button's own children must not,
-       or its label and icon get pushed to opposite edges. */
+    .community-wrap img { width: 18px; height: 18px; border-radius: 50%; }
+    .community-wrap svg { display: none; }
 
     .toggle-switch {
       width: auto;
