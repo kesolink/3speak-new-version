@@ -152,3 +152,88 @@
 
 /* The guest editor now lives in a sheet rather than a tile. */
 .setting-info__body .gated-guests__editor { margin-top: 12px; }
+
+/* ── Community and beneficiary modals ─────────────────────────────────────────
+   These two predate SettingSheet and shipped their own look, so a studio that
+   otherwise uses one dialog style had three. They keep their own markup and
+   behaviour; only the shell is brought in line: same surface, same radius, same
+   two font sizes, and the same bottom-sheet treatment on phones. */
+.modal-content.community-modal,
+.modal-content.bene {
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #333);
+  background: var(--bg-elevated, #1c1c1c);
+  color: var(--text-primary, #eee);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+
+  [data-theme="light"] & {
+    background: #fff;
+    color: #222;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px 8px;
+    border-bottom: 0;
+
+    h2, h3, strong, span:first-child {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .close-btn {
+      border: 0;
+      background: none;
+      color: inherit;
+      font-size: 22px;
+      line-height: 1;
+      padding: 0 2px;
+      cursor: pointer;
+      opacity: 0.7;
+
+      &:hover { opacity: 1; }
+    }
+  }
+
+  p, span, li, label, input, button, select, textarea {
+    font-size: 12px;
+  }
+
+  .bene-text { opacity: 0.7; line-height: 1.45; }
+
+  input, select {
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #333);
+    background: var(--input-bg, rgba(255, 255, 255, 0.04));
+    color: inherit;
+  }
+}
+
+/* The overlay behind them, matched to the sheet's. */
+.modal .overlay { background: rgba(0, 0, 0, 0.55); }
+
+@media (max-width: 720px) {
+  .modal-content.community-modal,
+  .modal-content.bene {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    max-width: none;
+    max-height: 85vh;
+    overflow-y: auto;
+    transform: none;
+    border-radius: 14px 14px 0 0;
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}
