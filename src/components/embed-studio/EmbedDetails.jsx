@@ -12,6 +12,7 @@ import { getMinMaxDates } from '../../utils/schedulingHelpers';
 import EmbedUploadProgressBar from './EmbedUploadProgressBar';
 import { usePremiumStatus } from '../../hooks/usePremiumStatus';
 import { isTestUser } from '../../utils/config';
+import { getHiveClient } from '../../utils/hiveNode';
 // This route renders on its own, so it imports the studio stylesheet rather
 // than relying on EmbedStudioPage having mounted first and pulled it in.
 // ScheduledPostEditor already does the same for the same reason; Vite dedupes.
@@ -82,16 +83,45 @@ function EmbedDetails() {
   const [guestsOpen, setGuestsOpen] = useState(false);
   const [rewardChoice, setRewardChoice] = useState('default');
   const [allowlistDraft, setAllowlistDraft] = useState('');
-  const addAllowlistNames = () => {
-    const names = allowlistDraft
+  const [allowlistChecking, setAllowlistChecking] = useState(false);
+  // Same check the beneficiary dialog uses: the name has to be shaped like a
+  // Hive account AND actually exist. A typo here silently means the person you
+  // meant to invite cannot watch, and you would not find out until they told
+  // you, so it is worth the lookup.
+  const addAllowlistNames = async () => {
+    const names = [...new Set(allowlistDraft
       .split(/[\s,]+/)
       .map((n) => n.trim().toLowerCase().replace(/^@/, ''))
-      .filter(Boolean);
-    const valid = names.filter((n) => /^[a-z][a-z0-9.-]{2,15}$/.test(n));
-    const rejected = names.filter((n) => !valid.includes(n));
-    if (rejected.length) toast.error(`Not valid Hive accounts: ${rejected.join(', ')}`);
-    if (valid.length) {
-      setGatedAllowlist([...new Set([...gatedAllowlist, ...valid])]);
+      .filter(Boolean))];
+    if (!names.length) return;
+
+    const malformed = names.filter((n) => !/^[a-z][a-z0-9.-]{2,15}$/.test(n));
+    const candidates = names.filter((n) => !malformed.includes(n));
+
+    let existing = [];
+    let missing = [];
+    if (candidates.length) {
+      setAllowlistChecking(true);
+      try {
+        const accounts = await getHiveClient().database.getAccounts(candidates);
+        const found = new Set(accounts.map((a) => a.name));
+        existing = candidates.filter((n) => found.has(n));
+        missing = candidates.filter((n) => !found.has(n));
+      } catch (err) {
+        // A node hiccup must not silently drop the names: say so and add nothing.
+        console.error('[allowlist] account lookup failed:', err?.message || err);
+        toast.error('Could not verify those accounts right now. Try again in a moment.');
+        setAllowlistChecking(false);
+        return;
+      }
+      setAllowlistChecking(false);
+    }
+
+    if (malformed.length) toast.error(`Not valid Hive names: ${malformed.join(', ')}`);
+    if (missing.length) toast.error(`No such Hive account: ${missing.join(', ')}`);
+
+    if (existing.length) {
+      setGatedAllowlist([...new Set([...gatedAllowlist, ...existing])]);
       setAllowlistDraft('');
     }
   };
@@ -485,7 +515,7 @@ function EmbedDetails() {
                       onChange={(e) => setAllowlistDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAllowlistNames(); } }}
                     />
-                    <button type="button" onClick={addAllowlistNames}>Add</button>
+                    <button type="button" onClick={addAllowlistNames} disabled={allowlistChecking}>{allowlistChecking ? 'Checking…' : 'Add'}</button>
                   </div>
                   {gatedAllowlist.length > 0 && (
                     <div className="gated-guests__chips">
