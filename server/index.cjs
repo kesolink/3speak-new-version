@@ -707,6 +707,18 @@ app.post('/api/auth/hivesigner/session', walletAuthLimiter, async (req, res) => 
   res.json({ success: true, username })
 })
 
+// GET /api/auth/wallet/status — who, if anyone, the session cookie says we are.
+//
+// The cookie is httpOnly, so the client cannot read it and cannot tell that it
+// belongs to a different account than the one now signed in. Switching accounts
+// in the UI does not clear it, and the gate trusts it over anything the page
+// claims — so a creator who switched to another account kept watching their own
+// supporters-only videos as themselves. This lets the client notice and rotate.
+app.get('/api/auth/wallet/status', (req, res) => {
+  const token = req.cookies?.[WSESSION_COOKIE_NAME]
+  res.json({ user: (token && verifyWalletSession(token)) || null })
+})
+
 // POST /api/auth/wallet/logout — clear the wallet session cookie.
 app.post('/api/auth/wallet/logout', (req, res) => {
   clearWalletSessionCookie(res)

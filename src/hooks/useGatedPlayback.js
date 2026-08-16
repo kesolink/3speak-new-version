@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { establishWalletSession } from '../hive-api/aioha';
+import { establishWalletSession, syncWalletSession } from '../hive-api/aioha';
 
 const GATE_URL = import.meta.env.VITE_GATE_URL || 'https://gate.3speak.tv';
 
@@ -51,6 +51,12 @@ export function useGatedPlayback(videoId, isGated) {
           credentials: 'include',
           body: JSON.stringify({ videoId }),
         });
+
+        // Make sure the session cookie names the account that is signed in now,
+        // before asking who is entitled. It outlives an account switch, and the
+        // gate believes it over the page.
+        await syncWalletSession().catch(() => false);
+        if (cancelled) return;
 
         let resp = await askGate();
 
