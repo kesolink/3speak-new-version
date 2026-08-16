@@ -148,6 +148,11 @@ export async function fetchVideoDetails(author, permlink) {
     roomName,
     title: post.title,
     body: post.body,
+    // Carried through raw so the watch page can read flags this mapper does not
+    // model — supporters-only being the one that matters, since a gated post
+    // whose flag is dropped here silently plays the encrypted IPFS manifest
+    // instead of asking the gate, and stalls forever on a key it cannot fetch.
+    json_metadata: post.json_metadata,
     author: {
       id: post.author,
       username: post.author,
