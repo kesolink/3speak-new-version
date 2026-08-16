@@ -39,6 +39,7 @@ import useSubtitles from '../hooks/useSubtitles';
 import useWatchDuration from '../hooks/useWatchDuration';
 import { fetchScheduledPost, getScheduledEmbedRef } from '../utils/scheduledPosts';
 import EditScheduledModal from '../components/modal/EditScheduledModal';
+import { getHiveRenderer } from '../lib/hiveRenderer';
 
 // Stable identity so `related?.videos || EMPTY_LIST` doesn't hand a NEW [] to the
 // memo on every render.
@@ -77,22 +78,6 @@ function buildScheduledVideoDetails(doc) {
 }
 
 const hiveClient = getHiveClient();
-
-// Lazy-load the Hive markdown renderer
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
-      return createHiveRenderer({
-        ipfsGateway: 'https://ipfs-3speak.b-cdn.net',
-        convertHiveUrls: true,
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      });
-    });
-  }
-  return rendererPromise;
-};
 
 // Number of author videos to show at the top of recommendations
 const AUTHOR_VIDEOS_COUNT = 4;
@@ -297,7 +282,11 @@ function Watch({ v2 = false }) {
   // 🔐 Supporters-only playback, resolved by the gate. Held in a ref for the
   // same reason as isLiveRef: the player load effect is declared above the
   // query that reveals whether this post is gated.
-  const gatedRef = useRef({ isGated: false, state: 'idle', isEntitled: false, manifestUrl: null, previewUrl: null });
+  // `resolved` distinguishes "known not to be gated" from "we do not know yet".
+  // Without it the loader reads isGated:false on first run — before the post's
+  // metadata has arrived — and starts the ordinary public load for what turns
+  // out to be a supporters-only video.
+  const gatedRef = useRef({ isGated: false, state: 'idle', isEntitled: false, manifestUrl: null, previewUrl: null, resolved: false });
   const [gatedTick, setGatedTick] = useState(0);
   // Persist mute/volume preference across video navigations
   const MUTE_STORAGE_KEY = '3speak-muted';
@@ -575,6 +564,14 @@ function Watch({ v2 = false }) {
     // unresolved gate state must not fall through to the normal loader, which
     // would report a perfectly healthy paid video as a dead one.
     const g = gatedRef.current;
+    // Wait until we know whether this post is gated. Starting the public loader
+    // first and correcting afterwards is not merely wasteful: it fetches the
+    // encrypted manifest through the ordinary path, so hls.js reads the
+    // #EXT-X-KEY line written for the gate and retries that key endpoint without
+    // a session token, forever. The visible result is a spinning player and a
+    // stream of 401s that look like an entitlement failure when the viewer is
+    // perfectly entitled.
+    if (!g.resolved) return () => { active = false; };
     if (g.isGated) {
       if (g.state === 'loading' || g.state === 'idle') return () => { active = false; };
       const gatedSource = g.isEntitled ? g.manifestUrl : g.previewUrl;
@@ -772,7 +769,7 @@ function Watch({ v2 = false }) {
 
         // Pre-render comment bodies as HTML
         let render;
-        try { render = await getRenderer(); } catch (e) { render = null; }
+        try { render = await getHiveRenderer(); } catch (e) { render = null; }
 
         // Only include comments that have parentTimestamp in their metadata
         const markers = [];
@@ -1087,9 +1084,15 @@ function Watch({ v2 = false }) {
       isEntitled: gatedPlayback.isEntitled,
       manifestUrl: gatedPlayback.manifestUrl,
       previewUrl: gatedPlayback.previewUrl,
+      // The post query settles before the gate is even asked, so this says only
+      // "we now know whether it is gated", not "the gate has answered" — the
+      // loader waits on the gate separately, via `state`. A disabled query (a
+      // scheduled post, no author) reports not-loading, which correctly resolves
+      // to the ordinary path rather than stalling the player forever.
+      resolved: !videoLoading,
     };
     setGatedTick((n) => n + 1);
-  }, [isGatedPost, gatedPlayback.state, gatedPlayback.isEntitled, gatedPlayback.manifestUrl, gatedPlayback.previewUrl]);
+  }, [isGatedPost, gatedPlayback.state, gatedPlayback.isEntitled, gatedPlayback.manifestUrl, gatedPlayback.previewUrl, videoLoading]);
 
   // Optimistic override populated right after the author saves an edit.
   // The GraphQL indexer may lag a few minutes behind the Hive blockchain,
