@@ -462,7 +462,27 @@ export const establishWalletSession = async () => {
     try { aioha.loadAuth() } catch { /* nothing persisted yet */ }
   }
   const provider = aioha.getCurrentProvider()
-  if (!provider || provider === Providers.HiveSigner) return false
+  if (!provider) return false
+
+  // HiveSigner cannot do the SIWH challenge — it has no posting key to sign
+  // with — so it trades its access token for the same cookie instead. The
+  // server verifies the token against hivesigner.com before minting anything.
+  if (provider === Providers.HiveSigner) {
+    const hsToken = localStorage.getItem('hivesignerToken')
+    if (!hsToken) return false
+    try {
+      const resp = await fetch(`${THREESPEAK_API}/auth/hivesigner/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${hsToken}` },
+        credentials: 'include',
+        body: '{}',
+      })
+      return resp.ok
+    } catch {
+      return false
+    }
+  }
+
   const username = aioha.getCurrentUser()
   if (!username) return false
   if (walletSessionPromise) return walletSessionPromise // de-dupe concurrent calls

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { establishWalletSession } from '../hive-api/aioha';
 
 const GATE_URL = import.meta.env.VITE_GATE_URL || 'https://gate.3speak.tv';
 
@@ -43,13 +44,30 @@ export function useGatedPlayback(videoId, isGated) {
 
     (async () => {
       try {
-        const resp = await fetch(`${GATE_URL}/v1/session`, {
+        const askGate = () => fetch(`${GATE_URL}/v1/session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           // Entitlement is decided from the wallet-session cookie.
           credentials: 'include',
           body: JSON.stringify({ videoId }),
         });
+
+        let resp = await askGate();
+
+        // "anonymous" means the gate saw no session cookie, not that the viewer
+        // is unentitled. That happens whenever the login completed somewhere
+        // that did not mint one — a HiveSigner redirect callback, or a session
+        // predating this being established at login. Mint one and ask again,
+        // once, so an entitled viewer is not shown a paywall over a bookkeeping
+        // gap. Any other 402 is a real answer and is left alone.
+        if (resp.status === 402) {
+          const peek = await resp.clone().json().catch(() => ({}));
+          if (peek?.reason === 'anonymous') {
+            const established = await establishWalletSession().catch(() => false);
+            if (cancelled) return;
+            if (established) resp = await askGate();
+          }
+        }
 
         if (cancelled) return;
 

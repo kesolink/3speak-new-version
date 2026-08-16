@@ -673,6 +673,40 @@ app.post('/api/auth/wallet/login', walletAuthLimiter, async (req, res) => {
   }
 })
 
+// POST /api/auth/hivesigner/session — trade a HiveSigner access token for the
+// same session cookie the wallet flow mints.
+//
+// HiveSigner logins have no posting-key signature to give, so they cannot do the
+// SIWH challenge/response. They were therefore the one login type with no
+// session cookie at all — and since the gate identifies gated-video viewers from
+// that cookie, a HiveSigner user looked anonymous forever and hit the paywall on
+// videos they were entitled to, 3Speak Pro subscribers included.
+//
+// The token is proof enough on its own: hivesigner.com tells us whose it is, and
+// the user had to authenticate there to hold it. Rate-limited with the other
+// wallet auth routes, since it takes an unauthenticated token and calls out.
+app.post('/api/auth/hivesigner/session', walletAuthLimiter, async (req, res) => {
+  if (!SESSION_SIGNING_SECRET) {
+    return res.status(503).json({ error: 'Sessions are not configured on this server' })
+  }
+  // Accepted from the Authorization header or the body: the frontend already
+  // sends this token as a Bearer for broadcasts, so the header form keeps the
+  // two call sites identical.
+  const header = req.get('authorization') || ''
+  const token = header.startsWith('Bearer ') ? header.slice(7) : (req.body && req.body.token)
+  if (!token || typeof token !== 'string') {
+    return res.status(400).json({ error: 'HiveSigner token required' })
+  }
+
+  const username = await verifyHiveSignerToken(token)
+  if (!username || !HIVE_USER_RE.test(username)) {
+    return res.status(401).json({ error: 'HiveSigner token is invalid or expired' })
+  }
+
+  setWalletSessionCookie(res, mintWalletSession(username))
+  res.json({ success: true, username })
+})
+
 // POST /api/auth/wallet/logout — clear the wallet session cookie.
 app.post('/api/auth/wallet/logout', (req, res) => {
   clearWalletSessionCookie(res)
