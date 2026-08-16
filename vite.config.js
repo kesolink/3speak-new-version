@@ -238,6 +238,26 @@ export default defineConfig({
 
   server: {
     allowedHosts: ["3speak.okinoko.io", "preview.3speak.tv"],
+    // preview.3speak.tv is a PUBLIC dev server, so scanners probe it for secrets
+    // (.env, .git/config, .htaccess …). Vite's own deny list already covers most
+    // of those, but `.htaccess` sits inside the project root with no extension it
+    // recognises, so Vite tried to parse it as a module and threw. Transform
+    // errors are broadcast over HMR to EVERY connected client, so a bot's probe
+    // put a full-screen error overlay in front of whoever was using the site.
+    // Deny it (403) instead.
+    fs: {
+      // Leading **/ matters: these are matched against ABSOLUTE paths, so a bare
+      // ".git/**" never matched and Vite happily tried to parse .git/index as a
+      // module.
+      deny: [".env", ".env.*", "*.{crt,pem}", ".htaccess", "**/.git/**"],
+    },
+    watch: {
+      // Don't watch .git at all. Every commit rewrites .git/index, which woke
+      // the watcher, which asked Vite to transform a binary file — and transform
+      // errors are broadcast over HMR to EVERY connected client, so committing
+      // put a full-screen syntax-error overlay in front of anyone using the site.
+      ignored: ["**/.git/**"],
+    },
     proxy: {
       // Proxy upload API calls to video.3speak.tv to avoid CORS issues in dev.
       // In production, VITE_UPLOAD_URL should point directly to video.3speak.tv.
