@@ -173,6 +173,20 @@ function UserProfilePage() {
     });
     const audioCount = audioCountData?.total || 0;
 
+    // 🔐 Supporters-only shelf. Public and unfiltered by entitlement on purpose:
+    // it exists to show non-subscribers what they are missing. The tab is hidden
+    // entirely when the creator has none, so nobody sees an empty paywall pitch.
+    const { data: gatedData } = useQuery({
+      queryKey: ['profile-gated', user],
+      queryFn: async () =>
+        (await axios.get(`${CHECKER_URL}/feeds/creator-gated/${encodeURIComponent(user)}?limit=48`)).data,
+      enabled: !!user,
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+    });
+    const gatedVideos = gatedData?.videos || [];
+    const hasGated = gatedVideos.length > 0;
+
     // The Streams tab only exists when there's something to show — a running
     // OpenPods session, or the VOD of a finished one. Counts both.
     const { data: streamCount = 0 } = useQuery({
@@ -603,6 +617,11 @@ const {
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>
             Audio {audioCount > 0 && `(${audioCount})`}
           </span>
+          {hasGated && (
+            <span className={show === "supporters" ? "active" : ""} onClick={() => selectTab("supporters")}>
+              🔒 Supporters ({gatedVideos.length})
+            </span>
+          )}
           {streamCount > 0 && (
             <span className={show === "streams" ? "active" : ""} onClick={() => selectTab("streams")}>
               Streams ({streamCount})
@@ -664,6 +683,8 @@ const {
     )
   ) : show === "audio" ? (
     <UserAudioList user={user} />
+  ) : show === "supporters" ? (
+    <Card3 videos={gatedVideos} getViewCount={getViewCount} />
   ) : show === "streams" ? (
     <ProfileStreams user={user} getViewCount={getViewCount} />
   ) : show === "community" ? (
