@@ -504,7 +504,16 @@ function Watch({ v2 = false }) {
   const [videoAttached, setVideoAttached] = useState(false);
   const videoElRef = useRef(null); // handle on the element, so we can set our own poster
   const videoRef = useCallback((element) => {
-    sdkVideoRef(element); // pass to usePlayer's internal attach
+    // React calls this with null while unmounting, by which point the player may
+    // already have torn itself down — detaching from a destroyed one throws, and
+    // an error from a ref callback is not contained the way a render error is:
+    // it unmounts the tree, leaving a blank page. Navigating away from a watch
+    // page mid-load is the usual way to hit it.
+    try {
+      sdkVideoRef(element); // pass to usePlayer's internal attach
+    } catch {
+      /* player already destroyed — nothing left to detach from */
+    }
     videoElRef.current = element;
     if (element) {
       // Apply stored volume immediately after attach (SDK has no volume config option)
