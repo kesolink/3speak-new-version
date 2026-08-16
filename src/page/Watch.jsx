@@ -1568,34 +1568,38 @@ function Watch({ v2 = false }) {
         />
       )}
       <AmbientGlow getVideoEl={() => player?.element} glowMode={glowMode} />
-      {/* 🔐 The creator's own guest list, shown only to them. Server re-checks
-          ownership on every call, so rendering this is a convenience, not a
-          permission. Keyed on the EMBED asset id, which is what the gate knows
-          the video by and is not always the Hive permlink. */}
-      {isGatedPost && user && author && user.toLowerCase() === String(author).toLowerCase() && (
-        <GuestListEditor permlink={gateVideoId || permlink} />
-      )}
-      {/* 🔐 Paywall banner for supporters-only posts. Sits above the player
-          rather than covering it: what is playing underneath is the free
-          preview, and hiding that would remove the very thing meant to sell
-          the subscription. */}
-      {isGatedPost && gatedPlayback.isLocked && (
-        <div className="gated-paywall" role="status">
-          <div className="gated-paywall__lock" aria-hidden="true">🔒</div>
-          <div className="gated-paywall__text">
-            <strong>Supporters only</strong>
-            <span>
-              {gatedPlayback.state === 'error'
-                ? 'We could not confirm your subscription just now. Try again in a moment.'
-                : gatedPlayback.previewUrl
-                  ? 'You are watching a free preview. 3Speak Pro unlocks the full video.'
-                  : 'This video is available to 3Speak Pro subscribers.'}
-            </span>
-          </div>
-          <a className="gated-paywall__cta" href="/wallet">Get 3Speak Pro</a>
-        </div>
-      )}
       <PlayVideo
+        belowPlayerSlot={(
+          <>
+        {/* 🔐 The creator's own guest list, shown only to them. Server re-checks
+            ownership on every call, so rendering this is a convenience, not a
+            permission. Keyed on the EMBED asset id, which is what the gate knows
+            the video by and is not always the Hive permlink. */}
+        {isGatedPost && user && author && user.toLowerCase() === String(author).toLowerCase() && (
+          <GuestListEditor permlink={gateVideoId || permlink} />
+        )}
+        {/* 🔐 Paywall banner for supporters-only posts. Below the player rather
+            than covering it: what is playing above is the free preview, and
+            hiding that would remove the very thing meant to sell the
+            subscription. */}
+        {isGatedPost && gatedPlayback.isLocked && (
+          <div className="gated-paywall" role="status">
+            <div className="gated-paywall__lock" aria-hidden="true">🔒</div>
+            <div className="gated-paywall__text">
+              <strong>Supporters only</strong>
+              <span>
+                {gatedPlayback.state === 'error'
+                  ? 'We could not confirm your subscription just now. Try again in a moment.'
+                  : gatedPlayback.previewUrl
+                    ? 'You are watching a free preview. 3Speak Pro unlocks the full video.'
+                    : 'This video is available to 3Speak Pro subscribers.'}
+              </span>
+            </div>
+            <a className="gated-paywall__cta" href="/wallet">Get 3Speak Pro</a>
+          </div>
+        )}
+          </>
+        )}
         v2={v2}
         videoDetails={videoDetails}
         author={author}
