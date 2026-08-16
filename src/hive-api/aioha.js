@@ -450,6 +450,17 @@ export const broadcastViaManteAuth = async (operations) => {
 let walletSessionPromise = null
 export const establishWalletSession = async () => {
   if (isManteAuthLogin()) return false
+  // This module holds its OWN Aioha instance, separate from the one the login
+  // hook builds, and each only calls loadAuth() when it is constructed. This
+  // one is constructed at page load, so a login that happens afterwards on the
+  // other instance is invisible to it until the next reload. Re-reading the
+  // persisted auth here picks it up. Without this, establishing at login is a
+  // no-op and the session is only ever minted lazily, on the first broadcast —
+  // so a viewer who never posts stays anonymous to the gate and sees the
+  // paywall on videos they are entitled to.
+  if (!aioha.getCurrentUser()) {
+    try { aioha.loadAuth() } catch { /* nothing persisted yet */ }
+  }
   const provider = aioha.getCurrentProvider()
   if (!provider || provider === Providers.HiveSigner) return false
   const username = aioha.getCurrentUser()
