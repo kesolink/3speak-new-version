@@ -12,24 +12,9 @@ import { markByReputation } from '../../utils/reputation';
 import { markByHidden } from '../../utils/hiddenCreators';
 import { translateText, getTargetLanguage } from '../../utils/translate';
 import TranslateButton from '../TranslateButton/TranslateButton';
+import { getHiveRenderer } from '../../lib/hiveRenderer';
 
 const hiveClient = getHiveClient();
-
-// Lazy-load the Hive markdown renderer
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
-      return createHiveRenderer({
-        ipfsGateway: 'https://ipfs-3speak.b-cdn.net',
-        convertHiveUrls: true,
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      });
-    });
-  }
-  return rendererPromise;
-};
 
 const SIZE_LABELS = { small: 'S', medium: 'M', standard: 'Std', big: 'Big', cinema: 'Cin' };
 
@@ -254,7 +239,7 @@ function ReactionPlayer({
 
     (async () => {
       try {
-        const render = await getRenderer().catch(() => null);
+        const render = await getHiveRenderer().catch(() => null);
 
         const buildTree = async (author, permlink, depth) => {
           if (depth > 3) return [];

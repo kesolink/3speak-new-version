@@ -95,6 +95,7 @@ export default function SnapComposer({ onPosted }) {
         value={body}
         onChange={setBody}
         placeholder="Share an update with your followers…"
+        previewContext="snap"
       />
 
       <div className="snap-composer-row">
