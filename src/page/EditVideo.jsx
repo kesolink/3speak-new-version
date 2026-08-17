@@ -13,23 +13,8 @@ import MarkdownComposer from '../components/studio/MarkdownComposer';
 import { broadcastWithAioha, isLoggedIn, KeyTypes } from '../hive-api/aioha';
 import PromoteModal from '../components/Promote/PromoteModal';
 import { Rocket } from 'lucide-react';
+import { getPostBodyRenderer } from '../lib/hiveRenderer';
 const client = getHiveClient();
-
-// Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
-      return createHiveRenderer({
-        ipfsGateway: 'https://hotipfs-3speak-1.b-cdn.net',
-        convertHiveUrls: true,
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      });
-    });
-  }
-  return rendererPromise;
-};
 
 const EditVideo = () => {
   const location = useLocation();
@@ -96,7 +81,7 @@ const EditVideo = () => {
   // Render description with the async renderer
   useEffect(() => {
     if (description) {
-      getRenderer().then(render => {
+      getPostBodyRenderer().then(render => {
         setRenderedHTML(render(description));
       }).catch(err => {
         console.error('Error rendering description:', err);
@@ -229,7 +214,6 @@ const handleSubmit = async (e) => {
     console.error("Update error:", error);
   }
 };
-
 
   // renderedHTML is now handled via useEffect above
 

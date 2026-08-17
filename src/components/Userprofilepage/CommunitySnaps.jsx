@@ -330,7 +330,7 @@ function SnapEditForm({ owner, permlink, initialBody, initialTags, initialNsfw, 
 
   return (
     <div className="snap-composer snap-edit-form">
-      <MarkdownComposer value={body} onChange={setBody} placeholder="Edit your community post…" />
+      <MarkdownComposer value={body} onChange={setBody} placeholder="Edit your community post…" previewContext="snap" />
       <div className="snap-composer-row">
         <input
           className="snap-tags-input"

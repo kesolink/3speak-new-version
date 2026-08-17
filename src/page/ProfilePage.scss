@@ -6,8 +6,8 @@ $text-muted: #64748b;
 $border: #e5e7eb;
 $bg: #ffffff;
 
-// Match the .status-dot "Verified creator" pill styling so the "Add profile"
-// button blends in with the badge row.
+// Pill styling so the "Add profile" button blends into the badge row it sits
+// in, rather than reading as a form control.
 .add-social-link-btn {
   display: inline-flex;
   align-items: center;

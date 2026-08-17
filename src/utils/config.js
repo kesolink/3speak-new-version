@@ -238,6 +238,7 @@ const cameraRecordEnabledFor = (user) => ENABLE_CAMERA_RECORD || isTestUser(user
 const STT_WS_URL = import.meta.env.VITE_STT_WS_URL || '';
 
 export {
+  isTestUser,
   appendNsfw,
   API_URL_FROM_WEST,
   VIDEO_CDN_DOMAIN,

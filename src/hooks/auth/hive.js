@@ -1,4 +1,5 @@
 import { Aioha, KeyTypes, Providers } from "@aioha/aioha";
+import { establishWalletSession } from "../../hive-api/aioha";
 import { ENABLE_METAMASK_SNAP } from "../../utils/config";
 
 // Manual Aioha setup — MetaMask Snap only registered when env var is set,
@@ -52,8 +53,26 @@ export const hive = {
         keyType: KeyTypes.Posting,
         msg: serializedPayload,
       })
-      .then((res) => {
+      .then(async (res) => {
         if (res.success) {
+          // Mint the server session now, while the wallet is already unlocked
+          // and the user is expecting prompts.
+          //
+          // It used to be created only lazily, by the first /api/broadcast that
+          // came back 401 — fine for posting or voting, but a viewer who only
+          // watches never triggers one. The gate identifies gated-video viewers
+          // from that cookie, so a wallet user who had not yet broadcast
+          // anything looked anonymous and hit the paywall on a video they were
+          // entitled to.
+          //
+          // Never fatal: a declined signature still leaves the user logged in,
+          // and the lazy path remains as the fallback. No-ops for HiveSigner
+          // and ManteAuth, which carry their own server auth.
+          try {
+            await establishWalletSession();
+          } catch (err) {
+            console.warn("[auth] wallet session not established at login:", err?.message || err);
+          }
           const reqBody = {
             proof_payload: payload,
             proof: res.result,

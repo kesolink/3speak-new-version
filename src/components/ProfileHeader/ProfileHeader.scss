@@ -104,12 +104,18 @@
           // declaring it here loses to the base rule on source order.)
           .name-row,
           .profile-stats,
-          .user-badges,
-          // .lb-badges is its own wrapping flex row inside .user-badges, so
-          // centring the parent alone leaves its second line hanging left.
+          // Each group inside .user-badges is its own wrapping flex row, so
+          // centring the parent alone leaves their second lines hanging left.
+          .user-badges .own-badges,
           .user-badges .lb-badges,
+          .user-badges .hive-badges,
           .user-badges .social-links {
             justify-content: center;
+          }
+
+          // .user-badges is a column, so centring its rows is the CROSS axis.
+          .user-badges {
+            align-items: center;
           }
 
           .profile-bio,
@@ -381,30 +387,27 @@
 
         // Under the avatar + identity row, so the avatar never stretches to
         // cover the badges.
+        // A COLUMN of groups, not one wrapping row. .left-info is shrink-to-fit,
+        // and a wrapping flex row reports its max-content as every chip on one
+        // line — so with the Hive badge row in here the panel stretched to the
+        // full banner width even though it visually wrapped. Stacking the groups
+        // makes the panel only as wide as the WIDEST row.
         .user-badges {
             margin-top: 0.5rem;
             display: flex;
-            flex-wrap: wrap;
-            align-items: center;
+            flex-direction: column;
+            align-items: flex-start;
             gap: 0.5rem;
             color: #94a3b8;
             font-size: 0.75rem;
 
-            .status-dot {
-              display: inline-flex;
+            // 3Speak's own badges + social links + "Add profile" share one
+            // wrapping row, below the Hive badges.
+            .own-badges {
+              display: flex;
+              flex-wrap: wrap;
               align-items: center;
-              border: 1px solid #1e293b;
-              background: rgba(15, 23, 42, 0.8);
-              border-radius: 9999px;
-              padding: 0.25rem 0.6rem;
-
-              .dot {
-                width: 6px;
-                height: 6px;
-                border-radius: 999px;
-                background: #34d399;
-                margin-right: 6px;
-              }
+              gap: 0.5rem;
             }
 
             .divider {

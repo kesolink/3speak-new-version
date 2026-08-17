@@ -13,30 +13,19 @@ import './MarkdownComposer.scss';
 import { useAppStore } from '../../lib/store';
 import useGiphySearch, { normalizeGifUrl } from '../../hooks/useGiphySearch';
 import { gifMarkdown } from '../../utils/composerInsert';
+import { getHiveRenderer, getPostBodyRenderer } from '../../lib/hiveRenderer';
 
-// Lazy-loaded renderer
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
-      return createHiveRenderer({
-        ipfsGateway: 'https://hotipfs-3speak-1.b-cdn.net',
-        ipfsFallbackGateways: [
-          'https://ipfs.skatehive.app',
-          'https://cloudflare-ipfs.com',
-          'https://ipfs.io'
-        ],
-        convertHiveUrls: true,
-        internalUrlPrefix: '',
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      });
-    });
-  }
-  return rendererPromise;
+// The preview has to render the way the DESTINATION renders, or it isn't a
+// preview. A video description ends up on a watch page, which never embeds a
+// 3Speak video (the page is already playing one) — so pasting a 3Speak link
+// here has to show a link, not a player. A snap has no player of its own, so
+// snap composers pass `previewContext="snap"` and keep the embeds.
+const PREVIEW_RENDERERS = {
+  'post-body': getPostBodyRenderer,
+  snap: getHiveRenderer,
 };
 
-const MarkdownComposer = ({ value, onChange, placeholder = "Write your description here...", show }) => {
+const MarkdownComposer = ({ value, onChange, placeholder = "Write your description here...", show, previewContext = 'post-body' }) => {
   const { theme } = useAppStore()
   const textareaRef = useRef(null);
   const [viewMode, setViewMode] = useState('editor'); // 'editor' | 'preview' | 'split'
@@ -76,6 +65,7 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
       return;
     }
 
+    const getRenderer = PREVIEW_RENDERERS[previewContext] || getPostBodyRenderer;
     getRenderer().then(render => {
       try {
         setRenderedContent(render(value));
@@ -84,7 +74,7 @@ const MarkdownComposer = ({ value, onChange, placeholder = "Write your descripti
         setRenderedContent("<p>Error rendering content</p>");
       }
     });
-  }, [value, viewMode]);
+  }, [value, viewMode, previewContext]);
 
   // Helper to wrap selected text or insert at cursor
   const wrapText = useCallback((before, after = before) => {

@@ -1,34 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
-import { stripAutoEmbeds } from '../../utils/stripAutoEmbeds';
+import { getPostBodyRenderer } from '../../lib/hiveRenderer';
 import './HiveMarkdown.scss';
-
-// Lazy-load the Hive markdown renderer (same config as the post-body renderer)
-// to avoid Node polyfill cost at bundle time and share the singleton.
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) =>
-      createHiveRenderer({
-        ipfsGateway: 'https://hotipfs-3speak-1.b-cdn.net',
-        ipfsFallbackGateways: [
-          'https://ipfs.skatehive.app',
-          'https://cloudflare-ipfs.com',
-          'https://ipfs.io',
-        ],
-        convertHiveUrls: true,
-        internalUrlPrefix: '',
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      })
-    );
-  }
-  return rendererPromise;
-};
 
 /**
  * Renders a Hive markdown/HTML string (post body, community description, …) to
- * sanitized HTML via @snapie/renderer. Reusable wherever Hive-flavoured
+ * sanitized HTML via lib/hiveRenderer. Reusable wherever Hive-flavoured
  * markdown needs to be displayed outside the main post body.
  *
  * When `collapsible` is set, long content is clipped to `collapsedHeight` with a
@@ -47,11 +24,11 @@ export default function HiveMarkdown({ body, className = '', collapsible = false
       return;
     }
     let cancelled = false;
-    getRenderer()
+    getPostBodyRenderer()
       .then((render) => {
         if (cancelled) return;
         try {
-          setHtml(stripAutoEmbeds(render(body)));
+          setHtml(render(body));
         } catch {
           setHtml('');
         }

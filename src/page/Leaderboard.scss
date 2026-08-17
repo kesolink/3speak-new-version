@@ -196,6 +196,16 @@
       color: var(--accent-primary);
     }
 
+    // This card reuses .lb-row-avatar but lives outside .lb-list, so it misses
+    // the sizing rule scoped under .lb-row — without this the raw profile
+    // picture renders at its natural resolution.
+    .lb-row-avatar img {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
     .lb-me-user {
       flex: 1;
       font-size: 14px;

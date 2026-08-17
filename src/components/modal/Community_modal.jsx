@@ -6,6 +6,7 @@ import { Users, PenLine, ChevronDown, Loader2 } from "lucide-react";
 import { CHECKER_URL } from "../../utils/config";
 import { getSubscriptions } from "../../hive-api/hiveApi";
 import { useAppStore } from "../../lib/store";
+import { getHiveRenderer } from '../../lib/hiveRenderer';
 
 // Debounce hook
 const useDebounce = (value, delay = 300) => {
@@ -35,31 +36,12 @@ const toBulletList = (text) =>
     .map((l) => `- ${l.replace(/^[-*•]\s*/, "").replace(/^\d+[.)]\s*/, "")}`)
     .join("\n");
 
-// Community about/rules can contain markdown + HTML — render them with the same
-// (sanitizing) Hive renderer the post body uses. Lazy-loaded to avoid pulling
-// the renderer (and its node polyfills) into the main bundle.
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import("@snapie/renderer").then(({ createHiveRenderer }) =>
-      createHiveRenderer({
-        ipfsGateway: "https://hotipfs-3speak-1.b-cdn.net",
-        convertHiveUrls: true,
-        internalUrlPrefix: "",
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      })
-    );
-  }
-  return rendererPromise;
-};
-
 function MarkdownText({ text }) {
   const [html, setHtml] = useState("");
   useEffect(() => {
     let alive = true;
     if (!text) { setHtml(""); return; }
-    getRenderer()
+    getHiveRenderer()
       .then((render) => { if (alive) { try { setHtml(render(text)); } catch { setHtml(""); } } })
       .catch(() => { if (alive) setHtml(""); });
     return () => { alive = false; };

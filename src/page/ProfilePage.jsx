@@ -25,6 +25,7 @@ import { IoMdShare, IoMdAdd } from "react-icons/io";
 import { MdLock, MdPublic, MdClose } from "react-icons/md";
 import SocialLinks from "../components/Userprofilepage/SocialLinks";
 import LeaderboardBadges from "../components/LeaderboardBadges/LeaderboardBadges";
+import HiveBadges from "../components/HiveBadges/HiveBadges";
 import ProfileStreams from "../components/Userprofilepage/ProfileStreams";
 import AddSocialLink_modal from "../components/modal/AddSocialLink_modal";
 import EditVideoHintModal from "../components/modal/EditVideoHintModal";
@@ -67,6 +68,7 @@ function ProfilePage() {
     const tab = searchParams.get('tab');
     if (tab === 'playlists') return 'playlists';
     if (tab === 'shorts') return 'shorts';
+    if (tab === 'supporters') return 'supporters';
     if (tab === 'audio') return 'audio';
     if (tab === 'community') return 'community';
     if (tab === 'links') return 'links';
@@ -80,6 +82,7 @@ function ProfilePage() {
     const tab = searchParams.get('tab');
     if (tab === 'playlists') setShow('playlists');
     else if (tab === 'shorts') setShow('shorts');
+    else if (tab === 'supporters') setShow('supporters');
     else if (tab === 'audio') setShow('audio');
     else if (tab === 'community') setShow('community');
     else if (tab === 'links') setShow('links');
@@ -342,6 +345,20 @@ function ProfilePage() {
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
+  // 🔐 Supporters-only shelf. Public and unfiltered by entitlement on purpose:
+  // it exists to show non-subscribers what they are missing. The tab is hidden
+  // entirely when the creator has none, so nobody sees an empty paywall pitch.
+  const { data: gatedData, isLoading: isGatedLoading } = useQuery({
+    queryKey: ["profile-gated", user],
+    queryFn: async () =>
+      (await axios.get(`${CHECKER_URL}/feeds/creator-gated/${encodeURIComponent(user)}?limit=48`)).data,
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+  const gatedVideos = gatedData?.videos || [];
+  const hasGated = gatedVideos.length > 0;
+
   const videoCount = profileCounts?.videos || 0;
   const shortsCount = profileCounts?.shorts || 0;
 
@@ -495,24 +512,27 @@ function ProfilePage() {
         onAvatarClick={() => setEditProfileOpen(true)}
         badges={
           <>
-            <span className="status-dot">
-              <span className="dot" /> Verified creator
-            </span>
-            <LeaderboardBadges username={user} />
-            <SocialLinks
-              hiveUsername={user}
-              refreshKey={socialLinksRefreshKey}
-              canDelete
-              onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
-            />
-            <button
-              type="button"
-              className="add-social-link-btn"
-              onClick={() => setShowSocialLinkModal(true)}
-              title="Link an external profile"
-            >
-              <FaPlus /> Add profile
-            </button>
+            {/* Hive/PeakD badges take the first line; ours wrap underneath.
+                This page is only ever the signed-in user's own profile, so the
+                arrange controls always apply. */}
+            <HiveBadges username={user} canArrange />
+            <div className="own-badges">
+              <LeaderboardBadges username={user} />
+              <SocialLinks
+                hiveUsername={user}
+                refreshKey={socialLinksRefreshKey}
+                canDelete
+                onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
+              />
+              <button
+                type="button"
+                className="add-social-link-btn"
+                onClick={() => setShowSocialLinkModal(true)}
+                title="Link an external profile"
+              >
+                <FaPlus /> Add profile
+              </button>
+            </div>
           </>
         }
         actions={
@@ -566,6 +586,11 @@ function ProfilePage() {
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>
             Audio {audioCount > 0 && `(${audioCount})`}
           </span>
+          {hasGated && (
+            <span className={show === "supporters" ? "active" : ""} onClick={() => selectTab("supporters")}>
+              🔒 Supporters ({gatedVideos.length})
+            </span>
+          )}
           {streamCount > 0 && (
             <span className={show === "streams" ? "active" : ""} onClick={() => selectTab("streams")}>
               Streams ({streamCount})
@@ -665,6 +690,12 @@ function ProfilePage() {
             </div>
           ) : (
             <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
+          )
+        ) : show === "supporters" ? (
+          isGatedLoading ? (
+            <BarLoader />
+          ) : (
+            <Card3 videos={gatedVideos} getViewCount={getViewCount} />
           )
         ) : show === "audio" ? (
           <UserAudioList user={user} />

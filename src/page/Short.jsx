@@ -78,6 +78,7 @@ import { Helmet } from 'react-helmet-async';
 import { toast } from 'sonner';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { FEATURE_EDITOR } from '../utils/config';
+import { getHiveRenderer } from '../lib/hiveRenderer';
 import { getPlayerUrl } from '../utils/playerUrl';
 import { Player, ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -114,22 +115,6 @@ function ShortsSubtitleOverlay({ timeRef, cues, style }) {
   if (!cues || cues.length === 0) return null;
   return <SubtitleOverlay currentTime={time} cues={cues} style={style} />;
 }
-
-// Lazy-loaded Hive markdown renderer (same as CommentSection)
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
-      return createHiveRenderer({
-        ipfsGateway: 'https://ipfs-3speak.b-cdn.net',
-        convertHiveUrls: true,
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      });
-    });
-  }
-  return rendererPromise;
-};
 
 // Markdown collapses single newlines — turn them into hard breaks so multi-line
 // comments keep their line breaks when rendered.
@@ -1467,7 +1452,7 @@ const VideoShort = () => {
 
       // Pre-render comment bodies as HTML
       try {
-        const render = await getRenderer();
+        const render = await getHiveRenderer();
         const rendered = {};
         const renderComment = (c) => {
           if (c?.body) {
@@ -1613,7 +1598,7 @@ const VideoShort = () => {
 
     // Pre-render the body (markdown + line breaks) for instant display.
     try {
-      const render = await getRenderer();
+      const render = await getHiveRenderer();
       const html = render(hardBreakMd(commentText));
       setRenderedBodies(prev => ({ ...prev, [newPermlink]: html }));
     } catch (_) { /* falls back to raw body */ }
@@ -1843,7 +1828,6 @@ const VideoShort = () => {
   }, [remixDropdownOpen]);
 
   /* ---------- INTERACTIONS ---------- */
-
 
   const handleToggleComments = () => setShowComments(prev => !prev);
 

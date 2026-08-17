@@ -198,6 +198,17 @@ function Card3({ videos = [], loading = false, error = null, interleaveEvery = 0
                 </div>
               )}
 
+              {/* 🔐 Supporters-only tile → lock badge (top-left, so it never
+                  collides with the live badge or the options menu on the right).
+                  Presentation only: the gate re-checks entitlement on every
+                  manifest and key request, so hiding this badge would not grant
+                  anyone access. Shorts are never gated. */}
+              {video.gated && !shortsGrid && (
+                <div className="card-gated-badge" title="Supporters only — 3Speak Pro unlocks the full video">
+                  <span aria-hidden="true">🔒</span> PRO
+                </div>
+              )}
+
               {/* Live tile → badge (top-right). A group-chat (conference) room
                   reads "LIVE CHAT"; a standalone stream reads "LIVE". */}
               {video._liveStream && (

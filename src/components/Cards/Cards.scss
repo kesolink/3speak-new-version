@@ -694,3 +694,26 @@ html[data-card-size="large"] { --card-min-w: 420px; }
     svg { font-size: 12px; }
   }
 }
+
+/* 🔐 Supporters-only (gated) tile badge.
+   Top-LEFT on purpose: the live badge owns the top-right, and the card options
+   menu sits there too on touch devices. Mirrors the live badge's shape so the
+   two read as the same family of tile markers. */
+.card .img-wrap .card-gated-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: linear-gradient(135deg, #f5b301, #d18700);
+  color: #1a1a1a;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(245, 179, 1, 0.45);
+  pointer-events: none;
+}

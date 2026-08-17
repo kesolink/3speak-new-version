@@ -340,7 +340,7 @@
       margin: 10px 0;
     }
 
-    // Audio player embed container (from @snapie/renderer)
+    // Audio player embed container (from lib/hiveRenderer)
     .audio-container {
       width: 100%;
       margin: 8px 0;
@@ -355,7 +355,7 @@
       }
     }
 
-    // 3Speak video embed container (from @snapie/renderer)
+    // 3Speak video embed container (from lib/hiveRenderer)
     .video-container {
       position: relative;
       width: 100%;
