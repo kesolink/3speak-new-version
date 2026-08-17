@@ -76,7 +76,16 @@ export default function ChannelTrailer({ username, isOwnProfile = false, onOpenC
   });
 
   const videoRef = useCallback((el) => {
-    sdkVideoRef(el);
+    // React calls a ref callback with null while unmounting, and by then the
+    // player may already have torn itself down — detaching from a destroyed one
+    // throws. An error thrown from a ref callback is not contained: it unmounts
+    // the tree, which is why navigating from the profile to a watch page
+    // sometimes left a blank screen.
+    try {
+      sdkVideoRef(el);
+    } catch {
+      /* player already destroyed — nothing left to detach from */
+    }
     setAttached(!!el);
   }, [sdkVideoRef]);
 

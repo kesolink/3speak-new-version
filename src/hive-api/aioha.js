@@ -447,11 +447,73 @@ export const broadcastViaManteAuth = async (operations) => {
 // httpOnly session cookie. The @threespeak broadcast proxy then trusts that
 // cookie instead of a public app key + a claimed username — so nobody can act as
 // another user. No-op for ManteAuth (own cookie) and HiveSigner (own token).
+/**
+ * Make the server session belong to whoever is signed in NOW.
+ *
+ * The session cookie is httpOnly and survives an account switch, and the gate
+ * trusts it over anything the page claims. So after switching accounts the
+ * cookie still named the previous user — and since a video's own creator is
+ * always entitled, a creator who switched accounts kept watching their own
+ * supporters-only videos in full instead of hitting the paywall.
+ *
+ * Clearing before re-establishing matters: a stale cookie outranks the new
+ * login on the server, so leaving it in place would keep the old identity even
+ * after a successful mint.
+ */
+export const syncWalletSession = async () => {
+  const current = aioha.getCurrentUser()
+  try {
+    const resp = await fetch(`${THREESPEAK_API}/auth/wallet/status`, { credentials: 'include' })
+    if (!resp.ok) return false
+    const { user } = await resp.json()
+    if (user === current) return true          // already correct
+    if (!user && !current) return false        // nobody logged in either side
+    await fetch(`${THREESPEAK_API}/auth/wallet/logout`, { method: 'POST', credentials: 'include' })
+      .catch(() => {})
+    walletSessionPromise = null                // the de-dupe cache is for the OLD user
+    if (!current) return false                 // logged out — cleared, nothing to mint
+    return await establishWalletSession()
+  } catch {
+    return false
+  }
+}
+
 let walletSessionPromise = null
 export const establishWalletSession = async () => {
   if (isManteAuthLogin()) return false
+  // This module holds its OWN Aioha instance, separate from the one the login
+  // hook builds, and each only calls loadAuth() when it is constructed. This
+  // one is constructed at page load, so a login that happens afterwards on the
+  // other instance is invisible to it until the next reload. Re-reading the
+  // persisted auth here picks it up. Without this, establishing at login is a
+  // no-op and the session is only ever minted lazily, on the first broadcast —
+  // so a viewer who never posts stays anonymous to the gate and sees the
+  // paywall on videos they are entitled to.
+  if (!aioha.getCurrentUser()) {
+    try { aioha.loadAuth() } catch { /* nothing persisted yet */ }
+  }
   const provider = aioha.getCurrentProvider()
-  if (!provider || provider === Providers.HiveSigner) return false
+  if (!provider) return false
+
+  // HiveSigner cannot do the SIWH challenge — it has no posting key to sign
+  // with — so it trades its access token for the same cookie instead. The
+  // server verifies the token against hivesigner.com before minting anything.
+  if (provider === Providers.HiveSigner) {
+    const hsToken = localStorage.getItem('hivesignerToken')
+    if (!hsToken) return false
+    try {
+      const resp = await fetch(`${THREESPEAK_API}/auth/hivesigner/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${hsToken}` },
+        credentials: 'include',
+        body: '{}',
+      })
+      return resp.ok
+    } catch {
+      return false
+    }
+  }
+
   const username = aioha.getCurrentUser()
   if (!username) return false
   if (walletSessionPromise) return walletSessionPromise // de-dupe concurrent calls

@@ -14,6 +14,26 @@ const client = getHiveClient();
 //   'studio' — keeps the 1% Video-Encoding split even for Pro users
 //   'embed'  — no platform splits at all for Pro users
 function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList, setList, list, remaingPercent, setRemaingPercent, variant = 'studio' }) {
+  // The row handlers below mutate the parent's list as you type, so dismissing
+  // the dialog used to keep half-finished edits. Snapshot on open, restore on
+  // cancel, and only OK leaves the changes in place.
+  const snapshotRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (isOpen && snapshotRef.current === null) {
+      snapshotRef.current = { list: [...list], remaingPercent };
+    }
+    if (!isOpen) snapshotRef.current = null;
+  }, [isOpen]);
+
+  const cancel = () => {
+    if (snapshotRef.current) {
+      setList(snapshotRef.current.list);
+      setRemaingPercent(snapshotRef.current.remaingPercent);
+      snapshotRef.current = null;
+    }
+    close();
+  };
   const {user} = useAppStore();
   const isPremium = !!usePremiumStatus(user)?.premium;
   const [account, setAccount] = useState('');
@@ -173,12 +193,13 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
 
     
     setBeneficiaries(beneficiariesString); // Set the formatted string to the parent component
+    snapshotRef.current = null; // committed, so nothing to roll back to
     close(); // Close the modal after saving
   };
 
   return (
     <div className={`modal ${isOpen ? 'open' : ''}`}>
-      <div className="overlay" onClick={close}></div>
+      <div className="overlay" onClick={cancel}></div>
       <div
         className={`modal-content video-upload-moadal-size bene ${
           isOpen ? 'open' : ''
@@ -187,7 +208,7 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
       >
         <div className="modal-header">
           <h2>Beneficiaries</h2>
-          <button type="button" className="close-btn" onClick={close}>
+          <button type="button" className="close-btn" onClick={cancel}>
             &times;
           </button>
         </div>
@@ -307,7 +328,7 @@ function Beneficiary_modal({ isOpen, close, setBeneficiaries, setBeneficiaryList
 
           <div className="last-btn-wrap">
             {/* <button onClick={close}>Cancel</button> */}
-            <button type="button" onClick={handleSave}>Continue</button>
+            <button type="button" onClick={handleSave}>OK</button>
           </div>
 
           {(() => {

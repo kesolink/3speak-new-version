@@ -30,24 +30,9 @@ import TimeAgo from '../TimeAgo/TimeAgo';
 import { Link } from 'react-router-dom';
 import EmojiGifPicker from '../common/EmojiGifPicker/EmojiGifPicker';
 import { insertAtCursor, gifMarkdown } from '../../utils/composerInsert';
+import { getHiveRenderer } from '../../lib/hiveRenderer';
 
 const client = getHiveClient();
-
-// Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
-      return createHiveRenderer({
-        ipfsGateway: 'https://hotipfs-3speak-1.b-cdn.net',
-        convertHiveUrls: true,
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      });
-    });
-  }
-  return rendererPromise;
-};
 
 function formatTimeInput(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -170,7 +155,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
         setCommentList(markedComments);
         
         // Pre-render all comment bodies (createHiveRenderer returns a function directly)
-        const render = await getRenderer();
+        const render = await getHiveRenderer();
         const rendered = {};
         // Replace timestamp-linked 3speak URLs so the renderer doesn't embed them
         // Matches [0:00] or [1:23:45] style text linking to 3speak/play.3speak URLs
@@ -218,7 +203,6 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
   
       fetchAccountData();
     }, []);
-
 
     const calculateVoteValue = async (account, percent) => {
         try{
@@ -391,7 +375,7 @@ function CommentSection({ videoDetails, author, permlink, currentTime, duration,
         // immediately — without it, processedBody falls back to the raw markdown
         // (e.g. a literal `![gif](url)`) until the next fetch/reload.
         try {
-          const render = await getRenderer();
+          const render = await getHiveRenderer();
           setRenderedBodies(prev => ({ ...prev, [new_permlink]: render(textToPost) }));
         } catch (_) { /* fall back to raw body until refetch */ }
 

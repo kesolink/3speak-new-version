@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { StepProgress } from '../legacy-studio/StepProgress';
 import { IoIosArrowDropdownCircle } from 'react-icons/io';
@@ -10,6 +10,21 @@ import { useEmbedUpload } from '../../context/EmbedUploadContext';
 import MarkdownComposer from '../studio/MarkdownComposer';
 import { getMinMaxDates } from '../../utils/schedulingHelpers';
 import EmbedUploadProgressBar from './EmbedUploadProgressBar';
+import { usePremiumStatus } from '../../hooks/usePremiumStatus';
+import { isTestUser } from '../../utils/config';
+import { getHiveClient } from '../../utils/hiveNode';
+// This route renders on its own, so it imports the studio stylesheet rather
+// than relying on EmbedStudioPage having mounted first and pulled it in.
+// ScheduledPostEditor already does the same for the same reason; Vite dedupes.
+import '../legacy-studio/StudioPage.scss';
+import SettingInfo, { SettingSheet } from './SettingInfo';
+import './EmbedDetails.scss';
+
+const REWARD_LABELS = {
+  default: 'Default 50% 50%',
+  powerup: 'Power up 100%',
+  decline: 'Decline payout',
+};
 
 function EmbedDetails() {
   const {
@@ -34,10 +49,82 @@ function EmbedDetails() {
     fromStories,
     reusable, setReusable,
     isNsfw, setIsNsfw,
+    gated, setGated,
+    gatedAllowlist, setGatedAllowlist,
+    user,
     isChannelTrailer, setIsChannelTrailer,
     originalAuthor, originalPermlink,
     startEarlyUpload,
   } = useEmbedUpload();
+
+  // 🔐 Pro status decides whether the supporters-only control is offered. The
+  // hook returns null while loading, so the toggle stays hidden until we have a
+  // definite yes rather than flashing in and out.
+  const premiumStatus = usePremiumStatus(user);
+  const isPro = premiumStatus?.premium === true;
+
+  // Never leave a stale gated intent behind: if Pro lapses mid-session, or the
+  // user switches to a short, the flag must not survive into the token request.
+  useEffect(() => {
+    if (gated && (!isPro || fromStories || !isTestUser(user))) setGated(false);
+  }, [gated, isPro, fromStories, user, setGated]);
+
+  // Turning the paywall off drops the guest list with it, so a list cannot be
+  // silently attached to an ungated upload.
+  useEffect(() => {
+    if (!gated && gatedAllowlist.length) setGatedAllowlist([]);
+  }, [gated, gatedAllowlist, setGatedAllowlist]);
+
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  // The sheet edits a draft; only OK writes it back, so closing or pressing
+  // Escape leaves the previously chosen time alone.
+  const [scheduleDraft, setScheduleDraft] = useState('');
+  const [rewardsOpen, setRewardsOpen] = useState(false);
+  const [guestsOpen, setGuestsOpen] = useState(false);
+  const [rewardChoice, setRewardChoice] = useState('default');
+  const [allowlistDraft, setAllowlistDraft] = useState('');
+  const [allowlistChecking, setAllowlistChecking] = useState(false);
+  // Same check the beneficiary dialog uses: the name has to be shaped like a
+  // Hive account AND actually exist. A typo here silently means the person you
+  // meant to invite cannot watch, and you would not find out until they told
+  // you, so it is worth the lookup.
+  const addAllowlistNames = async () => {
+    const names = [...new Set(allowlistDraft
+      .split(/[\s,]+/)
+      .map((n) => n.trim().toLowerCase().replace(/^@/, ''))
+      .filter(Boolean))];
+    if (!names.length) return;
+
+    const malformed = names.filter((n) => !/^[a-z][a-z0-9.-]{2,15}$/.test(n));
+    const candidates = names.filter((n) => !malformed.includes(n));
+
+    let existing = [];
+    let missing = [];
+    if (candidates.length) {
+      setAllowlistChecking(true);
+      try {
+        const accounts = await getHiveClient().database.getAccounts(candidates);
+        const found = new Set(accounts.map((a) => a.name));
+        existing = candidates.filter((n) => found.has(n));
+        missing = candidates.filter((n) => !found.has(n));
+      } catch (err) {
+        // A node hiccup must not silently drop the names: say so and add nothing.
+        console.error('[allowlist] account lookup failed:', err?.message || err);
+        toast.error('Could not verify those accounts right now. Try again in a moment.');
+        setAllowlistChecking(false);
+        return;
+      }
+      setAllowlistChecking(false);
+    }
+
+    if (malformed.length) toast.error(`Not valid Hive names: ${malformed.join(', ')}`);
+    if (missing.length) toast.error(`No such Hive account: ${missing.join(', ')}`);
+
+    if (existing.length) {
+      setGatedAllowlist([...new Set([...gatedAllowlist, ...existing])]);
+      setAllowlistDraft('');
+    }
+  };
 
   const isRemix = !!(originalAuthor && originalPermlink);
   const descLimitToastRef = useRef(null);
@@ -70,7 +157,13 @@ function EmbedDetails() {
     setStep(3)
   }, [])
 
-  if (!selectedThumbnail) {
+  // 🔧 TEMPORARY DEV HACK — remove with the other ?devstep handling.
+  // /embed-studio/details?devstep=3 renders the form with no upload behind it,
+  // purely so the layout can be worked on. Publishing from here will not work.
+  const devStep = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('devstep');
+
+  if (!selectedThumbnail && !devStep) {
     return <Navigate to="/embed-studio" replace />;
   }
 
@@ -86,7 +179,8 @@ function EmbedDetails() {
   };
 
   const handleSelect = (e) => {
-    const value = e.target.value;
+    const value = typeof e === 'string' ? e : e.target.value;
+    setRewardChoice(value);
     if (value === "powerup") {
       setRewardPowerup(true)
       SetDeclineRewards(false)
@@ -152,7 +246,7 @@ function EmbedDetails() {
 
   return (
     <>
-      <div className="studio-main-container">
+      <div className="studio-main-container embed-details-page">
         <div className="studio-page-header">
           <h1>{fromStories ? "Share a Short" : "Share a Video"}</h1>
         </div>
@@ -182,7 +276,6 @@ function EmbedDetails() {
                     className="char-counter"
                     style={{
                       textAlign: 'right',
-                      fontSize: '0.78rem',
                       marginTop: '4px',
                       color: description.length >= 240 ? '#e05252' : description.length >= 200 ? '#e0a852' : 'var(--text-muted, #888)',
                       fontVariantNumeric: 'tabular-nums',
@@ -198,7 +291,7 @@ function EmbedDetails() {
                   Tag
                   <span
                     className="tag-count"
-                    style={{ marginLeft: 8, fontSize: 12, color: allTags.length >= 10 ? '#e0a852' : 'var(--text-muted, #888)' }}
+                    style={{ marginLeft: 8, color: allTags.length >= 10 ? '#e0a852' : 'var(--text-muted, #888)' }}
                   >
                     {allTags.length}/10 tags{!fromStories ? ' · at least 1 required' : ''}
                   </span>
@@ -223,45 +316,39 @@ function EmbedDetails() {
                   ))}</span>
                 </div>
               </div>
-              {!fromStories && (
-                <div className="community-box-wrap">
-                  <div className="community-wrap" onClick={openCommunityModal}>
-                    {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar/small`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar/small`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
-                    <IoIosArrowDropdownCircle size={16} />
-                  </div>
-                  <span>Select Community </span>
-                </div>
-              )}
-
               <div className="advance-option">
-                <div className="beneficiary-wrap mb">
+                {!fromStories && (
+                  <div className="beneficiary-wrap community-tile is-clickable" onClick={openCommunityModal}>
+                    <div className="wrap">
+                      <span>Community<SettingInfo title="Community">Which Hive community this video is posted to. It becomes the post&apos;s category, so community feeds and moderation follow it.</SettingInfo></span>
+                      <span>Where this video is posted.</span>
+                    </div>
+                    <div className="tile-value community-value">
+                      {community ? <span>{community === "hive-181335" ? <div className="wrap"><img src={`https://images.hive.blog/u/hive-181335/avatar/small`} alt="" /><span></span>Threespeak</div> : <div className="wrap"><img src={`https://images.hive.blog/u/${community.name}/avatar/small`} alt="" /><span></span>{community.title}</div>}</span> : <span> Select Community </span>}
+                      <IoIosArrowDropdownCircle size={16} />
+                    </div>
+                  </div>
+                )}
+                <div className="beneficiary-wrap is-clickable" onClick={() => setRewardsOpen(true)}>
                   <div className="wrap">
-                    <span>Rewards Distribution</span>
-                    <span>Optional "Hive Reward Pool" distribution method.</span>
+                    <span>Rewards<SettingInfo title="Rewards">Optional &quot;Hive Reward Pool&quot; distribution method. Choose the default 50/50 split, power up 100% of the payout, or decline rewards entirely.</SettingInfo></span>
+                      <span>How rewards are paid out.</span>
                   </div>
-                  <div className="select-wrap">
-                    <select name="" id="" onChange={handleSelect}>
-                      <option value="default"> Default 50% 50% </option>
-                      <option value="powerup">Power up 100%</option>
-                      <option value="decline">Decline Payout</option>
-                    </select>
-                  </div>
+                  <div className="tile-value">{REWARD_LABELS[rewardChoice] || REWARD_LABELS.default}</div>
                 </div>
-                <div className="beneficiary-wrap">
+                <div className="beneficiary-wrap is-clickable" onClick={toggleBeneficiaryModal}>
                   <div className="wrap">
-                    <span>Beneficiaries</span>
-                    <span>Other accounts that should get a % of the post rewards.</span>
+                    <span>Beneficiaries<SettingInfo title="Beneficiaries">Other accounts that should get a percentage of this post's rewards. Useful for co-creators, editors, or the original author of a clip.</SettingInfo></span>
+                      <span>Share rewards with others.</span>
                   </div>
-                  <div className="bene-btn-wrap" onClick={toggleBeneficiaryModal}>
-                    {list.length > 0 && <spa>{list.length}</spa>}
-                    <span> BENEFICIARIES</span>
-                    <MdPeopleAlt />
-                  </div>
+                  <div className="tile-value">{list.length > 0
+                    ? `${list.length} account${list.length === 1 ? '' : 's'}`
+                    : 'None'}</div>
                 </div>
-                <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                <div className="beneficiary-wrap" onClick={() => setIsRemix(!isRemix)}>
                   <div className="wrap">
-                    <span>Allow Remix/Clip</span>
-                    <span>Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</span>
+                    <span>Allow Remix/Clip<SettingInfo title="Allow Remix/Clip">Allow others to create remixes and clips from this video. You will be credited as original author and receive a minimum of 5% in beneficiaries.</SettingInfo></span>
+                      <span>Let others remix this.</span>
                   </div>
                   <label className={`toggle-switch${isRemix ? ' disabled' : ''}`}>
                     <input
@@ -273,12 +360,12 @@ function EmbedDetails() {
                     <span className="toggle-track"><span className="toggle-thumb" /></span>
                   </label>
                 </div>
-                <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                <div className="beneficiary-wrap" onClick={() => setIsNsfw(!isNsfw)}>
                   <div className="wrap">
-                    <span>Mark as adult / NSFW</span>
-                    <span>Flags this video as adult content. It will be hidden from feeds and search for viewers who haven't enabled NSFW, and tagged <code>nsfw</code> across Hive.</span>
+                    <span>Mark as NSFW<SettingInfo title="Mark as NSFW">Flags this video as adult content. It will be hidden from feeds and search for viewers who have not enabled NSFW, and tagged <code>nsfw</code> across Hive.</SettingInfo></span>
+                      <span>Adult content.</span>
                   </div>
-                  <label className="toggle-switch">
+                  <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={!!isNsfw}
@@ -287,14 +374,60 @@ function EmbedDetails() {
                     <span className="toggle-track"><span className="toggle-thumb" /></span>
                   </label>
                 </div>
+                {/* 🔐 Supporters-only. Pro-gated in the UI, but the backend
+                    re-checks Pro status when it mints the upload token, so
+                    hiding this control is presentation, not enforcement. Not
+                    offered for shorts: a paywalled short is a worse product
+                    than a free one, and the preview would be most of the clip. */}
+                {/* Still under test: visible only to the team's test accounts, the
+                    same list that gates OpenPods and the camera recorder. Drop
+                    `isTestUser` here to open it to every Pro user. */}
+                {!fromStories && isPro && isTestUser(user) && (
+                  <div className="beneficiary-wrap" onClick={() => setGated(!gated)}>
+                    <div className="wrap">
+                      <span>Supporters only<SettingInfo title="Supporters only">
+                          Encrypts this video so only 3Speak Pro subscribers can play it.
+                          A <strong>10 second unencrypted preview</strong> is published alongside
+                          it, so the post still shows a trailer everywhere on Hive.
+                          {' '}Your title, description and tags are ordinary Hive post content and
+                          are <strong>not encrypted</strong> — only the video is.
+                          {' '}<strong>This cannot be changed after upload.</strong>
+                        </SettingInfo></span>
+                      <span>{gated && gatedAllowlist.length
+                        ? `Pro subscribers + ${gatedAllowlist.length} guest${gatedAllowlist.length === 1 ? '' : 's'}.`
+                        : 'Pro subscribers only.'}</span>
+                    </div>
+                    <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={!!gated}
+                        onChange={(e) => setGated(e.target.checked)}
+                      />
+                      <span className="toggle-track"><span className="toggle-thumb" /></span>
+                    </label>
+                    {/* 🔐 Guest list. Named accounts watch without needing Pro, which
+                        is what makes this usable for sending a video to specific
+                        people. Stored on our servers only — never in the Hive post,
+                        so the recipient list is not published on-chain. */}
+                    {gated && isPro && (
+                      <button
+                        type="button"
+                        className="schedule-tile__change"
+                        onClick={(e) => { e.stopPropagation(); setGuestsOpen(true); }}
+                      >
+                        Guest list
+                      </button>
+                    )}
+                  </div>
+                )}
                 {/* Not offered for shorts: the Overview trailer frame is 16:9. */}
                 {!fromStories && (
-                  <div className="beneficiary-wrap" style={{ marginTop: '12px' }}>
+                  <div className="beneficiary-wrap" onClick={() => setIsChannelTrailer(!isChannelTrailer)}>
                     <div className="wrap">
-                      <span>Mark as channel trailer</span>
-                      <span>Plays automatically at the top of your profile's <strong>Overview</strong> tab, replacing any trailer you set before.</span>
+                      <span>Channel trailer<SettingInfo title="Channel trailer">Plays automatically at the top of your profile&apos;s <strong>Overview</strong> tab, replacing any trailer you set before.</SettingInfo></span>
+                      <span>Autoplays on your profile.</span>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={!!isChannelTrailer}
@@ -304,52 +437,134 @@ function EmbedDetails() {
                     </label>
                   </div>
                 )}
-              </div>
-
-              {/* Schedule section — only for regular videos (not shorts). When toggled on,
-                  the post is queued on our checker backend and auto-broadcast at the chosen
-                  time by the @threespeak account (requires the user to grant threespeak as
-                  a posting account_auth on first schedule). */}
-              {!fromStories && (
-                <div className="schedule-box-wrap" style={{ marginTop: '12px' }}>
-                  <div className="schedule-wrap toggle-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>Schedule this post</span>
-                    <label className="toggle-switch">
+                {/* Schedule — only for regular videos, not shorts. When on, the post
+                    is queued on the checker backend and broadcast at the chosen time
+                    by @threespeak (the user grants that posting auth once). The
+                    picker lives in a sheet so the tile stays the size of its
+                    neighbours instead of growing an input inline. */}
+                {!fromStories && (
+                  <div className="beneficiary-wrap schedule-tile" onClick={() => { const next = !isScheduled; setIsScheduled(next); if (next) { if (!scheduleDateTime) { const { minFormatted, minDate } = getMinMaxDates(); setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16)); } setScheduleDraft(scheduleDateTime || ''); setScheduleOpen(true); } }}>
+                    <div className="wrap">
+                      <span>Schedule this post<SettingInfo title="Schedule this post">Queues the post and publishes it automatically at the time you choose, at least 15 minutes from now and up to 90 days out. It is broadcast by @threespeak on your behalf, so you will be asked to authorize that once.</SettingInfo></span>
+                      <span>{isScheduled && scheduleDateTime
+                        ? new Date(scheduleDateTime).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+                        : 'Publish immediately.'}</span>
+                    </div>
+                    <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={isScheduled}
                         onChange={(e) => {
                           const checked = e.target.checked;
                           setIsScheduled(checked);
-                          if (checked && !scheduleDateTime) {
-                            // Prefill with min (now + 1h) so the input isn't empty.
-                            const { minFormatted, minDate } = getMinMaxDates();
-                            setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16));
+                          if (checked) {
+                            if (!scheduleDateTime) {
+                              // Prefill with the minimum so the picker is never empty.
+                              const { minFormatted, minDate } = getMinMaxDates();
+                              setScheduleDateTime(minFormatted || minDate?.toISOString().slice(0, 16));
+                            }
+                            // Turning it on is a request to pick a time, so ask now.
+                            setScheduleDraft(scheduleDateTime || '');
+                            setScheduleOpen(true);
                           }
                         }}
                       />
                       <span className="toggle-track"><span className="toggle-thumb" /></span>
                     </label>
+                    {isScheduled && (
+                      <button type="button" className="schedule-tile__change" onClick={(e) => { e.stopPropagation(); setScheduleDraft(scheduleDateTime || ''); setScheduleOpen(true); }}>
+                        Change time
+                      </button>
+                    )}
                   </div>
-                  {isScheduled && (() => {
-                    const { minFormatted, maxFormatted } = getMinMaxDates();
-                    return (
-                      <div style={{ marginTop: '8px' }}>
-                        <input
-                          type="datetime-local"
-                          value={scheduleDateTime}
-                          min={minFormatted}
-                          max={maxFormatted}
-                          onChange={(e) => setScheduleDateTime(e.target.value)}
-                        />
-                        <div style={{ fontSize: '0.85em', opacity: 0.7, marginTop: '4px' }}>
-                          Range: at least 15 minutes from now, up to 90 days. Posted automatically by @threespeak on your behalf — you'll be asked to authorize this once.
-                        </div>
-                      </div>
-                    );
-                  })()}
+                )}
+              </div>
+
+              <SettingSheet title="Rewards" open={rewardsOpen} onClose={() => setRewardsOpen(false)}>
+                <div className="option-sheet">
+                  {[
+                    { value: 'default', label: 'Default 50% 50%', hint: 'Half HBD, half Hive Power.' },
+                    { value: 'powerup', label: 'Power up 100%', hint: 'All rewards as Hive Power.' },
+                    { value: 'decline', label: 'Decline payout', hint: 'Take no rewards for this post.' },
+                  ].map((opt) => (
+                    <button
+                      type="button"
+                      key={opt.value}
+                      className={`option-sheet__item${rewardChoice === opt.value ? ' is-active' : ''}`}
+                      onClick={() => { handleSelect(opt.value); setRewardsOpen(false); }}
+                    >
+                      <strong>{opt.label}</strong>
+                      <span>{opt.hint}</span>
+                    </button>
+                  ))}
                 </div>
-              )}
+              </SettingSheet>
+
+              <SettingSheet title="Guest list" open={guestsOpen} onClose={() => setGuestsOpen(false)}>
+                <p className="schedule-sheet__note" style={{ marginTop: 0 }}>
+                  These Hive accounts can watch without 3Speak Pro. The list is kept private on
+                  our servers and is never published to your post, so nobody can see who you
+                  shared it with.
+                </p>
+                <div className="gated-guests__editor">
+                  <div className="gated-guests__input-row">
+                    <input
+                      type="text"
+                      value={allowlistDraft}
+                      placeholder="username, another.user"
+                      onChange={(e) => setAllowlistDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAllowlistNames(); } }}
+                    />
+                    <button type="button" onClick={addAllowlistNames} disabled={allowlistChecking}>{allowlistChecking ? 'Checking…' : 'Add'}</button>
+                  </div>
+                  {gatedAllowlist.length > 0 && (
+                    <div className="gated-guests__chips">
+                      {gatedAllowlist.map((name) => (
+                        <span className="gated-guests__chip" key={name}>
+                          @{name}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${name}`}
+                            onClick={() => setGatedAllowlist(gatedAllowlist.filter((n) => n !== name))}
+                          >×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </SettingSheet>
+
+              <SettingSheet title="Schedule this post" open={scheduleOpen} onClose={() => setScheduleOpen(false)}>
+                {(() => {
+                  const { minFormatted, maxFormatted } = getMinMaxDates();
+                  return (
+                    <>
+                      <input
+                        type="datetime-local"
+                        className="schedule-sheet__input"
+                        value={scheduleDraft}
+                        min={minFormatted}
+                        max={maxFormatted}
+                        onChange={(e) => setScheduleDraft(e.target.value)}
+                      />
+                      <p className="schedule-sheet__note">
+                        At least 15 minutes from now, up to 90 days. Posted automatically by
+                        @threespeak on your behalf — you will be asked to authorize this once.
+                      </p>
+                      <div className="sheet-actions">
+                        <button
+                          type="button"
+                          className="sheet-actions__ok"
+                          disabled={!scheduleDraft}
+                          onClick={() => { setScheduleDateTime(scheduleDraft); setScheduleOpen(false); }}
+                        >
+                          OK
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </SettingSheet>
 
               <div className="submit-btn-wrap">
                 <button
