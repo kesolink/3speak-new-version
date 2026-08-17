@@ -42,6 +42,7 @@ import ProfileStreams from './ProfileStreams';
 import { fetchSnaps } from '../../lib/snaps';
 import SocialLinks from './SocialLinks';
 import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
+import HiveBadges from '../HiveBadges/HiveBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
 import ProfileStats from '../ProfileHeader/ProfileStats';
 import ProfileOverview from './ProfileOverview';
@@ -546,11 +547,12 @@ const {
         ) : null}
         badges={
           <>
-            <span className="status-dot">
-              <span className="dot"></span>Verified creator
-            </span>
-            <LeaderboardBadges username={user} />
-            <SocialLinks hiveUsername={user} />
+            {/* Hive/PeakD badges take the first line; ours wrap underneath. */}
+            <HiveBadges username={user} canArrange={isOwnProfile} />
+            <div className="own-badges">
+              <LeaderboardBadges username={user} />
+              <SocialLinks hiveUsername={user} />
+            </div>
           </>
         }
         actions={

@@ -25,6 +25,7 @@ import { IoMdShare, IoMdAdd } from "react-icons/io";
 import { MdLock, MdPublic, MdClose } from "react-icons/md";
 import SocialLinks from "../components/Userprofilepage/SocialLinks";
 import LeaderboardBadges from "../components/LeaderboardBadges/LeaderboardBadges";
+import HiveBadges from "../components/HiveBadges/HiveBadges";
 import ProfileStreams from "../components/Userprofilepage/ProfileStreams";
 import AddSocialLink_modal from "../components/modal/AddSocialLink_modal";
 import EditVideoHintModal from "../components/modal/EditVideoHintModal";
@@ -511,24 +512,27 @@ function ProfilePage() {
         onAvatarClick={() => setEditProfileOpen(true)}
         badges={
           <>
-            <span className="status-dot">
-              <span className="dot" /> Verified creator
-            </span>
-            <LeaderboardBadges username={user} />
-            <SocialLinks
-              hiveUsername={user}
-              refreshKey={socialLinksRefreshKey}
-              canDelete
-              onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
-            />
-            <button
-              type="button"
-              className="add-social-link-btn"
-              onClick={() => setShowSocialLinkModal(true)}
-              title="Link an external profile"
-            >
-              <FaPlus /> Add profile
-            </button>
+            {/* Hive/PeakD badges take the first line; ours wrap underneath.
+                This page is only ever the signed-in user's own profile, so the
+                arrange controls always apply. */}
+            <HiveBadges username={user} canArrange />
+            <div className="own-badges">
+              <LeaderboardBadges username={user} />
+              <SocialLinks
+                hiveUsername={user}
+                refreshKey={socialLinksRefreshKey}
+                canDelete
+                onChange={() => setSocialLinksRefreshKey((k) => k + 1)}
+              />
+              <button
+                type="button"
+                className="add-social-link-btn"
+                onClick={() => setShowSocialLinkModal(true)}
+                title="Link an external profile"
+              >
+                <FaPlus /> Add profile
+              </button>
+            </div>
           </>
         }
         actions={
