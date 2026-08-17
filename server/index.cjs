@@ -259,12 +259,29 @@ function verifyWalletSession(token) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
   return username
 }
+// `domain` makes the session readable across 3speak.tv subdomains. Without it
+// the cookie is host-only, so a session minted on preview.3speak.tv is never
+// sent to gate.3speak.tv — and the gate identifies the viewer from this cookie,
+// so gated playback would show the paywall to everyone, Pro subscribers
+// included. SameSite=lax is already satisfied: the subdomains are same-site.
+//
+// Existing host-only cookies keep working, so nobody is logged out; new logins
+// get a domain cookie. A browser holding both sends both, and verifyWalletSession
+// checks an HMAC, so either one satisfies it.
+const WSESSION_COOKIE_DOMAIN = process.env.WSESSION_COOKIE_DOMAIN || '.3speak.tv'
 function setWalletSessionCookie(res, token) {
   res.cookie(WSESSION_COOKIE_NAME, token, {
-    httpOnly: true, secure: true, sameSite: 'lax', maxAge: WSESSION_TTL_MS, path: '/'
+    httpOnly: true, secure: true, sameSite: 'lax', maxAge: WSESSION_TTL_MS, path: '/',
+    ...(WSESSION_COOKIE_DOMAIN ? { domain: WSESSION_COOKIE_DOMAIN } : {})
   })
 }
 function clearWalletSessionCookie(res) {
+  // Cleared with AND without the domain: a browser may still hold a host-only
+  // cookie from before this change, and clearing only the domain form would
+  // leave the old one behind and keep the user silently logged in.
+  if (WSESSION_COOKIE_DOMAIN) {
+    res.clearCookie(WSESSION_COOKIE_NAME, { path: '/', domain: WSESSION_COOKIE_DOMAIN })
+  }
   res.clearCookie(WSESSION_COOKIE_NAME, { path: '/' })
 }
 
@@ -656,11 +673,195 @@ app.post('/api/auth/wallet/login', walletAuthLimiter, async (req, res) => {
   }
 })
 
+// POST /api/auth/hivesigner/session — trade a HiveSigner access token for the
+// same session cookie the wallet flow mints.
+//
+// HiveSigner logins have no posting-key signature to give, so they cannot do the
+// SIWH challenge/response. They were therefore the one login type with no
+// session cookie at all — and since the gate identifies gated-video viewers from
+// that cookie, a HiveSigner user looked anonymous forever and hit the paywall on
+// videos they were entitled to, 3Speak Pro subscribers included.
+//
+// The token is proof enough on its own: hivesigner.com tells us whose it is, and
+// the user had to authenticate there to hold it. Rate-limited with the other
+// wallet auth routes, since it takes an unauthenticated token and calls out.
+app.post('/api/auth/hivesigner/session', walletAuthLimiter, async (req, res) => {
+  if (!SESSION_SIGNING_SECRET) {
+    return res.status(503).json({ error: 'Sessions are not configured on this server' })
+  }
+  // Accepted from the Authorization header or the body: the frontend already
+  // sends this token as a Bearer for broadcasts, so the header form keeps the
+  // two call sites identical.
+  const header = req.get('authorization') || ''
+  const token = header.startsWith('Bearer ') ? header.slice(7) : (req.body && req.body.token)
+  if (!token || typeof token !== 'string') {
+    return res.status(400).json({ error: 'HiveSigner token required' })
+  }
+
+  const username = await verifyHiveSignerToken(token)
+  if (!username || !HIVE_USER_RE.test(username)) {
+    return res.status(401).json({ error: 'HiveSigner token is invalid or expired' })
+  }
+
+  setWalletSessionCookie(res, mintWalletSession(username))
+  res.json({ success: true, username })
+})
+
+// GET /api/auth/wallet/status — who, if anyone, the session cookie says we are.
+//
+// The cookie is httpOnly, so the client cannot read it and cannot tell that it
+// belongs to a different account than the one now signed in. Switching accounts
+// in the UI does not clear it, and the gate trusts it over anything the page
+// claims — so a creator who switched to another account kept watching their own
+// supporters-only videos as themselves. This lets the client notice and rotate.
+app.get('/api/auth/wallet/status', (req, res) => {
+  const token = req.cookies?.[WSESSION_COOKIE_NAME]
+  res.json({ user: (token && verifyWalletSession(token)) || null })
+})
+
 // POST /api/auth/wallet/logout — clear the wallet session cookie.
 app.post('/api/auth/wallet/logout', (req, res) => {
   clearWalletSessionCookie(res)
   res.clearCookie('threespeak_user', { path: '/' })
   res.json({ success: true })
+})
+
+// ── 🔐 Gated content: guest list ──────────────────────────────────────────────
+// Lets a creator add or remove the named accounts that can watch one of their
+// supporters-only videos without 3Speak Pro.
+//
+// This lives HERE rather than in embedvideos on purpose. embedvideos only has
+// app-level API keys, and the embed key ships inside the browser bundle, so a
+// route there would let anyone edit anyone else's guest list. This service knows
+// WHICH USER is calling, which is exactly what the check needs.
+const GATE_URL = process.env.GATE_URL || ''
+const GATE_INTERNAL_API_KEY = process.env.GATE_INTERNAL_API_KEY || ''
+const EMBED_API_BASE = process.env.EMBED_API_BASE || 'https://embed2.3speak.tv'
+
+/**
+ * Shared gate for both guest-list routes: who is calling, and do they own this
+ * video. Returns { user, video } or null after having already answered.
+ *
+ * Identity resolution mirrors /api/broadcast minus the legacy app-key path:
+ * that path trusts a CLAIMED username, which is fine for posting ops the user
+ * signs anyway, and not fine for deciding who may watch a paid video.
+ */
+async function resolveGatedVideoOwner(req, res) {
+  if (!GATE_URL || !GATE_INTERNAL_API_KEY) {
+    res.status(503).json({ error: 'Gate is not configured on this instance' })
+    return null
+  }
+
+  let hiveUsername = await resolveButrUser(req, res)
+  if (!hiveUsername) {
+    const ws = req.cookies?.[WSESSION_COOKIE_NAME]
+    const wu = ws && verifyWalletSession(ws)
+    if (wu) hiveUsername = wu
+  }
+  if (!hiveUsername) {
+    const authHeader = req.headers.authorization || ''
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+    if (bearer) hiveUsername = await verifyHiveSignerToken(bearer)
+  }
+  if (!hiveUsername) {
+    res.status(401).json({ error: 'Sign in to manage your guest list' })
+    return null
+  }
+
+  const permlink = String(req.params.permlink || '').trim()
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(permlink)) {
+    res.status(400).json({ error: 'invalid permlink' })
+    return null
+  }
+
+  // Ownership is checked against the embed record, which is the source of truth
+  // for who uploaded the asset. Never trust a client-supplied owner.
+  let video
+  try {
+    const r = await fetch(`${EMBED_API_BASE.replace(/\/+$/, '')}/video/${encodeURIComponent(permlink)}`, {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!r.ok) { res.status(404).json({ error: 'video not found' }); return null }
+    video = await r.json()
+  } catch {
+    res.status(502).json({ error: 'could not verify video ownership' })
+    return null
+  }
+
+  if (String(video?.owner || '').toLowerCase() !== hiveUsername.toLowerCase()) {
+    console.warn(`[gated] @${hiveUsername} tried to touch the guest list of ${permlink} owned by @${video?.owner}`)
+    res.status(403).json({ error: 'You can only manage guest lists on your own videos' })
+    return null
+  }
+  if (video?.gated !== true) {
+    res.status(400).json({ error: 'That video is not supporters-only' })
+    return null
+  }
+
+  return { user: hiveUsername, video, permlink }
+}
+
+// Read the current guest list, so the editor can show who is already invited.
+app.get('/api/gated/:permlink/allowlist', async (req, res) => {
+  try {
+    const ctx = await resolveGatedVideoOwner(req, res)
+    if (!ctx) return undefined
+
+    const r = await fetch(
+      `${GATE_URL.replace(/\/+$/, '')}/internal/videos/${encodeURIComponent(ctx.video.gate_video_id || ctx.permlink)}`,
+      { headers: { 'X-API-Key': GATE_INTERNAL_API_KEY }, signal: AbortSignal.timeout(8000) }
+    )
+    // A gated video that finished encoding is registered with the gate; one that
+    // has not got there yet simply has no list to show.
+    if (r.status === 404) return res.json({ allowlist: [], registered: false })
+    if (!r.ok) return res.status(502).json({ error: 'Could not read the guest list' })
+
+    const body = await r.json()
+    return res.json({ allowlist: body.allowlist ?? [], registered: true })
+  } catch (err) {
+    console.error('GET /api/gated/:permlink/allowlist error:', err.message)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+app.patch('/api/gated/:permlink/allowlist', async (req, res) => {
+  try {
+    const ctx = await resolveGatedVideoOwner(req, res)
+    if (!ctx) return undefined
+    const { user: hiveUsername, video, permlink } = ctx
+
+    const list = req.body?.allowlist
+    if (!Array.isArray(list) || list.length > 500) {
+      return res.status(422).json({ error: 'allowlist must be an array of at most 500 usernames' })
+    }
+    const names = [...new Set(list.map((u) => String(u).trim().toLowerCase().replace(/^@/, '')))]
+    const bad = names.find((n) => !HIVE_USER_RE.test(n))
+    if (bad !== undefined) {
+      return res.status(422).json({ error: `"${bad}" is not a valid Hive account name` })
+    }
+
+    const gateRes = await fetch(
+      `${GATE_URL.replace(/\/+$/, '')}/internal/videos/${encodeURIComponent(video.gate_video_id || permlink)}/allowlist`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': GATE_INTERNAL_API_KEY },
+        body: JSON.stringify({ allowlist: names }),
+        signal: AbortSignal.timeout(8000),
+      }
+    )
+    if (!gateRes.ok) {
+      const text = await gateRes.text().catch(() => '')
+      console.error(`[gated] gate rejected allowlist update for ${permlink}: ${gateRes.status} ${text}`)
+      return res.status(502).json({ error: 'Could not update the guest list' })
+    }
+
+    const body = await gateRes.json()
+    console.log(`[gated] @${hiveUsername} set ${names.length} guest(s) on ${permlink}`)
+    return res.json({ success: true, allowlist: body.allowlist ?? names })
+  } catch (err) {
+    console.error('PATCH /api/gated/:permlink/allowlist error:', err.message)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
 })
 
 app.post('/api/broadcast', broadcastLimiter, async (req, res) => {

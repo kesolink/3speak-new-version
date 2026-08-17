@@ -7,6 +7,30 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.37',
+    date: '2026-08-17',
+    summary:
+      'The Leaderboard (/leaderboard) now shows your own position in a tidier card, with your profile picture sized to match the rest of the board.',
+  },
+  {
+    version: '1.78.36',
+    date: '2026-08-17',
+    summary:
+      'On your own profile you can now choose the order your Hive badges appear in: open the badge list, hit Arrange, drag them where you want them and save. The order is stored on your Hive account, so everyone sees your favourites first. 3Speak badges stay pinned at the front.',
+  },
+  {
+    version: '1.78.35',
+    date: '2026-08-17',
+    summary:
+      'Profiles now show the Hive badges a creator has earned, just above their 3Speak badges. The first few sit in the profile header, and "Show more" opens the full list with a short note on what each badge is for. 3Speak badges always come first.',
+  },
+  {
+    version: '1.78.34',
+    date: '2026-08-17',
+    summary:
+      'Video descriptions, comments and community posts now use Hive\'s official renderer, so text, mentions, tags and images look the same here as in other Hive apps. 3Speak videos and audio still open as players, and other links you paste stay as tidy clickable links.',
+  },
+  {
     version: '1.78.33',
     date: '2026-08-14',
     summary:

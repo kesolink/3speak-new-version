@@ -41,7 +41,13 @@ export default function EmbedPlayer() {
   }, []);
 
   const videoRef = useCallback((el) => {
-    sdkVideoRef(el);
+    // Detaching from an already-destroyed player throws, and a throw from a ref
+    // callback unmounts the tree rather than being contained — a blank embed.
+    try {
+      sdkVideoRef(el);
+    } catch {
+      /* player already destroyed — nothing left to detach from */
+    }
     setAttached(!!el);
   }, [sdkVideoRef]);
 

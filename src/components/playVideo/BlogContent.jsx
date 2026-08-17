@@ -6,40 +6,9 @@ import "./BlogContent.scss";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { TailChase } from 'ldrs/react';
 import AudioPlayerInline from "../AudioPlayerInline/AudioPlayerInline";
-import { stripAutoEmbeds } from "../../utils/stripAutoEmbeds";
-
-// Lazy-loaded renderer to avoid Node.js polyfill issues at bundle time
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
-      return createHiveRenderer({
-        ipfsGateway: 'https://hotipfs-3speak-1.b-cdn.net',
-        ipfsFallbackGateways: [
-          'https://ipfs.skatehive.app',
-          'https://cloudflare-ipfs.com',
-          'https://ipfs.io'
-        ],
-        convertHiveUrls: true,
-        internalUrlPrefix: '',
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      });
-    });
-  }
-  return rendererPromise;
-};
+import { getPostBodyRenderer } from "../../lib/hiveRenderer";
 
 const THRESHOLD_HEIGHT = 100;
-
-// Keep YouTube links as plain inline links instead of auto-embedded players.
-// We wrap any BARE YouTube URL in explicit markdown-link form `[url](url)` BEFORE
-// rendering — the renderer then leaves it as a normal <a> in place (so two links
-// on one line, e.g. "Source: A & B", stay inline) instead of pulling the first
-// one out into a block embed that splits the paragraph.
-const YT_BARE_URL_RE = /(?<!\]\()(?<!["'=\[])\bhttps?:\/\/(?:www\.)?(?:m\.)?(?:youtube\.com\/(?:watch\?[^\s)]+|shorts\/[A-Za-z0-9_-]+|v\/[A-Za-z0-9_-]+|embed\/[A-Za-z0-9_-]+)|youtu\.be\/[A-Za-z0-9_-]+(?:\?[^\s)]*)?)/g;
-const preprocessYouTubeLinks = (markdown) =>
-  typeof markdown === 'string' ? markdown.replace(YT_BARE_URL_RE, (u) => `[${u}](${u})`) : markdown;
 
 const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) => {
   const [content, setContent] = useState("");
@@ -51,15 +20,27 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
   const audioUrlsRef = useRef([]);
   const audioRootsRef = useRef([]);
 
+  // Strip the "this video, on 3Speak" boilerplate our own uploads and the other
+  // Hive frontends put in the body. The page IS that video, so a link back to it
+  // is noise. The renderer no longer turns any of these into players (see
+  // lib/hiveRenderer) — they arrive as plain anchors, and we drop the ones that
+  // are pure self-reference.
   const cleanContent = (htmlString) => {
     let cleaned = htmlString;
 
-    // Remove ALL auto-generated embeds (iframes / video-wrapper divs / video-embed
-    // link anchors, any host): each becomes a plain link, 3Speak video embeds are
-    // dropped (the page already has its own player — this also catches the
-    // play.3speak.tv URL our uploads lead with), and audio.3speak.tv is preserved
-    // (mounted as an inline audio player below). Shared with HiveMarkdown.
-    cleaned = stripAutoEmbeds(cleaned);
+    // A paragraph that is JUST a bare 3Speak link — our uploads and OpenPods
+    // announcements lead the body with `play.3speak.tv/embed?v=…`. Only when the
+    // link text equals the URL, so a labelled link ("▶ Watch on 3speak.tv") and
+    // links to OTHER 3Speak videos survive. The optional <span> is the wrapper
+    // the renderer's linkifier puts around a rewritten text node.
+    cleaned = cleaned.replace(
+      /<p[^>]*>\s*(?:<span>\s*)?<a[^>]*\bhref="([^"]+)"[^>]*>([\s\S]*?)<\/a>\s*(?:<\/span>\s*)?<\/p>/gi,
+      (m, href, text) => {
+        if (!/(?:\/\/|\.)3speak\.tv/i.test(href)) return m;
+        const norm = (s) => String(s).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+        return norm(text) === norm(href) ? '' : m;
+      }
+    );
 
     // Pattern 4: "Watch on 3Speak" link with play emoji (as paragraph)
     cleaned = cleaned.replace(
@@ -84,8 +65,13 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
     cleaned = cleaned.replace(/^[\s]*<hr[^>]*\/?>/i, '');
 
     cleaned = cleaned.replace(/<sub>[\s]*Uploaded using 3Speak[^<]*<\/sub>/gi, '');
-    cleaned = cleaned.replace(/<p[^>]*>[\s]*<\/p>/g, '');
+    // Paragraphs the removals above hollowed out — a lone <br> or <span> counts
+    // as empty, since that's what's left once the link inside is gone.
+    cleaned = cleaned.replace(/<p[^>]*>(?:\s|<br[^>]*\/?>|<span>\s*<\/span>)*<\/p>/gi, '');
     cleaned = cleaned.replace(/<center>[\s]*<\/center>/gi, '');
+    // …and the separator that used to sit above that boilerplate, now dangling
+    // at the end of the post.
+    cleaned = cleaned.replace(/(?:\s|<hr[^>]*\/?>)+$/i, '');
     cleaned = cleaned.trim();
 
     return cleaned;
@@ -125,10 +111,10 @@ const BlogContent = ({ author, permlink, description, alwaysExpanded = false }) 
         ? content.join("\n")
         : "";
 
-    getRenderer()
+    getPostBodyRenderer()
       .then((render) => {
         try {
-          let renderedHTML = render(preprocessYouTubeLinks(contentString));
+          let renderedHTML = render(contentString);
           renderedHTML = cleanContent(renderedHTML);
 
           // Extract audio.3speak.tv containers and replace with React mount slots

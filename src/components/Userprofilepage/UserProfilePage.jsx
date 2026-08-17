@@ -42,6 +42,7 @@ import ProfileStreams from './ProfileStreams';
 import { fetchSnaps } from '../../lib/snaps';
 import SocialLinks from './SocialLinks';
 import LeaderboardBadges from '../LeaderboardBadges/LeaderboardBadges';
+import HiveBadges from '../HiveBadges/HiveBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
 import ProfileStats from '../ProfileHeader/ProfileStats';
 import ProfileOverview from './ProfileOverview';
@@ -172,6 +173,20 @@ function UserProfilePage() {
       retry: 1,
     });
     const audioCount = audioCountData?.total || 0;
+
+    // 🔐 Supporters-only shelf. Public and unfiltered by entitlement on purpose:
+    // it exists to show non-subscribers what they are missing. The tab is hidden
+    // entirely when the creator has none, so nobody sees an empty paywall pitch.
+    const { data: gatedData } = useQuery({
+      queryKey: ['profile-gated', user],
+      queryFn: async () =>
+        (await axios.get(`${CHECKER_URL}/feeds/creator-gated/${encodeURIComponent(user)}?limit=48`)).data,
+      enabled: !!user,
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+    });
+    const gatedVideos = gatedData?.videos || [];
+    const hasGated = gatedVideos.length > 0;
 
     // The Streams tab only exists when there's something to show — a running
     // OpenPods session, or the VOD of a finished one. Counts both.
@@ -532,11 +547,12 @@ const {
         ) : null}
         badges={
           <>
-            <span className="status-dot">
-              <span className="dot"></span>Verified creator
-            </span>
-            <LeaderboardBadges username={user} />
-            <SocialLinks hiveUsername={user} />
+            {/* Hive/PeakD badges take the first line; ours wrap underneath. */}
+            <HiveBadges username={user} canArrange={isOwnProfile} />
+            <div className="own-badges">
+              <LeaderboardBadges username={user} />
+              <SocialLinks hiveUsername={user} />
+            </div>
           </>
         }
         actions={
@@ -603,6 +619,11 @@ const {
           <span className={show === "audio" ? "active" : ""} onClick={() => selectTab("audio")}>
             Audio {audioCount > 0 && `(${audioCount})`}
           </span>
+          {hasGated && (
+            <span className={show === "supporters" ? "active" : ""} onClick={() => selectTab("supporters")}>
+              🔒 Supporters ({gatedVideos.length})
+            </span>
+          )}
           {streamCount > 0 && (
             <span className={show === "streams" ? "active" : ""} onClick={() => selectTab("streams")}>
               Streams ({streamCount})
@@ -664,6 +685,8 @@ const {
     )
   ) : show === "audio" ? (
     <UserAudioList user={user} />
+  ) : show === "supporters" ? (
+    <Card3 videos={gatedVideos} getViewCount={getViewCount} />
   ) : show === "streams" ? (
     <ProfileStreams user={user} getViewCount={getViewCount} />
   ) : show === "community" ? (

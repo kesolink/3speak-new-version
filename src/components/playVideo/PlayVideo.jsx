@@ -72,7 +72,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null, belowPlayerSlot = null }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -1024,6 +1024,13 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
               <ImSpinner9 className="spinner" />
             </div>
           )}
+
+          {/* Notices that belong to the video rather than the page — the
+              supporters-only paywall, and the creator's guest list. Between the
+              player and the title on purpose: above the player they read as a
+              site-wide banner and push the video down the page, when what they
+              are actually commenting on is the thing just above them. */}
+          {belowPlayerSlot}
 
           <div className={`video-title-row${!mobileDetailsExpanded ? ' title-collapsed' : ''}`}>
             <div className="video-title-col">

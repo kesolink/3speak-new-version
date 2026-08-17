@@ -272,3 +272,42 @@
     display: none;
   }
 }
+
+/* 🔐 Supporters-only paywall banner. Deliberately a banner and not an overlay:
+   the free preview keeps playing underneath, which is what sells the upgrade. */
+.gated-paywall {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  background: var(--card-bg, rgba(255, 255, 255, 0.04));
+
+  &__lock { font-size: 20px; line-height: 1; }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+
+    strong { font-size: 14px; }
+    span { font-size: 13px; opacity: 0.8; }
+  }
+
+  &__cta {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    background: var(--primary-color, #e23);
+    color: #fff;
+
+    &:hover { filter: brightness(1.1); }
+  }
+}

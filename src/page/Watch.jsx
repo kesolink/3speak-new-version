@@ -26,6 +26,8 @@ import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { batchCheckHidden, isCreatorHidden } from '../utils/hiddenCreators';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
+import { useGatedPlayback } from '../hooks/useGatedPlayback';
+import GuestListEditor from '../components/gated/GuestListEditor';
 import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
 import { resolveVideoMeta } from '../lib/videoMetaCache';
 import { fixVideoThumbnail } from '../utils/fixThumbnails';
@@ -37,6 +39,7 @@ import useSubtitles from '../hooks/useSubtitles';
 import useWatchDuration from '../hooks/useWatchDuration';
 import { fetchScheduledPost, getScheduledEmbedRef } from '../utils/scheduledPosts';
 import EditScheduledModal from '../components/modal/EditScheduledModal';
+import { getHiveRenderer } from '../lib/hiveRenderer';
 
 // Stable identity so `related?.videos || EMPTY_LIST` doesn't hand a NEW [] to the
 // memo on every render.
@@ -75,22 +78,6 @@ function buildScheduledVideoDetails(doc) {
 }
 
 const hiveClient = getHiveClient();
-
-// Lazy-load the Hive markdown renderer
-let rendererPromise = null;
-const getRenderer = async () => {
-  if (!rendererPromise) {
-    rendererPromise = import('@snapie/renderer').then(({ createHiveRenderer }) => {
-      return createHiveRenderer({
-        ipfsGateway: 'https://ipfs-3speak.b-cdn.net',
-        convertHiveUrls: true,
-        usertagUrlFn: (account) => `/p/${account}`,
-        hashtagUrlFn: (tag) => `/t/${tag}`,
-      });
-    });
-  }
-  return rendererPromise;
-};
 
 // Number of author videos to show at the top of recommendations
 const AUTHOR_VIDEOS_COUNT = 4;
@@ -292,6 +279,15 @@ function Watch({ v2 = false }) {
   // would flag the stream post as a dead video).
   const isLiveRef = useRef(false);
 
+  // 🔐 Supporters-only playback, resolved by the gate. Held in a ref for the
+  // same reason as isLiveRef: the player load effect is declared above the
+  // query that reveals whether this post is gated.
+  // `resolved` distinguishes "known not to be gated" from "we do not know yet".
+  // Without it the loader reads isGated:false on first run — before the post's
+  // metadata has arrived — and starts the ordinary public load for what turns
+  // out to be a supporters-only video.
+  const gatedRef = useRef({ isGated: false, state: 'idle', isEntitled: false, manifestUrl: null, previewUrl: null, resolved: false });
+  const [gatedTick, setGatedTick] = useState(0);
   // Persist mute/volume preference across video navigations
   const MUTE_STORAGE_KEY = '3speak-muted';
   const VOLUME_STORAGE_KEY = '3speak-volume';
@@ -508,7 +504,16 @@ function Watch({ v2 = false }) {
   const [videoAttached, setVideoAttached] = useState(false);
   const videoElRef = useRef(null); // handle on the element, so we can set our own poster
   const videoRef = useCallback((element) => {
-    sdkVideoRef(element); // pass to usePlayer's internal attach
+    // React calls this with null while unmounting, by which point the player may
+    // already have torn itself down — detaching from a destroyed one throws, and
+    // an error from a ref callback is not contained the way a render error is:
+    // it unmounts the tree, leaving a blank page. Navigating away from a watch
+    // page mid-load is the usual way to hit it.
+    try {
+      sdkVideoRef(element); // pass to usePlayer's internal attach
+    } catch {
+      /* player already destroyed — nothing left to detach from */
+    }
     videoElRef.current = element;
     if (element) {
       // Apply stored volume immediately after attach (SDK has no volume config option)
@@ -562,6 +567,34 @@ function Watch({ v2 = false }) {
     playedVideosRef.current.add(`${author}/${permlink}`);
     // Reset playhead to 0 immediately so the UI doesn't show the old video's position
     seek(0);
+    // 🔐 Supporters-only videos never resolve through the player backend: the
+    // gate hands us a per-viewer manifest whose key requests carry a session
+    // token. A locked viewer gets the unencrypted preview instead, and an
+    // unresolved gate state must not fall through to the normal loader, which
+    // would report a perfectly healthy paid video as a dead one.
+    const g = gatedRef.current;
+    // Wait until we know whether this post is gated. Starting the public loader
+    // first and correcting afterwards is not merely wasteful: it fetches the
+    // encrypted manifest through the ordinary path, so hls.js reads the
+    // #EXT-X-KEY line written for the gate and retries that key endpoint without
+    // a session token, forever. The visible result is a spinning player and a
+    // stream of 401s that look like an entitlement failure when the viewer is
+    // perfectly entitled.
+    if (!g.resolved) return () => { active = false; };
+    if (g.isGated) {
+      if (g.state === 'loading' || g.state === 'idle') return () => { active = false; };
+      const gatedSource = g.isEntitled ? g.manifestUrl : g.previewUrl;
+      if (!gatedSource) return () => { active = false; };
+      loadVideo({ url: gatedSource }).catch(err => {
+        console.error('[Watch] Failed to load gated video:', err);
+        if (active) setPlaybackFailed(true);
+        // Deliberately NOT reported to the checker: a paid video the viewer
+        // cannot decrypt is not a dead video, and reporting it would shadow-ban
+        // the creator's catalogue.
+      });
+      return () => { active = false; };
+    }
+
     loadVideo(playerLoadId).catch(err => {
       // A live OpenPods post has no VOD source to resolve — the live player
       // handles playback separately, so a load failure here is expected. Don't
@@ -582,7 +615,10 @@ function Watch({ v2 = false }) {
     });
     return () => { active = false; };
     // `playbackAttempt` is in the deps purely so "Try again" re-runs this load.
-  }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek, playbackAttempt]);
+    // `gatedTick` re-runs this load once the gate has answered. The gate state
+    // lives in a ref because this effect is declared above the query that tells
+    // us the post is gated at all — the same reason `isLiveRef` exists.
+  }, [playerLoadId, author, permlink, player, loadVideo, videoAttached, seek, playbackAttempt, gatedTick]);
 
   // Subscribe to player events (stable effect — uses refs for mutable values)
   useEffect(() => {
@@ -742,7 +778,7 @@ function Watch({ v2 = false }) {
 
         // Pre-render comment bodies as HTML
         let render;
-        try { render = await getRenderer(); } catch (e) { render = null; }
+        try { render = await getHiveRenderer(); } catch (e) { render = null; }
 
         // Only include comments that have parentTimestamp in their metadata
         const markers = [];
@@ -1032,6 +1068,40 @@ function Watch({ v2 = false }) {
     retry: 1,
     staleTime: 60 * 1000,
   });
+
+  // 🔐 Supporters-only (gated) playback. The post's json_metadata marks it and
+  // names the embed asset the gate knows it by, which is not always the Hive
+  // permlink (a remix reuses an existing asset).
+  const gatedMeta = (() => {
+    const raw = videoDetailsData?.json_metadata ?? videoDetailsData?.jsonMetadata;
+    if (!raw) return null;
+    try {
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch {
+      return null;
+    }
+  })();
+  const isGatedPost = gatedMeta?.gated === true;
+  const gateVideoId = isGatedPost ? (gatedMeta?.gatedVideoId || permlink) : null;
+  const gatedPlayback = useGatedPlayback(gateVideoId, isGatedPost);
+
+  // Publish gate state to the ref the player load effect reads, then nudge it.
+  useEffect(() => {
+    gatedRef.current = {
+      isGated: isGatedPost,
+      state: gatedPlayback.state,
+      isEntitled: gatedPlayback.isEntitled,
+      manifestUrl: gatedPlayback.manifestUrl,
+      previewUrl: gatedPlayback.previewUrl,
+      // The post query settles before the gate is even asked, so this says only
+      // "we now know whether it is gated", not "the gate has answered" — the
+      // loader waits on the gate separately, via `state`. A disabled query (a
+      // scheduled post, no author) reports not-loading, which correctly resolves
+      // to the ordinary path rather than stalling the player forever.
+      resolved: !videoLoading,
+    };
+    setGatedTick((n) => n + 1);
+  }, [isGatedPost, gatedPlayback.state, gatedPlayback.isEntitled, gatedPlayback.manifestUrl, gatedPlayback.previewUrl, videoLoading]);
 
   // Optimistic override populated right after the author saves an edit.
   // The GraphQL indexer may lag a few minutes behind the Hive blockchain,
@@ -1499,6 +1569,37 @@ function Watch({ v2 = false }) {
       )}
       <AmbientGlow getVideoEl={() => player?.element} glowMode={glowMode} />
       <PlayVideo
+        belowPlayerSlot={(
+          <>
+        {/* 🔐 The creator's own guest list, shown only to them. Server re-checks
+            ownership on every call, so rendering this is a convenience, not a
+            permission. Keyed on the EMBED asset id, which is what the gate knows
+            the video by and is not always the Hive permlink. */}
+        {isGatedPost && user && author && user.toLowerCase() === String(author).toLowerCase() && (
+          <GuestListEditor permlink={gateVideoId || permlink} />
+        )}
+        {/* 🔐 Paywall banner for supporters-only posts. Below the player rather
+            than covering it: what is playing above is the free preview, and
+            hiding that would remove the very thing meant to sell the
+            subscription. */}
+        {isGatedPost && gatedPlayback.isLocked && (
+          <div className="gated-paywall" role="status">
+            <div className="gated-paywall__lock" aria-hidden="true">🔒</div>
+            <div className="gated-paywall__text">
+              <strong>Supporters only</strong>
+              <span>
+                {gatedPlayback.state === 'error'
+                  ? 'We could not confirm your subscription just now. Try again in a moment.'
+                  : gatedPlayback.previewUrl
+                    ? 'You are watching a free preview. 3Speak Pro unlocks the full video.'
+                    : 'This video is available to 3Speak Pro subscribers.'}
+              </span>
+            </div>
+            <a className="gated-paywall__cta" href="/wallet">Get 3Speak Pro</a>
+          </div>
+        )}
+          </>
+        )}
         v2={v2}
         videoDetails={videoDetails}
         author={author}

@@ -72,7 +72,19 @@ export function EmbedUploadProvider({ children }) {
   const isPremium = !!premiumStatus?.premium;
 
   // Step tracking
-  const [step, setStep] = useState(1);
+  // 🔧 TEMPORARY DEV HACK — remove before this ships.
+  // `?devstep=3` drops straight onto the details/description step so the form
+  // can be styled without clicking through upload and thumbnail every reload.
+  // Nothing is uploaded, so publishing from a jumped-to step will not work.
+  const [step, setStep] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    const forced = parseInt(new URLSearchParams(window.location.search).get('devstep') || '', 10);
+    if (Number.isInteger(forced) && forced >= 1 && forced <= 4) {
+      console.warn(`[dev] jumping to wizard step ${forced} via ?devstep — remove this hack before release`);
+      return forced;
+    }
+    return 1;
+  });
 
   // Video file state
   const [videoFile, setVideoFile] = useState(null);
@@ -141,6 +153,15 @@ export function EmbedUploadProvider({ children }) {
 
   // Entry origin (stories → "Share a Short", default → "Share a Video")
   const [fromStories, setFromStories] = useState(false);
+  // 🔐 Gated (paid) upload. Only offered to 3Speak Pro users, and only ever
+  // honoured because the embed backend re-checks Pro status when it mints the
+  // upload token — this flag is a UI intent, not an authorisation.
+  const [gated, setGated] = useState(false);
+  // 🔐 Named accounts that may watch a gated video without 3Speak Pro. Sent with
+  // the upload token, stored server-side, and deliberately NOT written into the
+  // Hive post: post metadata is public and permanent, so an on-chain list would
+  // publish who the video was sent to, forever.
+  const [gatedAllowlist, setGatedAllowlist] = useState([]);
 
   // Original video attribution (for remix/clip)
   const [originalAuthor, setOriginalAuthor] = useState(null);
@@ -214,6 +235,17 @@ export function EmbedUploadProvider({ children }) {
   // chosenEmbedBaseRef, for display under the progress bar).
   const [selectedEndpoint, setSelectedEndpoint] = useState('');
   const earlyEmbedUrlRef = useRef('');
+  // 🔐 Deferred encoding. The embed backend can hold the encode until publish so
+  // the gated choice can still be made after the upload has started — which it
+  // must be, because the upload begins the moment this step opens and the gated
+  // toggle lives on that very screen. Absent on an instance that predates it,
+  // in which case gating still has to be settled before the first byte.
+  const finalizeTokenRef = useRef(null);
+  const deferredPermlinkRef = useRef(null);
+  // What we actually asked for when the token was minted, so a toggle flipped
+  // afterwards against a non-deferring backend is caught instead of silently
+  // lost.
+  const tokenGatedRef = useRef(false);
   const earlyUploadPromiseRef = useRef(null);
   const earlyUploadStartedRef = useRef(false);
   const earlyUploadedFileRef = useRef(null); // which file the background upload used
@@ -339,6 +371,9 @@ export function EmbedUploadProvider({ children }) {
     earlyUploadPromiseRef.current = null;
     earlyUploadStartedRef.current = false;
     earlyUploadedFileRef.current = null;
+    finalizeTokenRef.current = null;
+    deferredPermlinkRef.current = null;
+    tokenGatedRef.current = false;
     chosenEmbedBaseRef.current = '';
     setSelectedEndpoint('');
     setVideoUploadStatus('idle');
@@ -348,6 +383,26 @@ export function EmbedUploadProvider({ children }) {
   // background (early) upload and the publish fallback. `uploadEndpoint` is the
   // chosen server's /uploads URL (defaults to the single configured host).
   // Returns the embed URL.
+  /**
+   * Record whether this upload's encode was deferred.
+   *
+   * A backend that supports it echoes `defer_encode: true` and hands back a
+   * finalize token; one that does not simply omits both, and the gated decision
+   * stays frozen at whatever the token was minted with. Publishing checks this,
+   * so the difference surfaces as a refusal rather than as a supporters-only
+   * video quietly going out in the clear.
+   */
+  const captureDeferral = useCallback((data) => {
+    tokenGatedRef.current = data?.gated === true;
+    if (data?.defer_encode === true && data?.finalize_token) {
+      finalizeTokenRef.current = data.finalize_token;
+      deferredPermlinkRef.current = data.permlink || '';
+    } else {
+      finalizeTokenRef.current = null;
+      deferredPermlinkRef.current = null;
+    }
+  }, []);
+
   const runTusUpload = useCallback(async (generatedPermlink, uploadEndpoint = EMBED_UPLOAD_URL) => {
     // Clear stale TUS fingerprints — embed.3speak.tv can't resume, so a leftover
     // fingerprint causes "invalid or missing length value" errors.
@@ -358,6 +413,43 @@ export function EmbedUploadProvider({ children }) {
         }
       });
     } catch { /* ignore */ }
+
+    // Mint an upload token so this upload can defer its encode.
+    //
+    // The API-key path cannot defer: deferring is a signed claim, because the
+    // embed API key ships inside this bundle and an API-key caller must not be
+    // able to park uploads with no encode. Without a token here, TUS — the
+    // default path for almost every upload — would queue the encode as soon as
+    // the bytes land, and the gated toggle on the details step would already be
+    // too late.
+    //
+    // Minted against the host that will receive the upload, not the configured
+    // API base: the two can be different deployments with different signing
+    // keys. A failure here is not fatal, it just means no deferral, and publish
+    // refuses rather than guessing if gating was wanted.
+    const tokenBase = uploadEndpoint.replace(/\/uploads\/?$/, '').replace(/\/+$/, '');
+    let tusToken = null;
+    let tokenEmbedUrl = '';
+    try {
+      const tokenRes = await axios.post(
+        `${tokenBase}/uploads/token`,
+        {
+          owner: user,
+          frontend_app: '3speak-tv',
+          short: !!fromStories,
+          gated: !!gated,
+          defer_encode: true,
+          ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}),
+        },
+        { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } },
+      );
+      captureDeferral(tokenRes.data);
+      tusToken = tokenRes.data?.token || null;
+      tokenEmbedUrl = tokenRes.data?.embed_url || '';
+    } catch (tokenErr) {
+      console.warn('Upload token mint failed — falling back to API-key upload (no deferral)', tokenErr);
+      captureDeferral(null);
+    }
 
     const MB = 1024 * 1024;
     const sizeBytes = videoFile.size || 0;
@@ -379,7 +471,7 @@ export function EmbedUploadProvider({ children }) {
     // Cross-session resume only on tusd-backed hosts (see endpointSupportsResume).
     const resumable = endpointSupportsResume(uploadEndpoint);
 
-    let capturedEmbedUrl = '';
+    let capturedEmbedUrl = tokenEmbedUrl;
     let resolveDone, rejectDone;
     const done = new Promise((resolve, reject) => { resolveDone = resolve; rejectDone = reject; });
 
@@ -417,9 +509,11 @@ export function EmbedUploadProvider({ children }) {
         if (willRetry) setStatusText('Connection unstable — retrying…');
         return willRetry;
       },
-      headers: {
-        ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}),
-      },
+      headers: tusToken
+        // Never both: the server checks X-API-Key first and would ignore the
+        // token, losing the deferral along with it.
+        ? { Authorization: `Bearer ${tusToken}` }
+        : { ...(EMBED_API_KEY ? { 'X-API-Key': EMBED_API_KEY } : {}) },
       metadata: {
         filename: videoFile.name,
         filetype: videoFile.type,
@@ -479,7 +573,7 @@ export function EmbedUploadProvider({ children }) {
     upload.start();
     await done;
     return capturedEmbedUrl;
-  }, [videoFile, user, fromStories, videoDuration]);
+  }, [videoFile, user, fromStories, videoDuration, gated, gatedAllowlist, captureDeferral]);
 
   // Preflight-free multipart POST helper for the chunked protocol. No custom
   // request headers (FormData sets multipart/form-data itself) so the browser
@@ -661,12 +755,25 @@ export function EmbedUploadProvider({ children }) {
     if (!sessionId) {
       const tokenRes = await axios.post(
         `${base}/uploads/token`,
-        { owner: user, frontend_app: '3speak-tv', short: !!fromStories },
+        { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated, defer_encode: true, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
         { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } }
       );
       const token = tokenRes.data?.token;
       embedFromServer = tokenRes.data?.embed_url || '';
       if (!token) throw new Error('Failed to obtain upload token');
+      // 🔐 Refuse to continue if we asked for a gated upload and the embed
+      // instance did not confirm it. An older instance returns a perfectly valid
+      // token with the flag silently dropped, and uploading against it would
+      // publish a supporters-only video in the clear. IPFS content cannot be
+      // withdrawn, so failing loudly here is the only safe response.
+      captureDeferral(tokenRes.data);
+      if (gated && tokenRes.data?.gated !== true) {
+        throw new Error(
+          'This upload server does not support supporters-only videos yet. ' +
+          'Nothing was uploaded. Turn the toggle off to publish publicly, or try again later.'
+        );
+      }
+
 
       // The control-plane calls (create/status/finish) carry no payload worth
       // speaking of, so the byte-based stall watchdog cannot guard them — nothing
@@ -836,7 +943,7 @@ export function EmbedUploadProvider({ children }) {
     const fin = await postForm(`${base}/upload/chunk/finish`, { sessionId }, null, { timeoutMs: 60000 });
     try { localStorage.removeItem(fpKey); } catch { /* ignore */ }
     return fin.embed_url || embedFromServer || '';
-  }, [user, fromStories, videoFile, videoDuration, postForm]);
+  }, [user, fromStories, gated, gatedAllowlist, videoFile, videoDuration, postForm]);
 
   // TIER 3, last resort: ONE multipart POST carrying the whole file.
   //
@@ -873,11 +980,24 @@ export function EmbedUploadProvider({ children }) {
 
     const tokenRes = await axios.post(
       `${base}/uploads/token`,
-      { owner: user, frontend_app: '3speak-tv', short: !!fromStories },
+      { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated, defer_encode: true, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
       { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } },
     );
     const token = tokenRes.data?.token;
     if (!token) throw new Error('Failed to obtain upload token');
+    // 🔐 Refuse to continue if we asked for a gated upload and the embed
+    // instance did not confirm it. An older instance returns a perfectly valid
+    // token with the flag silently dropped, and uploading against it would
+    // publish a supporters-only video in the clear. IPFS content cannot be
+    // withdrawn, so failing loudly here is the only safe response.
+    captureDeferral(tokenRes.data);
+    if (gated && tokenRes.data?.gated !== true) {
+      throw new Error(
+        'This upload server does not support supporters-only videos yet. ' +
+        'Nothing was uploaded. Turn the toggle off to publish publicly, or try again later.'
+      );
+    }
+
 
     const res = await postForm(
       `${base}/upload/simple`,
@@ -905,7 +1025,7 @@ export function EmbedUploadProvider({ children }) {
 
     if (!res || !res.embed_url) throw new Error('Single-request upload did not return an embed URL');
     return res.embed_url;
-  }, [user, fromStories, videoFile, videoDuration, postForm]);
+  }, [user, fromStories, gated, gatedAllowlist, videoFile, videoDuration, postForm]);
 
   // Upload with automatic fallback. Primary path is TUS on the least-busy host;
   // if the user forced the reliable path (checkbox) or PATCH was already detected
@@ -929,6 +1049,12 @@ export function EmbedUploadProvider({ children }) {
       }
     };
 
+    // Gating no longer decides the path. Every path now mints an upload token
+    // and asks the backend to defer the encode, so the gated choice is made at
+    // publish instead of travelling with the bytes — which is what lets the
+    // toggle work at all, given the upload starts before the user can reach it.
+    // If a backend does not support deferral, publish refuses rather than
+    // shipping a supporters-only video in the clear.
     if (forceReliableUpload || sessionForcedReliableRef.current) {
       chosenEmbedBaseRef.current = reliableBase;
       setSelectedEndpoint(reliableBase);
@@ -953,7 +1079,7 @@ export function EmbedUploadProvider({ children }) {
       }
       throw err;
     }
-  }, [forceReliableUpload, runTusUpload, runChunkedUpload, runSimpleUpload]);
+  }, [gated, forceReliableUpload, runTusUpload, runChunkedUpload, runSimpleUpload]);
 
   // Kick off the background upload (called when the user reaches "Add details").
   // Idempotent: only starts once per selected video. The embed asset gets its own
@@ -1121,6 +1247,38 @@ export function EmbedUploadProvider({ children }) {
       setEmbedUrl(capturedEmbedUrl);
       addMessage('Video uploaded successfully');
 
+      // 🔐 Commission the encode now that the gated choice is final.
+      //
+      // A deferred upload has no encode job yet: its bytes are pinned and the
+      // video is parked. This call settles gating and queues the job together,
+      // which is the whole reason for deferring — the encoder is what encrypts,
+      // and an unencrypted rendition is public the moment its CID is pinned, so
+      // the decision cannot be revisited afterwards.
+      if (finalizeTokenRef.current && deferredPermlinkRef.current) {
+        const finalizeBase = (chosenEmbedBaseRef.current || EMBED_API_URL || '').replace(/\/+$/, '');
+        addMessage(gated ? 'Starting encrypted encode…' : 'Starting encode…');
+        await axios.post(
+          `${finalizeBase}/video/${deferredPermlinkRef.current}/encode`,
+          { gated: !!gated, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
+          {
+            headers: {
+              Authorization: `Bearer ${finalizeTokenRef.current}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+      } else if (gated && !tokenGatedRef.current) {
+        // Not deferred, and the toggle went on after the token was minted. The
+        // upload is already committed as public; encoding it now would publish
+        // it in the clear, and IPFS content cannot be withdrawn. Stop before the
+        // Hive post exists rather than after.
+        throw new Error(
+          'Supporters-only was switched on after the upload had already started, and this '
+          + 'upload server cannot apply it afterwards. Nothing was published. Please re-select '
+          + 'the video and turn supporters-only on before continuing.'
+        );
+      }
+
       // ─── Upload thumbnail if available ───
       let thumbnailUrl = null;
       if (thumbnailFile) {
@@ -1251,6 +1409,14 @@ export function EmbedUploadProvider({ children }) {
           orientation: oaOrientation,
           duration: videoDuration,
         }),
+        // 🔐 Marks the post as supporters-only so a watch page knows to ask the
+        // gate before trying to play anything. It is a HINT for rendering, never
+        // the access decision: the gate re-checks entitlement on every manifest
+        // and key request, so editing this out of the post buys nothing.
+        // The gate knows the asset by its EMBED permlink, which is not always
+        // the Hive permlink (a remix reuses an existing asset), so it is stored
+        // explicitly rather than re-derived by every reader.
+        ...(gated ? { gated: true, gatedVideoId: embedAssetPermlink } : {}),
       };
 
       // Build comment_options. When the author is declining payout, skip
@@ -1644,6 +1810,8 @@ export function EmbedUploadProvider({ children }) {
     setPrefilledFromQuery,
     // Entry origin
     fromStories, setFromStories,
+    gated, setGated,
+    gatedAllowlist, setGatedAllowlist,
     // Original video attribution
     originalAuthor, setOriginalAuthor,
     originalPermlink, setOriginalPermlink,

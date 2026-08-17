@@ -87,6 +87,12 @@ function EmbedStudioPage() {
 
   // Reset all upload state when arriving fresh (previous upload completed)
   useEffect(() => {
+    // 🔧 TEMPORARY DEV HACK — remove with the ?devstep handling in
+    // EmbedUploadContext. This mount reset is what was overriding the jumped-to
+    // step, so it has to opt out too.
+    const devStep = new URLSearchParams(window.location.search).get('devstep');
+    if (devStep) return;
+
     if (completed) {
       resetUploadState();
     } else {
