@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.44',
+    date: '2026-08-20',
+    summary:
+      'Videos posted outside a community no longer show a community name on the watch page.',
+  },
+  {
     version: '1.78.43',
     date: '2026-08-20',
     summary:
