@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.43',
+    date: '2026-08-20',
+    summary:
+      'The Leaderboard (/leaderboard) now only shows the note about when watch-time tracking started on the boards it actually applies to, so the 7 and 30 day boards read clean.',
+  },
+  {
     version: '1.78.42',
     date: '2026-08-19',
     summary:
