@@ -1,0 +1,174 @@
+@use "../../mixins.scss" as mix;
+
+// The links column beside the Overview tab. Desktop only — ProfileOverview does
+// not mount it below 1025px, and this guard keeps it out of the flow if it ever
+// renders there anyway.
+.profile-links-panel {
+  // 20% is the ceiling the column may take of the row, never more. No shrink:
+  // the content column is `flex: 1 1 0`, so it gives up the space instead.
+  flex: 0 0 20%;
+  max-width: 20%;
+  min-width: 0;
+  align-self: flex-start;
+
+  // Fixed in place while the overview scrolls past it. Sticky (not `fixed`) so
+  // it stays inside its own column and needs no hardcoded left offset; the nav
+  // sets --nav-height/--nav-top-offset from JS.
+  position: sticky;
+  top: calc(var(--nav-height, 60px) + 16px);
+
+  @media screen and (max-width: 1024px) {
+    display: none;
+  }
+
+  // ── collapsed ─────────────────────────────────────────────────────────────
+  // Just the handle. Width is the handle plus breathing room, so the overview
+  // takes back everything the panel was holding.
+  &--collapsed {
+    flex: 0 0 auto;
+    width: 44px;
+    max-width: 44px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  // Nudges sideways on a loop: a folded panel that sat perfectly still would
+  // never tell anyone this profile has a links page at all.
+  .plp-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    animation: plp-nudge 3.2s ease-in-out infinite;
+
+    &:hover {
+      color: var(--text-primary);
+      border-color: var(--accent-primary);
+      animation-play-state: paused;
+    }
+  }
+
+  .plp-inner {
+    position: relative;   // anchors the collapse button to the frame's corner
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  // No heading above the frame — the page inside carries its own identity
+  // (avatar, name, headline), so a "Links" title only repeated it.
+  .plp-foot {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 0.25rem;
+  }
+
+  // The two corner controls: collapse on the left, edit (own profile only) on
+  // the right. They sit OVER the framed page, which paints its own background,
+  // so they carry their own dark scrim rather than a theme token.
+  .plp-hide,
+  .plp-edit {
+    position: absolute;
+    top: 8px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(3px);
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.8);
+      border-color: rgba(255, 255, 255, 0.55);
+    }
+  }
+
+  .plp-hide { left: 8px; }
+  .plp-edit { right: 8px; }
+
+  // The framed page. Height is the whole sticky column, so the links page lays
+  // itself out against a real viewport (its own `100vh`) and scrolls inside the
+  // frame — same idea as the editor's live-preview device.
+  .plp-frame {
+    display: block;
+    width: 100%;
+    height: calc(100vh - var(--nav-height, 60px) - 90px);
+    min-height: 320px;
+    border: 1px solid var(--border-color, rgba(150, 150, 150, 0.25));
+    border-radius: 14px;
+    // Same surface the framed document is re-skinned to (see applyHostTheme),
+    // so there's no flash of the creator's own background before it lands.
+    background: var(--bg-secondary, #16181c);
+    color-scheme: normal;
+  }
+
+  .plp-open {
+    min-width: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+
+    &:hover { color: var(--text-primary); text-decoration: underline; }
+  }
+
+  // ── owner-only prompt when there is no page yet ──
+  &--empty .plp-inner {
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px dashed var(--border-color, rgba(150, 150, 150, 0.35));
+    gap: 0.5rem;
+  }
+
+  .plp-hint {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+
+  .plp-btn {
+    align-self: flex-start;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover { background: var(--bg-hover); border-color: var(--text-secondary); }
+  }
+}
+
+// A double-nudge every few seconds, not a constant wobble: it has to catch the
+// eye, and it also has to sit still long enough to be an easy click target.
+@keyframes plp-nudge {
+  0%, 55%, 78%, 100% { transform: translateX(0); }
+  65% { transform: translateX(-6px); }
+  88% { transform: translateX(-4px); }
+}
+
+// Motion is the whole point of the handle, but not at the cost of someone who
+// asked the OS for less of it.
+@media (prefers-reduced-motion: reduce) {
+  .profile-links-panel .plp-handle { animation: none; }
+}

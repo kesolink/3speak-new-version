@@ -7,6 +7,30 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.41',
+    date: '2026-08-19',
+    summary:
+      'Profile polish: 3Speak badges now match the Hive badges beside them for a calmer header, and a channel trailer\'s description takes the full width when there is no community post next to it.',
+  },
+  {
+    version: '1.78.40',
+    date: '2026-08-19',
+    summary:
+      'Empty tabs on your own profile now point you straight at what to do next: Videos, Shorts, Audio and Playlists each offer the matching upload or create button.',
+  },
+  {
+    version: '1.78.39',
+    date: '2026-08-19',
+    summary:
+      'The Overview tab on a profile now shows what is inside each playlist: one row of videos per playlist, right above the playlist covers. Hit View all to open the whole playlist.',
+  },
+  {
+    version: '1.78.38',
+    date: '2026-08-19',
+    summary:
+      'Profiles now show a creator\'s links page next to their Overview tab (/p/username), in 3Speak\'s own colours. Fold it away with the arrow in its corner and it stays folded until you bring it back. On phones there\'s a Links button under Message.',
+  },
+  {
     version: '1.78.37',
     date: '2026-08-17',
     summary:

@@ -1,6 +1,24 @@
 @use "../../mixins.scss" as mix;
 
 .profile-overview {
+  // ── desktop: content column + sticky links column ─────────────────────────
+  // Below 1025px this stays exactly what it was: one column, no aside (the
+  // panel is not even mounted — see ProfileOverview's isDesktop check).
+  @media screen and (min-width: 1025px) {
+    display: flex;
+    align-items: flex-start;   // required, or the aside stretches and `sticky` has no room to travel
+    gap: 1.5rem;
+  }
+
+  // `flex: 1 1 0` — basis 0, NOT auto. With `auto` the base size is the rails'
+  // max-content width (huge), so the shrink was shared with the links column and
+  // crushed it to a few characters wide. min-width:0 lets the rails shrink at all
+  // (a flex item's default min-width is its content).
+  .pov-main {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
   .pov-section {
     margin-bottom: 2rem;
 
@@ -29,6 +47,13 @@
     }
   }
 
+  // `.pov-more` is a <button> in every section but the playlist rails, whose
+  // "View all" is a real link to the playlist page.
+  a.pov-more {
+    display: inline-block;
+    text-decoration: none;
+  }
+
   .pov-more {
     flex-shrink: 0;
     padding: 0.3rem 0.8rem;
@@ -50,7 +75,7 @@
 
   // An empty audio list renders its own "nothing here" block; in a preview row
   // that reads as a broken section, so the whole section hides instead.
-  .pov-section--audio:has(.empty-wrap) {
+  .pov-section--audio:has(.profile-empty) {
     display: none;
   }
 

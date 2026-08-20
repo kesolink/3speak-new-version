@@ -6,7 +6,6 @@ import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '..
 import { isCreatorHidden as isModeratedCreatorHidden } from '../../utils/hiddenCreators';
 import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import icon from "../../../public/images/stack.png"
 import "./UserProfilePage.scss"
 import BarLoader from '../Loader/BarLoader';
 import { Quantum } from 'ldrs/react'
@@ -46,6 +45,8 @@ import HiveBadges from '../HiveBadges/HiveBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
 import ProfileStats from '../ProfileHeader/ProfileStats';
 import ProfileOverview from './ProfileOverview';
+import ProfileLinksButton from './ProfileLinksButton';
+import ProfileEmptyState from './ProfileEmptyState';
 
 
 
@@ -543,6 +544,10 @@ const {
             >
               <MdChatBubbleOutline /> Message
             </button>
+            {/* Narrow screens only: below 1025px the framed links page beside
+                Overview isn't rendered, so this is the way through to it. It
+                sits directly under Message (see ProfileLinksButton.scss). */}
+            <ProfileLinksButton username={user} />
           </>
         ) : null}
         badges={
@@ -665,10 +670,7 @@ const {
     isLoading ? (
       <BarLoader />
     ) : videos?.length === 0 ? (
-      <div className='empty-wrap'>
-        <img src={icon} alt="" />
-        <span>No Video Data Available</span>
-      </div>
+      <ProfileEmptyState kind="video" isOwnProfile={isOwnProfile} username={user} />
     ) : (
       <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
     )
@@ -676,15 +678,12 @@ const {
     isShortsLoading ? (
       <BarLoader />
     ) : shortsVideos.length === 0 ? (
-      <div className='empty-wrap'>
-        <img src={icon} alt="" />
-        <span>No Shorts Available</span>
-      </div>
+      <ProfileEmptyState kind="shorts" isOwnProfile={isOwnProfile} username={user} />
     ) : (
       <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
     )
   ) : show === "audio" ? (
-    <UserAudioList user={user} />
+    <UserAudioList user={user} isOwnProfile={isOwnProfile} />
   ) : show === "supporters" ? (
     <Card3 videos={gatedVideos} getViewCount={getViewCount} />
   ) : show === "streams" ? (
@@ -705,15 +704,12 @@ const {
       {playlistsLoading ? (
         <BarLoader />
       ) : playlists.length === 0 ? (
-        <div className='empty-wrap'>
-          <img src={icon} alt="" />
-          <span>No Public Playlists Available</span>
-          {isOwnProfile && (
-            <button className="create-playlist-btn-empty" onClick={() => setShowCreateModal(true)}>
-              <IoMdAdd /> Create Your First Playlist
-            </button>
-          )}
-        </div>
+        <ProfileEmptyState
+          kind="playlists"
+          isOwnProfile={isOwnProfile}
+          username={user}
+          onAction={() => setShowCreateModal(true)}
+        />
       ) : (
         <PlaylistCard playlists={playlists} loading={playlistsLoading} error={playlistsError?.message} />
       )}
