@@ -364,6 +364,12 @@ const VideoShort = () => {
   const recordedShortsViewsRef = useRef(new Set()); // author/permlink already view-counted
   // Active short's watch-duration session (server-measured heartbeat, non-polluting).
   const shortWatchRef = useRef({ sid: null, token: null, beatMs: 5000, lastBeatAt: 0, key: null, starting: false });
+  // Watch time only counts while this tab is the one in front. A short left
+  // playing in a background tab used to beat exactly like a watched one. There
+  // is no long-form exception here (the one in useWatchDuration covers videos
+  // past 20 minutes, where background listening is the actual use case) — a
+  // short playing out of sight is a forgotten tab, not an audience.
+  const shortVisibleRef = useRef(typeof document === 'undefined' || document.visibilityState !== 'hidden');
   const videoContainerRef = useRef(null);
   const playerRef = useRef(null); // Single persistent SDK Player instance
   const videoElRef = useRef(null); // Single persistent <video> element ref
@@ -487,6 +493,29 @@ const VideoShort = () => {
       return navigator.userActivation.hasBeenActive;
     }
     return userGestureRef.current;
+  }, []);
+
+  // Stop crediting watch time while the tab is in the background, and flush what
+  // was watched up to the moment it went away.
+  useEffect(() => {
+    const onVisibility = () => {
+      const hidden = document.visibilityState === 'hidden';
+      shortVisibleRef.current = !hidden;
+      if (hidden) shortWatchBeat(shortWatchRef, currentTimeRef.current);
+      // Back in front: re-anchor the throttle so the next beat hands the server
+      // no gap to credit for time nobody was watching.
+      else shortWatchRef.current.lastBeatAt = Date.now();
+    };
+    const onPageHide = () => {
+      shortVisibleRef.current = false;
+      shortWatchBeat(shortWatchRef, currentTimeRef.current);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+    };
   }, []);
 
   useEffect(() => {
@@ -2277,8 +2306,10 @@ const VideoShort = () => {
       // Watch-duration heartbeat while genuinely playing (throttled to beatMs;
       // the server measures the real wall-clock gap between beats + which part
       // of the timeline was watched, for the heatmap).
+      // The player keeps firing these while the tab is hidden, so visibility is
+      // checked here rather than inferred from playback.
       const W = shortWatchRef.current;
-      if (!paused && W.sid && Date.now() - W.lastBeatAt >= W.beatMs) {
+      if (!paused && shortVisibleRef.current && W.sid && Date.now() - W.lastBeatAt >= W.beatMs) {
         shortWatchBeat(shortWatchRef, currentTime);
       }
 
