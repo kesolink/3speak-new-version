@@ -1,0 +1,65 @@
+@use "../../mixins.scss" as mix;
+
+// Reactions and the transcript share the top of the watch page's right column.
+.watch-tabs {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 14px;
+
+  .watch-tabs-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .watch-tab {
+    padding: 0.5rem 0.9rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+
+    &:hover { color: var(--text-primary); }
+
+    &.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent-primary);
+    }
+
+    @include mix.respond(phone) {
+      padding: 0.45rem 0.7rem;
+      font-size: 0.85rem;
+    }
+  }
+
+  .watch-tabs-panel {
+    padding-top: 10px;
+    min-width: 0;
+  }
+
+  // The transcript's own frame is redundant here — the tab bar is the chrome.
+  .transcript.embedded {
+    margin: 0;
+    border: 0;
+    background: transparent;
+
+    .transcript-head {
+      justify-content: flex-end;
+      padding: 0 0 0.5rem;
+      border-bottom: 0;
+    }
+
+    // Matches the reaction panel's own footprint, so switching tabs doesn't
+    // shove the recommendations up and down the column.
+    .transcript-body {
+      max-height: min(52vh, 30rem);
+      padding-left: 0;
+      padding-right: 0;
+    }
+  }
+}

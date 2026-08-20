@@ -22,6 +22,7 @@ import { useGridColumns, useShortsPerRow } from '../hooks/useGridMetrics';
 import { useStreamChatMirror } from '../hooks/useStreamChatMirror';
 import { getFeedSeed } from '../utils/feedSeed';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
+import WatchTabs from '../components/playVideo/WatchTabs';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { batchCheckHidden, isCreatorHidden } from '../utils/hiddenCreators';
@@ -1764,28 +1765,43 @@ function Watch({ v2 = false }) {
             <div className="live-chat-column__body" ref={setLiveChatSlot} />
           </div>
         )}
-        {!isLive && isReactionPlayerVisible && reactions.length > 0 && (
-          <ReactionPlayer
-            reactions={reactions}
-            selectedIndex={selectedReactionIndex}
-            onSelectReaction={handleSelectReaction}
-            onClose={() => setReactionsVisible(false)}
-            size={reactionSize}
+        {/* Reactions and the transcript share the top of this column. With no
+            transcript to offer (or on a phone, where it just gets in the way)
+            this renders the reaction panel alone, exactly as it did before. */}
+        {!isLive && (
+          <WatchTabs
+            author={author}
+            permlink={permlink}
             currentTime={playerState.currentTime}
-            duration={playerState.duration}
-            mainIsPlaying={!playerState.paused}
-            onReactionPlay={pause}
+            onSeek={seek}
+            reactionPanel={
+              <>
+                {isReactionPlayerVisible && reactions.length > 0 && (
+                  <ReactionPlayer
+                    reactions={reactions}
+                    selectedIndex={selectedReactionIndex}
+                    onSelectReaction={handleSelectReaction}
+                    onClose={() => setReactionsVisible(false)}
+                    size={reactionSize}
+                    currentTime={playerState.currentTime}
+                    duration={playerState.duration}
+                    mainIsPlaying={!playerState.paused}
+                    onReactionPlay={pause}
+                  />
+                )}
+                {!isReactionPlayerVisible && reactions.length > 0 && (
+                  <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
+                    Show Reactions ({reactionCountLabel})
+                  </button>
+                )}
+                {reactions.length === 0 && (
+                  <button className="show-reactions-btn" onClick={handleAddReaction}>
+                    Add Reaction
+                  </button>
+                )}
+              </>
+            }
           />
-        )}
-        {!isLive && !isReactionPlayerVisible && reactions.length > 0 && (
-          <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
-            Show Reactions ({reactionCountLabel})
-          </button>
-        )}
-        {!isLive && reactions.length === 0 && (
-          <button className="show-reactions-btn" onClick={handleAddReaction}>
-            Add Reaction
-          </button>
         )}
 
         {suggestedVideos.length > 0 && (

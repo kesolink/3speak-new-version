@@ -15,6 +15,7 @@ import axios from 'axios';
 import { MY_VIDEOS_URL, CHECKER_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
+import { MdRssFeed } from 'react-icons/md';
 import { MdAdd, MdClose, MdPlayArrow, MdFlag, MdChatBubbleOutline } from 'react-icons/md';
 import ReportModal, { isReported } from '../modal/ReportModal';
 import { RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
@@ -580,6 +581,25 @@ const {
                     : <><IoBanOutline /> Hide</>}
               </button>
             )}
+            {/* Podcast / RSS feed for the channel. React 19 hoists the <link>
+                into <head>, which is what makes browsers and feed readers
+                auto-discover it; the button is for people who already know
+                what to do with a feed URL. */}
+            <link
+              rel="alternate"
+              type="application/rss+xml"
+              title={`${user} on 3Speak`}
+              href={`${window.location.origin}/rss/${user}.xml`}
+            />
+            <a
+              className="btn btn-secondary"
+              href={`/rss/${user}.xml`}
+              target="_blank"
+              rel="noreferrer"
+              title={`Podcast feed for @${user} — subscribe in any podcast app or RSS reader`}
+            >
+              <MdRssFeed />
+            </a>
             <button
               className="btn btn-secondary"
               onClick={async () => {

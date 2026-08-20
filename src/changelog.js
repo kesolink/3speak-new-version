@@ -7,6 +7,18 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.46',
+    date: '2026-08-20',
+    summary:
+      'Every channel now has a podcast feed at 3speak.tv/rss/username.xml, covering their videos and audio uploads. Subscribe in any podcast app or RSS reader, or use the new feed button on a profile.',
+  },
+  {
+    version: '1.78.45',
+    date: '2026-08-20',
+    summary:
+      'Videos with subtitles now have a Transcript tab beside the video, next to Reactions. Read along, click any line to jump there, switch language, or copy the whole thing.',
+  },
+  {
     version: '1.78.44',
     date: '2026-08-20',
     summary:
