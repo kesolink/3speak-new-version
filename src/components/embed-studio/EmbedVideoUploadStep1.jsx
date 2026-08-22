@@ -384,13 +384,22 @@ function EmbedVideoUploadStep1() {
                         <span>Black-hole the single-request fallback too — total blackout, every transport dead. Only useful with the box above ticked. Expect: all three tiers tried in order, then a clean <em>Request timed out</em> failure. Nothing can upload under this by construction; it verifies we FAIL LOUDLY rather than hang.</span>
                       </label>
 
-                      <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer', marginBottom: '5px' }}>
                         <input
                           type="checkbox"
                           checked={faults.chunkFailRate > 0}
                           onChange={(e) => applyFault({ chunkFailRate: e.target.checked ? 0.5 : 0 })}
                         />
                         <span>Flaky link — drop 50% of chunks. Expect: retries + /status resync, upload still completes.</span>
+                      </label>
+
+                      <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!faults.forceWeakLink}
+                          onChange={(e) => applyFault({ forceWeakLink: e.target.checked })}
+                        />
+                        <span>Weak-link profile — pretend the phone reports a thin uplink. Expect: the chunked path switches to <strong>256KB chunks across 5 parallel POSTs</strong> instead of one at a time (watch the Network tab: five <code>/upload/chunk</code> in flight together). This does <em>not</em> slow anything down; it selects the profile that a real mobile link would get, which is otherwise unreachable on a healthy line. Tick <em>Flaky link</em> too to also exercise retry + resync with several workers running.</span>
                       </label>
 
                       <p style={{ margin: '6px 0 0', opacity: 0.75 }}>
