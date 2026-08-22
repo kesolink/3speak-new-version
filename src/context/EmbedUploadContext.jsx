@@ -1316,16 +1316,40 @@ export function EmbedUploadProvider({ children }) {
       if (deferral?.finalizeToken && deferral?.permlink) {
         const finalizeBase = (chosenEmbedBaseRef.current || EMBED_API_URL || '').replace(/\/+$/, '');
         addMessage(gated ? 'Starting encrypted encode…' : 'Starting encode…');
-        await axios.post(
-          `${finalizeBase}/video/${deferral.permlink}/encode`,
-          { gated: !!gated, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
-          {
-            headers: {
-              Authorization: `Bearer ${deferral.finalizeToken}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        );
+        // The upload's success response comes back BEFORE the server has pinned
+        // the file: post-finish answers immediately and then pins on setImmediate,
+        // so for a while the video is still `uploading` and commissioning replies
+        // 409 not_awaiting_encode (or not_pinned while the CID is still landing).
+        // That is "not yet", not "no", and the wait scales with file size — a
+        // 105MB short raced it by ~3s. Failing the publish there made the user
+        // click Post a second time to get the same upload commissioned, so poll
+        // instead. Only these two codes retry: 401/403/404 are real and must
+        // surface immediately rather than being sat on for a minute and a half.
+        const FINALIZE_RETRY_MS = [1000, 2000, 3000, 5000, 5000, 8000, 8000, 10000, 12000, 15000, 20000];
+        for (let attempt = 0; ; attempt++) {
+          try {
+            // 2xx ends the loop: 201 commissioned, or 200 already_queued, which
+            // makes a repeat attempt after a lost response harmless.
+            await axios.post(
+              `${finalizeBase}/video/${deferral.permlink}/encode`,
+              { gated: !!gated, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
+              {
+                headers: {
+                  Authorization: `Bearer ${deferral.finalizeToken}`,
+                  'Content-Type': 'application/json',
+                },
+              },
+            );
+            break;
+          } catch (encErr) {
+            const code = encErr?.response?.data?.code;
+            const notReady = encErr?.response?.status === 409
+              && (code === 'not_awaiting_encode' || code === 'not_pinned');
+            if (!notReady || attempt >= FINALIZE_RETRY_MS.length) throw encErr;
+            setStatusText('Finishing upload on the server…');
+            await new Promise(r => setTimeout(r, FINALIZE_RETRY_MS[attempt]));
+          }
+        }
       } else if (gated && !deferral?.gated) {
         // Not deferred, and the toggle went on after the token was minted. The
         // upload is already committed as public; encoding it now would publish
