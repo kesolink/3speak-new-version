@@ -7,6 +7,12 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.48',
+    date: '2026-08-22',
+    summary:
+      'Browser notifications are here. Turn them on from the bell or in Settings → Notifications, and 3Speak can reach you even when it\'s closed: new videos, shorts and audio from creators you follow, plus replies, mentions and new followers. You choose which ones.',
+  },
+  {
     version: '1.78.47',
     date: '2026-08-22',
     summary:

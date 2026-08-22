@@ -58,7 +58,12 @@ export async function reloadForUpdate() {
     }
     if ("serviceWorker" in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
+      // Same exception as main.jsx: the notifications worker holds the push
+      // subscription and caches nothing, so wiping it here would quietly
+      // unsubscribe someone as a side effect of taking an update.
+      await Promise.all(
+        regs.filter((r) => !r.scope.endsWith("/push-scope/")).map((r) => r.unregister()),
+      );
     }
   } catch {
     // ignore — reload anyway
