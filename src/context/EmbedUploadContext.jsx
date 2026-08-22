@@ -208,6 +208,11 @@ export function EmbedUploadProvider({ children }) {
   //   phase:   short human label for the current step
   //   sent/total, chunksDone/chunksTotal: byte + chunk counters (may be absent)
   //   attempt/attempts: retry position, when retrying
+  //   chunkBytes/workers: the settled transport shape
+  //   probeBps: measured uplink, 0 when the probe could not get through
+  //   link/linkDown/linkRtt/saveData: what the browser claims about the link
+  //   retries/lastError/lastStatus: cumulative failures and the most recent one
+  //   fileBytes/startedAt: for a screenshot to be readable without other context
   const [uploadDetail, setUploadDetail] = useState(null);
   const patchUploadDetail = useCallback((patch) => {
     setUploadDetail((prev) => ({ ...(prev || {}), ...patch }));
@@ -242,6 +247,10 @@ export function EmbedUploadProvider({ children }) {
   // Once PATCH is detected blocked this session, stick to the chunked fallback
   // for every subsequent attempt instead of re-probing TUS each time.
   const sessionForcedReliableRef = useRef(false);
+  // The file the user explicitly cancelled. startEarlyUpload refuses to restart
+  // this exact File, so cancelling actually stops instead of being undone by the
+  // details-step effect on its next run.
+  const cancelledFileRef = useRef(null);
 
   // Early/background video upload — the TUS upload starts while the user is still
   // on the "Add details" step (instead of only at final publish), so by the time
@@ -250,11 +259,6 @@ export function EmbedUploadProvider({ children }) {
   // (and await) it without stale-closure issues.
   // videoUploadStatus: 'idle' | 'uploading' | 'done' | 'error'
   const [videoUploadStatus, setVideoUploadStatus] = useState('idle');
-  // Opt-in "reliable" upload — for networks that block the TUS PATCH flow (some
-  // mobile carriers / WebViews). Forces the resumable, parallel, PATCH-free
-  // chunked-POST fallback (see runChunkedUpload) instead of tus-js-client. When
-  // OFF we still auto-switch to it if PATCH is detected blocked mid-upload.
-  const [forceReliableUpload, setForceReliableUpload] = useState(false);
   // The embed host chosen for the current upload (reactive copy of
   // chosenEmbedBaseRef, for display under the progress bar).
   const [selectedEndpoint, setSelectedEndpoint] = useState('');
@@ -388,11 +392,14 @@ export function EmbedUploadProvider({ children }) {
       for (const xhr of uploadXhrsRef.current) { try { xhr.abort(); } catch { /* ignore */ } }
       uploadXhrsRef.current.clear();
     }
-    // Belt-and-suspenders: clear any leftover TUS fingerprints synchronously so
-    // the next selection can't resume a stale partial (only one upload at a time).
+    // Belt-and-suspenders: clear any leftover resume state synchronously so the
+    // next selection can't resume a stale partial (only one upload at a time).
+    // `chunked::` is the fallback's equivalent of a TUS fingerprint — it was
+    // missing here, so replacing a video silently resumed the old chunk session
+    // against the new selection instead of starting clean.
     try {
       Object.keys(localStorage).forEach((key) => {
-        if (key.startsWith('tus::')) localStorage.removeItem(key);
+        if (key.startsWith('tus::') || key.startsWith('chunked::')) localStorage.removeItem(key);
       });
     } catch { /* ignore */ }
     earlyEmbedUrlRef.current = '';
@@ -404,6 +411,24 @@ export function EmbedUploadProvider({ children }) {
     setSelectedEndpoint('');
     setVideoUploadStatus('idle');
   }, []);
+
+  // The user's way out of a background upload that is going nowhere. Until this
+  // existed the progress bar was display-only: an upload that could not move a
+  // byte retried silently and forever, with nothing on screen to stop it.
+  //
+  // Everything resetEarlyUpload does, plus clearing the readout and remembering
+  // WHICH file was cancelled, so the details-step effect does not simply start it
+  // again on its next run. Pressing publish still re-runs the upload inline, so
+  // cancelling stops the background attempt without stranding the video.
+  const cancelEarlyUpload = useCallback(() => {
+    cancelledFileRef.current = videoFile || null;
+    sessionForcedReliableRef.current = false;
+    resetEarlyUpload();
+    setUploadProgress(0);
+    setStatusText('');
+    setUploadDetail(null);
+    toast.message('Upload cancelled.');
+  }, [videoFile, resetEarlyUpload]);
 
   // The raw TUS upload of `videoFile` to the embed service. Shared by the
   // background (early) upload and the publish fallback. `uploadEndpoint` is the
@@ -493,6 +518,7 @@ export function EmbedUploadProvider({ children }) {
     else if (sizeBytes > 500 * MB) { chunkSize = 16 * MB; parallelUploads = 2; }
     else if (sizeBytes > 50 * MB) { chunkSize = 8 * MB; parallelUploads = 2; }
     else { chunkSize = 5 * MB; parallelUploads = 1; }
+    patchUploadDetail({ chunkBytes: chunkSize, workers: parallelUploads });
 
     // Cross-session resume only on tusd-backed hosts (see endpointSupportsResume).
     const resumable = endpointSupportsResume(uploadEndpoint);
@@ -739,46 +765,62 @@ export function EmbedUploadProvider({ children }) {
     if (!size) throw new Error('Empty file');
 
     const MB = 1024 * 1024;
-    const conn = getConnectionProfile();
-    // Chunks are deliberately SMALLER than the TUS profile's. This is the
-    // bad-network path by definition, and chunkSize is fixed for the life of the
-    // session (the server pre-sizes the file and demands each chunk be exactly
-    // chunkSize bytes), so it cannot be renegotiated once we're wrong.
+
+    // Bounds on what the probe may conclude. The floor is the server's
+    // CHUNK_MIN_SIZE; the ceiling keeps a fast link from picking a chunk so large
+    // that losing one costs minutes of re-send.
+    const CHUNK_FLOOR = 256 * 1024;
+    const CHUNK_CEIL = size > 500 * MB ? 4 * MB : size > 50 * MB ? 2 * MB : 1 * MB;
+    // How long one chunk should take on the measured link. Well inside HARD_MS
+    // (280s, itself just under nginx's client_body_timeout), so a chunk that runs
+    // slower than the probe suggested still lands instead of timing out.
+    const CHUNK_TARGET_SECONDS = 45;
+    const PROBE_BYTES = 256 * 1024;
+
+    // Measure, don't guess.
     //
-    // The binding constraint is nginx's client_body_timeout (300s): a chunk that
-    // can't be pushed inside that window is a 408, no matter how many times we
-    // retry it — so the upload dead-ends. Sizing for a genuinely slow uplink:
-    // 512KB needs only ~14 kbit/s to land in 300s, 2MB needs ~56 kbit/s. The cost
-    // is more round trips on a fast link, which is a trade the fallback should
-    // happily make. Server floor is CHUNK_MIN_SIZE = 256KB.
-    let chunkSize, parallel;
-    // Weak links get MORE streams, not fewer. This looks backwards but the
-    // sequential setting is what made them slow: one hung POST halts the whole
-    // upload, and a real 22MB upload spent 68 of its 87 minutes dead that way,
-    // every stall starting with a chunk that hung until the stall watchdog killed
-    // it. With several workers a hung stream costs a fraction of throughput
-    // instead of all of it. The old comment justifying `parallel = 1` was about
-    // TUS multi-stream PATCH contention and does not apply here: these are
-    // independent idempotent POSTs written to disjoint offsets server-side, and
-    // a resent chunk is a no-op. Chunks are small so each POST finishes quickly
-    // even at a quarter of the bandwidth (~57s at the rate measured above, well
-    // inside HARD_MS). 256KB is the server's CHUNK_MIN_SIZE floor.
-    // NOTE: unrelated to PATCH_BLOCKED — that stays exactly as it is and is what
-    // put us on this path to begin with.
+    // This used to read navigator.connection and pick a size from it. That API
+    // reports optimistically on mobile (a dying carrier link still answers "4g"),
+    // and chunkSize is frozen for the life of the session, because the server
+    // pre-sizes the file and demands every chunk be exactly that many bytes. So a
+    // guess that came out too high could never be walked back: the upload just sat
+    // at 0% re-sending a body the link had never once delivered.
     //
-    // Why 5 and not more: embed2 speaks HTTP/1.1, and browsers allow 6 connections
-    // per origin. 5 uses that budget while leaving one free for the status/finish
-    // calls, which would otherwise queue behind chunk POSTs. Workers past 6 do not
-    // run — the browser just queues them — so a bigger number buys nothing.
-    // Raising the ceiling would mean HTTP/2, and that is a REGRESSION here: h2
-    // multiplexes every stream over ONE TCP connection, so a single lost packet
-    // head-of-line blocks all of them. Independent TCP connections are exactly
-    // what gives the stall isolation this change is for. HTTP/3 would give both,
-    // but this nginx (1.24.0) is built with http_v2 only, no quic/v3.
-    if (conn.weak) { chunkSize = 256 * 1024; parallel = 5; }
-    else if (size > 500 * MB) { chunkSize = 4 * MB; parallel = 2; }
-    else if (size > 50 * MB) { chunkSize = 2 * MB; parallel = 2; }
-    else { chunkSize = 1 * MB; parallel = 1; }
+    // Pushing the smallest body this path would ever send and timing it answers
+    // the only question that matters. A probe that cannot get through is itself
+    // the answer: take the floor.
+    //
+    // Worker count is NOT decided here. It is derived from the settled chunkSize
+    // further down, so the two cannot come from different passes.
+    const measureChunkSize = async () => {
+      setStatusText('Checking your connection...');
+      patchUploadDetail({
+        method: 'reliable',
+        phase: 'Measuring connection',
+        waitingOn: 'POST /upload/probe',
+        sent: 0,
+        total: size,
+      });
+      const blob = file.slice(0, Math.min(PROBE_BYTES, size));
+      const startedAt = Date.now();
+      try {
+        await postForm(`${base}/upload/probe`, {}, { chunk: blob }, { stallMs: 30000, timeoutMs: 90000 });
+      } catch (e) {
+        if (e?.code === 'ABORTED') throw e;
+        patchUploadDetail({ probeBps: 0, lastError: e?.code || 'PROBE_FAIL', lastStatus: e?.status || 0 });
+        return CHUNK_FLOOR;
+      }
+      const seconds = Math.max(0.05, (Date.now() - startedAt) / 1000);
+      patchUploadDetail({ probeBps: blob.size / seconds });
+      const target = (blob.size / seconds) * CHUNK_TARGET_SECONDS;
+      // Whole multiples of the floor, so the sizes stay legible in server logs.
+      const stepped = Math.floor(target / CHUNK_FLOOR) * CHUNK_FLOOR;
+      return Math.max(CHUNK_FLOOR, Math.min(CHUNK_CEIL, stepped));
+    };
+
+    // Settled per session: measured below for a fresh one, or taken from the
+    // server on resume.
+    let chunkSize = 0;
 
     const fpKey = `chunked::${base}::${file.name}::${size}`;
     let sessionId = null;
@@ -807,7 +849,7 @@ export function EmbedUploadProvider({ children }) {
         if (st && Number.isFinite(st.totalChunks)) {
           sessionId = storedId;
           totalChunks = st.totalChunks;
-          chunkSize = st.chunkSize;
+          chunkSize = st.chunkSize || CHUNK_FLOOR;
           received = new Set(st.received || []);
           // A resumed session mints no token, so the deferral has to come back
           // out of storage — otherwise publish would reach for whatever the last
@@ -820,6 +862,7 @@ export function EmbedUploadProvider({ children }) {
     }
 
     if (!sessionId) {
+      chunkSize = await measureChunkSize();
       const tokenRes = await axios.post(
         `${base}/uploads/token`,
         { owner: user, frontend_app: '3speak-tv', short: !!fromStories, gated: !!gated, defer_encode: true, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
@@ -883,6 +926,9 @@ export function EmbedUploadProvider({ children }) {
               duration: String(Math.round(videoDuration)),
               size: String(size),
               chunkSize: String(chunkSize),
+              // The server clamps an UNprobed size down to its floor, because
+              // that client is guessing. This one measured.
+              probed: '1',
             },
             null,
             { timeoutMs: CREATE_TIMEOUT_MS },
@@ -902,6 +948,20 @@ export function EmbedUploadProvider({ children }) {
       received = new Set(created.received || []);
       try { localStorage.setItem(fpKey, JSON.stringify({ sessionId, deferral })); } catch { /* ignore */ }
     }
+
+    // Bound BYTES in flight, not streams. `parallel` used to be computed up front
+    // from a fresh connection reading while chunkSize came back from the server on
+    // resume: two different passes, free to disagree. That is how a session ended
+    // up pushing five 1MB chunks at a link that had never delivered one. Deriving
+    // the worker count from the size it will actually send means they cannot.
+    // 5 is the practical ceiling: embed2 speaks HTTP/1.1 and browsers allow 6
+    // connections per origin, so the 6th stays free for status/finish. Raising it
+    // would mean HTTP/2, which is a REGRESSION here: h2 multiplexes every stream
+    // over ONE TCP connection, so a single lost packet head-of-line blocks all of
+    // them. Independent TCP connections are what give the stall isolation.
+    const MAX_INFLIGHT_BYTES = 1.25 * MB;
+    const parallel = Math.max(1, Math.min(5, Math.floor(MAX_INFLIGHT_BYTES / chunkSize)));
+    patchUploadDetail({ chunkBytes: chunkSize, workers: parallel });
 
     // Progress = bytes the SERVER has confirmed + bytes currently in flight. The
     // in-flight half is what keeps the bar alive: without it the bar can only step
@@ -945,6 +1005,7 @@ export function EmbedUploadProvider({ children }) {
     const STALL_MS = 45000;    // no bytes moved at all -> abort this attempt, retry
     const HARD_MS = 280000;    // just under nginx client_body_timeout (300s)
     let failed = null;
+    let retries = 0;
 
     const worker = async () => {
       while (queue.length && !failed) {
@@ -981,6 +1042,8 @@ export function EmbedUploadProvider({ children }) {
             paint();
           } catch (e) {
             inflight.delete(index);
+            retries += 1;
+            patchUploadDetail({ retries, lastError: e?.code || 'ERR', lastStatus: e?.status || 0 });
             paint();
             if (e?.code === 'ABORTED') { failed = e; return; }   // user reset — stop
 
@@ -1143,7 +1206,7 @@ export function EmbedUploadProvider({ children }) {
     // toggle work at all, given the upload starts before the user can reach it.
     // If a backend does not support deferral, publish refuses rather than
     // shipping a supporters-only video in the clear.
-    if (forceReliableUpload || sessionForcedReliableRef.current) {
+    if (sessionForcedReliableRef.current) {
       chosenEmbedBaseRef.current = reliableBase;
       setSelectedEndpoint(reliableBase);
       return await chunkedThenSimple();
@@ -1167,7 +1230,7 @@ export function EmbedUploadProvider({ children }) {
       }
       throw err;
     }
-  }, [gated, forceReliableUpload, runTusUpload, runChunkedUpload, runSimpleUpload]);
+  }, [gated, runTusUpload, runChunkedUpload, runSimpleUpload]);
 
   // Kick off the background upload (called when the user reaches "Add details").
   // Idempotent: only starts once per selected video. The embed asset gets its own
@@ -1176,6 +1239,8 @@ export function EmbedUploadProvider({ children }) {
   const startEarlyUpload = useCallback(() => {
     if (prefilled || EMBED_DEBUG) return;            // nothing to upload in these flows
     if (!videoFile) return;
+    // Cancelled by hand. Only an explicit publish restarts this one.
+    if (cancelledFileRef.current === videoFile) return;
     // A different file is now selected (e.g. "Replace Video") → start fresh.
     if (earlyUploadStartedRef.current && earlyUploadedFileRef.current !== videoFile) {
       resetEarlyUpload();
@@ -1186,6 +1251,19 @@ export function EmbedUploadProvider({ children }) {
     setVideoUploadStatus('uploading');
     setUploadProgress(0);
     setStatusText('Uploading video in the background…');
+    // Snapshot what the browser claims about the link at kickoff. It is not used
+    // to size anything any more (the probe does that), but it is the first thing
+    // worth seeing on a screenshot of an upload that went wrong.
+    const conn = getConnectionProfile();
+    patchUploadDetail({
+      link: conn.effectiveType || 'unknown',
+      linkDown: Number.isFinite(conn.downlink) ? conn.downlink : null,
+      linkRtt: Number.isFinite(conn.rtt) ? conn.rtt : null,
+      saveData: !!conn.saveData,
+      fileBytes: videoFile?.size || 0,
+      startedAt: Date.now(),
+      retries: 0,
+    });
     const p = (async () => {
       try {
         // Stale-client guard: if a newer build is deployed, force-reload onto it
@@ -1219,7 +1297,7 @@ export function EmbedUploadProvider({ children }) {
       }
     })();
     earlyUploadPromiseRef.current = p;
-  }, [prefilled, videoFile, runUploadWithFallback, resetEarlyUpload]);
+  }, [prefilled, videoFile, runUploadWithFallback, resetEarlyUpload, patchUploadDetail]);
 
   /**
    * publishToEmbed — the 3-step publish:
@@ -1940,7 +2018,6 @@ export function EmbedUploadProvider({ children }) {
     selectedEndpoint,
     startEarlyUpload,
     // Opt-in "reliable" (resumable chunked, PATCH-free) upload fallback
-    forceReliableUpload, setForceReliableUpload,
     // Prefilled flow (e.g. Hangouts server-side recording)
     prefilled,
     prefilledPermlink,
@@ -1963,6 +2040,7 @@ export function EmbedUploadProvider({ children }) {
     // Functions
     publishToEmbed,
     resetUploadState,
+    cancelEarlyUpload,
   };
 
   return (
