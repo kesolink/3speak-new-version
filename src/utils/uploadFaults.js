@@ -32,7 +32,29 @@ const DEFAULTS = {
   blackholeChunks: false,  // middlebox swallows the chunk-protocol POSTs → create/stall watchdogs → tier 3
   blackholeSimple: false,  // ALSO swallow the single-request last resort → total blackout, nothing can pass
   chunkFailRate: 0,        // 0..1 — flaky link: fail this share of chunk POSTs → should retry + resync
+  forceWeakLink: false,    // pretend navigator.connection reports a thin uplink
 };
+
+/**
+ * Is the weak-link profile being forced?
+ *
+ * Unlike the flags above this is NOT an XHR fault — nothing is intercepted. It
+ * only makes getConnectionProfile() report `weak`, which is what selects the
+ * small-chunk / multi-worker upload profile. That profile is otherwise
+ * unreachable on a healthy office line, so without this it could only ever be
+ * tested by finding a genuinely bad mobile connection.
+ *
+ * It deliberately does NOT slow anything down: browser request-level throttling
+ * cannot pace an XHR body (the panel says as much), so simulating real slowness
+ * is not on offer. What this DOES verify is the part that actually changed —
+ * that the weak profile fans out to several concurrent chunk POSTs and that the
+ * upload reassembles correctly. Tick it together with "flaky link" to also
+ * exercise retry + /status resync while several workers are in flight, which is
+ * the closest we can get to the conditions that cost a real upload 68 minutes.
+ */
+export function isWeakLinkForced() {
+  try { return !!getUploadFaults().forceWeakLink; } catch { return false; }
+}
 
 export function getUploadFaults() {
   try {
@@ -56,6 +78,8 @@ export function clearUploadFaults() {
   try { sessionStorage.removeItem(KEY); } catch { /* ignore */ }
 }
 
+// NB: forceWeakLink is deliberately absent — it patches nothing, so it must not
+// pull the XHR interceptor in on its own. Only real faults arm the patch.
 function isArmed(f) {
   return !!(f.blockPatch || f.blackholeChunks || f.blackholeSimple || f.chunkFailRate > 0);
 }
