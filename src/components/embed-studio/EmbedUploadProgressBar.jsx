@@ -2,7 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { Ring2 } from 'ldrs/react';
 import 'ldrs/react/Ring2.css';
 import { useEmbedUpload } from '../../context/EmbedUploadContext';
+import { APP_VERSION } from '../../version';
 import './EmbedUploadProgressBar.scss';
+
+// Compact elapsed time: 45s, 4m12s, 1h05m. Short enough to sit on the fault line
+// without wrapping on a phone.
+function fmtDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '0s';
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  if (h) return `${h}h${String(m).padStart(2, '0')}m`;
+  if (m) return `${m}m${String(sec).padStart(2, '0')}s`;
+  return `${sec}s`;
+}
 
 // Compact byte formatter for the diagnostics line — one decimal under 10 units so
 // a slow trickle still visibly moves (9.4 MB → 9.6 MB), whole numbers above.
@@ -26,10 +40,20 @@ function fmtBytes(n) {
 export default function EmbedUploadProgressBar() {
   const {
     videoUploadStatus, uploadProgress, uploading, prefilled, selectedEndpoint,
-    statusText, uploadDetail,
+    statusText, uploadDetail, cancelEarlyUpload,
   } = useEmbedUpload();
   const rootRef = useRef(null);
   const [matchWidth, setMatchWidth] = useState(null);
+  // Tick once a second while uploading purely so the elapsed clock keeps moving.
+  // A wedged upload produces no progress events, and "stuck at 0%" reads very
+  // differently at 20s than at 40 minutes — which is exactly the distinction a
+  // screenshot has to carry on its own.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (videoUploadStatus !== 'uploading') return undefined;
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [videoUploadStatus]);
 
   // Match the bar's width to the stepper's visible step row (first step's left
   // edge → last step's right edge), so it isn't full-width. Re-measures on layout
@@ -92,6 +116,39 @@ export default function EmbedUploadProgressBar() {
     bits.push(`chunk ${d.chunksDone ?? 0}/${d.chunksTotal}`);
   }
   const detailLine = bits.join(' · ');
+
+  // Second line: the transport shape actually in use. Chunk size and worker count
+  // are the two numbers that decide whether a weak link can move anything at all,
+  // and probeBps says what the link really did rather than what it claims.
+  const shape = [];
+  if (Number.isFinite(d.chunkBytes) && d.chunkBytes > 0) {
+    shape.push(`${fmtBytes(d.chunkBytes)}${Number.isFinite(d.workers) ? ` x${d.workers}` : ''}`);
+  }
+  if (Number.isFinite(d.probeBps)) {
+    shape.push(d.probeBps > 0 ? `probe ${Math.round((d.probeBps * 8) / 1000)}kbps` : 'probe failed');
+  }
+  if (d.link) {
+    const link = [d.link];
+    if (Number.isFinite(d.linkDown) && d.linkDown !== null) link.push(`dl${d.linkDown}`);
+    if (Number.isFinite(d.linkRtt) && d.linkRtt !== null) link.push(`rtt${d.linkRtt}`);
+    if (d.saveData) link.push('saveData');
+    shape.push(link.join(' '));
+  }
+  const shapeLine = shape.join(' · ');
+
+  // Third line: what has gone wrong and for how long. Version last, so a
+  // screenshot always says which build produced everything above it.
+  const faults = [];
+  if (Number.isFinite(d.retries) && d.retries > 0) faults.push(`retries ${d.retries}`);
+  if (d.lastError) faults.push(`last ${d.lastError}${d.lastStatus ? `/${d.lastStatus}` : ''}`);
+  if (Number.isFinite(d.startedAt)) faults.push(fmtDuration(Date.now() - d.startedAt));
+  if (Number.isFinite(d.fileBytes) && d.fileBytes > 0) faults.push(fmtBytes(d.fileBytes));
+  faults.push(`v${APP_VERSION}`);
+  const faultLine = faults.join(' · ');
+
+  // The escape hatch. Display-only was the bug: an upload that could not move a
+  // byte retried forever with nothing on screen to stop it.
+  const canCancel = videoUploadStatus === 'uploading' || videoUploadStatus === 'error';
   const showWaiting = d.waitingOn && videoUploadStatus !== 'done';
 
   // Spin only while we are ATTEMPTING something with nothing to show for it yet:
@@ -112,7 +169,18 @@ export default function EmbedUploadProgressBar() {
       <div className="embed-upload-progress-track">
         <div className="embed-upload-progress-fill" style={{ width: `${pct}%` }} />
       </div>
-      <span className="embed-upload-progress-label">{label}</span>
+      <div className="embed-upload-progress-labelrow">
+        <span className="embed-upload-progress-label">{label}</span>
+        {canCancel && (
+          <button
+            type="button"
+            className="embed-upload-progress-cancel"
+            onClick={cancelEarlyUpload}
+          >
+            Cancel upload
+          </button>
+        )}
+      </div>
       {(detailLine || isWaiting) && (
         <div className="embed-upload-progress-detailrow">
           <span className="embed-upload-progress-detail">{detailLine}</span>
@@ -122,6 +190,12 @@ export default function EmbedUploadProgressBar() {
             </span>
           )}
         </div>
+      )}
+      {shapeLine && (
+        <span className="embed-upload-progress-detail">{shapeLine}</span>
+      )}
+      {faultLine && (
+        <span className="embed-upload-progress-detail">{faultLine}</span>
       )}
       {showWaiting && (
         <span className="embed-upload-progress-waiting">Waiting on: {d.waitingOn}</span>
