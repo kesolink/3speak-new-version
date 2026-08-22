@@ -17,6 +17,7 @@ import { setChannelTrailer } from '../utils/channelTrailer';
 import { enforceLockedBeneficiaries, getLockedBeneficiaries, chargesEncoder, LOCKED_FUND_ACCOUNT, LOCKED_ENCODER_ACCOUNT } from '../utils/beneficiaries';
 import { oaEnvelope, threespeakVideo, probeVideoOrientation, OA_ARTICLE, OA_MICROPOST, OA_COMMENT } from '../utils/openAttribute';
 import axios from 'axios';
+import { isWeakLinkForced } from '../utils/uploadFaults';
 
 // Hosts that support TUS resume (tusd-backed). The legacy embed.3speak.tv origin
 // does NOT — a leftover fingerprint there fails with "invalid or missing length
@@ -28,11 +29,34 @@ function endpointSupportsResume(endpoint) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// sleep(), but a tab coming back to the foreground cuts it short. Android Chrome
+// suspends timers in background tabs, so a chunk that failed just before the user
+// switched away would otherwise sit on a backoff that never fires: one real upload
+// lost 23 minutes in a single gap that way, with zero requests reaching the server.
+// Waking on visibilitychange turns that dead time back into a retry.
+const sleepUntilVisible = (ms) => new Promise((resolve) => {
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { document.removeEventListener('visibilitychange', onVis); } catch { /* ignore */ }
+    resolve();
+  };
+  const onVis = () => { if (document.visibilityState === 'visible') finish(); };
+  const timer = setTimeout(finish, ms);
+  try { document.addEventListener('visibilitychange', onVis); } catch { /* ignore */ }
+});
+
 // Browser connection hint. On a thin/flaky/metered uplink we shrink to small
 // SEQUENTIAL chunks: big parallel chunks contend for bandwidth and trip tusd's
 // ~60s body-read timeout (the ERR_READ_TIMEOUT / ERR_UPLOAD_INTERRUPTED cascade
 // that loses uploads on bad connections).
 function getConnectionProfile() {
+  // Test override (badadib only): the weak profile cannot be reached on a healthy
+  // line, so without this the multi-worker path could only be exercised by
+  // finding a genuinely bad mobile connection. See utils/uploadFaults.
+  if (isWeakLinkForced()) return { weak: true, effectiveType: 'forced', forced: true };
   const c = (typeof navigator !== 'undefined' &&
     (navigator.connection || navigator.mozConnection || navigator.webkitConnection)) || null;
   // No Network Information API (Firefox/Safari) → we can't measure the link, so
@@ -728,7 +752,30 @@ export function EmbedUploadProvider({ children }) {
     // is more round trips on a fast link, which is a trade the fallback should
     // happily make. Server floor is CHUNK_MIN_SIZE = 256KB.
     let chunkSize, parallel;
-    if (conn.weak) { chunkSize = 512 * 1024; parallel = 1; }
+    // Weak links get MORE streams, not fewer. This looks backwards but the
+    // sequential setting is what made them slow: one hung POST halts the whole
+    // upload, and a real 22MB upload spent 68 of its 87 minutes dead that way,
+    // every stall starting with a chunk that hung until the stall watchdog killed
+    // it. With several workers a hung stream costs a fraction of throughput
+    // instead of all of it. The old comment justifying `parallel = 1` was about
+    // TUS multi-stream PATCH contention and does not apply here: these are
+    // independent idempotent POSTs written to disjoint offsets server-side, and
+    // a resent chunk is a no-op. Chunks are small so each POST finishes quickly
+    // even at a quarter of the bandwidth (~57s at the rate measured above, well
+    // inside HARD_MS). 256KB is the server's CHUNK_MIN_SIZE floor.
+    // NOTE: unrelated to PATCH_BLOCKED — that stays exactly as it is and is what
+    // put us on this path to begin with.
+    //
+    // Why 5 and not more: embed2 speaks HTTP/1.1, and browsers allow 6 connections
+    // per origin. 5 uses that budget while leaving one free for the status/finish
+    // calls, which would otherwise queue behind chunk POSTs. Workers past 6 do not
+    // run — the browser just queues them — so a bigger number buys nothing.
+    // Raising the ceiling would mean HTTP/2, and that is a REGRESSION here: h2
+    // multiplexes every stream over ONE TCP connection, so a single lost packet
+    // head-of-line blocks all of them. Independent TCP connections are exactly
+    // what gives the stall isolation this change is for. HTTP/3 would give both,
+    // but this nginx (1.24.0) is built with http_v2 only, no quic/v3.
+    if (conn.weak) { chunkSize = 256 * 1024; parallel = 5; }
     else if (size > 500 * MB) { chunkSize = 4 * MB; parallel = 2; }
     else if (size > 50 * MB) { chunkSize = 2 * MB; parallel = 2; }
     else { chunkSize = 1 * MB; parallel = 1; }
@@ -886,10 +933,15 @@ export function EmbedUploadProvider({ children }) {
     const queue = [];
     for (let i = 0; i < totalChunks; i++) if (!received.has(i)) queue.push(i);
 
-    // Long tail on purpose: these are the networks that drop for a minute at a
-    // time. Total patience per chunk ~5min of backoff, and each attempt is itself
-    // stall-guarded, so a dead attempt costs STALL_MS, not forever.
-    const RETRY_DELAYS = [0, 2000, 5000, 10000, 20000, 30000, 45000, 60000, 60000, 60000];
+    // Retry a chunk for as long as it takes. There is no attempt ceiling: giving
+    // up threw away an upload that was often 90%+ done, and a resend is free
+    // because the server no-ops an index it already holds. Backoff plateaus at
+    // 30s rather than climbing to 60s — the old ladder spent minutes asleep on
+    // links that had already come back.
+    // CHUNK_BUDGET_MS is a backstop against a genuinely dead link, not a target:
+    // at a 30s plateau it allows ~60 attempts on one chunk before giving up.
+    const RETRY_DELAYS = [0, 2000, 5000, 10000, 20000, 30000];
+    const CHUNK_BUDGET_MS = 30 * 60 * 1000;
     const STALL_MS = 45000;    // no bytes moved at all -> abort this attempt, retry
     const HARD_MS = 280000;    // just under nginx client_body_timeout (300s)
     let failed = null;
@@ -902,10 +954,14 @@ export function EmbedUploadProvider({ children }) {
         let ok = false;
         let lastErr;
 
-        for (let attempt = 0; attempt < RETRY_DELAYS.length && !ok && !failed; attempt++) {
+        const chunkStartedAt = Date.now();
+        for (let attempt = 0; !ok && !failed; attempt++) {
+          if (attempt > 0 && Date.now() - chunkStartedAt > CHUNK_BUDGET_MS) break;
           if (attempt > 0) {
             setStatusText('Connection unstable — retrying…');
-            await sleep(RETRY_DELAYS[attempt]);
+            // Clamp: the loop now runs past the end of the ladder, and an
+            // undefined delay would make setTimeout fire immediately and spin.
+            await sleepUntilVisible(RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)]);
             if (failed) break;
           }
           try {
@@ -1316,16 +1372,40 @@ export function EmbedUploadProvider({ children }) {
       if (deferral?.finalizeToken && deferral?.permlink) {
         const finalizeBase = (chosenEmbedBaseRef.current || EMBED_API_URL || '').replace(/\/+$/, '');
         addMessage(gated ? 'Starting encrypted encode…' : 'Starting encode…');
-        await axios.post(
-          `${finalizeBase}/video/${deferral.permlink}/encode`,
-          { gated: !!gated, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
-          {
-            headers: {
-              Authorization: `Bearer ${deferral.finalizeToken}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        );
+        // The upload's success response comes back BEFORE the server has pinned
+        // the file: post-finish answers immediately and then pins on setImmediate,
+        // so for a while the video is still `uploading` and commissioning replies
+        // 409 not_awaiting_encode (or not_pinned while the CID is still landing).
+        // That is "not yet", not "no", and the wait scales with file size — a
+        // 105MB short raced it by ~3s. Failing the publish there made the user
+        // click Post a second time to get the same upload commissioned, so poll
+        // instead. Only these two codes retry: 401/403/404 are real and must
+        // surface immediately rather than being sat on for a minute and a half.
+        const FINALIZE_RETRY_MS = [1000, 2000, 3000, 5000, 5000, 8000, 8000, 10000, 12000, 15000, 20000];
+        for (let attempt = 0; ; attempt++) {
+          try {
+            // 2xx ends the loop: 201 commissioned, or 200 already_queued, which
+            // makes a repeat attempt after a lost response harmless.
+            await axios.post(
+              `${finalizeBase}/video/${deferral.permlink}/encode`,
+              { gated: !!gated, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
+              {
+                headers: {
+                  Authorization: `Bearer ${deferral.finalizeToken}`,
+                  'Content-Type': 'application/json',
+                },
+              },
+            );
+            break;
+          } catch (encErr) {
+            const code = encErr?.response?.data?.code;
+            const notReady = encErr?.response?.status === 409
+              && (code === 'not_awaiting_encode' || code === 'not_pinned');
+            if (!notReady || attempt >= FINALIZE_RETRY_MS.length) throw encErr;
+            setStatusText('Finishing upload on the server…');
+            await new Promise(r => setTimeout(r, FINALIZE_RETRY_MS[attempt]));
+          }
+        }
       } else if (gated && !deferral?.gated) {
         // Not deferred, and the toggle went on after the token was minted. The
         // upload is already committed as public; encoding it now would publish
