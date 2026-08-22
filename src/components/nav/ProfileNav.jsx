@@ -3,7 +3,7 @@ import "./ProfileNav.scss"
 import '../../page/Login/KeyChainLogin.scss';
 import { useAppStore } from '../../lib/store';
 import { useGetMyQuery } from '../../hooks/getUserDetails';
-import { MdKeyboardArrowDown, MdOutlineKeyboardArrowUp, MdSettings, MdTrendingUp } from "react-icons/md";
+import { MdKeyboardArrowDown, MdOutlineKeyboardArrowUp, MdSettings, MdTrendingUp, MdCampaign } from "react-icons/md";
 import { ImPower } from "react-icons/im";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaDiscord, FaLanguage } from 'react-icons/fa';
@@ -18,6 +18,7 @@ import logoDark from '../../assets/image/3S_logodark.png';
 import { SiTelegram } from "react-icons/si";
 import { getVotePower } from '../../utils/hiveUtils';
 import { getHiveUrl, ensureHealthyNode } from '../../utils/hiveNode';
+import { adsEnabledFor } from '../../utils/config';
 import LabeledToggle from '../LabeledToggle/LabeledToggle';
 import SettingsModal from '../SettingsModal/SettingsModal';
 import { useAvatarUrl } from '../../utils/avatarCache';
@@ -114,6 +115,13 @@ function ProfileNav({ isVisible, onclose, toggleAddAccount, openLoginModal }) {
           {/* <Link className="wrap">
             <FaLanguage className="icon" /> <span>Language Settings</span>
           </Link> */}
+          {/* Closed testing. Same gate as the /advertise page itself, so the menu can
+              never offer a link to a page that would answer with a 404. */}
+          {adsEnabledFor(user) && (
+            <Link to="/advertise" className="wrap" onClick={onclose}>
+              <MdCampaign className="icon" /> <span>Advertise</span>
+            </Link>
+          )}
           <a className="wrap" onClick={() => { setSettingsOpen(true); onclose(); }}>
             <MdSettings className="icon" /> <span>Settings</span>
           </a>

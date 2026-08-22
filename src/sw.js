@@ -9,6 +9,58 @@ import { createHandlerBoundToURL } from 'workbox-precaching';
 self.skipWaiting();
 clientsClaim();
 
+// ── Web push ──
+// FIRST, deliberately. An exception anywhere during evaluation kills the whole
+// worker — the registration appears for a moment and then vanishes — and every
+// line below this one is caching, which is a nice-to-have. Notifications are
+// not: if Workbox fails to set itself up in some browser, push must still work.
+// The caching block is wrapped for the same reason.
+// The payload is written by the checker (services/pushNotify.js): a title, a
+// line of body, the path to open, and a tag. The tag is what stops the same
+// video buzzing twice on one device — the browser replaces a notification that
+// already carries it rather than stacking another.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    // A push with a non-JSON body is not ours; show nothing rather than a
+    // notification full of garbage.
+    return;
+  }
+  if (!data.title) return;
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body || '',
+      icon: '/3speak.jpeg',
+      badge: '/3speak.jpeg',
+      tag: data.tag || undefined,
+      data: { url: data.url || '/' },
+    }),
+  );
+});
+
+// Clicking one focuses a tab that already has 3Speak open and navigates it,
+// rather than piling up a new tab every time.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of all) {
+      if (new URL(client.url).origin === self.location.origin) {
+        await client.focus();
+        if ('navigate' in client) await client.navigate(target);
+        return;
+      }
+    }
+    await self.clients.openWindow(target);
+  })());
+});
+
+
+try {
 // Precache all assets injected by vite-plugin-pwa
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
@@ -17,12 +69,21 @@ cleanupOutdatedCaches();
 // the cached SPA shell: the hivesigner callback, and the server-rendered Spotlight
 // link pages (/links/<user> and legacy /@<user>/links) which are standalone HTML
 // from the API, NOT part of the React app.
-const navHandler = createHandlerBoundToURL('/index.html');
-registerRoute(
-  new NavigationRoute(navHandler, {
-    denylist: [/^\/hivesigner\.html/, /^\/links\//, /^\/@[^/]+\/links\/?$/],
-  })
-);
+// createHandlerBoundToURL THROWS when its URL isn't in the precache manifest,
+// and in dev that manifest is empty (`precacheAndRoute([])`) — which killed the
+// whole worker at evaluation time, so nothing registered and push had no
+// registration to attach to. There is no SPA shell to fall back to in dev
+// anyway: the dev server serves it live.
+try {
+  const navHandler = createHandlerBoundToURL('/index.html');
+  registerRoute(
+    new NavigationRoute(navHandler, {
+      denylist: [/^\/hivesigner\.html/, /^\/links\//, /^\/@[^/]+\/links\/?$/],
+    })
+  );
+} catch {
+  // Dev, or a build with no precached shell: skip the fallback, keep the worker.
+}
 
 // Runtime cache: JS, CSS, fonts
 registerRoute(
@@ -72,3 +133,8 @@ const shareTargetRoute = new Route(
   'POST'
 );
 registerRoute(shareTargetRoute);
+
+} catch (err) {
+  // Offline caching is gone for this session; the worker (and push) survive.
+  console.error('[sw] caching setup failed, continuing without it:', err);
+}

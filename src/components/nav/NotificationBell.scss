@@ -126,6 +126,45 @@
   &:hover { text-decoration: underline; }
 }
 
+// Header right side: the push opt-in sits next to "See all", because this
+// dropdown is where someone looks for "also tell me when I'm not on the site".
+.notif-dropdown-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notif-push-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+    background: var(--bg-hover);
+  }
+
+  // Subscribed: red OUTLINE, never a fill (app-wide convention).
+  &.on {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+  }
+
+  // Blocked at the browser level — the button can't fix that, so it says so
+  // via its title instead of pretending it can.
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
 .notif-dropdown-empty {
   padding: 24px 14px;
   text-align: center;

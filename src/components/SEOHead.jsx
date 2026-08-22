@@ -13,9 +13,12 @@ const SEOHead = ({
   modifiedTime = null,
   structuredData = null,
 }) => {
+  // "3S" matches the logo and leads, so the platform is the part that survives a
+  // narrow tab. The brand default passes through untouched rather than being
+  // branded twice.
   const fullTitle = title === '3Speak - Decentralized Video Platform'
     ? title
-    : `${title} | 3Speak`;
+    : `3S | ${title}`;
 
   return (
     <Helmet>

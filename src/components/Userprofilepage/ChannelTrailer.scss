@@ -63,6 +63,17 @@
   }
 }
 
+// No community note beside the player (the snap column isn't rendered at all),
+// so the description takes the whole rest of the row instead of leaving the
+// other half empty.
+.channel-trailer-row:not(:has(.channel-trailer-snap)) .channel-trailer-meta {
+  width: calc(100% - var(--ct-player-w) - var(--ct-gap));
+
+  @include mix.respond(phone) {
+    width: 100%;
+  }
+}
+
 .channel-trailer-meta {
   display: flex;
   flex-direction: column;
@@ -212,18 +223,20 @@
     span { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.35; }
   }
 
+  // Red outline, never a red fill (app-wide convention for red controls).
   .cte-btn {
     flex: 0 0 auto;
     padding: 0.5rem 0.9rem;
     border-radius: 10px;
+    border: 1px solid var(--accent-primary);
     font-size: 0.86rem;
     font-weight: 600;
     text-decoration: none;
-    color: var(--text-inverse, #fff);
-    background: var(--accent-primary);
-    transition: background 0.15s ease;
+    color: var(--accent-primary);
+    background: transparent;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
-    &:hover { background: var(--accent-hover); }
+    &:hover { background: var(--accent-light); }
   }
 
   @include mix.respond(phone) {

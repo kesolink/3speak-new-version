@@ -25,6 +25,15 @@ const PORT = process.env.SERVER_PORT || 4020
 
 const POSTING_WIF = process.env.THREESPEAK_POSTING_WIF
 const HIVE_ACCOUNT = process.env.THREESPEAK_HIVE_ACCOUNT || 'badadib'
+// Share of ad revenue split between the creator and the community they posted in.
+// MUST match AD_CREATOR_POOL_PCT on the checker: this endpoint signs the message the
+// checker verifies, so a disagreement would produce signatures it rejects.
+const AD_CREATOR_POOL_PCT = Number(process.env.AD_CREATOR_POOL_PCT) || 50
+// Must equal AD_DEFAULT_COMMUNITY_PCT on the checker. Both sides build the signed
+// message, so a disagreement here signs one split and stores another.
+const AD_DEFAULT_COMMUNITY_PCT = Number.isInteger(Number(process.env.AD_DEFAULT_COMMUNITY_PCT))
+  ? Number(process.env.AD_DEFAULT_COMMUNITY_PCT)
+  : 25
 // Shared app key (same one the embed TUS upload uses) — authenticates wallet
 // logins (Keychain/HiveAuth/PeakVault/Ledger) on the post-creation path, which
 // can't present a token/cookie. Same trust level the upload pipeline already
@@ -1023,6 +1032,65 @@ app.post('/api/snapie-chat/sign-challenge', signChallengeLimiter, async (req, re
   }
 })
 
+// POST /api/ads/opt-out-signature — sign a creator's ad preference on their behalf.
+//
+// HiveSigner and Butter Auth sessions hold no signing key in the browser, so those
+// creators could never sign the checker's ad-preference message client-side. Without
+// this endpoint the people least able to sign would be the only ones unable to turn
+// ads off on their own videos — which is exactly backwards for a consent control.
+//
+// The client sends ONLY a boolean. The message is built here, from the username the
+// session resolves to, in the canonical form the checker expects. That is the whole
+// safety argument: unlike a generic signing oracle this can never be steered into
+// signing arbitrary bytes (a transaction digest, say), because the caller supplies
+// none of them. Compare the snapie-chat endpoint, which has to validate a UUID shape
+// for the same reason.
+app.post('/api/ads/opt-out-signature', signChallengeLimiter, async (req, res) => {
+  try {
+    if (!POSTING_WIF) return res.status(500).json({ error: 'Server is not configured' })
+    const hiveUsername = await resolveDelegatedSignUser(req, res)
+    if (!hiveUsername) return res.status(401).json({ error: 'Unauthorized' })
+
+    // Must be a real boolean: `undefined` would quietly become "off" and turn ads
+    // off for someone who never asked.
+    if (typeof req.body?.adsEnabled !== 'boolean') {
+      return res.status(400).json({ error: 'adsEnabled must be true or false' })
+    }
+    const adsEnabled = req.body.adsEnabled
+
+    // The community's cut of the creator pool. Signed along with everything else so
+    // a signature cannot be lifted from one split and reused on another — this is
+    // the field that decides where money goes. Absent means 0.
+    const shareRaw = req.body.communitySharePct
+    const communitySharePct = shareRaw === undefined || shareRaw === null
+      ? AD_DEFAULT_COMMUNITY_PCT
+      : Number(shareRaw)
+    if (!Number.isInteger(communitySharePct) || communitySharePct < 0 || communitySharePct > AD_CREATOR_POOL_PCT) {
+      return res.status(400).json({ error: `communitySharePct must be a whole number between 0 and ${AD_CREATOR_POOL_PCT}` })
+    }
+
+    // We sign as @threespeak, so the grant has to actually exist — otherwise the
+    // checker would reject the signature anyway and the user would see a cryptic
+    // failure instead of a reason.
+    if (!(await hasThreespeakPostingGrant(hiveUsername))) {
+      return res.status(403).json({
+        error: `Turning ads off from here needs @${HIVE_ACCOUNT} posting authority on your account. Log in with Keychain, HiveAuth, PeakVault or Ledger to set it directly instead.`,
+      })
+    }
+
+    const timestamp = Date.now()
+    // Keep in lockstep with prefsMessage() in 3speakchecks/routes/advertise.js.
+    const message = ['3speak-ads', 'creator-prefs', hiveUsername, adsEnabled ? 'on' : 'off',
+      String(communitySharePct), String(timestamp)].join('|')
+    const signature = PrivateKey.fromString(POSTING_WIF).sign(cryptoUtils.sha256(Buffer.from(message, 'utf8'))).toString()
+
+    return res.json({ success: true, signature, timestamp, username: hiveUsername, communitySharePct })
+  } catch (err) {
+    console.error('Ads opt-out signature error:', err.message)
+    res.status(500).json({ error: 'Signing failed' })
+  }
+})
+
 // Image upload — sign the standard images.hive.blog "ImageSigningChallenge" with
 // @threespeak's posting key and upload on the user's behalf. Lets every login
 // (incl. HiveSigner, which can't sign client-side) attach covers/thumbnails with
@@ -1057,7 +1125,17 @@ app.post('/api/upload-image', imageUploadLimiter, express.raw({ type: () => true
     const data = await hostResp.json().catch(() => ({}))
     if (!hostResp.ok || !data.url) {
       console.error('Image host rejected:', hostResp.status, JSON.stringify(data).slice(0, 200))
-      return res.status(502).json({ error: 'Image host rejected the upload' })
+      // Tell the caller WHICH failure this is. A 429 from images.hive.blog is the
+      // shared @threespeak upload quota running out — it is not the user's file, not
+      // retryable in the next second, and not something a generic "upload failed"
+      // helps anyone diagnose. It has bitten thumbnails too.
+      const quota = hostResp.status === 429 || /qouta|quota/i.test(JSON.stringify(data))
+      return res.status(quota ? 503 : 502).json({
+        error: quota
+          ? "3Speak's image upload quota is exhausted for now — this is on our side, not your file. Try again later."
+          : 'Image host rejected the upload',
+        upstreamStatus: hostResp.status,
+      })
     }
     return res.json({ success: true, url: data.url })
   } catch (e) {

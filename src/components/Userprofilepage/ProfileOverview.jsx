@@ -4,6 +4,8 @@ import PlaylistCard from '../Cards/PlaylistCard';
 import UserAudioList from './UserAudioList';
 import ChannelTrailer from './ChannelTrailer';
 import CommunitySnaps from './CommunitySnaps';
+import ProfileLinksPanel from './ProfileLinksPanel';
+import ProfilePlaylistRails from './ProfilePlaylistRails';
 import './ProfileOverview.scss';
 
 /**
@@ -15,6 +17,9 @@ import './ProfileOverview.scss';
  * which said nothing about whether they also make shorts, audio or playlists.
  *
  * Sections with nothing in them are omitted rather than shown empty.
+ *
+ * On desktop the creator's Spotlight links sit in a sticky column to the right
+ * of all this (ProfileLinksPanel); phones and tablets keep the single column.
  */
 
 const DESKTOP_COUNT = 6;
@@ -69,6 +74,18 @@ export default function ProfileOverview({
     return () => mq.removeEventListener('change', on);
   }, []);
 
+  // The links column only exists on desktop — mobile keeps the layout it had.
+  // Gated in JS rather than CSS so a phone never pays for the extra Hive read.
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1025px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1025px)');
+    const on = () => setIsDesktop(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+
   const videoSlice = videos.slice(0, RAIL_COUNT);
   const shortSlice = shorts.slice(0, RAIL_COUNT);
   const playlistSlice = playlists.slice(0, perRow);
@@ -79,49 +96,64 @@ export default function ProfileOverview({
 
   return (
     <div className="profile-overview">
-      <ChannelTrailer username={username} isOwnProfile={isOwnProfile} onOpenCommunityTab={openCommunityTab} />
+      <div className="pov-main">
+        <ChannelTrailer username={username} isOwnProfile={isOwnProfile} onOpenCommunityTab={openCommunityTab} />
 
-      <Section title="Videos" count={videoSlice.length} onViewMore={() => onOpenTab('video')}>
-        <Card3
-          videos={videoSlice}
+        <Section title="Videos" count={videoSlice.length} onViewMore={() => onOpenTab('video')}>
+          <Card3
+            videos={videoSlice}
+            getContentForVideo={getContentForVideo}
+            isWatched={isWatched}
+            getViewCount={getViewCount}
+          />
+        </Section>
+
+        <Section title="Shorts" count={shortSlice.length} onViewMore={() => onOpenTab('shorts')}>
+          <Card3
+            videos={shortSlice}
+            shortsGrid
+            linkPrefix="/shorts"
+            getViewCount={getViewCount}
+          />
+        </Section>
+
+        {/* Audio, community posts and playlists own their own data, so they're
+            rendered limited rather than sliced here, and hide when empty. */}
+        <section className="pov-section pov-section--audio">
+          <div className="pov-head">
+            <h3>Audio</h3>
+            <button type="button" className="pov-more" onClick={() => onOpenTab('audio')}>View more</button>
+          </div>
+          <UserAudioList user={username} limit={perRow} />
+        </section>
+
+        {snapCount > 0 && (
+          <section className="pov-section">
+            <div className="pov-head">
+              <h3>Community</h3>
+              <button type="button" className="pov-more" onClick={() => onOpenTab('community')}>View more</button>
+            </div>
+            <CommunitySnaps user={username} limit={perRow} hideEmpty onOpenTab={openCommunityTab} />
+          </section>
+        )}
+
+        {/* What's actually IN the playlists: one rail per playlist, above the
+            row of covers. Loads only when scrolled to (ProfilePlaylistRails). */}
+        <ProfilePlaylistRails
+          playlists={playlists}
           getContentForVideo={getContentForVideo}
           isWatched={isWatched}
           getViewCount={getViewCount}
         />
-      </Section>
 
-      <Section title="Shorts" count={shortSlice.length} onViewMore={() => onOpenTab('shorts')}>
-        <Card3
-          videos={shortSlice}
-          shortsGrid
-          linkPrefix="/shorts"
-          getViewCount={getViewCount}
-        />
-      </Section>
+        <Section title="Playlists" count={playlistSlice.length} onViewMore={() => onOpenTab('playlists')}>
+          <PlaylistCard playlists={playlistSlice} />
+        </Section>
+      </div>
 
-      {/* Audio, community posts and playlists own their own data, so they're
-          rendered limited rather than sliced here, and hide when empty. */}
-      <section className="pov-section pov-section--audio">
-        <div className="pov-head">
-          <h3>Audio</h3>
-          <button type="button" className="pov-more" onClick={() => onOpenTab('audio')}>View more</button>
-        </div>
-        <UserAudioList user={username} limit={perRow} />
-      </section>
-
-      {snapCount > 0 && (
-        <section className="pov-section">
-          <div className="pov-head">
-            <h3>Community</h3>
-            <button type="button" className="pov-more" onClick={() => onOpenTab('community')}>View more</button>
-          </div>
-          <CommunitySnaps user={username} limit={perRow} hideEmpty onOpenTab={openCommunityTab} />
-        </section>
-      )}
-
-      <Section title="Playlists" count={playlistSlice.length} onViewMore={() => onOpenTab('playlists')}>
-        <PlaylistCard playlists={playlistSlice} />
-      </Section>
+      {isDesktop ? (
+        <ProfileLinksPanel username={username} isOwnProfile={isOwnProfile} onOpenTab={onOpenTab} />
+      ) : null}
     </div>
   );
 }

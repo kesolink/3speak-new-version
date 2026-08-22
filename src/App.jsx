@@ -78,6 +78,7 @@ const FirstUploads = lazy(() => import("./page/FirstUploads"));
 const FollowFeed = lazy(() => import("./page/FollowFeed"));
 const HiveImageUploader = lazy(() => import("./page/HiveImageUploader"));
 const Leaderboard = lazy(() => import("./page/Leaderboard"));
+const Advertise = lazy(() => import("./page/Advertise"));
 const Legal = lazy(() => import("./page/Legal"));
 const LoginNew = lazy(() => import("./page/Login/LoginNew"));
 const ManteAuthCallback = lazy(() => import("./page/Login/ManteAuthCallback"));
@@ -622,6 +623,7 @@ function App() {
             />
             <Route path="/t/:tag" element={<TagFeed />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/advertise" element={<Advertise />} />
             <Route path="/profile" element={<ProfilePage />} />
             {/* Spotlight — creator link page. Canonical: 3speak.tv/links/username (no @).
                 Legacy /@handle/links still resolves (nginx 301s it to /links/ in prod). */}

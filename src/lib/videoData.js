@@ -36,6 +36,9 @@ function parseMeta(jm) {
 }
 
 // Hive profile — replaces GET_PROFILE / USER_DETAILS.
+// Hive community ids are `hive-` + digits; anything else in `category` is a tag.
+const HIVE_COMMUNITY_RE = /^hive-\d+$/;
+
 export async function fetchHiveProfile(username) {
   if (!username) return null;
   let account = null;
@@ -166,7 +169,15 @@ export async function fetchVideoDetails(author, permlink) {
       num_votes: post.active_votes?.length || 0,
       total_hive_reward: payout,
     },
-    community: post.category ? { _id: post.category, title: post.category } : null,
+    // A Hive post's `category` is the community it was published into — but ONLY
+    // when it actually went to one. Posted straight to a personal blog, Hive
+    // sets `category` to the FIRST TAG instead, so trusting it blindly labelled
+    // an ordinary upload as a community and drew a badge (with the avatar of
+    // whichever account happens to share that tag's name) for a community that
+    // doesn't exist. Community ids are always `hive-<digits>`.
+    community: HIVE_COMMUNITY_RE.test(post.category || '')
+      ? { _id: post.category, title: post.category }
+      : null,
     created_at: post.created,
     tags: meta.tags || [],
     parent_permlink: post.parent_permlink,
