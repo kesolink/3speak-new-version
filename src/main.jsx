@@ -9,7 +9,17 @@ import './polyfills';
 // (import.meta.env.DEV === false), so 3speak.tv's real PWA is untouched.
 if (import.meta.env.DEV && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
-    .then((regs) => regs.forEach((r) => r.unregister()))
+    .then((regs) => regs.forEach((r) => {
+      // ...except the notifications worker, which is registered ON PURPOSE in
+      // dev (utils/webPush.js) and parked at its own scope precisely so it is
+      // distinguishable here. Evicting it every page load was silently breaking
+      // push: unregistering a worker invalidates the push subscriptions tied to
+      // it, so a subscription would save fine and then come back 410 Gone from
+      // the push service. It caches nothing, so there is no stale shell to
+      // evict — the reason this block exists does not apply to it.
+      if (r.scope.endsWith('/push-scope/')) return;
+      r.unregister();
+    }))
     .catch(() => {});
   if (typeof caches !== 'undefined' && caches.keys) {
     caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});

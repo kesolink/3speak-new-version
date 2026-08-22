@@ -345,6 +345,24 @@
                 color: #fff;
               }
             }
+
+            // A third action (ProfileLinksButton, narrow screens only) belongs
+            // directly UNDER Message rather than wrapped onto a line of its
+            // own: two columns, and the extra button claims column 2's second
+            // row, so it sits under Message and matches its width. :has keeps
+            // every profile without a links page on the plain flex row.
+            @media screen and (max-width: 1024px) {
+              &:has(.profile-links-btn) {
+                display: grid;
+                grid-template-columns: auto auto;
+                align-items: center;
+              }
+
+              .profile-links-btn {
+                grid-column: 2;
+                justify-self: stretch;
+              }
+            }
           }
 
           // @account, directly under a display name.

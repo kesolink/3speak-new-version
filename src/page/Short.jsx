@@ -162,6 +162,13 @@ function renderCaption(text) {
 
 // Track watch DURATION for a short (non-polluting — never increments the view
 // counter). On first play we open a server-measured session
+// NO ADS ON SHORTS, deliberately. This player never asks /m/session, so no spot is
+// ever stitched into a short. The only slot that could fit is pre-roll, and putting
+// a 15-second ad in front of a 12-second short is the same mistake as pre-rolling a
+// video half the audience abandons inside 15 seconds — it would deliver an
+// impression to someone who never wanted the content. If shorts ever carry ads it
+// needs its own slot type, not the mid-roll rules borrowed.
+//
 // (POST /api/watch/start); the timeupdate handler heartbeats while it plays
 // (/api/watch/beat). The backend records watched seconds + % with the viewer IP
 // into `view-durations`. Uses the embed *asset* permlink (video.permlink) — the
@@ -364,6 +371,12 @@ const VideoShort = () => {
   const recordedShortsViewsRef = useRef(new Set()); // author/permlink already view-counted
   // Active short's watch-duration session (server-measured heartbeat, non-polluting).
   const shortWatchRef = useRef({ sid: null, token: null, beatMs: 5000, lastBeatAt: 0, key: null, starting: false });
+  // Watch time only counts while this tab is the one in front. A short left
+  // playing in a background tab used to beat exactly like a watched one. There
+  // is no long-form exception here (the one in useWatchDuration covers videos
+  // past 20 minutes, where background listening is the actual use case) — a
+  // short playing out of sight is a forgotten tab, not an audience.
+  const shortVisibleRef = useRef(typeof document === 'undefined' || document.visibilityState !== 'hidden');
   const videoContainerRef = useRef(null);
   const playerRef = useRef(null); // Single persistent SDK Player instance
   const videoElRef = useRef(null); // Single persistent <video> element ref
@@ -487,6 +500,29 @@ const VideoShort = () => {
       return navigator.userActivation.hasBeenActive;
     }
     return userGestureRef.current;
+  }, []);
+
+  // Stop crediting watch time while the tab is in the background, and flush what
+  // was watched up to the moment it went away.
+  useEffect(() => {
+    const onVisibility = () => {
+      const hidden = document.visibilityState === 'hidden';
+      shortVisibleRef.current = !hidden;
+      if (hidden) shortWatchBeat(shortWatchRef, currentTimeRef.current);
+      // Back in front: re-anchor the throttle so the next beat hands the server
+      // no gap to credit for time nobody was watching.
+      else shortWatchRef.current.lastBeatAt = Date.now();
+    };
+    const onPageHide = () => {
+      shortVisibleRef.current = false;
+      shortWatchBeat(shortWatchRef, currentTimeRef.current);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+    };
   }, []);
 
   useEffect(() => {
@@ -2277,8 +2313,10 @@ const VideoShort = () => {
       // Watch-duration heartbeat while genuinely playing (throttled to beatMs;
       // the server measures the real wall-clock gap between beats + which part
       // of the timeline was watched, for the heatmap).
+      // The player keeps firing these while the tab is hidden, so visibility is
+      // checked here rather than inferred from playback.
       const W = shortWatchRef.current;
-      if (!paused && W.sid && Date.now() - W.lastBeatAt >= W.beatMs) {
+      if (!paused && shortVisibleRef.current && W.sid && Date.now() - W.lastBeatAt >= W.beatMs) {
         shortWatchBeat(shortWatchRef, currentTime);
       }
 
@@ -2512,10 +2550,10 @@ const VideoShort = () => {
       <Helmet>
         <title>
           {currentVideo?.title
-            ? `${currentVideo.title} | 3Speak`
+            ? `3S | ${currentVideo.title}`
             : currentVideo?.author
-              ? `Short by @${currentVideo.author} | 3Speak`
-              : 'Shorts | 3Speak'}
+              ? `3S | Short by @${currentVideo.author}`
+              : '3S | Shorts'}
         </title>
       </Helmet>
 

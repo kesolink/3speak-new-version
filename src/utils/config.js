@@ -212,6 +212,25 @@ const ALWAYS_ON_TEST_USERS = ['badadib', 'meno', 'tibfox', 'coolmole'];
 const isTestUser = (user) => !!user && ALWAYS_ON_TEST_USERS.includes(String(user).toLowerCase());
 const openpodsEnabledFor = (user) => ENABLE_OPENPODS || isTestUser(user);
 
+// Advertising (the /advertise page and the creator's ad opt-out in Settings).
+// OFF by default — set VITE_ENABLE_ADS=true to open it to everyone. Until then the
+// team accounts above see it, plus anyone listed in VITE_ADS_BETA_USERS so testers
+// can be added without a code change.
+//
+// This flag only decides what the UI SHOWS. It is not a security boundary: anyone
+// can read a Vite bundle or set a localStorage key. The gate that actually holds is
+// ADS_STAGE / ADS_BETA_USERS on the checker, which refuses to record an application
+// or an ad setting for an account outside the beta — and can enforce it because both
+// of those requests carry a Hive signature.
+const ENABLE_ADS = import.meta.env.VITE_ENABLE_ADS === 'true';
+const ADS_BETA_USERS = new Set(
+  (import.meta.env.VITE_ADS_BETA_USERS || '')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+);
+const adsEnabledFor = (user) => ENABLE_ADS
+  || isTestUser(user)
+  || (!!user && ADS_BETA_USERS.has(String(user).toLowerCase()));
+
 // Hosts whose live streams / rooms are kept OUT of the discovery feeds
 // (discover, follow, new). Same spirit as the checker's LEADERBOARD_EXCLUDED_USERS
 // — the account still works normally and its streams stay reachable by direct
@@ -294,6 +313,8 @@ export {
   OPENPODS_STANDALONE,
   ENABLE_OPENPODS,
   openpodsEnabledFor,
+  ENABLE_ADS,
+  adsEnabledFor,
   FEED_EXCLUDED_HOSTS,
   ENABLE_CAMERA_RECORD,
   cameraRecordEnabledFor,

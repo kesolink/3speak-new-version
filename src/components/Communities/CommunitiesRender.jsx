@@ -49,7 +49,9 @@ function CommunitiesRender() {
   };
 
   useEffect(() => {
-    document.title = '3Speak - Tokenised video communities';
+    // The tab title comes from RouteTitle like every other page. Setting
+    // document.title here used to override it, which is why this page alone kept
+    // an older brand line and the 'Communities' entry in the route table was dead.
     generate();
   }, []);
   const handleCardClick = (communityName) => {

@@ -349,16 +349,25 @@ function transformIPFSContent(content, ipfsGateway, fallbackGateways) {
 }
 
 /**
- * Open IPFS links in a new tab. That doesn't suppress the browser's download
- * prompt for a Content-Disposition: attachment response, but it keeps the user
- * from losing their place in the page when one fires. (An onclick handler here
- * would be pointless — FORBID_ATTR strips it during sanitization.)
+ * Every link that leaves 3Speak opens in a new tab.
+ *
+ * Reported from the community (2026-08-19): clicking an image wrapped in a link
+ * inside the upload form's description PREVIEW navigated the tab away, taking
+ * the whole in-progress upload with it. The same click costs a viewer their
+ * place in a playing video, and an IPFS link that answers with
+ * Content-Disposition: attachment fires a download prompt on top of that.
+ *
+ * Absolute http(s) hrefs only, and this runs AFTER Hive frontend URLs have been
+ * rewritten to app-internal ones — so /@author/permlink, /p/user and /t/tag
+ * stay in this tab, where the router handles them. An href that already carries
+ * a target is left alone. (An onclick handler here would be pointless —
+ * FORBID_ATTR strips it during sanitization.)
  */
-function preventIPFSDownloads(content) {
-  return content.replace(
-    /<a href="(https?:\/\/[^"]*(?:ipfs|bafy|Qm)[^"]*)"([^>]*)>/gi,
-    '<a href="$1" target="_blank" rel="noopener noreferrer"$2>'
-  );
+function externalLinksToNewTab(content) {
+  return content.replace(/<a href="(https?:\/\/[^"]*)"([^>]*)>/gi, (match, href, attrs) => {
+    if (/\starget\s*=/i.test(attrs)) return match;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer"${attrs}>`;
+  });
 }
 
 /** Convert Hive frontend URLs (peakd, ecency, …) to internal app links. */
@@ -472,12 +481,14 @@ export function createHiveRenderer(options = {}) {
     // we failed to switch off — either way, show it as a link, not a player.
     html = rawIframesToLinks(html);
 
-    // Direct IPFS links shouldn't yank the user out of the page.
-    html = preventIPFSDownloads(html);
-
     if (convertHiveUrls) {
       html = convertHiveUrlsToInternal(html, hiveFrontends, internalUrlPrefix);
     }
+
+    // Links off-site shouldn't yank the user out of the page. Deliberately
+    // after the Hive-URL rewrite above, so links that just became internal
+    // aren't sent to a new tab.
+    html = externalLinksToNewTab(html);
 
     html = DOMPurify.sanitize(html, DOMPURIFY_CONFIG);
 

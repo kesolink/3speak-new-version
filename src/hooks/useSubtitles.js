@@ -46,6 +46,40 @@ function loadStyle() {
 const subtitleCache = {};
 
 /**
+ * The language list for a video, or [] when it has no subtitles.
+ * Shared with the transcript panel, which needs the same list but must NOT
+ * drive the on-video overlay (that follows the viewer's own CC choice).
+ */
+export async function listSubtitleLanguages(author, permlink) {
+  if (!author || !permlink || author === 'unknown') return [];
+  try {
+    const res = await fetch(`${TRANSLATE_API_URL}/subtitles/${author}/${permlink}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Parsed cues for one language entry ({ lang, cid }), memoised per video+lang.
+ * Both the overlay and the transcript read through this, so a viewer who turns
+ * captions on after reading the transcript pays no second fetch.
+ */
+export async function loadSubtitleCues(author, permlink, langEntry) {
+  if (!langEntry?.cid) return [];
+  const cacheKey = `${author}/${permlink}/${langEntry.lang}`;
+  if (subtitleCache[cacheKey]) return subtitleCache[cacheKey];
+  const srtText = await fetchSrtWithFallback(langEntry.cid);
+  const parsed = parseSrt(srtText);
+  subtitleCache[cacheKey] = parsed;
+  return parsed;
+}
+
+export { SUBTITLE_LANG_KEY };
+
+/**
  * Hook for managing subtitle state on a video.
  * @param {string} author - Video author
  * @param {string} permlink - Video permlink

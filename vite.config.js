@@ -40,6 +40,12 @@ export default defineConfig({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.js",
+      // OFF on purpose. Push does not need it: utils/webPush.js falls back to
+      // public/push-sw.js (classic, notifications only) at its own scope, which
+      // registers in dev in every browser — including Firefox, which cannot
+      // evaluate the ES-module dev worker this option would serve. Leaving it
+      // off keeps Workbox precaching out of dev, where it only causes stale
+      // modules and confusing HMR.
       devOptions: { enabled: false },
       manifest: {
         name: "3Speak",

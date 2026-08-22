@@ -22,10 +22,12 @@ import { useGridColumns, useShortsPerRow } from '../hooks/useGridMetrics';
 import { useStreamChatMirror } from '../hooks/useStreamChatMirror';
 import { getFeedSeed } from '../utils/feedSeed';
 import ReactionPlayer from '../components/ReactionPlayer/ReactionPlayer';
+import WatchTabs from '../components/playVideo/WatchTabs';
 import { MdVideocam, MdChatBubble } from 'react-icons/md';
 import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { batchCheckHidden, isCreatorHidden } from '../utils/hiddenCreators';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
+import { createAdBreak } from '../lib/adBreak';
 import { useGatedPlayback } from '../hooks/useGatedPlayback';
 import GuestListEditor from '../components/gated/GuestListEditor';
 import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
@@ -413,12 +415,29 @@ function Watch({ v2 = false }) {
   // is the non-polluting path (mirrors the player's /play route), so preview
   // playback never inflates production view counts. See useWatchDuration.
   const sdkApiRef = useRef(new ThreeSpeakApi(getPlayerUrl()));
+  // Server-side ad insertion. Holds the mapping from the player's (stitched)
+  // timeline back to content time — see lib/adBreak.js for why that matters.
+  const adBreakRef = useRef(createAdBreak());
+  const [sponsorVisible, setSponsorVisible] = useState(false);
+  // Disclosure. Required by EU and US advertising rules, and driven off the same
+  // clock the tracker reads so it can never disagree with what is on screen.
+  useEffect(() => {
+    const ab = adBreakRef.current;
+    if (!ab.active) { if (sponsorVisible) setSponsorVisible(false); return; }
+    const inside = ab.isInside(Number(playerState?.currentTime) || 0);
+    if (inside !== sponsorVisible) setSponsorVisible(inside);
+  }, [playerState?.currentTime, sponsorVisible]);
+
   useWatchDuration({
     api: sdkApiRef.current,
     author,
     permlink,
     playerState,
     enabled: !scheduled,
+    // Report CONTENT time. Without this a stitched spot's seconds are credited as
+    // watch time on the creator's video.
+    mapPosition: (t) => adBreakRef.current.contentTime(t),
+    premium: adBreakRef.current.isPremiumViewer,
   });
 
   // Also record a normal view once playback actually starts (increments the view
@@ -595,24 +614,62 @@ function Watch({ v2 = false }) {
       return () => { active = false; };
     }
 
-    loadVideo(playerLoadId).catch(err => {
-      // A live OpenPods post has no VOD source to resolve — the live player
-      // handles playback separately, so a load failure here is expected. Don't
-      // show "unavailable" or report the stream post as a dead video.
-      if (isLiveRef.current) return;
-      console.error('[Watch] Failed to load video:', err);
-      // The player backend couldn't resolve ANY playable stream — e.g. /api/embed
-      // and /api/watch both 404 for a very old post whose media isn't indexed. No
-      // hls source is ever created, so the player's fatal onError never fires — show
-      // the "no longer available" hint from here instead of leaving a blank player.
-      // `active` guards against a stale load rejecting after we've moved to another video.
-      if (active) setPlaybackFailed(true);
-      // Also tell the checker (as the fatal path does): a post whose stream can't be
-      // resolved is dead weight in feeds. The checker re-decides from its OWN doc — it
-      // only shadow-bans a settled, published, no-stream archive video, never a
-      // still-encoding one — so this sloppy client report is safe.
-      reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
-    });
+    // Ask whether this playback carries a sponsor spot. The source is resolved
+    // here rather than letting the SDK do it, because the stitcher needs the
+    // content manifest URL to splice against. Anything short of a clear yes falls
+    // through to the ordinary path — no ad is always better than no video.
+    //
+    // Gated (paid) videos never reach this: they load on their own branch above.
+    // Someone who paid for content should no more see an ad than a Pro subscriber.
+    const viewer = (useAppStore.getState().user || '').toLowerCase() || null;
+    adBreakRef.current.reset();
+    setSponsorVisible(false);
+    (async () => {
+      try {
+        const source = await sdkApiRef.current.fetchSource(author, permlink);
+        if (!active || !source?.url) throw new Error('no source');
+        const meta = await resolveVideoMeta(sdkApiRef.current, author, permlink);
+        const spot = await adBreakRef.current.request({
+          owner: meta?.owner || author,
+          permlink: meta?.permlink || permlink,
+          viewer,
+          manifestUrl: source.url,
+        });
+        if (!active) return;
+        if (spot) {
+          // Original stays as the next fallback, so a stitcher outage degrades to
+          // ordinary playback rather than a dead player.
+          await loadVideo({
+            url: spot.manifestUrl,
+            fallbacks: [source.url, ...(source.fallbacks || [])],
+            poster: source.poster,
+          });
+          adBreakRef.current.resolve();
+          return;
+        }
+      } catch { /* no spot, or we could not resolve one — play it plainly */ }
+      if (!active) return;
+
+      // The ordinary path, unchanged in behaviour: let the SDK resolve and load.
+      loadVideo(playerLoadId).catch(err => {
+        // A live OpenPods post has no VOD source to resolve — the live player
+        // handles playback separately, so a load failure here is expected. Don't
+        // show "unavailable" or report the stream post as a dead video.
+        if (isLiveRef.current) return;
+        console.error('[Watch] Failed to load video:', err);
+        // The player backend couldn't resolve ANY playable stream — e.g. /api/embed
+        // and /api/watch both 404 for a very old post whose media isn't indexed. No
+        // hls source is ever created, so the player's fatal onError never fires — show
+        // the "no longer available" hint from here instead of leaving a blank player.
+        // `active` guards against a stale load rejecting after we've moved on.
+        if (active) setPlaybackFailed(true);
+        // Also tell the checker (as the fatal path does): a post whose stream can't be
+        // resolved is dead weight in feeds. The checker re-decides from its OWN doc — it
+        // only shadow-bans a settled, published, no-stream archive video, never a
+        // still-encoding one — so this sloppy client report is safe.
+        reportVideoUnavailable(author, permlink, videoDetails?.playUrl || null);
+      });
+    })();
     return () => { active = false; };
     // `playbackAttempt` is in the deps purely so "Try again" re-runs this load.
     // `gatedTick` re-runs this load once the gate has answered. The gate state
@@ -1615,6 +1672,11 @@ function Watch({ v2 = false }) {
         onRetryPlayback={retryPlayback}
         mediaLoading={!isLive && mediaLoading}
         videoRef={videoRef}
+        sponsorLabel={sponsorVisible ? (
+          adBreakRef.current.info?.advertiser
+            ? `${adBreakRef.current.info.label} · ${adBreakRef.current.info.advertiser}`
+            : (adBreakRef.current.info?.label || 'Sponsored')
+        ) : null}
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
         onClosePlaylist={() => setShowPlaylist(false)}
@@ -1764,28 +1826,43 @@ function Watch({ v2 = false }) {
             <div className="live-chat-column__body" ref={setLiveChatSlot} />
           </div>
         )}
-        {!isLive && isReactionPlayerVisible && reactions.length > 0 && (
-          <ReactionPlayer
-            reactions={reactions}
-            selectedIndex={selectedReactionIndex}
-            onSelectReaction={handleSelectReaction}
-            onClose={() => setReactionsVisible(false)}
-            size={reactionSize}
+        {/* Reactions and the transcript share the top of this column. With no
+            transcript to offer (or on a phone, where it just gets in the way)
+            this renders the reaction panel alone, exactly as it did before. */}
+        {!isLive && (
+          <WatchTabs
+            author={author}
+            permlink={permlink}
             currentTime={playerState.currentTime}
-            duration={playerState.duration}
-            mainIsPlaying={!playerState.paused}
-            onReactionPlay={pause}
+            onSeek={seek}
+            reactionPanel={
+              <>
+                {isReactionPlayerVisible && reactions.length > 0 && (
+                  <ReactionPlayer
+                    reactions={reactions}
+                    selectedIndex={selectedReactionIndex}
+                    onSelectReaction={handleSelectReaction}
+                    onClose={() => setReactionsVisible(false)}
+                    size={reactionSize}
+                    currentTime={playerState.currentTime}
+                    duration={playerState.duration}
+                    mainIsPlaying={!playerState.paused}
+                    onReactionPlay={pause}
+                  />
+                )}
+                {!isReactionPlayerVisible && reactions.length > 0 && (
+                  <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
+                    Show Reactions ({reactionCountLabel})
+                  </button>
+                )}
+                {reactions.length === 0 && (
+                  <button className="show-reactions-btn" onClick={handleAddReaction}>
+                    Add Reaction
+                  </button>
+                )}
+              </>
+            }
           />
-        )}
-        {!isLive && !isReactionPlayerVisible && reactions.length > 0 && (
-          <button className="show-reactions-btn" onClick={() => setReactionsVisible(true)}>
-            Show Reactions ({reactionCountLabel})
-          </button>
-        )}
-        {!isLive && reactions.length === 0 && (
-          <button className="show-reactions-btn" onClick={handleAddReaction}>
-            Add Reaction
-          </button>
         )}
 
         {suggestedVideos.length > 0 && (

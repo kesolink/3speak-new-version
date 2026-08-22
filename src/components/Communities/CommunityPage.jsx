@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getHiveClient } from '../../utils/hiveNode';
 import { useParams } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { toast } from 'sonner';
 import { Clock, TrendingUp, Users, PenLine, FileText, Coins, CalendarDays, Check, Plus } from 'lucide-react';
 import "./CommunityPage.scss";
@@ -26,6 +27,12 @@ const fmtNum = (n) => (typeof n === 'number' ? n.toLocaleString('en-US') : '—'
 function CommunityPage() {
   const { communityName: id } = useParams();
   const [dataMain, setDataMain] = useState(null);
+
+  // The tab title is the community's DISPLAY name, not the route param — that is
+  // the raw Hive id (hive-181335), which tells a reader nothing. RouteTitle lists
+  // this route as self-titled, so nothing competes for the tag. Until the bridge
+  // call returns we say "Community" rather than showing the id we are avoiding.
+  const communityTitle = dataMain?.title || 'Community';
   const [trend, setTrend] = useState(false); // false = new (default), true = trending
   const hideWatched = useAppStore(s => s.hideWatched);
   const feedUser = useAppStore(s => s.user);
@@ -190,6 +197,9 @@ function CommunityPage() {
 
   return (
     <div className="community-page-wrap">
+      <Helmet>
+        <title>{`3S | ${communityTitle}`}</title>
+      </Helmet>
       <ProfileHeader
         username={id}
         name={dataMain?.title || id}
