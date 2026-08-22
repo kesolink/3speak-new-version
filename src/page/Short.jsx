@@ -162,6 +162,13 @@ function renderCaption(text) {
 
 // Track watch DURATION for a short (non-polluting — never increments the view
 // counter). On first play we open a server-measured session
+// NO ADS ON SHORTS, deliberately. This player never asks /m/session, so no spot is
+// ever stitched into a short. The only slot that could fit is pre-roll, and putting
+// a 15-second ad in front of a 12-second short is the same mistake as pre-rolling a
+// video half the audience abandons inside 15 seconds — it would deliver an
+// impression to someone who never wanted the content. If shorts ever carry ads it
+// needs its own slot type, not the mid-roll rules borrowed.
+//
 // (POST /api/watch/start); the timeupdate handler heartbeats while it plays
 // (/api/watch/beat). The backend records watched seconds + % with the viewer IP
 // into `view-durations`. Uses the embed *asset* permlink (video.permlink) — the
@@ -2543,10 +2550,10 @@ const VideoShort = () => {
       <Helmet>
         <title>
           {currentVideo?.title
-            ? `${currentVideo.title} | 3Speak`
+            ? `3S | ${currentVideo.title}`
             : currentVideo?.author
-              ? `Short by @${currentVideo.author} | 3Speak`
-              : 'Shorts | 3Speak'}
+              ? `3S | Short by @${currentVideo.author}`
+              : '3S | Shorts'}
         </title>
       </Helmet>
 

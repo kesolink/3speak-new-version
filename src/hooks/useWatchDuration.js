@@ -37,13 +37,14 @@ import { resolveVideoMeta } from '../lib/videoMetaCache';
  * @param {string}  args.author       URL author
  * @param {string}  args.permlink     URL permlink
  * @param {object}  args.playerState  usePlayer() state ({ paused, currentTime, duration })
+ * @param {function} [args.mapPosition] player time → content time, for stitched ads
  * @param {boolean} args.enabled      gate (e.g. false for scheduled/unpublished posts)
  */
 // A video at least this long still counts while the tab is in the background —
 // people listen to long-form with the tab elsewhere on purpose.
 const BACKGROUND_OK_SECONDS = 20 * 60;
 
-export default function useWatchDuration({ api, author, permlink, playerState, enabled = true }) {
+export default function useWatchDuration({ api, author, permlink, playerState, enabled = true, mapPosition = null, premium = false }) {
   const sessionRef = useRef({ sid: null, token: null, beatMs: 5000, lastBeatAt: 0 });
   const startingRef = useRef(false);
   const key = author && author !== 'unknown' && permlink ? `${author}/${permlink}` : null;
@@ -58,8 +59,15 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
 
   // Latest playback position + rate, kept in refs so the stable beat() reads the
   // current values (position → timeline-coverage/heatmap; rate → avg-speed stat).
+  //
+  // `mapPosition` exists because of server-side ad insertion: with a spot stitched
+  // in, the player's currentTime runs ahead of the video by the ad's length. Passing
+  // that through would credit every ad second as watch time on the creator's video
+  // — and the retention data the ad forecast is built from would be poisoned by the
+  // ads it sells. Defaults to the identity, so callers with no ads are unaffected.
   const posRef = useRef(0);
-  posRef.current = Number(playerState?.currentTime) || 0;
+  const rawPos = Number(playerState?.currentTime) || 0;
+  posRef.current = typeof mapPosition === 'function' ? (Number(mapPosition(rawPos)) || 0) : rawPos;
   const rateRef = useRef(1);
   rateRef.current = Number(playerState?.playbackRate) || 1;
 
@@ -125,7 +133,8 @@ export default function useWatchDuration({ api, author, permlink, playerState, e
           const res = await fetch(`${getPlayerUrl()}/api/watch/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ owner, permlink: vPermlink, type, duration, position: posRef.current, source: '3speak', private: !!useAppStore.getState().privateMode }),
+            // `premium` marks the row as ad-free so the ad inventory forecast excludes it.
+              body: JSON.stringify({ owner, permlink: vPermlink, type, duration, position: posRef.current, source: '3speak', premium: !!premium, private: !!useAppStore.getState().privateMode }),
           });
           if (!res.ok) continue;                       // 404 for the wrong collection → try the next
           const data = await res.json().catch(() => null);

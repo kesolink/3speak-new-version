@@ -72,7 +72,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null, belowPlayerSlot = null }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null, belowPlayerSlot = null, sponsorLabel = null }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -806,6 +806,12 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                   vodAssetPending={vodAssetPending}
                   onRoomMeta={onStreamRoomMeta}
                 />
+              )}
+              {sponsorLabel && (
+                // Disclosure while a sponsor spot is playing. Rendered inside the
+                // player frame rather than as a page-level element: a filter list
+                // cannot hide it without hiding the video with it.
+                <div className="watch-sponsor-note">{sponsorLabel}</div>
               )}
               <video
                 ref={videoRef}
