@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { IoIosNotifications } from 'react-icons/io';
+import { MdNotificationsActive, MdNotificationsOff } from 'react-icons/md';
+import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
+import {
+  pushSupported, getPushState, enablePush, disablePush, syncPushSubscription,
+} from '../../utils/webPush';
 import { useHiveNotifications } from '../../hooks/useHiveNotifications';
 import {
   getNotificationRoute,
@@ -27,6 +32,51 @@ const MAX_STACKED_AVATARS = 4;
 function NotificationBell() {
   const { user, authenticated } = useAppStore();
   const [open, setOpen] = useState(false);
+
+  // Browser push, opted into from here — this dropdown IS the notifications UI,
+  // so it's where someone looks for "also tell me when I'm not on the site".
+  const [push, setPush] = useState({ supported: false, permission: 'default', subscribed: false });
+  const [pushBusy, setPushBusy] = useState(false);
+  // On mount, not just when the dropdown opens. getPushState() registers the
+  // service worker if the page hasn't got a live one, and the bell is on every
+  // page — so a tab left over from a build whose worker failed to evaluate
+  // heals itself on the next page load instead of staying permanently unable to
+  // subscribe. Registering a worker needs no permission and prompts nothing.
+  useEffect(() => {
+    if (!pushSupported()) return;
+    getPushState().then((st) => {
+      setPush(st);
+      // Server rows get pruned when a push service reports an endpoint gone, so
+      // a browser can hold a live subscription the server has forgotten. Re-assert
+      // it here rather than leaving the toggle stuck on "On" with nothing arriving.
+      if (st.subscribed && user) syncPushSubscription(user);
+    }).catch(() => {});
+  }, [user]);
+
+  // ...and again whenever the dropdown opens, so the switch reflects a change
+  // made in Settings (or another tab) without a reload.
+  useEffect(() => {
+    if (!open || !pushSupported()) return;
+    getPushState().then(setPush).catch(() => {});
+  }, [open]);
+
+  const togglePush = async () => {
+    setPushBusy(true);
+    try {
+      if (push.subscribed) {
+        await disablePush(user);
+        toast.success('Notifications turned off for this device');
+      } else {
+        await enablePush(user);
+        toast.success('You will be notified when creators you follow post');
+      }
+      setPush(await getPushState());
+    } catch (err) {
+      toast.error(err.message || 'Could not change notification settings');
+    } finally {
+      setPushBusy(false);
+    }
+  };
   const [hoveredId, setHoveredId] = useState(null);
   const ref = useRef(null);
   const navigate = useNavigate();
@@ -145,13 +195,33 @@ function NotificationBell() {
         <div className="notif-dropdown" role="menu">
           <div className="notif-dropdown-header">
             <span className="notif-dropdown-title">Notifications</span>
-            <Link
-              to="/notifications"
-              className="notif-dropdown-seeall"
-              onClick={() => setOpen(false)}
-            >
-              See all
-            </Link>
+            <div className="notif-dropdown-actions">
+              {pushSupported() && authenticated && (
+                <button
+                  type="button"
+                  className={`notif-push-toggle${push.subscribed ? ' on' : ''}`}
+                  onClick={togglePush}
+                  disabled={pushBusy || push.permission === 'denied' || push.worker === false}
+                  title={push.permission === 'denied'
+                    ? 'Notifications are blocked for this site in your browser settings'
+                    : push.worker === false
+                      ? 'This build has no service worker, so notifications cannot be registered here'
+                      : push.subscribed
+                        ? 'Stop notifying this device'
+                        : 'Get notified when creators you follow post'}
+                >
+                  {push.subscribed ? <MdNotificationsActive size={15} /> : <MdNotificationsOff size={15} />}
+                  <span>{push.subscribed ? 'On' : 'Notify me'}</span>
+                </button>
+              )}
+              <Link
+                to="/notifications"
+                className="notif-dropdown-seeall"
+                onClick={() => setOpen(false)}
+              >
+                See all
+              </Link>
+            </div>
           </div>
 
           {loading && notifications.length === 0 && (

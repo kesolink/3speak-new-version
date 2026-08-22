@@ -13,11 +13,18 @@ import { Helmet } from 'react-helmet-async';
  * (react-helmet-async lets the last-rendered value win, and we'd rather not
  * depend on mount order.)
  */
-const SELF_TITLED = ['/watch', '/shorts'];
+const SELF_TITLED = ['/watch', '/shorts', '/community/:communityName'];
 
 // First match wins. `title` may be a string or a fn of the matched params.
+// `full: true` means the string IS the whole tab title — it does not get the
+// "3S | <page>" prefix. Used by the home page, which carries the brand line
+// itself rather than being labelled like a sub-page.
+//
+// The prefix is "3S" rather than "3Speak": it matches the logo, so a tab is
+// recognisable from the mark alone, and putting it first means the platform
+// survives the truncation a narrow tab applies to the end of the string.
 const ROUTES = [
-  { path: '/', end: true, title: 'Home' },
+  { path: '/', end: true, title: '3S | Real People - Real Stories', full: true },
   { path: '/home-feed', title: 'Home Feed' },
   { path: '/follow-feed', title: 'Follow Feed' },
   { path: '/trend', title: 'Trending' },
@@ -27,7 +34,6 @@ const ROUTES = [
   { path: '/leaderboard', title: 'Leaderboard' },
   { path: '/notifications', title: 'Notifications' },
   { path: '/communities', title: 'Communities' },
-  { path: '/community/:communityName', title: (p) => p.communityName },
   { path: '/audio/:author/:permlink', title: (p) => `Audio by @${p.author}` },
   { path: '/audio', title: 'Audio' },
   { path: '/playlist/:playlistId', title: 'Playlist' },
@@ -50,12 +56,32 @@ const ROUTES = [
   { path: '/auth/login', title: 'Login' },
 ];
 
-export function resolveRouteTitle(pathname) {
+const BRAND_FALLBACK = '3Speak - Decentralized Video Platform';
+
+function matchRoute(pathname) {
   for (const r of ROUTES) {
     const m = matchPath({ path: r.path, end: r.end ?? false }, pathname);
-    if (m) return typeof r.title === 'function' ? r.title(m.params) : r.title;
+    if (m) return { route: r, params: m.params };
   }
   return null;
+}
+
+/** The page's own label, without the brand suffix. */
+export function resolveRouteTitle(pathname) {
+  const hit = matchRoute(pathname);
+  if (!hit) return null;
+  return typeof hit.route.title === 'function' ? hit.route.title(hit.params) : hit.route.title;
+}
+
+/** The exact string that goes in <title>, suffix rules applied. */
+export function resolveDocumentTitle(pathname) {
+  const hit = matchRoute(pathname);
+  const label = hit
+    ? (typeof hit.route.title === 'function' ? hit.route.title(hit.params) : hit.route.title)
+    : null;
+  // Unknown route → the plain brand title rather than a stale one.
+  if (!label) return BRAND_FALLBACK;
+  return hit.route.full ? label : `3S | ${label}`;
 }
 
 export default function RouteTitle() {
@@ -64,11 +90,9 @@ export default function RouteTitle() {
   // Let self-titling pages own the tag entirely.
   if (SELF_TITLED.some((p) => matchPath({ path: p, end: false }, pathname))) return null;
 
-  const title = resolveRouteTitle(pathname);
-  // Unknown route → fall back to the plain brand title rather than a stale one.
   return (
     <Helmet>
-      <title>{title ? `${title} | 3Speak` : '3Speak - Decentralized Video Platform'}</title>
+      <title>{resolveDocumentTitle(pathname)}</title>
     </Helmet>
   );
 }

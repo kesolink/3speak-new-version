@@ -240,13 +240,17 @@ export function EmbedUploadProvider({ children }) {
   // must be, because the upload begins the moment this step opens and the gated
   // toggle lives on that very screen. Absent on an instance that predates it,
   // in which case gating still has to be settled before the first byte.
-  const finalizeTokenRef = useRef(null);
-  const deferredPermlinkRef = useRef(null);
-  // What we actually asked for when the token was minted, so a toggle flipped
-  // afterwards against a non-deferring backend is caught instead of silently
-  // lost.
-  const tokenGatedRef = useRef(false);
+  //
+  // The deferral is deliberately NOT held in a ref. It used to be, and because
+  // one slot was shared by all three upload paths, an attempt started while an
+  // earlier one was still running would overwrite it — publish then commissioned
+  // the encode against the abandoned permlink and got a 409, while the upload
+  // that actually landed sat pinned at awaiting_encode and never encoded. It now
+  // travels as a value, returned by each uploader with the URL it produced.
   const earlyUploadPromiseRef = useRef(null);
+  // The deferral belonging to the background upload specifically, so publish can
+  // still find it when the upload finished before the user pressed the button.
+  const earlyDeferralRef = useRef(null);
   const earlyUploadStartedRef = useRef(false);
   const earlyUploadedFileRef = useRef(null); // which file the background upload used
   // The embed server chosen for this upload. Sticky for the whole lifecycle so
@@ -369,11 +373,9 @@ export function EmbedUploadProvider({ children }) {
     } catch { /* ignore */ }
     earlyEmbedUrlRef.current = '';
     earlyUploadPromiseRef.current = null;
+    earlyDeferralRef.current = null;
     earlyUploadStartedRef.current = false;
     earlyUploadedFileRef.current = null;
-    finalizeTokenRef.current = null;
-    deferredPermlinkRef.current = null;
-    tokenGatedRef.current = false;
     chosenEmbedBaseRef.current = '';
     setSelectedEndpoint('');
     setVideoUploadStatus('idle');
@@ -393,14 +395,12 @@ export function EmbedUploadProvider({ children }) {
    * video quietly going out in the clear.
    */
   const captureDeferral = useCallback((data) => {
-    tokenGatedRef.current = data?.gated === true;
-    if (data?.defer_encode === true && data?.finalize_token) {
-      finalizeTokenRef.current = data.finalize_token;
-      deferredPermlinkRef.current = data.permlink || '';
-    } else {
-      finalizeTokenRef.current = null;
-      deferredPermlinkRef.current = null;
-    }
+    const deferred = data?.defer_encode === true && !!data?.finalize_token;
+    return {
+      finalizeToken: deferred ? data.finalize_token : null,
+      permlink: deferred ? (data.permlink || '') : '',
+      gated: data?.gated === true,
+    };
   }, []);
 
   const runTusUpload = useCallback(async (generatedPermlink, uploadEndpoint = EMBED_UPLOAD_URL) => {
@@ -430,6 +430,8 @@ export function EmbedUploadProvider({ children }) {
     const tokenBase = uploadEndpoint.replace(/\/uploads\/?$/, '').replace(/\/+$/, '');
     let tusToken = null;
     let tokenEmbedUrl = '';
+    // Assigned on both the success and the mint-failure path below.
+    let deferral;
     try {
       const tokenRes = await axios.post(
         `${tokenBase}/uploads/token`,
@@ -443,12 +445,12 @@ export function EmbedUploadProvider({ children }) {
         },
         { headers: { 'X-API-Key': EMBED_API_KEY, 'Content-Type': 'application/json' } },
       );
-      captureDeferral(tokenRes.data);
+      deferral = captureDeferral(tokenRes.data);
       tusToken = tokenRes.data?.token || null;
       tokenEmbedUrl = tokenRes.data?.embed_url || '';
     } catch (tokenErr) {
       console.warn('Upload token mint failed — falling back to API-key upload (no deferral)', tokenErr);
-      captureDeferral(null);
+      deferral = captureDeferral(null);
     }
 
     const MB = 1024 * 1024;
@@ -572,7 +574,7 @@ export function EmbedUploadProvider({ children }) {
     }
     upload.start();
     await done;
-    return capturedEmbedUrl;
+    return { embedUrl: capturedEmbedUrl, deferral };
   }, [videoFile, user, fromStories, videoDuration, gated, gatedAllowlist, captureDeferral]);
 
   // Preflight-free multipart POST helper for the chunked protocol. No custom
@@ -736,18 +738,36 @@ export function EmbedUploadProvider({ children }) {
     let totalChunks = 0;
     let received = new Set();
     let embedFromServer = '';
+    let deferral = null;
 
     // Resume a live session for this exact file (survives a reload / retry).
     let stored = null;
     try { stored = localStorage.getItem(fpKey); } catch { /* ignore */ }
+    // Sessions written by builds before the deferral was persisted are a bare
+    // sessionId string; anything newer is {sessionId, deferral}.
+    let storedId = null;
+    let storedDeferral = null;
     if (stored) {
       try {
-        const st = await postForm(`${base}/upload/chunk/status`, { sessionId: stored }, null, { timeoutMs: 15000 });
+        const parsed = JSON.parse(stored);
+        storedId = parsed?.sessionId || null;
+        storedDeferral = parsed?.deferral || null;
+      } catch { storedId = stored; }
+    }
+    if (storedId) {
+      try {
+        const st = await postForm(`${base}/upload/chunk/status`, { sessionId: storedId }, null, { timeoutMs: 15000 });
         if (st && Number.isFinite(st.totalChunks)) {
-          sessionId = stored;
+          sessionId = storedId;
           totalChunks = st.totalChunks;
           chunkSize = st.chunkSize;
           received = new Set(st.received || []);
+          // A resumed session mints no token, so the deferral has to come back
+          // out of storage — otherwise publish would reach for whatever the last
+          // unrelated mint happened to leave in the refs. If it is missing, the
+          // server still parked this upload and we can no longer commission it:
+          // mark it so publish refuses instead of posting to Hive regardless.
+          deferral = storedDeferral || { finalizeToken: null, permlink: '', gated: false, lost: true };
         }
       } catch { /* expired/unknown — create a fresh session below */ }
     }
@@ -766,7 +786,7 @@ export function EmbedUploadProvider({ children }) {
       // token with the flag silently dropped, and uploading against it would
       // publish a supporters-only video in the clear. IPFS content cannot be
       // withdrawn, so failing loudly here is the only safe response.
-      captureDeferral(tokenRes.data);
+      deferral = captureDeferral(tokenRes.data);
       if (gated && tokenRes.data?.gated !== true) {
         throw new Error(
           'This upload server does not support supporters-only videos yet. ' +
@@ -833,7 +853,7 @@ export function EmbedUploadProvider({ children }) {
       chunkSize = created.chunkSize;
       embedFromServer = created.embed_url || embedFromServer;
       received = new Set(created.received || []);
-      try { localStorage.setItem(fpKey, sessionId); } catch { /* ignore */ }
+      try { localStorage.setItem(fpKey, JSON.stringify({ sessionId, deferral })); } catch { /* ignore */ }
     }
 
     // Progress = bytes the SERVER has confirmed + bytes currently in flight. The
@@ -942,7 +962,17 @@ export function EmbedUploadProvider({ children }) {
 
     const fin = await postForm(`${base}/upload/chunk/finish`, { sessionId }, null, { timeoutMs: 60000 });
     try { localStorage.removeItem(fpKey); } catch { /* ignore */ }
-    return fin.embed_url || embedFromServer || '';
+    // finish reports the permlink that actually received the bytes — the only
+    // authority on the subject. A finalize token is bound to one permlink server
+    // side, so if the two disagree the token belongs to some other upload and
+    // sending it would 403; treat that as a lost deferral rather than
+    // commissioning the wrong video.
+    const finPermlink = fin?.permlink || '';
+    if (deferral?.finalizeToken && finPermlink && deferral.permlink !== finPermlink) {
+      console.warn(`Chunked finish landed on ${finPermlink} but the deferral holds ${deferral.permlink} — discarding mismatched finalize token`);
+      deferral = { finalizeToken: null, permlink: finPermlink, gated: deferral.gated, lost: true };
+    }
+    return { embedUrl: fin.embed_url || embedFromServer || '', deferral };
   }, [user, fromStories, gated, gatedAllowlist, videoFile, videoDuration, postForm]);
 
   // TIER 3, last resort: ONE multipart POST carrying the whole file.
@@ -990,7 +1020,7 @@ export function EmbedUploadProvider({ children }) {
     // token with the flag silently dropped, and uploading against it would
     // publish a supporters-only video in the clear. IPFS content cannot be
     // withdrawn, so failing loudly here is the only safe response.
-    captureDeferral(tokenRes.data);
+    const deferral = captureDeferral(tokenRes.data);
     if (gated && tokenRes.data?.gated !== true) {
       throw new Error(
         'This upload server does not support supporters-only videos yet. ' +
@@ -1024,14 +1054,16 @@ export function EmbedUploadProvider({ children }) {
     );
 
     if (!res || !res.embed_url) throw new Error('Single-request upload did not return an embed URL');
-    return res.embed_url;
+    return { embedUrl: res.embed_url, deferral };
   }, [user, fromStories, gated, gatedAllowlist, videoFile, videoDuration, postForm]);
 
   // Upload with automatic fallback. Primary path is TUS on the least-busy host;
   // if the user forced the reliable path (checkbox) or PATCH was already detected
   // blocked this session, go straight to the chunked fallback. If TUS trips the
   // PATCH-blocked watchdog mid-attempt, switch to chunked and remember it for the
-  // rest of the session. Returns the embed URL.
+  // rest of the session. Returns { embedUrl, deferral } — the deferral belongs to
+  // whichever path actually produced the bytes, so publish can never commission
+  // the encode against an attempt that was abandoned along the way.
   const runUploadWithFallback = useCallback(async (generatedPermlink) => {
     const reliableBase = (EMBED_API_URL || '').replace(/\/+$/, '');
 
@@ -1102,28 +1134,32 @@ export function EmbedUploadProvider({ children }) {
       try {
         // Stale-client guard: if a newer build is deployed, force-reload onto it
         // BEFORE any upload starts, so nobody uploads on cached/retired code.
-        if (await reloadIfStale()) return '';   // page is reloading — bail out
+        if (await reloadIfStale()) return { embedUrl: '', deferral: null };   // page is reloading — bail out
         // TUS on the least-busy host, auto-falling back to chunked if PATCH is blocked.
-        const url = await runUploadWithFallback('');
+        const { embedUrl: url, deferral } = await runUploadWithFallback('');
         if (!url) throw new Error('No embed URL returned');
         earlyEmbedUrlRef.current = url;
+        // Pin the deferral to THIS upload. Whatever else starts and mints a
+        // token later cannot move the target the encode gets commissioned at.
+        earlyDeferralRef.current = deferral;
         setEmbedUrl(url);
         setUploadProgress(100);
         setVideoUploadStatus('done');
         setStatusText('');
-        return url;
+        return { embedUrl: url, deferral };
       } catch (err) {
         console.error('Background video upload failed:', err);
         // Allow the publish step to retry the upload inline.
         earlyUploadStartedRef.current = false;
         earlyUploadPromiseRef.current = null;
+        earlyDeferralRef.current = null;
         setVideoUploadStatus('error');
         // Say WHY, in the bar the user is actually looking at. Without this the
         // last thing on screen stays "retrying…" forever, which is
         // indistinguishable from the hang these guards exist to prevent.
         setStatusText(err?.message || 'Upload failed — please retry');
         toast.error(err?.message || 'Upload failed — please retry');
-        return '';
+        return { embedUrl: '', deferral: null };
       }
     })();
     earlyUploadPromiseRef.current = p;
@@ -1179,10 +1215,19 @@ export function EmbedUploadProvider({ children }) {
     // If the background upload (started on the "Add details" step) is running or
     // done, reuse it instead of uploading again. Wait for an in-flight one.
     let earlyUrl = earlyEmbedUrlRef.current;
+    // Travels with the bytes from here on, never out of shared state: by the
+    // time publish runs a second attempt may have started, and commissioning
+    // against its permlink strands the upload that actually landed at
+    // awaiting_encode forever.
+    let deferral = earlyDeferralRef.current;
     if (!prefilled && !earlyUrl && earlyUploadPromiseRef.current) {
       setUploading(true);
       setStatusText('Finishing video upload…');
-      try { earlyUrl = await earlyUploadPromiseRef.current; } catch { earlyUrl = ''; }
+      try {
+        const early = await earlyUploadPromiseRef.current;
+        earlyUrl = early?.embedUrl || '';
+        deferral = early?.deferral || null;
+      } catch { earlyUrl = ''; deferral = null; }
     }
     const alreadyUploaded = !prefilled && !!earlyUrl;
 
@@ -1232,7 +1277,9 @@ export function EmbedUploadProvider({ children }) {
       } else {
         // No background upload available (it failed, or the user reached publish
         // before "Add details" started one) → upload inline now, with fallback.
-        capturedEmbedUrl = await runUploadWithFallback(generatedPermlink);
+        const uploaded = await runUploadWithFallback(generatedPermlink);
+        capturedEmbedUrl = uploaded?.embedUrl || '';
+        deferral = uploaded?.deferral || null;
       }
 
       // Fallback: if no X-Embed-URL header, warn but don't use the raw TUS URL
@@ -1254,20 +1301,32 @@ export function EmbedUploadProvider({ children }) {
       // which is the whole reason for deferring — the encoder is what encrypts,
       // and an unencrypted rendition is public the moment its CID is pinned, so
       // the decision cannot be revisited afterwards.
-      if (finalizeTokenRef.current && deferredPermlinkRef.current) {
+      if (deferral?.lost) {
+        // The bytes landed, but the finalize token that goes with them is gone
+        // (a session resumed from an older build, or a token bound to a
+        // different permlink). Commissioning is impossible, and posting to Hive
+        // anyway would publish a video that stays parked and never encodes.
+        throw new Error(
+          'This upload could not be finalised because its upload session was '
+          + 'interrupted. Nothing was published. Please re-select the video and '
+          + 'upload it again.'
+        );
+      }
+
+      if (deferral?.finalizeToken && deferral?.permlink) {
         const finalizeBase = (chosenEmbedBaseRef.current || EMBED_API_URL || '').replace(/\/+$/, '');
         addMessage(gated ? 'Starting encrypted encode…' : 'Starting encode…');
         await axios.post(
-          `${finalizeBase}/video/${deferredPermlinkRef.current}/encode`,
+          `${finalizeBase}/video/${deferral.permlink}/encode`,
           { gated: !!gated, ...(gated && gatedAllowlist.length ? { allowlist: gatedAllowlist } : {}) },
           {
             headers: {
-              Authorization: `Bearer ${finalizeTokenRef.current}`,
+              Authorization: `Bearer ${deferral.finalizeToken}`,
               'Content-Type': 'application/json',
             },
           },
         );
-      } else if (gated && !tokenGatedRef.current) {
+      } else if (gated && !deferral?.gated) {
         // Not deferred, and the toggle went on after the token was minted. The
         // upload is already committed as public; encoding it now would publish
         // it in the clear, and IPFS content cannot be withdrawn. Stop before the

@@ -6,7 +6,6 @@ import { getFollowers, getRelationshipBetweenAccounts, isAccountValid } from '..
 import { isCreatorHidden as isModeratedCreatorHidden } from '../../utils/hiddenCreators';
 import { followWithAioha, isLoggedIn } from '../../hive-api/aioha';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import icon from "../../../public/images/stack.png"
 import "./UserProfilePage.scss"
 import BarLoader from '../Loader/BarLoader';
 import { Quantum } from 'ldrs/react'
@@ -16,6 +15,7 @@ import axios from 'axios';
 import { MY_VIDEOS_URL, CHECKER_URL } from '../../utils/config';
 import Card3 from '../Cards/Card3';
 import { IoMdShare, IoMdAdd } from 'react-icons/io';
+import { MdRssFeed } from 'react-icons/md';
 import { MdAdd, MdClose, MdPlayArrow, MdFlag, MdChatBubbleOutline } from 'react-icons/md';
 import ReportModal, { isReported } from '../modal/ReportModal';
 import { RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
@@ -46,6 +46,8 @@ import HiveBadges from '../HiveBadges/HiveBadges';
 import ProfileHeader from '../ProfileHeader/ProfileHeader';
 import ProfileStats from '../ProfileHeader/ProfileStats';
 import ProfileOverview from './ProfileOverview';
+import ProfileLinksButton from './ProfileLinksButton';
+import ProfileEmptyState from './ProfileEmptyState';
 
 
 
@@ -543,6 +545,10 @@ const {
             >
               <MdChatBubbleOutline /> Message
             </button>
+            {/* Narrow screens only: below 1025px the framed links page beside
+                Overview isn't rendered, so this is the way through to it. It
+                sits directly under Message (see ProfileLinksButton.scss). */}
+            <ProfileLinksButton username={user} />
           </>
         ) : null}
         badges={
@@ -575,6 +581,25 @@ const {
                     : <><IoBanOutline /> Hide</>}
               </button>
             )}
+            {/* Podcast / RSS feed for the channel. React 19 hoists the <link>
+                into <head>, which is what makes browsers and feed readers
+                auto-discover it; the button is for people who already know
+                what to do with a feed URL. */}
+            <link
+              rel="alternate"
+              type="application/rss+xml"
+              title={`${user} on 3Speak`}
+              href={`${window.location.origin}/rss/${user}.xml`}
+            />
+            <a
+              className="btn btn-secondary"
+              href={`/rss/${user}.xml`}
+              target="_blank"
+              rel="noreferrer"
+              title={`Podcast feed for @${user} — subscribe in any podcast app or RSS reader`}
+            >
+              <MdRssFeed />
+            </a>
             <button
               className="btn btn-secondary"
               onClick={async () => {
@@ -665,10 +690,7 @@ const {
     isLoading ? (
       <BarLoader />
     ) : videos?.length === 0 ? (
-      <div className='empty-wrap'>
-        <img src={icon} alt="" />
-        <span>No Video Data Available</span>
-      </div>
+      <ProfileEmptyState kind="video" isOwnProfile={isOwnProfile} username={user} />
     ) : (
       <Card3 videos={videos} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
     )
@@ -676,15 +698,12 @@ const {
     isShortsLoading ? (
       <BarLoader />
     ) : shortsVideos.length === 0 ? (
-      <div className='empty-wrap'>
-        <img src={icon} alt="" />
-        <span>No Shorts Available</span>
-      </div>
+      <ProfileEmptyState kind="shorts" isOwnProfile={isOwnProfile} username={user} />
     ) : (
       <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
     )
   ) : show === "audio" ? (
-    <UserAudioList user={user} />
+    <UserAudioList user={user} isOwnProfile={isOwnProfile} />
   ) : show === "supporters" ? (
     <Card3 videos={gatedVideos} getViewCount={getViewCount} />
   ) : show === "streams" ? (
@@ -705,15 +724,12 @@ const {
       {playlistsLoading ? (
         <BarLoader />
       ) : playlists.length === 0 ? (
-        <div className='empty-wrap'>
-          <img src={icon} alt="" />
-          <span>No Public Playlists Available</span>
-          {isOwnProfile && (
-            <button className="create-playlist-btn-empty" onClick={() => setShowCreateModal(true)}>
-              <IoMdAdd /> Create Your First Playlist
-            </button>
-          )}
-        </div>
+        <ProfileEmptyState
+          kind="playlists"
+          isOwnProfile={isOwnProfile}
+          username={user}
+          onAction={() => setShowCreateModal(true)}
+        />
       ) : (
         <PlaylistCard playlists={playlists} loading={playlistsLoading} error={playlistsError?.message} />
       )}

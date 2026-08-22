@@ -7,6 +7,78 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.49',
+    date: '2026-08-22',
+    summary:
+      'Uploads are steadier on patchy mobile connections. If an upload switches to the more compatible method partway through, it now carries straight through to publishing, so your video lands the first time.',
+  },
+  {
+    version: '1.78.48',
+    date: '2026-08-22',
+    summary:
+      'Browser notifications are here. Turn them on from the bell or in Settings → Notifications, and 3Speak can reach you even when it\'s closed: new videos, shorts and audio from creators you follow, plus replies, mentions and new followers. You choose which ones.',
+  },
+  {
+    version: '1.78.47',
+    date: '2026-08-22',
+    summary:
+      'Browser tabs and shared links now lead with 3S, so a 3Speak tab is easy to spot. Community pages show the community\'s name instead of its id.',
+  },
+  {
+    version: '1.78.46',
+    date: '2026-08-20',
+    summary:
+      'Every channel now has a podcast feed at 3speak.tv/rss/username.xml, covering their videos and audio uploads. Subscribe in any podcast app or RSS reader, or use the new feed button on a profile.',
+  },
+  {
+    version: '1.78.45',
+    date: '2026-08-20',
+    summary:
+      'Videos with subtitles now have a Transcript tab beside the video, next to Reactions. Read along, click any line to jump there, switch language, or copy the whole thing.',
+  },
+  {
+    version: '1.78.44',
+    date: '2026-08-20',
+    summary:
+      'Videos posted outside a community no longer show a community name on the watch page.',
+  },
+  {
+    version: '1.78.43',
+    date: '2026-08-20',
+    summary:
+      'The Leaderboard (/leaderboard) now only shows the note about when watch-time tracking started on the boards it actually applies to, so the 7 and 30 day boards read clean.',
+  },
+  {
+    version: '1.78.42',
+    date: '2026-08-19',
+    summary:
+      'Links in video descriptions, comments and community posts now open in a new tab, so clicking one never costs you an upload in progress or your place in a video.',
+  },
+  {
+    version: '1.78.41',
+    date: '2026-08-19',
+    summary:
+      'Profile polish: 3Speak badges now match the Hive badges beside them for a calmer header, and a channel trailer\'s description takes the full width when there is no community post next to it.',
+  },
+  {
+    version: '1.78.40',
+    date: '2026-08-19',
+    summary:
+      'Empty tabs on your own profile now point you straight at what to do next: Videos, Shorts, Audio and Playlists each offer the matching upload or create button.',
+  },
+  {
+    version: '1.78.39',
+    date: '2026-08-19',
+    summary:
+      'The Overview tab on a profile now shows what is inside each playlist: one row of videos per playlist, right above the playlist covers. Hit View all to open the whole playlist.',
+  },
+  {
+    version: '1.78.38',
+    date: '2026-08-19',
+    summary:
+      'Profiles now show a creator\'s links page next to their Overview tab (/p/username), in 3Speak\'s own colours. Fold it away with the arrow in its corner and it stays folded until you bring it back. On phones there\'s a Links button under Message.',
+  },
+  {
     version: '1.78.37',
     date: '2026-08-17',
     summary:

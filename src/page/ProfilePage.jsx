@@ -34,7 +34,6 @@ import { fetchScheduledPosts, normalizeScheduledForCard } from "../utils/schedul
 import { LineSpinner, Quantum } from "ldrs/react";
 import "ldrs/react/Quantum.css";
 
-import icon from "../../public/images/stack.png";
 import { UPLOAD_TOKEN, UPLOAD_URL } from "../utils/config";
 import "./ProfilePage.scss";
 import checker from "../../public/images/checker.png";
@@ -49,6 +48,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import ProfileHeader from "../components/ProfileHeader/ProfileHeader";
 import ProfileStats from "../components/ProfileHeader/ProfileStats";
 import ProfileOverview from "../components/Userprofilepage/ProfileOverview";
+import ProfileEmptyState from "../components/Userprofilepage/ProfileEmptyState";
 import ProfileEditModal from "../components/WelcomePrompt/ProfileEditModal";
 import { FiEdit2 } from "react-icons/fi";
 
@@ -673,10 +673,7 @@ function ProfilePage() {
           isLoading ? (
             <BarLoader />
           ) : videoListItems.length === 0 ? (
-            <div className="empty-wrap">
-              <img src={icon} alt="empty" />
-              <span>No Video Data Available</span>
-            </div>
+            <ProfileEmptyState kind="video" isOwnProfile username={user} />
           ) : (
             <Card3 videos={videoListItems} loading={isFetchingNextPage} getContentForVideo={getContentForVideo} isWatched={isWatched} getViewCount={getViewCount} />
           )
@@ -684,10 +681,7 @@ function ProfilePage() {
           isShortsLoading ? (
             <BarLoader />
           ) : shortsVideos.length === 0 ? (
-            <div className="empty-wrap">
-              <img src={icon} alt="empty" />
-              <span>No Shorts Available</span>
-            </div>
+            <ProfileEmptyState kind="shorts" isOwnProfile username={user} />
           ) : (
             <Card3 videos={shortsVideos} loading={isFetchingNextShortsPage} linkPrefix="/shorts" linkQuery={`&user=${user}`} getViewCount={getViewCount} shortsGrid />
           )
@@ -698,7 +692,7 @@ function ProfilePage() {
             <Card3 videos={gatedVideos} getViewCount={getViewCount} />
           )
         ) : show === "audio" ? (
-          <UserAudioList user={user} />
+          <UserAudioList user={user} isOwnProfile />
         ) : show === "streams" ? (
           <ProfileStreams user={user} getViewCount={getViewCount} />
         ) : show === "community" ? (
@@ -732,13 +726,12 @@ function ProfilePage() {
                 </div>
                 {/* Regular playlists (excluding Watch Later) */}
                 {playlists.filter(p => p.name !== WATCH_LATER_NAME).length === 0 && watchedCount === 0 && !playlists.find(p => p.name === WATCH_LATER_NAME) ? (
-                  <div className="empty-wrap">
-                    <img src={icon} alt="empty" />
-                    <span>No Playlists Yet</span>
-                    <button className="create-playlist-btn-empty" onClick={() => setShowCreateModal(true)}>
-                      <IoMdAdd /> Create Your First Playlist
-                    </button>
-                  </div>
+                  <ProfileEmptyState
+                    kind="playlists"
+                    isOwnProfile
+                    username={user}
+                    onAction={() => setShowCreateModal(true)}
+                  />
                 ) : (
                   <PlaylistCard playlists={playlists.filter(p => p.name !== WATCH_LATER_NAME)} loading={playlistsLoading} showPrivacyBadge={true} />
                 )}

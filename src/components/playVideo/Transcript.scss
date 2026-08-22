@@ -1,0 +1,141 @@
+@use "../../mixins.scss" as mix;
+
+// Closed by default and fully collapsed, but never unmounted: the text has to
+// stay in the DOM for crawlers (see Transcript.jsx). A closed accordion is
+// indexed normally; text painted in the background colour is not, it is treated
+// as hidden text and works against the page.
+.transcript {
+  margin: 1.5rem 0 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+
+  // Nothing but the header shows until it's opened.
+  &:not(.expanded) {
+    .transcript-head { border-bottom: 0; }
+    .transcript-body { padding-top: 0; padding-bottom: 0; }
+  }
+
+  .transcript-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--border-color);
+
+    h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+  }
+
+  .transcript-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .transcript-lang,
+  .transcript-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0.28rem 0.7rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+      background: var(--bg-hover);
+    }
+  }
+
+  .transcript-body {
+    // Closed: present, measurable, invisible. Open: a scrollable column.
+    max-height: 0;
+    overflow-y: auto;
+    padding: 0.4rem 0.35rem;
+    transition: max-height 0.25s ease;
+    scrollbar-width: thin;
+
+    &::-webkit-scrollbar { width: 6px; }
+    &::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 999px;
+    }
+  }
+
+  &.expanded .transcript-body {
+    max-height: min(70vh, 44rem);
+  }
+
+  // Each line is a seek control, so it reads as text but behaves as a button.
+  .transcript-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.22rem 0.55rem;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+    line-height: 1.45;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    &.active {
+      background: var(--accent-light);
+      color: var(--text-primary);
+      .transcript-time { color: var(--accent-primary); }
+    }
+  }
+
+  .transcript-time {
+    flex: 0 0 auto;
+    min-width: 3.1rem;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .transcript-text { flex: 1 1 auto; }
+
+  .transcript-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    padding: 0.5rem;
+    border: 0;
+    border-top: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover { color: var(--text-primary); background: var(--bg-hover); }
+  }
+
+  @include mix.respond(phone) {
+    .transcript-line { font-size: 0.82rem; }
+    .transcript-time { min-width: 2.8rem; }
+  }
+}

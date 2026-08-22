@@ -37,6 +37,11 @@ const CHECKER_URL = process.env.CHECKER_URL || 'https://checker.3speak.tv';
 // Cap the transcript we inline so a long video can't bloat the bot response.
 const MAX_TRANSCRIPT_CHARS = 20000;
 
+// Comments inlined for crawlers. Real viewer wording is the point (people search
+// the phrases other people type), so the bar is only about excluding padding.
+const MAX_COMMENTS = 15;
+const MIN_COMMENT_CHARS = 10;
+
 const BOT_USER_AGENTS = [
   'facebookexternalhit',
   'Facebot',
@@ -335,9 +340,39 @@ function srtToText(srt) {
   return joined;
 }
 
+// Subtitle files live on IPFS, and the hot CDN 500s ("block was not found
+// locally") for anything it hasn't pinned yet — as of 2026-08 that is EVERY
+// subtitle file, which is why the transcript section silently never rendered
+// despite this code existing. The checker's /subtitle-proxy fetches the CID
+// server-side, falling through the gateways to the ingest node's own IPFS API,
+// so it answers when the CDN doesn't.
+async function fetchSrt(cid, signal) {
+  try {
+    const direct = await fetch(`${BUNNY_IPFS_CDN}/ipfs/${cid}`, { signal });
+    if (direct.ok) return await direct.text();
+  } catch (_) { /* fall through to the proxy */ }
+  try {
+    const proxied = await fetch(`${CHECKER_URL}/subtitle-proxy/${cid}`, { signal });
+    if (proxied.ok) return await proxied.text();
+  } catch (_) { /* no transcript for this one */ }
+  return null;
+}
+
+/**
+ * The video's transcript, plus the languages it has captions in.
+ *
+ * English is preferred, then whatever the video actually has — a Spanish talk
+ * should be indexed by its Spanish words rather than not at all. Only ONE
+ * language is inlined on purpose: a page carrying the same speech five times
+ * over reads as duplicated, near-spam text and muddies the page's own language
+ * signal, which is the opposite of what this is for. The other languages are
+ * declared as `subtitleLanguage` instead, which is the field meant to carry them.
+ */
 async function fetchTranscript(author, permlink) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 2500);
+  // Two network hops now (list, then the file, possibly via the proxy), so the
+  // old 2.5s budget for the whole chain was tight even when the CDN answered.
+  const timer = setTimeout(() => ctrl.abort(), 6000);
   try {
     const listRes = await fetch(`${TRANSLATE_API_URL}/subtitles/${author}/${permlink}`, {
       signal: ctrl.signal,
@@ -346,16 +381,95 @@ async function fetchTranscript(author, permlink) {
     const list = await listRes.json();
     if (!Array.isArray(list) || list.length === 0) return null;
 
-    const entry = list.find((l) => l && l.lang === 'en') || list[0];
-    if (!entry || !entry.cid) return null;
+    const languages = list.map((l) => l && l.lang).filter(Boolean);
+    const preferred = list.find((l) => l && l.lang === 'en') || list[0];
+    // One unfetchable file shouldn't cost the page its transcript when the video
+    // has seven other translations sitting right there.
+    const ordered = [preferred, ...list.filter((l) => l !== preferred)];
 
-    const srtRes = await fetch(`${BUNNY_IPFS_CDN}/ipfs/${entry.cid}`, { signal: ctrl.signal });
-    if (!srtRes.ok) return null;
-    const text = srtToText(await srtRes.text());
-    if (!text) return null;
-    return { text, lang: entry.lang || 'en' };
+    for (const entry of ordered) {
+      if (!entry || !entry.cid) continue;
+      const srt = await fetchSrt(entry.cid, ctrl.signal);
+      if (!srt) continue;
+      const text = srtToText(srt);
+      if (text) return { text, lang: entry.lang || 'en', languages };
+    }
+    return null;
   } catch (_) {
     return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Strip a Hive comment body down to plain prose.
+ *
+ * URLs and markdown links go entirely, label kept — deliberately, and not just
+ * for tidiness: with no anchors in the output there is no PageRank to hand a
+ * comment spammer, which is the whole reason inlining user text is normally a
+ * risk. Images, code fences and markup go the same way, then whitespace is
+ * collapsed so the length test measures words rather than formatting.
+ */
+function commentToText(body) {
+  if (!body || typeof body !== 'string') return '';
+  return body
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[*_>#`~|-]{1,}/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Emoji and punctuation shouldn't count toward the length floor: "🔥🔥🔥🔥🔥" is
+// not a ten-character comment in any sense that matters.
+function meaningfulLength(text) {
+  return text.replace(/[^\p{L}\p{N}]/gu, '').length;
+}
+
+/**
+ * Top-level replies worth showing a crawler: substantive ones first, capped.
+ *
+ * Only direct replies (get_content_replies returns exactly those), so a long
+ * argument in a sub-thread doesn't drown the page. Ordered by payout, which is
+ * Hive's own quality signal and a far better ranking than recency.
+ */
+async function fetchComments(author, permlink) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 3500);
+  try {
+    const res = await fetch(HIVE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'condenser_api.get_content_replies',
+        params: [author, permlink],
+        id: 1,
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const replies = (data && data.result) || [];
+    if (!Array.isArray(replies)) return [];
+
+    const payout = (c) => parseFloat(c.pending_payout_value) + parseFloat(c.total_payout_value) || 0;
+    return replies
+      .map((c) => ({
+        author: c.author,
+        text: commentToText(c.body),
+        created: toIsoDate(c.created),
+        score: payout(c) * 1000 + (c.net_votes || 0),
+      }))
+      .filter((c) => c.author && meaningfulLength(c.text) >= MIN_COMMENT_CHARS)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MAX_COMMENTS);
+  } catch (_) {
+    return [];
   } finally {
     clearTimeout(timer);
   }
@@ -382,6 +496,10 @@ function buildOgHtml({
   uploadDate,
   embedUrl,
   transcript,
+  transcriptLang,
+  subtitleLanguages,
+  comments,
+  commentCount,
 }) {
   const safeTitle = escapeHtml(title);
   const safeDesc = escapeHtml(description);
@@ -417,13 +535,37 @@ function buildOgHtml({
   const isoDuration = secondsToISO8601(duration);
   if (isoDuration) ld.duration = isoDuration;
   if (transcript) ld.transcript = transcript;
+  // Which languages this video has captions in. Declared rather than inlined:
+  // the words go in once (see fetchTranscript), the availability goes here.
+  if (Array.isArray(subtitleLanguages) && subtitleLanguages.length) {
+    ld.subtitleLanguage = subtitleLanguages;
+  }
+  if (typeof commentCount === 'number' && commentCount >= 0) ld.commentCount = commentCount;
+  if (Array.isArray(comments) && comments.length) {
+    ld.comment = comments.map((c) => ({
+      '@type': 'Comment',
+      author: { '@type': 'Person', name: `@${c.author}` },
+      text: c.text,
+      ...(c.created ? { dateCreated: c.created } : {}),
+    }));
+  }
   const jsonLd = `<script type="application/ld+json">${JSON.stringify(ld).replace(
     /</g,
     '\\u003c',
   )}</script>`;
 
+  // `lang` on the section matters when the spoken language isn't the page's:
+  // it stops a Spanish transcript being read as bad English.
   const transcriptSection = transcript
-    ? `\n  <section>\n    <h2>Transcript</h2>\n    <p>${escapeHtml(transcript)}</p>\n  </section>`
+    ? `\n  <section${transcriptLang ? ` lang="${escapeHtml(transcriptLang)}"` : ''}>\n    <h2>Transcript</h2>\n    <p>${escapeHtml(transcript)}</p>\n  </section>`
+    : '';
+
+  // Rendered without a single anchor: commentToText already removed the links,
+  // so there is nothing here for a spammer to gain.
+  const commentsSection = Array.isArray(comments) && comments.length
+    ? `\n  <section>\n    <h2>Comments</h2>\n${comments
+        .map((c) => `    <article><p><b>@${escapeHtml(c.author)}</b>: ${escapeHtml(c.text)}</p></article>`)
+        .join('\n')}\n  </section>`
     : '';
 
   return `<!DOCTYPE html>
@@ -456,7 +598,7 @@ function buildOgHtml({
 <body>
   <h1>${safeTitle}</h1>
   <p><a href="${safeUrl}">${safeTitle}</a> by @${safeAuthor} on <a href="${escapeHtml(BASE_URL)}">3Speak</a></p>
-  <p>${safeDesc}</p>${transcriptSection}
+  <p>${safeDesc}</p>${transcriptSection}${commentsSection}
 </body>
 </html>`;
 }
@@ -466,7 +608,7 @@ function buildOgHtml({
 // than a broken response. Mirrors index.html's primary OG/Twitter tags.
 function buildGenericHtml(siteUrl) {
   const url = escapeHtml(siteUrl);
-  const title = '3Speak - Decentralized Video Platform';
+  const title = '3Speak | Real People - Real Stories';
   const desc =
     '3Speak is a decentralized video sharing platform built on blockchain technology. Watch, upload, and share videos while earning cryptocurrency rewards.';
   return `<!DOCTYPE html>
@@ -598,9 +740,20 @@ const server = http.createServer(async (req, res) => {
     // Transcripts only exist for Hive-backed videos; fetch by the resolved Hive
     // author/permlink (not the embed asset id), and skip on noindex pages.
     let transcript = null;
+    let transcriptLang = null;
+    let subtitleLanguages = null;
+    let comments = [];
     if (post && index) {
-      const t = await fetchTranscript(post.author, post.permlink);
+      // Both hang off the same Hive post; fetch them together rather than
+      // adding the comment round-trip on top of the transcript's.
+      const [t, c] = await Promise.all([
+        fetchTranscript(post.author, post.permlink),
+        fetchComments(post.author, post.permlink),
+      ]);
       transcript = (t && t.text) || null;
+      transcriptLang = (t && t.lang) || null;
+      subtitleLanguages = (t && t.languages) || null;
+      comments = c;
     }
 
     const html = buildOgHtml({
@@ -614,6 +767,10 @@ const server = http.createServer(async (req, res) => {
       uploadDate,
       embedUrl: `${origin}/embed?v=${video.author}/${video.permlink}`,
       transcript,
+      transcriptLang,
+      subtitleLanguages,
+      comments,
+      commentCount: post && typeof post.children === 'number' ? post.children : undefined,
     });
 
     return sendHtml(req, res, 200, html);

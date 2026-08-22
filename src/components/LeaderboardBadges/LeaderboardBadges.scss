@@ -33,43 +33,28 @@
     }
   }
 
-  // Badges render over the profile BANNER, whose brightness we don't control, so
-  // every pill is fully opaque and carries its own text colour. A translucent
-  // tint here let the dark banner bleed through and made the text unreadable.
-  // Colours are fixed rather than theme-dependent: an opaque pill keeps the same
-  // contrast against light and dark alike.
-  // 3Speak Pro — a status, not a ranking, so it gets the brand red rather than
-  // another medal tier. Opaque like the rest so it stays legible over any
-  // banner. Not a link: the Pro page lives on the owner's own wallet, so it
-  // would be a dead end on someone else's profile.
-  .lb-badge-pro {
-    background: #e31337;
-    border-color: #b30f2b;
-    color: #fff;
-    cursor: default;
-  }
-
-  .lb-badge-top1 {
-    background: #ffd75e;
-    border-color: #d9ae2b;
-    color: #4a3600;
-  }
-
-  .lb-badge-top3 {
-    background: #dbe2e8;
-    border-color: #b3bfc9;
-    color: #2f3a44;
-  }
-
-  .lb-badge-top10 {
-    background: #f0c39a;
-    border-color: #cf9a67;
-    color: #5c3313;
-  }
-
+  // One neutral pill for every badge. The medal tiers (gold / silver / bronze)
+  // plus the brand-red Pro chip read as four different systems in a single row,
+  // right under a row of Hive badges that is already neutral.
+  //
+  // Colours are .hive-badge's, to the value: the two rows sit together in the
+  // same badge block, so anything but an exact match reads as a mistake.
+  // They still render over the profile BANNER, whose brightness we don't
+  // control, so the pill keeps its opaque surface — a translucent tint let the
+  // banner bleed through and killed the contrast. Only the colour-coding went.
+  .lb-badge-pro,
+  .lb-badge-top1,
+  .lb-badge-top3,
+  .lb-badge-top10,
   .lb-badge-top50 {
-    background: #e7ebee;
-    border-color: #c3ccd4;
-    color: #3b454e;
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(148, 163, 184, 0.28);
+    color: #e2e8f0;
+
+    &:hover { border-color: rgba(148, 163, 184, 0.5); }
   }
+
+  // Not a link: the Pro page lives on the owner's own wallet, so it would be a
+  // dead end on someone else's profile.
+  .lb-badge-pro { cursor: default; }
 }
