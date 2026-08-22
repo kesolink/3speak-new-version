@@ -40,9 +40,36 @@
     margin-left: auto;   // hold the right edge even when the text wraps
   }
 
+  // Label and the cancel control share a row, so the escape hatch sits with the
+  // status it applies to rather than below the machine facts.
+  .embed-upload-progress-labelrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
   .embed-upload-progress-label {
     font-size: 9.4px;
     color: var(--text-secondary, #777);
+  }
+
+  // Outline, not a fill: this sits inside a progress readout, and a solid red
+  // block here would read as an error state rather than as a control.
+  .embed-upload-progress-cancel {
+    margin-left: auto;      // hold the right edge even when the label wraps
+    flex-shrink: 0;
+    padding: 2px 8px;
+    background: none;
+    border: 1px solid rgb(227, 19, 55);
+    border-radius: 4px;
+    color: rgb(227, 19, 55);
+    font-size: 9px;
+    line-height: 1.5;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(227, 19, 55, 0.08);
+    }
   }
 
   // Which method / step / byte counters. Sits directly under the label so the
