@@ -174,6 +174,10 @@ const LoginRedirect = ({ openLoginModal }) => {
   return null;
 };
 
+// Survives StrictMode's double mount and any remount, so the refresh prompt is
+// raised at most once per page load.
+let updatePromptShown = false;
+
 function App() {
   const location = useLocation();
   const { initializeAuth, initializeTheme, authenticated, LogOut, setUser, user: appUser } = useAppStore();
@@ -284,12 +288,14 @@ function App() {
   // prompt the user to refresh if they're on a stale (cached) build — so updates
   // don't require a manual reload. Re-checks on tab focus and every 30 min.
   useEffect(() => {
-    let shown = false;
     const promptIfNewer = async () => {
-      if (shown) return;
+      // Module-scoped, not a variable inside this effect: StrictMode mounts effects
+      // twice in dev, and a per-effect flag let each mount raise its own toast — the
+      // reason the prompt appeared as a stacked pair rather than once.
+      if (updatePromptShown) return;
       const newer = await fetchNewerVersion();
       if (!newer) return;
-      shown = true;
+      updatePromptShown = true;
       toast(`A new version (${newer}) is available`, {
         description: 'Refresh to get the latest updates.',
         duration: Infinity,

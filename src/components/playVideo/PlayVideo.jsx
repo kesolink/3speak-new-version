@@ -72,7 +72,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null, belowPlayerSlot = null, sponsorLabel = null }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null, belowPlayerSlot = null, sponsorLabel = null, adCountdown = null, bannerHit = null }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -807,12 +807,23 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                   onRoomMeta={onStreamRoomMeta}
                 />
               )}
+              {adCountdown != null && (
+                // Bottom-right, opposite the disclosure, so the two never collide.
+                // aria-live so it is announced once rather than on every tick.
+                <div className="watch-ad-countdown" role="status" aria-live="polite">
+                  Ad in {adCountdown}
+                </div>
+              )}
               {sponsorLabel && (
                 // Disclosure while a sponsor spot is playing. Rendered inside the
                 // player frame rather than as a page-level element: a filter list
                 // cannot hide it without hiding the video with it.
-                <div className="watch-sponsor-note">{sponsorLabel}</div>
+                <div className="watch-sponsor-note watch-sponsor-slot">{sponsorLabel}</div>
               )}
+              {/* Click target over a burned-in banner. Positions itself against the
+                  <video> element's displayed frame, so it belongs inside the same
+                  wrapper the video is in. */}
+              {bannerHit}
               <video
                 ref={videoRef}
                 style={{

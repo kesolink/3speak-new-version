@@ -26,6 +26,7 @@ const BASE = `${CHECKER_URL}/advertise`;
 // same order so the select reads sensibly rather than alphabetically.
 export const AD_CATEGORIES = [
   { id: 'defi', label: 'DeFi' },
+  { id: 'dapp', label: 'dApp' },
   { id: 'exchange', label: 'Exchange' },
   { id: 'gaming', label: 'Gaming' },
   { id: 'nft', label: 'NFT' },
@@ -168,6 +169,114 @@ export async function setCreatorAdPrefs(account, { adsEnabled, communitySharePct
   }));
 }
 
+/* ─── finding your own applications ───────────────────────────────────── */
+
+// Remembering the references we have already proved ownership of. The reference IS
+// the credential the rest of this file uses, so once it is on this device the next
+// visit costs no signature at all — which is the difference between a wallet prompt
+// on every page load and one prompt, ever.
+const MINE_KEY = (account) => `3speak-ads-refs:${String(account).toLowerCase()}`;
+
+export function rememberReference(account, reference) {
+  if (!account || !reference) return;
+  try {
+    const key = MINE_KEY(account);
+    const held = JSON.parse(localStorage.getItem(key) || '[]');
+    if (!held.includes(reference)) {
+      localStorage.setItem(key, JSON.stringify([reference, ...held].slice(0, 25)));
+    }
+  } catch { /* private mode, quota, cleared storage — never worth an error */ }
+}
+
+export function rememberedReferences(account) {
+  if (!account) return [];
+  try {
+    const held = JSON.parse(localStorage.getItem(MINE_KEY(account)) || '[]');
+    return Array.isArray(held) ? held.filter((r) => typeof r === 'string') : [];
+  } catch { return []; }
+}
+
+export function forgetReferences(account) {
+  try { localStorage.removeItem(MINE_KEY(account)); } catch { /* nothing to undo */ }
+}
+
+// Must match mineMessage() in 3speakchecks/routes/advertise.js exactly.
+const mineMessage = (account, timestamp) => ['3speak-ads', 'mine', account, String(timestamp)].join('|');
+
+/**
+ * Ask our own backend to prove who is logged in.
+ *
+ * Only reachable for sessions the server can actually verify — a Butter Auth cookie
+ * or a HiveSigner token. Wallet logins never come through here; they sign locally,
+ * which is the path below.
+ */
+async function identityViaThreespeak(account) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (getCurrentProvider() === Providers.HiveSigner) {
+    const token = localStorage.getItem('hivesignerToken');
+    if (!token) throw new Error('Your HiveSigner session expired — reconnect and try again.');
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const res = await fetch(`${THREESPEAK_API}/ads/identity-signature`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.signature) {
+    throw new Error(data.error || 'Could not confirm who you are logged in as.');
+  }
+  // The server signed for the account ITS session resolves to, which is the only
+  // one it can vouch for. If that is not who the page thinks is logged in, the
+  // honest thing is to stop rather than ask the checker about somebody else.
+  if (account && data.username && data.username !== String(account).toLowerCase()) {
+    throw new Error('Your session is for a different account. Log out and back in.');
+  }
+  return { signature: data.signature, timestamp: data.timestamp, account: data.username };
+}
+
+/**
+ * Every application belonging to the logged-in account.
+ *
+ * Costs one signature: a wallet prompt for Keychain/HiveAuth/PeakVault/Ledger, and
+ * nothing at all for Butter Auth and HiveSigner, whose sessions the server can
+ * verify on its own. The references it returns are cached, so this runs once per
+ * browser rather than once per visit.
+ */
+export async function fetchMyApplications(account) {
+  const name = String(account || '').toLowerCase();
+  if (!name) return [];
+
+  let signature;
+  let timestamp;
+  if (canSignLocally()) {
+    timestamp = Date.now();
+    const res = await signMessageWithAioha(
+      mineMessage(name, timestamp),
+      KeyTypes.Posting,
+      'Show your advertising applications',
+    );
+    if (!res?.success || !res.result) throw new Error('Signature was rejected.');
+    signature = res.result;
+  } else {
+    ({ signature, timestamp } = await identityViaThreespeak(name));
+  }
+
+  const body = await readJson(await fetch(`${BASE}/mine`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account: name, signature, timestamp }),
+  }));
+
+  const applications = body.applications || [];
+  applications.forEach((a) => rememberReference(name, a.reference));
+  return applications;
+}
+
+/** True when this login can prove itself with no wallet prompt at all. */
+export const identityIsSilent = () => !canSignLocally();
+
 /* ─── formatting ──────────────────────────────────────────────────────── */
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -184,9 +293,28 @@ export const formatCount = (n) => {
   return nf.format(Math.round(n));
 };
 
-/** "30s in" / "Before the video" — how a slot reads to someone buying it. */
+/**
+ * "A quarter of the way in" / "Before the video" — how a slot reads to someone
+ * buying it.
+ *
+ * Slots are a percentage of the video, not a number of seconds, so the same
+ * placement means the same relative moment on a 90-second clip and a half-hour
+ * talk. Takes `{ percent }`; `{ position }` is still understood so a campaign
+ * booked before the change keeps describing itself in the seconds it was sold as.
+ */
 export function slotLabel(slot) {
-  if (!slot || slot.position === 0) return 'Before the video';
+  if (!slot) return 'Before the video';
+
+  if (slot.percent != null) {
+    if (slot.percent === 0) return 'Before the video';
+    if (slot.percent === 25) return 'A quarter of the way in';
+    if (slot.percent === 50) return 'Halfway through';
+    if (slot.percent === 75) return 'Three quarters in';
+    return `${slot.percent}% in`;
+  }
+
+  // Legacy, in seconds.
+  if (slot.position === 0 || slot.position == null) return 'Before the video';
   if (slot.position < 60) return `${slot.position} seconds in`;
   const mins = slot.position / 60;
   const shown = Number.isInteger(mins) ? mins : mins.toFixed(1);
@@ -264,6 +392,41 @@ export async function uploadImageAsset({ file, reference }) {
   }));
 }
 
+/** The most a slogan may be. Mirrors SLOGAN_MAX in 3speakchecks/routes/advertise.js. */
+export const SLOGAN_MAX = 50;
+
+/**
+ * Save the logo and slogan the disclosure overlay draws while the ad plays.
+ *
+ * Fields left `undefined` are not touched, so saving a slogan cannot wipe a logo
+ * nobody mentioned. Pass an empty string to clear one deliberately.
+ */
+export async function saveBranding({ reference, logoUrl, slogan }) {
+  const body = { reference };
+  if (logoUrl !== undefined) body.logoUrl = logoUrl;
+  if (slogan !== undefined) body.slogan = slogan;
+  return readJson(await fetch(`${BASE}/branding`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }));
+}
+
+/**
+ * Upload a logo and attach it to the product.
+ *
+ * Same host and the same fallback chain as a thumbnail (`preferStatic` skips the
+ * user-signed step, which would otherwise put a wallet prompt in front of somebody
+ * uploading a logo and cannot run at all for logins with no client-side key).
+ * Unlike an image asset this is NOT registered as a creative: it identifies the
+ * advertiser rather than being something that could ever play.
+ */
+export async function uploadLogo({ file, reference }) {
+  const url = await uploadThumbnail(file, null, { preferStatic: true });
+  if (!url) throw new Error('Logo upload failed');
+  return saveBranding({ reference, logoUrl: url });
+}
+
 export async function uploadCreative({ file, account, reference, durationSeconds }) {
   const form = new FormData();
   form.append('owner', account);
@@ -295,19 +458,48 @@ export async function fetchCreatives(reference) {
   return readJson(await fetch(`${BASE}/creatives?reference=${encodeURIComponent(reference)}`));
 }
 
-/** Rate card + where to send payment. */
-export async function fetchPricing() {
-  return readJson(await fetch(`${BASE}/pricing`));
+/**
+ * Rate card + where to send payment.
+ *
+ * With a reference it returns THAT advertiser's daily rate, which can be negotiated
+ * away from the platform default. Without one it is the public rate card. Passing it
+ * matters: the total shown before booking has to be the total that gets charged.
+ */
+export async function fetchPricing(reference) {
+  const url = reference
+    ? `${BASE}/pricing?reference=${encodeURIComponent(reference)}`
+    : `${BASE}/pricing`;
+  return readJson(await fetch(url));
 }
 
 /* ─── campaigns ───────────────────────────────────────────────────────── */
 
-export async function createCampaign({ reference, name, days, slotPosition, markets, startAt, production }) {
+export async function createCampaign({
+  reference, format, name, days, slotPercent, spotSeconds,
+  minVideoSeconds, maxVideoSeconds, markets, startAt, production,
+}) {
   return readJson(await fetch(`${BASE}/campaigns`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reference, name, days, slotPosition, markets, startAt, production }),
+    body: JSON.stringify({
+      reference, format, name, days, slotPercent, spotSeconds,
+      minVideoSeconds, maxVideoSeconds, markets, startAt, production,
+    }),
   }));
+}
+
+/**
+ * Which positions are actually for sale for a window.
+ *
+ * A position is sold exclusively across every format, so the form has to ask before
+ * it offers: showing all five and then refusing one at submit is a worse experience
+ * than only ever offering what can be bought. Never cached — availability moves as
+ * holds lapse and flights end, and a stale "free" is a booking that fails.
+ */
+export async function fetchSlots({ days, startAt }) {
+  const q = new URLSearchParams({ days: String(days) });
+  if (startAt) q.set('startAt', String(startAt));
+  return readJson(await fetch(`${BASE}/slots?${q.toString()}`));
 }
 
 export async function fetchCampaigns(reference) {
@@ -329,11 +521,16 @@ export async function claimCampaign(campaignId) {
   }));
 }
 
-export async function attachCreative({ reference, campaignId, embedId }) {
+/**
+ * Attach a creative to a flight. A video spot is attached by `embedId`; a banner is
+ * an image and is attached by `imageUrl` — the campaign's format decides which, and
+ * the server refuses the mismatch with an answer rather than failing later.
+ */
+export async function attachCreative({ reference, campaignId, embedId, imageUrl }) {
   return readJson(await fetch(`${BASE}/campaigns/${encodeURIComponent(campaignId)}/creative`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reference, embedId }),
+    body: JSON.stringify(imageUrl ? { reference, imageUrl } : { reference, embedId }),
   }));
 }
 

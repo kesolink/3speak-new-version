@@ -231,6 +231,23 @@ const adsEnabledFor = (user) => ENABLE_ADS
   || isTestUser(user)
   || (!!user && ADS_BETA_USERS.has(String(user).toLowerCase()));
 
+// THIRD-PARTY advertising. Distinct from ENABLE_ADS above, and the distinction
+// matters: ENABLE_ADS gates OUR OWN ad system (the /advertise page, house campaigns
+// paid in HIVE/HBD, server-side stitched by the checker). This flag gates loading
+// SOMEONE ELSE'S JavaScript into the page, which is a different question legally and
+// a different question for trust.
+//
+// Consequences of turning this on, all of which are handled automatically:
+//   • The cookie banner stops claiming we run no advertising, because we would.
+//   • An `advertising` consent category appears, defaulted to off.
+//   • consent.js bumps its stored VERSION, so every existing visitor is asked again
+//     rather than being silently opted into a category they never saw.
+//
+// Nothing third-party may load unless this is true AND the visitor has consented.
+// The enforcement point is canLoadAdScripts() in lib/thirdPartyAds.js, not here:
+// a flag is a UI decision, and this one must fail closed at the loader.
+const ENABLE_THIRDPARTY_ADS = import.meta.env.VITE_ENABLE_THIRDPARTY_ADS === 'true';
+
 // Hosts whose live streams / rooms are kept OUT of the discovery feeds
 // (discover, follow, new). Same spirit as the checker's LEADERBOARD_EXCLUDED_USERS
 // — the account still works normally and its streams stay reachable by direct
@@ -315,6 +332,7 @@ export {
   openpodsEnabledFor,
   ENABLE_ADS,
   adsEnabledFor,
+  ENABLE_THIRDPARTY_ADS,
   FEED_EXCLUDED_HOSTS,
   ENABLE_CAMERA_RECORD,
   cameraRecordEnabledFor,

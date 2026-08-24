@@ -28,6 +28,12 @@ import { batchGetReputations, LOW_REP_THRESHOLD } from '../utils/reputation';
 import { batchCheckHidden, isCreatorHidden } from '../utils/hiddenCreators';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { createAdBreak } from '../lib/adBreak';
+import AdOverlay from '../components/ads/AdOverlay';
+import BannerClick from '../components/ads/BannerClick';
+
+// How long before a break the countdown appears. Three seconds is enough to register
+// without becoming its own distraction.
+const AD_COUNTDOWN_FROM = 3;
 import { useGatedPlayback } from '../hooks/useGatedPlayback';
 import GuestListEditor from '../components/gated/GuestListEditor';
 import { ThreeSpeakApi } from '@mantequilla-soft/3speak-player';
@@ -419,14 +425,57 @@ function Watch({ v2 = false }) {
   // timeline back to content time — see lib/adBreak.js for why that matters.
   const adBreakRef = useRef(createAdBreak());
   const [sponsorVisible, setSponsorVisible] = useState(false);
+  // A burned-in banner has nothing in the page to show, so this drives only the
+  // click target over it. Separate from sponsorVisible: the two placements have
+  // different windows and either can run without the other.
+  const [bannerVisible, setBannerVisible] = useState(false);
+  // Seconds left before the break, 3 → 1, or null. A mid-roll that arrives with no
+  // warning is the part people resent most; a few seconds' notice costs the
+  // advertiser nothing and turns an interruption into a beat.
+  const [adCountdown, setAdCountdown] = useState(null);
+  // Seconds until the content resumes, while the spot is on screen. The wait is
+  // the thing a viewer actually wants to know, and a number that is visibly
+  // ticking down reads as shorter than the same wait with no number on it.
+  const [resumeIn, setResumeIn] = useState(null);
   // Disclosure. Required by EU and US advertising rules, and driven off the same
   // clock the tracker reads so it can never disagree with what is on screen.
   useEffect(() => {
     const ab = adBreakRef.current;
-    if (!ab.active) { if (sponsorVisible) setSponsorVisible(false); return; }
-    const inside = ab.isInside(Number(playerState?.currentTime) || 0);
+    // `active` is the SPOT. A playback can carry a banner and no spot, so the banner
+    // is cleared on its own terms rather than with the break.
+    if (!ab.active && !ab.bannerInfo) {
+      if (sponsorVisible) setSponsorVisible(false);
+      if (bannerVisible) setBannerVisible(false);
+      if (adCountdown !== null) setAdCountdown(null);
+      if (resumeIn !== null) setResumeIn(null);
+      return;
+    }
+    if (!ab.active) {
+      if (sponsorVisible) setSponsorVisible(false);
+      if (adCountdown !== null) setAdCountdown(null);
+      if (resumeIn !== null) setResumeIn(null);
+      const t0 = Number(playerState?.currentTime) || 0;
+      const onB = ab.isBannerVisible(t0);
+      if (onB !== bannerVisible) setBannerVisible(onB);
+      return;
+    }
+    const t = Number(playerState?.currentTime) || 0;
+    const inside = ab.isInside(t);
     if (inside !== sponsorVisible) setSponsorVisible(inside);
-  }, [playerState?.currentTime, sponsorVisible]);
+
+    const onBanner = ab.isBannerVisible(t);
+    if (onBanner !== bannerVisible) setBannerVisible(onBanner);
+
+    // Only inside the last few seconds, and never while the spot is already playing.
+    const left = inside ? null : ab.secondsUntil(t);
+    const next = left != null && left <= AD_COUNTDOWN_FROM ? Math.max(1, Math.ceil(left)) : null;
+    if (next !== adCountdown) setAdCountdown(next);
+
+    // Whole seconds, so it ticks once a second rather than flickering per frame.
+    const remain = inside ? ab.secondsRemaining(t) : null;
+    const shown = remain == null ? null : Math.max(0, Math.ceil(remain));
+    if (shown !== resumeIn) setResumeIn(shown);
+  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn]);
 
   useWatchDuration({
     api: sdkApiRef.current,
@@ -624,6 +673,7 @@ function Watch({ v2 = false }) {
     const viewer = (useAppStore.getState().user || '').toLowerCase() || null;
     adBreakRef.current.reset();
     setSponsorVisible(false);
+    setBannerVisible(false);
     (async () => {
       try {
         const source = await sdkApiRef.current.fetchSource(author, permlink);
@@ -1673,10 +1723,33 @@ function Watch({ v2 = false }) {
         mediaLoading={!isLive && mediaLoading}
         videoRef={videoRef}
         sponsorLabel={sponsorVisible ? (
-          adBreakRef.current.info?.advertiser
-            ? `${adBreakRef.current.info.label} · ${adBreakRef.current.info.advertiser}`
-            : (adBreakRef.current.info?.label || 'Sponsored')
+          // A node, not a string: the disclosure now names the advertiser, their
+          // product and their slogan, and draws their logo. AdOverlay is the same
+          // component the /advertise preview uses, so what an advertiser was shown
+          // while setting it up is what a viewer actually gets.
+          <AdOverlay
+            account={adBreakRef.current.info?.brand?.account || null}
+            brand={adBreakRef.current.info?.brand || null}
+            resumeIn={resumeIn}
+          />
         ) : null}
+        adCountdown={adCountdown}
+        bannerHit={(
+          // Nothing is drawn for a banner — it is already in the picture. This is
+          // only somewhere to click, and only while it is on screen.
+          // videoElRef, NOT videoRef. `videoRef` on this page is a CALLBACK ref — a
+          // function React invokes with the element — so `videoRef.current` was
+          // always undefined, every measurement bailed before it measured anything,
+          // and the click target rendered nothing at all. `videoElRef` is the object
+          // ref that actually holds the element.
+          <BannerClick
+            videoRef={videoElRef}
+            placement={adBreakRef.current.bannerInfo?.placement}
+            visible={bannerVisible}
+            clickUrl={adBreakRef.current.bannerInfo?.brand?.clickUrl}
+            advertiser={adBreakRef.current.bannerInfo?.advertiser}
+          />
+        )}
         wrapperRef={wrapperRef}
         playlistData={showPlaylist ? playlistData : null}
         onClosePlaylist={() => setShowPlaylist(false)}

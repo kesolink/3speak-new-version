@@ -1091,6 +1091,62 @@ app.post('/api/ads/opt-out-signature', signChallengeLimiter, async (req, res) =>
   }
 })
 
+// POST /api/ads/identity-signature — prove who is logged in, so /advertise can list
+// their own applications without them keeping a reference code around.
+//
+// The checker will not answer "which applications does @x have" on a name alone:
+// behind a reference sit contact details, a stated budget, the applicant's brief and
+// our private note to them. So it wants a signature, and this endpoint produces one
+// for the logins that cannot sign in the browser.
+//
+// It deliberately does NOT use resolveDelegatedSignUser(). That helper's last branch
+// accepts the public app key plus a CLAIMED username, which is fine for a broadcast
+// the user is watching happen and useless as proof here — it would let anyone read
+// anyone's application by typing a name. Only a real server-side session counts:
+// a Butter Auth cookie, or a HiveSigner token we verify with HiveSigner itself.
+// Wallet logins (Keychain, HiveAuth, PeakVault, Ledger) hold a key in the browser
+// and sign this message client-side instead, so they lose nothing by being refused.
+app.post('/api/ads/identity-signature', signChallengeLimiter, async (req, res) => {
+  try {
+    if (!POSTING_WIF) return res.status(500).json({ error: 'Server is not configured' })
+
+    let hiveUsername = await resolveButrUser(req, res)
+    if (!hiveUsername) {
+      const authHeader = req.headers.authorization || ''
+      const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+      if (bearer) hiveUsername = await verifyHiveSignerToken(bearer)
+    }
+    // This message is shown to the user as-is on /advertise, so it says what to do
+    // rather than just refusing. A bare "Unauthorized" is the right status and the
+    // wrong sentence.
+    if (!hiveUsername) {
+      return res.status(401).json({
+        error: 'We could not confirm your login from here. Open an application with its reference instead.',
+      })
+    }
+    hiveUsername = hiveUsername.toLowerCase()
+
+    // We sign as @threespeak, so the grant has to actually exist — otherwise the
+    // checker rejects the signature and the user sees a cryptic failure instead of
+    // a reason they can act on.
+    if (!(await hasThreespeakPostingGrant(hiveUsername))) {
+      return res.status(403).json({
+        error: `Listing your applications from here needs @${HIVE_ACCOUNT} posting authority on your account. You can still look one up with its reference.`,
+      })
+    }
+
+    const timestamp = Date.now()
+    // Keep in lockstep with mineMessage() in 3speakchecks/routes/advertise.js.
+    const message = ['3speak-ads', 'mine', hiveUsername, String(timestamp)].join('|')
+    const signature = PrivateKey.fromString(POSTING_WIF).sign(cryptoUtils.sha256(Buffer.from(message, 'utf8'))).toString()
+
+    return res.json({ success: true, signature, timestamp, username: hiveUsername })
+  } catch (err) {
+    console.error('Ads identity signature error:', err.message)
+    res.status(500).json({ error: 'Signing failed' })
+  }
+})
+
 // Image upload — sign the standard images.hive.blog "ImageSigningChallenge" with
 // @threespeak's posting key and upload on the user's behalf. Lets every login
 // (incl. HiveSigner, which can't sign client-side) attach covers/thumbnails with

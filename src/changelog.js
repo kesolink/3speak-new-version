@@ -7,6 +7,14 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.52',
+    date: '2026-08-24',
+    summary:
+      'You can now copy a video\'s transcript with or without timestamps, and we remember which '
+      + 'you prefer. Publishing a video and pressing "Go To My Profile" now takes you to your '
+      + 'profile instead of back to the uploader.',
+  },
+  {
     version: '1.78.51',
     date: '2026-08-22',
     summary:

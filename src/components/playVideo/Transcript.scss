@@ -40,7 +40,8 @@
   }
 
   .transcript-lang,
-  .transcript-copy {
+  .transcript-copy,
+  .transcript-times {
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -59,6 +60,16 @@
       border-color: var(--text-secondary);
       background: var(--bg-hover);
     }
+  }
+
+  // Lit when the copy will carry timecodes, so the format is visible before
+  // the paste rather than after it.
+  .transcript-times.active {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    background: var(--accent-light);
+
+    &:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
   }
 
   .transcript-body {
@@ -137,5 +148,12 @@
   @include mix.respond(phone) {
     .transcript-line { font-size: 0.82rem; }
     .transcript-time { min-width: 2.8rem; }
+
+    // Three controls on a narrow head: the toggle keeps its icon, drops its word.
+    .transcript-actions { gap: 0.35rem; }
+    .transcript-lang,
+    .transcript-copy,
+    .transcript-times { padding: 0.28rem 0.55rem; font-size: 0.74rem; }
+    .transcript-times-label { display: none; }
   }
 }

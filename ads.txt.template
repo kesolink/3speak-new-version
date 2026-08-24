@@ -1,0 +1,54 @@
+# TEMPLATE ONLY - NOT SERVED. Copy to public/ads.txt once real seller lines exist.
+# ads.txt for 3speak.tv - IAB Tech Lab Authorized Digital Sellers
+#
+# ┌──────────────────────────────────────────────────────────────────────────┐
+# │ DO NOT DEPLOY THIS FILE TO PRODUCTION WHILE IT HAS NO SELLER RECORDS.    │
+# │                                                                          │
+# │ An absent ads.txt (404) means "unrestricted, buy from anyone". An ads.txt│
+# │ that EXISTS but lists nobody means "no one is authorised to sell this    │
+# │ inventory", which instructs every programmatic buyer to refuse. Empty is │
+# │ strictly worse than missing. Add the real lines below first.             │
+# └──────────────────────────────────────────────────────────────────────────┘
+#
+# HOW IT IS SERVED
+#   Vite copies public/ verbatim into dist/, and the nginx SPA catch-all
+#   (`location / { try_files $uri $uri/ /index.html; }` in
+#   /etc/nginx/sites-available/3speak.tv) serves any real file it finds before
+#   falling through to index.html. That is exactly how /robots.txt already works,
+#   so no nginx change is needed: the reason https://3speak.tv/ads.txt currently
+#   answers 200 with text/html is simply that the file does not exist yet.
+#
+#   Verify after deploying:
+#     curl -sI https://3speak.tv/ads.txt | grep -i content-type   # want text/plain
+#
+# RECORD FORMAT
+#   <ad system domain>, <publisher account id>, <DIRECT|RESELLER>, <certification id>
+#   The certification id is optional and network-specific. Copy the lines verbatim
+#   from each network's dashboard; do not hand-write them, and do not reformat them.
+#
+# ---------------------------------------------------------------------------
+# PLACEMENT A — upload gate (rewarded video)
+#   Paste the block from the ayeT-Studios publisher dashboard:
+#   Edit Placements → your Website placement → the ads.txt lines shown there.
+#   Required by ayeT-Studios: without these the rewarded unit will not fill.
+# ---------------------------------------------------------------------------
+
+# <ayeT-Studios lines go here>
+
+# ---------------------------------------------------------------------------
+# PLACEMENT B — watch-page pre-roll (VAST)
+#   HilltopAds lines, once that account exists. Kept in a separate block on
+#   purpose: the two placements are separate commercial relationships and may not
+#   survive together (HilltopAds prohibits incentivised traffic account-wide, so
+#   if the gate and the pre-roll cannot share a domain, this block moves with the
+#   pre-roll and the ayeT block stays with the gate's subdomain).
+# ---------------------------------------------------------------------------
+
+# <HilltopAds lines go here>
+
+# ---------------------------------------------------------------------------
+# CONTACT — who to reach about this file. Uncomment and set a real address before
+# the first network goes live; buyers and IAB crawlers both read it.
+# ---------------------------------------------------------------------------
+
+# CONTACT=
