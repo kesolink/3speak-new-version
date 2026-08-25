@@ -270,6 +270,11 @@ function StatusBadge({ status }) {
  * HBD and presses check; the server reads the payment account's own history and
  * matches the memo, so nothing about the money is taken on trust from this page.
  */
+// A shorts spot and a video roll are both VIDEO ads — they differ in shape and in
+// where they run, not in what the advertiser uploads. Every "is this a video?" branch
+// has to agree, or the shorts flow silently offers an image picker.
+const isVideoAd = (t) => t === 'video' || t === 'shorts';
+
 function CampaignPanel({ reference, pricing, creatives, onNeedCreative, production, awaitingApproval = false, lockFormat = null }) {
   const [campaigns, setCampaigns] = useState([]);
   const [days, setDays] = useState(pricing?.minDays || 7);
@@ -999,7 +1004,7 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
       )}
 
       <h3>
-        {adType === 'banner' ? 'Your banner' : (adType === 'video' ? 'Your ad video' : 'Your ad creatives')}
+        {adType === 'banner' ? 'Your banner' : (isVideoAd(adType) ? 'Your ad video' : 'Your ad creatives')}
       </h3>
       {adType !== 'banner' && (
         <p className="mkt-fine">
@@ -1059,7 +1064,7 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
           ref={inputRef}
           id="mkt-creative-file"
           type="file"
-          accept={adType === 'banner' ? 'image/*' : (adType === 'video' ? 'video/*' : 'video/*,image/*')}
+          accept={adType === 'banner' ? 'image/*' : (isVideoAd(adType) ? 'video/*' : 'video/*,image/*')}
           onChange={onFile}
           disabled={busy || atLimit}
           className="mkt-visually-hidden"
@@ -1074,7 +1079,7 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
             : (atLimit
               ? 'Replace it below to change it'
               : (adType === 'banner' ? 'Upload your banner image'
-                : (adType === 'video' ? 'Upload your ad video' : 'Upload a video or image')))}
+                : (isVideoAd(adType) ? 'Upload your ad video' : 'Upload a video or image')))}
         </label>
       </div>
       {error ? <p className="mkt-upload-error">{error}</p> : null}
@@ -1263,6 +1268,9 @@ export default function Advertise() {
   // What they are making. It decides the file type, the copy, whether the labelling
   // section applies at all, and which format step 3 books — so it is asked once,
   // here, rather than inferred later from whatever happened to be uploaded.
+  // What the wizard's plain-language choice means to the rate card. Kept as a map so
+  // a new format is one line here rather than another arm on a ternary.
+  const WIZ_FORMAT = { video: 'video_roll', banner: 'video_banner', shorts: 'shorts_roll' };
   const [wizType, setWizType] = useState('video');
 
   const [wizKilling, setWizKilling] = useState(false);
@@ -1812,6 +1820,7 @@ export default function Advertise() {
                       {[
                         { id: 'video', title: 'A video ad', blurb: 'Plays inside the video, up to 15 seconds.' },
                         { id: 'banner', title: 'A player banner', blurb: 'A still shown over the video while it plays.' },
+                        { id: 'shorts', title: 'A shorts spot', blurb: 'Plays full screen between shorts. Upright video only.' },
                       ].map((o) => (
                         <label key={o.id} className={`mkt-adtype-opt${wizType === o.id ? ' selected' : ''}`}>
                           <input
@@ -1833,7 +1842,9 @@ export default function Advertise() {
                   <p className="mkt-fine">
                     {wizType === 'banner'
                       ? 'Upload the image that will be shown over the video.'
-                      : 'Upload the video that will play, or ask us to make it. This is also where the logo and slogan shown over your ad are set.'}
+                      : (wizType === 'shorts'
+                        ? 'Upload the upright video that will play between shorts. It has to be portrait — a landscape spot plays small with black bars either side. 1080x1920 works well.'
+                        : 'Upload the video that will play, or ask us to make it. This is also where the logo and slogan shown over your ad are set.')}
                   </p>
                   <CreativePanel
                     reference={wizRef.reference}
@@ -1873,7 +1884,7 @@ export default function Advertise() {
                     creatives={creativeList}
                     production={bookProduction}
                     awaitingApproval={wizRef.status !== 'approved'}
-                    lockFormat={wizType === 'banner' ? 'video_banner' : 'video_roll'}
+                    lockFormat={WIZ_FORMAT[wizType] || 'video_roll'}
                   />
                   <div className="mkt-wiz-actions">
                     <button type="button" className="mkt-secondary" onClick={() => goStep(2)}>

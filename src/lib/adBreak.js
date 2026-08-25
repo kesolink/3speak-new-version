@@ -36,6 +36,34 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * never localStorage, never a cookie. It dies with the tab, so one browsing session
  * is capped without any durable anonymous identifier existing.
  */
+/**
+ * When this viewer should next be offered an ad, whoever the advertiser is.
+ *
+ * 🚨 This is a TIMESTAMP, not an identifier, and the distinction is the whole reason
+ * it is allowed to be durable at all. CAP_ID below is deliberately per page load
+ * because a persistent random id is a viewing profile in all but name. An expiry is
+ * not: it is one number, identical for everyone who saw an ad at the same moment,
+ * with no history behind it and nothing to correlate across visits.
+ *
+ * It exists so the quiet period survives navigating to the next video — the whole
+ * point being that five videos should not carry five different advertisers in a row.
+ * Server-side is authoritative for anyone signed in; this is what covers the rest.
+ *
+ * Read and written through try/catch: storage throws outright in some privacy modes,
+ * and an ad decision must never be the thing that breaks a page.
+ */
+const COOLDOWN_KEY = '3speak-ad-last-seen';
+export function lastAdSeenAt() {
+  try {
+    const n = Number(localStorage.getItem(COOLDOWN_KEY));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch { return null; }
+}
+export function rememberAdSeen(at = Date.now()) {
+  try { localStorage.setItem(COOLDOWN_KEY, String(Math.round(at))); }
+  catch { /* storage unavailable — the server still caps a signed-in viewer */ }
+}
+
 const CAP_ID = (() => {
   try {
     const a = new Uint8Array(12);
@@ -98,11 +126,20 @@ export function createAdBreak() {
         const res = await fetch(`${AD_BASE}/m/session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ owner, permlink, viewer: viewer || null, manifestUrl, capId: CAP_ID }),
+          // `lastAdAt` is the quiet period travelling with the viewer rather than
+          // with an identity we refuse to keep. The server treats it as a reason to
+          // withhold an ad, never as a reason to grant one.
+          body: JSON.stringify({
+            owner, permlink, viewer: viewer || null, manifestUrl, capId: CAP_ID,
+            lastAdAt: lastAdSeenAt(),
+          }),
         });
         if (!res.ok) return null;
         const data = await res.json();
         premium = data?.premium === true;
+        // Stamped as soon as the server hands one over, not when it finishes playing:
+        // a viewer who skips away mid-spot has still had their ad for this window.
+        if (data?.ad?.manifestUrl || data?.banner?.manifestUrl) rememberAdSeen();
 
         // Kept whether or not there is also a spot: a playback can carry a banner
         // alone, and then the banner's manifest is the one to load.

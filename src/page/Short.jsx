@@ -1,3 +1,6 @@
+import { SHORTS_ADS_ENABLED } from '../utils/config';
+import { countShortWatched, requestShortsAd } from '../lib/shortsAd';
+import ShortsAdOverlay from '../components/ads/ShortsAdOverlay';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -234,6 +237,12 @@ const VideoShort = () => {
   // Optional comment input under the short (Settings → "Comment bar on shorts").
   const shortsCommentBar = useAppStore((s) => s.shortsCommentBar);
   const { translate: onTranslate, getTranslation, clearTranslation, translating } = useTranslation();
+  // The spot currently interrupting the feed, or null. Held here rather than in the
+  // videos array on purpose: an ad is not a short, and injecting one into the feed
+  // would hand it comments, votes, an author and a permlink it does not have.
+  const [shortsAd, setShortsAd] = useState(null);
+  const [adSecondsLeft, setAdSecondsLeft] = useState(0);
+  const adBusyRef = useRef(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentIndexRef = useRef(0);
   currentIndexRef.current = currentIndex;
@@ -821,6 +830,27 @@ const VideoShort = () => {
     setTranslatedCaption(null);
 
     // Update tracking refs
+    // One short finished. Counted on ADVANCE rather than on open, so a short that was
+    // scrolled past without watching does not pay into the cadence.
+    if (SHORTS_ADS_ENABLED && prevIndex !== currentIndex && prevIndex >= 0) {
+      countShortWatched();
+      const finished = videos[prevIndex];
+      if (!adBusyRef.current && finished) {
+        adBusyRef.current = true;
+        requestShortsAd({
+          owner: finished.author,
+          permlink: finished.permlink || finished.hivePermlink,
+          viewer: (useAppStore.getState().user || '').toLowerCase() || null,
+        }).then((spot) => {
+          // A spot only interrupts if the feed has not moved on again while we asked.
+          if (spot && currentIndexRef.current === currentIndex) {
+            setShortsAd(spot);
+            setAdSecondsLeft(Math.round(Number(spot.durationSeconds) || 0));
+          }
+        }).finally(() => { adBusyRef.current = false; });
+      }
+    }
+
     prevIndexRef.current = currentIndex;
     prevVideoIdRef.current = currentVid.id;
 
@@ -868,6 +898,52 @@ const VideoShort = () => {
       };
     }
   }, [currentIndex, videos, sendCommandToVideo]);
+
+  // Play the spot through the SAME persistent player the feed uses, then give the
+  // short back.
+  //
+  // 🚨 There is exactly one <video> on this page and there cannot be a second — iOS
+  // will not play two. So the spot borrows the feed's player rather than mounting its
+  // own, which is why this effect both loads it and is responsible for restoring what
+  // was there.
+  //
+  // The countdown is driven by the SERVER-REPORTED duration rather than by a player
+  // `ended` event. Not because the event is wrong, but because it is the one thing
+  // here that cannot be checked on this box (no H.264 decoder in any browser), and a
+  // missed `ended` would strand a viewer on a finished ad with no way forward. A
+  // timer plus a Skip button cannot strand anybody.
+  useEffect(() => {
+    if (!SHORTS_ADS_ENABLED || !shortsAd) return undefined;
+    const player = playerRef.current;
+    if (player && !player.destroyed) {
+      player.load({ url: shortsAd.manifestUrl }).catch((err) => {
+        // A spot that will not load must never cost the viewer their feed.
+        console.error('[VideoShort] shorts spot failed to load:', err);
+        setShortsAd(null);
+      });
+    }
+    const tick = setInterval(() => setAdSecondsLeft((n) => (n > 0 ? n - 1 : 0)), 1000);
+    return () => clearInterval(tick);
+  }, [shortsAd]);
+
+  // When the spot is done — its time is up, or the viewer skipped — put the short back.
+  const endShortsAd = useCallback(() => {
+    setShortsAd(null);
+    setAdSecondsLeft(0);
+    const player = playerRef.current;
+    const vid = videos[currentIndexRef.current];
+    if (player && !player.destroyed && vid) {
+      const cached = prefetchedSourcesRef.current.get(vid.id);
+      player.load(cached || `${vid.author}/${vid.permlink}`)
+        .then(() => playPlayerWithMuteSync(player))
+        .catch((err) => console.error('[VideoShort] could not resume after the spot:', err));
+    }
+  }, [videos]);
+
+  useEffect(() => {
+    if (!shortsAd || adSecondsLeft > 0) return;
+    endShortsAd();
+  }, [shortsAd, adSecondsLeft, endShortsAd]);
 
   // Force-show fallback: if the player hasn't fired ready after 6s, show it anyway and try playing
   useEffect(() => {
@@ -2575,6 +2651,14 @@ const VideoShort = () => {
           {/* Single SDK video player — only the current video gets a <video> element.
               Upcoming videos are prefetched (API + manifest) so they load fast on swipe.
               iOS only allows one active <video> at a time. */}
+          {SHORTS_ADS_ENABLED && shortsAd && (
+            <ShortsAdOverlay
+              brand={shortsAd.brand}
+              secondsLeft={adSecondsLeft}
+              canSkip={adSecondsLeft <= 0 || adSecondsLeft < (Number(shortsAd.durationSeconds) || 0) - 4}
+              onSkip={endShortsAd}
+            />
+          )}
           {currentVideo && (
             <video
               key="shorts-player"
