@@ -177,6 +177,43 @@ export async function setCreatorAdPrefs(account, { adsEnabled, communitySharePct
 // on every page load and one prompt, ever.
 const MINE_KEY = (account) => `3speak-ads-refs:${String(account).toLowerCase()}`;
 
+/**
+ * The enrollment in progress, so a refresh resumes where it left off.
+ *
+ * Kept separately from the remembered-reference list: that one is "products I can
+ * open", this one is "the product I am part way through enrolling", which is a
+ * different question and has a step attached to it.
+ */
+const WIZARD_KEY = (account) => `3speak-ads-wizard:${String(account).toLowerCase()}`;
+
+export function readWizard(account) {
+  if (!account) return null;
+  try {
+    const v = JSON.parse(localStorage.getItem(WIZARD_KEY(account)) || 'null');
+    return v && typeof v.reference === 'string' ? v : null;
+  } catch { return null; }
+}
+
+export function rememberWizard(account, reference, step, adType) {
+  if (!account || !reference) return;
+  try {
+    // The ad type belongs here with the step. It decides the file types, the copy
+    // and which format step 3 books, so losing it on a refresh silently reverted a
+    // banner enrollment to a video one.
+    const prev = readWizard(account) || {};
+    localStorage.setItem(WIZARD_KEY(account), JSON.stringify({
+      reference,
+      step,
+      adType: adType || prev.adType || 'video',
+    }));
+  } catch { /* private mode, quota — never worth an error */ }
+}
+
+
+export function clearWizard(account) {
+  try { localStorage.removeItem(WIZARD_KEY(account)); } catch { /* nothing to undo */ }
+}
+
 export function rememberReference(account, reference) {
   if (!account || !reference) return;
   try {
@@ -277,6 +314,15 @@ export async function fetchMyApplications(account) {
 /** True when this login can prove itself with no wallet prompt at all. */
 export const identityIsSilent = () => !canSignLocally();
 
+/** Abandon an enrollment and delete what it created. Pending products only. */
+export async function discardProduct(reference) {
+  return readJson(await fetch(`${BASE}/product/discard`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reference }),
+  }));
+}
+
 /* ─── formatting ──────────────────────────────────────────────────────── */
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -303,10 +349,15 @@ export const formatCount = (n) => {
  * booked before the change keeps describing itself in the seconds it was sold as.
  */
 export function slotLabel(slot) {
-  if (!slot) return 'Before the video';
+  // A banner is burned INTO the picture, so it never precedes anything: at 0% it
+  // starts with the video rather than playing before it. Calling that "before the
+  // video" describes a roll, and would have an advertiser expecting their banner to
+  // show while the video had not started.
+  const zeroLabel = slot && slot.banner ? 'At the beginning of the video' : 'Before the video';
+  if (!slot) return zeroLabel;
 
   if (slot.percent != null) {
-    if (slot.percent === 0) return 'Before the video';
+    if (slot.percent === 0) return zeroLabel;
     if (slot.percent === 25) return 'A quarter of the way in';
     if (slot.percent === 50) return 'Halfway through';
     if (slot.percent === 75) return 'Three quarters in';
@@ -314,7 +365,7 @@ export function slotLabel(slot) {
   }
 
   // Legacy, in seconds.
-  if (slot.position === 0 || slot.position == null) return 'Before the video';
+  if (slot.position === 0 || slot.position == null) return zeroLabel;
   if (slot.position < 60) return `${slot.position} seconds in`;
   const mins = slot.position / 60;
   const shown = Number.isInteger(mins) ? mins : mins.toFixed(1);
@@ -496,9 +547,11 @@ export async function createCampaign({
  * than only ever offering what can be bought. Never cached — availability moves as
  * holds lapse and flights end, and a stale "free" is a booking that fails.
  */
-export async function fetchSlots({ days, startAt }) {
+export async function fetchSlots({ days, startAt, format }) {
   const q = new URLSearchParams({ days: String(days) });
   if (startAt) q.set('startAt', String(startAt));
+  // Availability is per surface: a banner at 25% does not consume the roll at 25%.
+  if (format) q.set('format', String(format));
   return readJson(await fetch(`${BASE}/slots?${q.toString()}`));
 }
 

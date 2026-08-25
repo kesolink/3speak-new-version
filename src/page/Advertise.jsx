@@ -15,6 +15,10 @@ import {
   fetchMyApplications,
   rememberReference,
   rememberedReferences,
+  rememberWizard,
+  readWizard,
+  clearWizard,
+  discardProduct,
   identityIsSilent,
   uploadCreative,
   uploadImageAsset,
@@ -46,6 +50,9 @@ const INVENTORY_STALE_MS = 10 * 60 * 1000;
 // cannot deliver yet. Flip to true to bring back both the "Who watches" panel and
 // the market chips on the form; the backend has accepted `markets` all along.
 const SHOW_MARKETS = false;
+
+/** The enrollment steps, in the order they have to happen. */
+const WIZARD_STEPS = ['Your product', 'Your ad', 'Book a slot'];
 
 const EMPTY_FORM = {
   projectName: '',
@@ -263,9 +270,12 @@ function StatusBadge({ status }) {
  * HBD and presses check; the server reads the payment account's own history and
  * matches the memo, so nothing about the money is taken on trust from this page.
  */
-function CampaignPanel({ reference, pricing, creatives, onNeedCreative, production }) {
+function CampaignPanel({ reference, pricing, creatives, onNeedCreative, production, awaitingApproval = false, lockFormat = null }) {
   const [campaigns, setCampaigns] = useState([]);
   const [days, setDays] = useState(pricing?.minDays || 7);
+  // When it should start. Optional: blank means "as soon as it is approved and paid",
+  // which is what most people want and what the server already did on its own.
+  const [startAt, setStartAt] = useState('');
   // What is being bought. Everything below reads from the chosen format's own
   // record — its rate, its maximum length, whether it has a position at all — so
   // there is no second place where a product's rules are written down.
@@ -301,7 +311,12 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   const formats = pricing?.formats || [];
   // Default to the first format the server offers rather than naming one here: the
   // registry decides what exists and in what order.
-  const fmt = formats.find((f) => f.key === formatKey) || formats[0] || null;
+  // In the wizard the format was settled in "Your ad": a banner was uploaded, or a
+  // video was. Offering the choice again here invites the one combination that
+  // cannot work — booking a roll against an image — and the attach would only
+  // refuse it later, after they had picked days, length and a slot.
+  const offered = lockFormat ? formats.filter((f) => f.key === lockFormat) : formats;
+  const fmt = offered.find((f) => f.key === formatKey) || offered[0] || null;
 
   // Availability is per WINDOW, so it is re-read when the length of the flight
   // changes. Failure is silent and leaves every slot selectable — the server still
@@ -311,11 +326,11 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
     // that HAS a position, so a stale list for an unpositioned one is never seen.
     if (!fmt?.positioned) return undefined;
     let live = true;
-    fetchSlots({ days: Number(days) })
+    fetchSlots({ days: Number(days), startAt: startAt || undefined, format: fmt?.key })
       .then((r) => { if (live) setSlotState(r.slots || null); })
       .catch(() => { if (live) setSlotState(null); });
     return () => { live = false; };
-  }, [days, fmt?.positioned]);
+  }, [days, startAt, fmt?.positioned, fmt?.key]);
 
   // Mid-roll first, and pre-roll last with its warning: the honest recommendation is
   // not the one with the biggest number on it.
@@ -323,6 +338,17 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
     const list = (pricing?.slotPercents || []).slice();
     return list.sort((a, b) => a - b);
   }, [pricing]);
+  // Taken slots come from the rate card, matched to the format being booked: a roll
+  // at 25% does not consume the banner at 25%, they are different surfaces.
+  //
+  // The server counts a slot as taken only when an ad is ACTUALLY RUNNING there —
+  // approved, paid, in window, creative ready. A slot merely requested by someone
+  // still waiting for review stays open, because holding inventory for an advertiser
+  // nobody has approved would let anyone reserve the rate card by filling in a form.
+  // Burned into the picture rather than spliced before it, which changes what the
+  // positions are called and whether pre-roll's warning applies.
+  const isBanner = fmt?.creativeKind === 'image';
+
   const slotTaken = (p) => {
     const row = slotState?.find((x) => x.percent === p);
     return row ? !row.available : false;
@@ -352,6 +378,31 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   const videoRangeOk = !(Number.isFinite(minVideoNum) && Number.isFinite(maxVideoNum)
     && minVideoNum > maxVideoNum);
 
+  // The earliest start we will accept: tomorrow, in the viewer's own timezone. Not
+  // today — a flight still has to be approved and paid before anything runs, so a
+  // start of "today" is a promise the pipeline cannot keep, and a start in the past
+  // was only ever silently clamped to now by the server. Built from the local date
+  // parts on purpose: toISOString is UTC and would offer yesterday to anyone west of
+  // it.
+  const earliestISO = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+  // `min` on a date input stops the PICKER, not a typed or pasted value, so the same
+  // rule is checked here as well — and again on the server, which is the only copy
+  // that actually decides.
+  const startOk = !startAt || startAt >= earliestISO;
+  // What they actually bought, spelled out. "7 days from the 3rd" is a sum nobody
+  // should have to do while deciding whether to buy.
+  const runsUntil = useMemo(() => {
+    if (!startAt || !Number(days)) return null;
+    const end = new Date(`${startAt}T00:00:00`);
+    if (Number.isNaN(end.getTime())) return null;
+    end.setDate(end.getDate() + Number(days));
+    return end.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }, [startAt, days]);
+
   const productionFee = wantProduction ? (pricing?.productionFeeHbd || 0) : 0;
   // Must match priceForDays() in 3speakchecks/utils/adModel.js: days x rate x
   // seconds. The quote shown here and the price the server writes have to agree.
@@ -378,6 +429,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         // value the advertiser never chose.
         slotPercent: fmt?.positioned ? Number(chosenSlot) : undefined,
         spotSeconds: Number(chosenLength),
+        startAt: startAt || undefined,
         minVideoSeconds: Number.isFinite(minVideoNum) && minVideoNum > 0 ? minVideoNum : undefined,
         maxVideoSeconds: Number.isFinite(maxVideoNum) && maxVideoNum > 0 ? maxVideoNum : undefined,
         production: wantProduction ? { requested: true, brief: brief.trim() } : undefined,
@@ -450,17 +502,57 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
     <div className="mkt-campaigns">
       <h3>Your bookings</h3>
 
+      {/* Said before they choose, not after they pay. Slots are held by approval, not
+          by booking, so a position picked now is a request rather than a reservation
+          — and somebody reviewed ahead of you may take it. */}
+      {awaitingApproval && (
+        <p className="mkt-note">
+          <MdInfoOutline aria-hidden="true" />
+          <span>
+            You can book now, while we review you. We cannot promise the position yet:
+            another advertiser may have applied for the same slot before you, and slots
+            are settled when we approve, not when they are booked. If yours is taken by
+            then we will come back to you before anything runs or is charged.
+          </span>
+        </p>
+      )}
+
       <form className="mkt-book" onSubmit={onBook}>
         {/* The type comes first and the rest of the form follows from it: the three
             products differ in price, in length, in what you supply and in whether a
             position is even yours to choose. */}
-        <FormatPicker formats={formats} value={fmt?.key} onChange={(k) => { setFormatKey(k); setSlotPct(null); setSpotSeconds(null); }} />
+        {lockFormat ? (
+          <p className="mkt-fine mkt-locked-format">
+            Booking a <strong>{fmt?.label || lockFormat}</strong>, to match the ad you uploaded.
+            {' '}Change it in <em>Your ad</em> if that is not what you meant.
+          </p>
+        ) : (
+          <FormatPicker formats={offered} value={fmt?.key} onChange={(k) => { setFormatKey(k); setSlotPct(null); setSpotSeconds(null); }} />
+        )}
 
         {/* Grouped by what each field describes. Days, length and placement are the
             booking itself; the two duration fields are about the videos it may run
             on, which is a different question and was reading as more booking fields. */}
         <fieldset className="mkt-group">
           <legend>The booking</legend>
+        <div className="mkt-field">
+          <label htmlFor="mkt-start">Starts <span className="mkt-optional">optional</span></label>
+          <input
+            id="mkt-start"
+            type="date"
+            min={earliestISO}
+            value={startAt}
+            onChange={(e) => setStartAt(e.target.value)}
+          />
+          <span className={startOk ? 'mkt-hint' : 'mkt-upload-error'}>
+            {!startOk
+              ? 'The earliest start is tomorrow — a flight has to be approved and paid first.'
+              : runsUntil
+                ? `Runs to ${runsUntil}.`
+                : 'Leave blank to start as soon as it is approved and paid.'}
+          </span>
+        </div>
+
         <div className="mkt-field">
           <label htmlFor="mkt-days">Days</label>
           <input
@@ -492,16 +584,33 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
           </span>
         </div>
 
+        </fieldset>
+
+        {/* Its own group. Where the ad falls inside the video is a different question
+            from how long the flight runs, and sitting in the same box as Days and
+            Length made it read as another property of the booking. */}
         {/* Only for formats that HAVE a position. The pre-upload spot plays at the
             one moment it can play, so a placement field there would be something an
             advertiser fills in that changes nothing. */}
+        {/* Placement and video-length targeting stack in one column beside the
+            booking. Side by side as three equal groups, the placement hint had a
+            third of the width and wrapped to five lines. */}
+        <div className="mkt-group-col">
         {fmt?.positioned ? (
+        <fieldset className="mkt-group">
+          <legend>Placement</legend>
         <div className="mkt-field">
-          <label htmlFor="mkt-slot">Placement</label>
+          <label htmlFor="mkt-slot">When in the video</label>
           <select id="mkt-slot" value={chosenSlot} onChange={(e) => setSlotPct(Number(e.target.value))}>
             {slots.map((p) => (
               <option key={p} value={p} disabled={slotTaken(p)}>
-                {p === 0 ? 'Before the video (not recommended)' : slotLabel({ percent: p })}
+                {/* The "not recommended" warning is about a PRE-ROLL: an ad that plays
+                    before the video, to people who were about to leave. A banner at 0%
+                    is not that — it appears with the video, so the caveat does not
+                    apply and neither does the wording. */}
+                {p === 0 && !isBanner
+                  ? 'Before the video (not recommended)'
+                  : slotLabel({ percent: p, banner: isBanner })}
                 {slotTaken(p) ? ' — taken for these dates' : ''}
               </option>
             ))}
@@ -513,8 +622,8 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
             them watching. One advertiser per position at a time.
           </span>
         </div>
-        ) : null}
         </fieldset>
+        ) : null}
 
         {/* Both ends optional. Leaving one blank means "no limit on that end", so
             "at least three minutes" does not force you to invent a maximum. */}
@@ -546,6 +655,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         </div>
         </fieldset>
         ) : null}
+        </div>
         <div className="mkt-book-total">
           {total != null ? (
             <span>
@@ -560,8 +670,8 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
           ) : null}
           <button
             type="submit"
-            className="mkt-outline"
-            disabled={busy || briefTooShort || !lengthOk || !videoRangeOk
+            className="mkt-primary"
+            disabled={busy || briefTooShort || !lengthOk || !videoRangeOk || !startOk
               || (fmt?.positioned && slotTaken(chosenSlot))}
           >
             {busy ? 'Booking…' : 'Book this ad'}
@@ -580,7 +690,11 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
               </div>
               <div className="mkt-creative-meta">
                 {c.days} days · {c.spotSeconds ? `${c.spotSeconds}s · ` : ''}
-                {slotLabel({ percent: c.slotPercent, position: c.slotPosition })} · {c.priceHbd} HBD
+                {slotLabel({
+                  percent: c.slotPercent,
+                  position: c.slotPosition,
+                  banner: c.format === 'video_banner',
+                })} · {c.priceHbd} HBD
                 {c.forecast != null ? ` · forecast ${formatCount(c.forecast)} play${c.forecast === 1 ? '' : 's'}` : ''}
               </div>
 
@@ -818,11 +932,17 @@ function BrandPanel({ reference, account, productName, initialLogoUrl, initialSl
   );
 }
 
-function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives, pending, production, offer, brand }) {
+function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives, pending, production, offer, brand, adType = null, single = false }) {
   const [creatives, setCreatives] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const inputRef = useRef(null);
+
+  // One file when the wizard asks for one. A booking runs a single creative, so
+  // offering "add another" mid-enrollment invites a library nobody asked for and a
+  // question ("which of these runs?") the flow cannot answer yet.
+  const atLimit = single && creatives.length >= 1;
+
 
   const refresh = useCallback(() => {
     fetchCreatives(reference)
@@ -878,25 +998,42 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
         />
       )}
 
-      <h3>Your ad creatives</h3>
+      <h3>
+        {adType === 'banner' ? 'Your banner' : (adType === 'video' ? 'Your ad video' : 'Your ad creatives')}
+      </h3>
+      {adType !== 'banner' && (
+        <p className="mkt-fine">
+          Upload the video you want to run. It is never posted to Hive and never appears
+          in any feed &mdash; it goes through the same encoder as everything else so it
+          plays cleanly inside a break, and then waits for us to watch it.
+          {maxSeconds ? ` Up to ${maxSeconds} seconds.` : null}
+        </p>
+      )}
       <p className="mkt-fine">
-        Upload the video you want to run. It is never posted to Hive and never appears
-        in any feed &mdash; it goes through the same encoder as everything else so it
-        plays cleanly inside a break, and then waits for us to watch it.
-        {maxSeconds ? ` Up to ${maxSeconds} seconds.` : null}
-      </p>
-      <p className="mkt-fine">
-        {/* Images used to be assets and nothing else. They are now the whole of the
-            player-banner format, so this says what one is FOR rather than what it
-            cannot do. The exact shape rules come from the server's rate card, so
-            there is no second copy of them to fall out of step. */}
-        Images too. A still is what a <strong>player banner</strong> is made of &mdash;
-        {bannerSpec
-          ? ` ${bannerSpec.recommended} works well, and it needs to be a strip between `
-            + `${bannerSpec.minAspect}:1 and ${bannerSpec.maxAspect}:1.`
-          : ' it needs to be a wide strip.'}
-        {' '}A logo or key art that is not that shape is still worth uploading: we can
-        build an ad video around it.
+        {/* Written for the format being bought. Telling someone making a banner about
+            video encoding, or someone making a spot about aspect ratios, is how a
+            form ends up feeling like it was written for somebody else. */}
+        {adType === 'banner'
+          ? (
+            <>
+              A player banner is a single still, shown over the video while it plays.
+              {bannerSpec
+                ? ` ${bannerSpec.recommended} works well, and it needs to be a strip between `
+                  + `${bannerSpec.minAspect}:1 and ${bannerSpec.maxAspect}:1.`
+                : ' It needs to be a wide strip.'}
+            </>
+          )
+          : (
+            <>
+              Images too. A still is what a <strong>player banner</strong> is made of &mdash;
+              {bannerSpec
+                ? ` ${bannerSpec.recommended} works well, and it needs to be a strip between `
+                  + `${bannerSpec.minAspect}:1 and ${bannerSpec.maxAspect}:1.`
+                : ' it needs to be a wide strip.'}
+              {' '}A logo or key art that is not that shape is still worth uploading: we can
+              build an ad video around it.
+            </>
+          )}
       </p>
       {pending && !production && (
         <p className="mkt-fine">
@@ -906,7 +1043,7 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
           the video, say so on the form and skip this.
         </p>
       )}
-      {production && (
+      {production && adType !== 'banner' && (
         // They already asked us to make it, so "upload the video you want to run" is
         // the wrong instruction to leave standing. What we want from them is raw
         // material, and only if they have any.
@@ -922,13 +1059,22 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
           ref={inputRef}
           id="mkt-creative-file"
           type="file"
-          accept="video/*,image/*"
+          accept={adType === 'banner' ? 'image/*' : (adType === 'video' ? 'video/*' : 'video/*,image/*')}
           onChange={onFile}
-          disabled={busy}
+          disabled={busy || atLimit}
           className="mkt-visually-hidden"
         />
-        <label htmlFor="mkt-creative-file" className={`mkt-outline mkt-upload-btn${busy ? ' disabled' : ''}`}>
-          {busy ? 'Uploading…' : 'Upload a video or image'}
+        <label
+          htmlFor="mkt-creative-file"
+          className={`mkt-outline mkt-upload-btn${busy || atLimit ? ' disabled' : ''}`}
+          aria-disabled={atLimit ? 'true' : undefined}
+        >
+          {busy
+            ? 'Uploading…'
+            : (atLimit
+              ? 'Replace it below to change it'
+              : (adType === 'banner' ? 'Upload your banner image'
+                : (adType === 'video' ? 'Upload your ad video' : 'Upload a video or image')))}
         </label>
       </div>
       {error ? <p className="mkt-upload-error">{error}</p> : null}
@@ -990,7 +1136,20 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
                 {c.note ? ` · ${c.note}` : ''}
               </span>
               {c.kind === 'image' ? (
-                <a href={c.imageUrl} target="_blank" rel="noopener noreferrer">View it</a>
+                // The banner itself, not a link to it. Whether a still works as a
+                // banner is a question about how it LOOKS, and "View it" made you
+                // leave the page to answer it. Shown on a dark ground because that
+                // is what it will sit on, and a white logo on white here would read
+                // as a broken upload.
+                <a
+                  className="mkt-creative-thumb"
+                  href={c.imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open the full size"
+                >
+                  <img src={c.imageUrl} alt="Your banner" loading="lazy" />
+                </a>
               ) : c.previewUrl && c.encoded ? (
                 <a href={c.previewUrl} target="_blank" rel="noopener noreferrer">Watch it back</a>
               ) : <span className="mkt-creative-meta">still encoding</span>}
@@ -1028,18 +1187,6 @@ export default function Advertise() {
     retry: false,
   });
 
-  // The rate card also carries the slot length, which is the limit the upload
-  // control enforces. One source for it rather than a number typed into the UI.
-  // Keyed on the open application, because a negotiated rate is per advertiser: the
-  // page shows the public rate card until you open yours, and your own rate after.
-  // Quoting the default and then charging the negotiated one would be the worst of
-  // both, so the key has to include the reference.
-  const { data: pricing } = useQuery({
-    queryKey: ['advertise-pricing', lookupRef.trim() || null],
-    queryFn: () => fetchPricing(lookupRef.trim() || undefined),
-    staleTime: INVENTORY_STALE_MS,
-    retry: false,
-  });
 
   // Offer the markets we can actually deliver rather than a full country list —
   // picking a market with no audience here helps nobody. Empty while SHOW_MARKETS
@@ -1098,10 +1245,80 @@ export default function Advertise() {
   });
 
   const myApps = user ? mine : null;
-  const approvedApps = (myApps || []).filter((a) => a.status === 'approved');
+  // What the wizard is working on: the product step 1 just created, or the one a
   // "Have us make the video": chosen in the spot panel, charged on the flight, so
   // it cannot live inside either one.
   const [bookProduction, setBookProduction] = useState({ wanted: false, brief: '' });
+
+  // The enrollment wizard. `wizRef` is the product once step 1 has created it, which
+  // is what unlocks the later steps: there is nothing to upload to, or book against,
+  // until it exists.
+  const [wizStep, setWizStep] = useState(1);
+  // Seeded from storage the first time a saved enrollment is seen, then left alone
+  // so the user can move freely. `seededFor` is the reference it was seeded for, so
+  // a different product seeds again but the same one never re-snaps.
+  const seededFor = useRef(null);
+  const [wizExit, setWizExit] = useState(false);
+  const [wizKill, setWizKill] = useState(false);
+  // What they are making. It decides the file type, the copy, whether the labelling
+  // section applies at all, and which format step 3 books — so it is asked once,
+  // here, rather than inferred later from whatever happened to be uploaded.
+  const [wizType, setWizType] = useState('video');
+
+  const [wizKilling, setWizKilling] = useState(false);
+
+  // An enrollment in progress survives a refresh. Without this, submitting step 1
+  // and reloading dropped you back on an empty form with a product already created
+  // server-side — the worst of both, since re-submitting then hits the duplicate
+  // guard. Read once per account; the query re-fetches the product it names.
+  const saved = useMemo(() => readWizard(user), [user, refsVersion]);
+
+  // The restore. Deliberately an assignment during render rather than an effect:
+  // it has to be in place for the FIRST paint, or the wizard shows step 1 and the
+  // wrong ad type for a frame before correcting itself.
+  if (saved?.reference && seededFor.current !== saved.reference) {
+    seededFor.current = saved.reference;
+    if (saved.step && saved.step !== wizStep) setWizStep(saved.step);
+    if (saved.adType && saved.adType !== wizType) setWizType(saved.adType);
+  }
+  const { data: wizSaved } = useQuery({
+    queryKey: ['advertise-wizard', user, saved?.reference],
+    queryFn: () => fetchApplication(saved.reference).then((r) => ({ ...r, reference: saved.reference })),
+    enabled: !!user && !!saved?.reference,
+    staleTime: 30 * 1000,
+    retry: false,
+  });
+
+  // previous visit left half-finished.
+  const wizRef = (receipt && receipt.reference) ? receipt : (wizSaved || null);
+  // Math.max() used to decide this, so that a restored step won on first render.
+  // It also meant "Back to your ad" did nothing: setting step 2 while storage still
+  // said 3 resolved to max(2,3) = 3, every time. The restored value now seeds the
+  // state once, and after that the state is simply the truth.
+  const wizAt = wizStep;
+
+  /** Move the wizard, remembering where it got to and what it is making. */
+  const goStep = (n, type) => {
+    setWizStep(n);
+    if (wizRef?.reference) rememberWizard(user, wizRef.reference, n, type || wizType);
+  };
+
+  // The rate card also carries the slot length, which is the limit the upload
+  // control enforces. One source for it rather than a number typed into the UI.
+  // Keyed on the open application, because a negotiated rate is per advertiser: the
+  // page shows the public rate card until you open yours, and your own rate after.
+  // Quoting the default and then charging the negotiated one would be the worst of
+  // both, so the key has to include the reference.
+  const { data: pricing } = useQuery({
+    // Whichever product is in play: the one opened from My products, or the one the
+    // wizard is enrolling. Keyed on lookupRef alone, the wizard never passed a
+    // reference at all and quoted the PUBLIC rate card while booking against an
+    // advertiser who had been given their own rate.
+    queryKey: ['advertise-pricing', lookupRef.trim() || wizRef?.reference || null],
+    queryFn: () => fetchPricing(lookupRef.trim() || wizRef?.reference || undefined),
+    staleTime: INVENTORY_STALE_MS,
+    retry: false,
+  });
 
   // The page was one long scroll that mixed three unrelated jobs: reading what is
   // for sale, filling in a form, and managing work already in flight. Tabs so each
@@ -1109,7 +1326,7 @@ export default function Advertise() {
   const [tab, setTab] = useState('general');
   const TABS = [
     { id: 'general', label: 'General' },
-    { id: 'apply', label: 'New product' },
+    { id: 'wizard', label: 'Enroll your ad' },
     { id: 'mine', label: 'My products' },
   ];
 
@@ -1159,7 +1376,9 @@ export default function Advertise() {
       // On this device from now on, so the next visit finds it without a signature.
       rememberReference(hiveAccount, res.reference);
       setRefsVersion((v) => v + 1);   // so it shows up under "Your applications" now
-      setReceipt({ ...res, hiveAccount, production: form.wantProduction });
+      setWizStep(2);                  // step 1 produced the product the rest hangs off
+      rememberWizard(hiveAccount, res.reference, 2);
+      setReceipt({ ...res, hiveAccount, production: form.wantProduction, projectName: form.projectName });
       setForm(EMPTY_FORM);
       toast.success('Product registered. We will review it');
     } catch (err) {
@@ -1199,208 +1418,10 @@ export default function Advertise() {
     }
   }
 
-  return (
-    <div className="mkt-page">
-      <SEOHead
-        title="Advertise on 3Speak videos"
-        description="Put a short ad inside videos on 3Speak, paid in HBD or HIVE. Every advertiser is reviewed by hand."
-        url="https://3speak.tv/advertise"
-      />
-      <header className="mkt-header">
-        <MdCampaign className="mkt-header-icon" aria-hidden="true" />
-        <div>
-          <h1>Advertise on 3Speak videos</h1>
-          <p className="mkt-lede">
-            Your ad plays <strong>inside</strong> the video rather than in a box beside it, so
-            it reaches people whether or not they run an ad blocker.
-          </p>
-        </div>
-      </header>
-
-      <div className="mkt-tabs" role="tablist" aria-label="Advertising">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            id={`mkt-tab-${t.id}`}
-            aria-selected={tab === t.id}
-            aria-controls={`mkt-panel-${t.id}`}
-            className={`mkt-tab${tab === t.id ? ' selected' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-            {t.id === 'mine' && myApps?.length ? (
-              <span className="mkt-tab-count">{myApps.length}</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      <div
-        role="tabpanel"
-        id="mkt-panel-general"
-        aria-labelledby="mkt-tab-general"
-        hidden={tab !== 'general'}
-      >
-      {/* Three cards for the three things this page deals in, in the order you meet
-          them. It replaced a four-step "how it works" list because the steps did not
-          say what the nouns WERE, and the page is full of them: people could not tell
-          whether they were filling in a product, a video or a booking. Numbered
-          because the order is real: no booking without a product. */}
-      <section className="mkt-intro">
-        <h2>How it works</h2>
-        <p className="mkt-intro-lede">
-          Three things, and each one holds the next.
-        </p>
-        <ol className="mkt-steps">
-          <li>
-            <strong>Your product</strong>
-            <span>
-              Whatever you want to advertise. Tell us about it once and a person reads it.
-              Advertising something different later means a new product, reviewed on its
-              own.
-            </span>
-          </li>
-          <li>
-            <strong>Your ad videos</strong>
-            <span>
-              The clip that plays inside someone&apos;s video, up to 15 seconds. Upload as
-              many as you like under one product, or ask us to make one. We watch each one
-              before it can run.
-            </span>
-          </li>
-          <li>
-            <strong>Your bookings</strong>
-            <span>
-              When your ad runs, where in the video it falls, and what it costs. Book as
-              many as you like under one product. Each booking uses one of your ad videos
-              and starts once your payment lands.
-            </span>
-          </li>
-        </ol>
-        <p className="mkt-fine">
-          Bookings are priced per second of ad, per day, never by the thousand impressions.
-          Nothing runs in front of anyone until both your product and the ad video have been
-          approved.
-        </p>
-      </section>
-
-      <section className="mkt-section">
-        <h2>What you would be buying</h2>
-        <InventoryPanel data={inventory} isLoading={isLoading} error={error} />
-      </section>
-
-      <section className="mkt-section">
-        <h2>How it is priced</h2>
-        {pricing?.pricePerSecondDayHbd ? (
-          // Straight from /advertise/pricing rather than typed into the copy: this is
-          // the number the booking will actually charge, and a hardcoded price is a
-          // promise the server has no idea it made.
-          <p className="mkt-headline-price">
-            <strong>{pricing.pricePerSecondDayHbd} HBD</strong> per second of spot, per day
-            {pricing.minDays && pricing.maxCreativeSeconds ? (
-              <span className="mkt-hint">
-                {' '}· a {pricing.maxCreativeSeconds}s spot for the {pricing.minDays}-day minimum
-                is {Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000} HBD,
-                and a shorter spot costs proportionally less
-              </span>
-            ) : null}
-          </p>
-        ) : null}
-        <p>
-          Spots are sold as a flat booking — your spot runs across the network for a fixed
-          period, at a fixed price in HBD. We do not sell by the thousand impressions: at
-          this scale that would mean quoting numbers too small to mean anything, and it
-          rewards padding the count instead of finding the right audience.
-        </p>
-        <p>
-          You are quoted against the forecast above and reported against what actually
-          played. If delivery falls short of the forecast, the difference comes back as
-          credit on your next booking.
-        </p>
-      </section>
-
-      <section className="mkt-section mkt-creators">
-        <h2>If you are a creator</h2>
-        <p>
-          Spots run across the network by default, and a share of what they earn goes to the
-          creator whose video carried them and to the community it was posted in. You can turn
-          ads off for your own videos at any time &mdash; a video with ads switched off is
-          removed from the availability figures above as well, so nothing is sold that we have
-          promised not to use.
-        </p>
-      </section>
-      </div>
-
-      <div
-        role="tabpanel"
-        id="mkt-panel-apply"
-        aria-labelledby="mkt-tab-apply"
-        hidden={tab !== 'apply'}
-      >
-      <section className="mkt-section">
-        <h2>Tell us about your product</h2>
-
-        {/* An approved advertiser can apply again, but only a NEW product needs it.
-            Without saying so the obvious reading of a visible form is "apply again to
-            run more", which would put them back in a review queue for something they
-            are already cleared for. */}
-        {approvedApps.length > 0 && !receipt && (
-          <p className="mkt-note">
-            <MdInfoOutline aria-hidden="true" />
-            <span>
-              You are already approved for{' '}
-              <strong>{approvedApps.map((a) => a.projectName).join(', ')}</strong>. To run more
-              of that, make another booking from{' '}
-              <button type="button" className="mkt-linkish" onClick={() => {
-                setLookupRef(approvedApps[0].reference);
-                setLookup(approvedApps[0]);
-                setTab('mine');
-              }}>My products</button>{' '}
-              rather than registering it again. Use this form for a{' '}
-              <strong>different product</strong>, which we review separately.
-            </span>
-          </p>
-        )}
-
-        {receipt ? (
-          <div className="mkt-receipt">
-            <StatusBadge status={receipt.status || 'pending'} />
-            <p>{receipt.message || 'Your product is with us.'}</p>
-            <p className="mkt-reference">
-              Your reference: <code>{receipt.reference}</code>
-            </p>
-            <p className="mkt-fine">
-              Keep it. It is the only way to open this product from another browser, and we
-              never ask for an account name to look one up.
-            </p>
-
-            {/* The upload, here rather than behind approval. Someone who has just
-                applied is exactly the person with the file open and the page in
-                front of them; making them wait for a decision and come back is how
-                a spot ends up described in words instead of attached. */}
-            <CreativePanel
-              reference={receipt.reference}
-              account={receipt.hiveAccount}
-              maxSeconds={pricing?.maxCreativeSeconds}
-              bannerSpec={pricing?.formats?.find((f) => f.key === 'video_banner')?.creativeSpec}
-              pending={receipt.status !== 'approved'}
-              production={!!receipt.production}
-            />
-
-            <button type="button" className="mkt-secondary" onClick={() => setReceipt(null)}>
-              Register another product
-            </button>
-          </div>
-        ) : !user ? (
-          <div className="mkt-panel mkt-panel-muted">
-            <p style={{ margin: 0 }}>
-              Log in with the Hive account you want to advertise from. The product is tied to
-              that account, and it is the wallet the booking is paid from.
-            </p>
-          </div>
-        ) : (
+  // The product form, defined once and rendered in two places: the Apply tab and
+  // step 1 of the wizard. Duplicating it would mean two forms drifting apart on a
+  // page whose whole problem was that it had too many places to fill things in.
+  const productForm = (
           <form className="mkt-form" onSubmit={onSubmit}>
             {/* Not an input any more. The account is whoever is logged in: typing it
                 invited a typo in the one field that decides who owns the application
@@ -1544,8 +1565,356 @@ export default function Advertise() {
               <span className="mkt-fine">Reviewed by a person. We do not accept every product.</span>
             </div>
           </form>
-        )}
+  );
+
+  return (
+    <div className="mkt-page">
+      <SEOHead
+        title="Advertise on 3Speak videos"
+        description="Put a short ad inside videos on 3Speak, paid in HBD or HIVE. Every advertiser is reviewed by hand."
+        url="https://3speak.tv/advertise"
+      />
+      <header className="mkt-header">
+        <MdCampaign className="mkt-header-icon" aria-hidden="true" />
+        <div>
+          <h1>Advertise on 3Speak videos</h1>
+          <p className="mkt-lede">
+            Your ad plays <strong>inside</strong> the video rather than in a box beside it, so
+            it reaches people whether or not they run an ad blocker.
+          </p>
+        </div>
+      </header>
+
+      <div className="mkt-tabs" role="tablist" aria-label="Advertising">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`mkt-tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`mkt-panel-${t.id}`}
+            className={`mkt-tab${tab === t.id ? ' selected' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+            {t.id === 'mine' && myApps?.length ? (
+              <span className="mkt-tab-count">{myApps.length}</span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+
+      <div
+        role="tabpanel"
+        id="mkt-panel-general"
+        aria-labelledby="mkt-tab-general"
+        hidden={tab !== 'general'}
+      >
+      {/* Three cards for the three things this page deals in, in the order you meet
+          them. It replaced a four-step "how it works" list because the steps did not
+          say what the nouns WERE, and the page is full of them: people could not tell
+          whether they were filling in a product, a video or a booking. Numbered
+          because the order is real: no booking without a product. */}
+      <section className="mkt-intro">
+        <h2>How it works</h2>
+        <p className="mkt-intro-lede">
+          Three things, and each one holds the next.
+        </p>
+        <ol className="mkt-steps">
+          <li>
+            <strong>Your product</strong>
+            <span>
+              Whatever you want to advertise. Tell us about it once and a person reads it.
+              Advertising something different later means a new product, reviewed on its
+              own.
+            </span>
+          </li>
+          <li>
+            <strong>Your ad videos</strong>
+            <span>
+              The clip that plays inside someone&apos;s video, up to 15 seconds. Upload as
+              many as you like under one product, or ask us to make one. We watch each one
+              before it can run.
+            </span>
+          </li>
+          <li>
+            <strong>Your bookings</strong>
+            <span>
+              When your ad runs, where in the video it falls, and what it costs. Book as
+              many as you like under one product. Each booking uses one of your ad videos
+              and starts once your payment lands.
+            </span>
+          </li>
+        </ol>
+        <p className="mkt-fine">
+          Bookings are priced per second of ad, per day, never by the thousand impressions.
+          Nothing runs in front of anyone until both your product and the ad video have been
+          approved.
+        </p>
       </section>
+
+      {/* The way in. The overview explains the thing; this is the one control that
+          starts it, so it sits above the detail rather than under it. */}
+      <button type="button" className="mkt-enroll-cta" onClick={() => { setWizStep(wizRef ? 2 : 1); setTab('wizard'); }}>
+        <MdCampaign aria-hidden="true" />
+        Enroll your ad on 3Speak
+      </button>
+
+      <section className="mkt-section">
+        <h2>What you would be buying</h2>
+        <InventoryPanel data={inventory} isLoading={isLoading} error={error} />
+      </section>
+
+      <section className="mkt-section">
+        <h2>How it is priced</h2>
+        {pricing?.pricePerSecondDayHbd ? (
+          // Straight from /advertise/pricing rather than typed into the copy: this is
+          // the number the booking will actually charge, and a hardcoded price is a
+          // promise the server has no idea it made.
+          <p className="mkt-headline-price">
+            <strong>{pricing.pricePerSecondDayHbd} HBD</strong> per second of spot, per day
+            {pricing.minDays && pricing.maxCreativeSeconds ? (
+              <span className="mkt-hint">
+                {' '}· a {pricing.maxCreativeSeconds}s spot for the {pricing.minDays}-day minimum
+                is {Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000} HBD,
+                and a shorter spot costs proportionally less
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+        <p>
+          Spots are sold as a flat booking — your spot runs across the network for a fixed
+          period, at a fixed price in HBD. We do not sell by the thousand impressions: at
+          this scale that would mean quoting numbers too small to mean anything, and it
+          rewards padding the count instead of finding the right audience.
+        </p>
+        <p>
+          You are quoted against the forecast above and reported against what actually
+          played. If delivery falls short of the forecast, the difference comes back as
+          credit on your next booking.
+        </p>
+      </section>
+
+      <section className="mkt-section mkt-creators">
+        <h2>If you are a creator</h2>
+        <p>
+          Spots run across the network by default, and a share of what they earn goes to the
+          creator whose video carried them and to the community it was posted in. You can turn
+          ads off for your own videos at any time &mdash; a video with ads switched off is
+          removed from the availability figures above as well, so nothing is sold that we have
+          promised not to use.
+        </p>
+      </section>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="mkt-panel-wizard"
+        aria-labelledby="mkt-tab-wizard"
+        hidden={tab !== 'wizard'}
+      >
+        <section className="mkt-section">
+          {/* One flow instead of three places to be. Each step is a thing the
+              advertiser has to produce anyway; the wizard only decides the order and
+              refuses to ask for the next one before the last one exists. */}
+          <ol className="mkt-wiz-nav">
+            {WIZARD_STEPS.map((label, i) => {
+              const n = i + 1;
+              const state = n < wizAt ? ' done' : (n === wizAt ? ' current' : '');
+              return (
+                <li key={label} className={`mkt-wiz-step${state}`} aria-current={n === wizStep ? 'step' : undefined}>
+                  <span className="mkt-wiz-num">{n < wizStep ? '✓' : n}</span>
+                  <span>{label}</span>
+                </li>
+              );
+            })}
+          </ol>
+
+          {wizRef && (
+            <div className="mkt-wiz-cancel">
+              <span className="mkt-fine">
+                Working on <strong>{wizRef.projectName || 'your product'}</strong> ·{' '}
+                <code>{wizRef.reference}</code>
+              </span>
+              <button type="button" className="mkt-linkish" onClick={() => setWizKill(true)}>
+                Cancel and delete
+              </button>
+            </div>
+          )}
+
+          {wizKill && (
+            // Deleting is the one thing here that cannot be undone, so it asks first
+            // and says exactly what goes.
+            <div className="mkt-panel mkt-panel-muted mkt-wiz-exit">
+              <p style={{ margin: 0 }}>
+                <strong>Delete this enrollment?</strong> The product, its bookings and the ad
+                videos attached to it are removed. Anything you uploaded stays on the upload
+                service, unlisted and earning nothing, but it is no longer attached to a
+                product. This cannot be undone.
+              </p>
+              <div className="mkt-wiz-actions">
+                <button
+                  type="button"
+                  className="mkt-outline"
+                  disabled={wizKilling}
+                  onClick={async () => {
+                    setWizKilling(true);
+                    try {
+                      await discardProduct(wizRef.reference);
+                      clearWizard(user);
+                      setReceipt(null);
+                      setForm(EMPTY_FORM);
+                      setWizStep(1);
+                      setRefsVersion((v) => v + 1);
+                      setWizKill(false);
+                      toast.success('Enrollment deleted');
+                    } catch (err) {
+                      toast.error(err.message || 'Could not delete that enrollment');
+                    } finally { setWizKilling(false); }
+                  }}
+                >
+                  {wizKilling ? 'Deleting…' : 'Yes, delete it'}
+                </button>
+                <button type="button" className="mkt-secondary" onClick={() => setWizKill(false)}>
+                  Keep it
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!user ? (
+            <div className="mkt-panel mkt-panel-muted">
+              <p style={{ margin: 0 }}>
+                Log in with the Hive account you want to advertise from. Your product is tied
+                to that account, and it is the wallet the booking is paid from.
+              </p>
+            </div>
+          ) : (
+            <>
+              {wizAt === 1 && (
+                <>
+                  <h2>Tell us about your product</h2>
+                  <p className="mkt-fine">
+                    Whatever you want to advertise. A person reads every one of these.
+                  </p>
+                  {productForm}
+                </>
+              )}
+
+              {wizAt === 2 && wizRef && (
+                <>
+                  <h2>Your ad</h2>
+
+                  <div className="mkt-field mkt-field-wide mkt-adtype">
+                    <span className="mkt-label">What are you running?</span>
+                    <div className="mkt-adtype-row">
+                      {[
+                        { id: 'video', title: 'A video ad', blurb: 'Plays inside the video, up to 15 seconds.' },
+                        { id: 'banner', title: 'A player banner', blurb: 'A still shown over the video while it plays.' },
+                      ].map((o) => (
+                        <label key={o.id} className={`mkt-adtype-opt${wizType === o.id ? ' selected' : ''}`}>
+                          <input
+                            type="radio"
+                            name="mkt-adtype"
+                            value={o.id}
+                            checked={wizType === o.id}
+                            onChange={() => { setWizType(o.id); if (wizRef?.reference) rememberWizard(user, wizRef.reference, wizAt, o.id); }}
+                          />
+                          <span>
+                            <strong>{o.title}</strong>
+                            <span className="mkt-hint">{o.blurb}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="mkt-fine">
+                    {wizType === 'banner'
+                      ? 'Upload the image that will be shown over the video.'
+                      : 'Upload the video that will play, or ask us to make it. This is also where the logo and slogan shown over your ad are set.'}
+                  </p>
+                  <CreativePanel
+                    reference={wizRef.reference}
+                    account={wizRef.hiveAccount}
+                    maxSeconds={pricing?.maxCreativeSeconds}
+                    bannerSpec={pricing?.formats?.find((f) => f.key === 'video_banner')?.creativeSpec}
+                    pending={wizRef.status !== 'approved'}
+                    production={!!wizRef.production}
+                    adType={wizType}
+                    single
+                    /* A banner carries no disclosure overlay of its own — the label is
+                       part of the burned image — so asking for a logo and slogan here
+                       would collect something that is never drawn. */
+                    brand={wizType === 'banner' ? null : { productName: wizRef.projectName, logoUrl: null, slogan: null }}
+                    offer={wizType === 'banner' ? null : { ...bookProduction, feeHbd: pricing?.productionFeeHbd, onChange: setBookProduction }}
+                  />
+                  <div className="mkt-wiz-actions">
+                    <button type="button" className="mkt-primary" onClick={() => goStep(3)}>
+                      Next: book a slot
+                    </button>
+                    {/* Stopping here is a legitimate ending, not a failure — but it is
+                        not a booked ad, and saying so now is kinder than letting them
+                        find out when nothing ever runs. */}
+                    <button type="button" className="mkt-linkish" onClick={() => setWizExit(true)}>
+                      Finish later
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {wizAt === 3 && wizRef && (
+                <>
+                  <h2>Book a slot</h2>
+                  <CampaignPanel
+                    reference={wizRef.reference}
+                    pricing={pricing}
+                    creatives={creativeList}
+                    production={bookProduction}
+                    awaitingApproval={wizRef.status !== 'approved'}
+                    lockFormat={wizType === 'banner' ? 'video_banner' : 'video_roll'}
+                  />
+                  <div className="mkt-wiz-actions">
+                    <button type="button" className="mkt-secondary" onClick={() => goStep(2)}>
+                      Back to your ad
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {wizExit && (
+                <div className="mkt-panel mkt-panel-muted mkt-wiz-exit">
+                  <p style={{ margin: 0 }}>
+                    <strong>Saved, but not finished.</strong> Your product and anything you
+                    uploaded are kept under reference <code>{wizRef?.reference}</code>. Nothing
+                    will run until you book a slot and pay for it, and we cannot review a
+                    booking that does not exist yet.
+                  </p>
+                  <p className="mkt-fine">
+                    Pick it up any time from <strong>My products</strong> on this page.
+                  </p>
+                  <div className="mkt-wiz-actions">
+                    <button type="button" className="mkt-primary" onClick={() => { setWizExit(false); goStep(3); }}>
+                      Book a slot now
+                    </button>
+                    <button
+                      type="button"
+                      className="mkt-secondary"
+                      onClick={() => {
+                        setWizExit(false);
+                        if (wizRef?.reference) { setLookupRef(wizRef.reference); setLookup(wizRef); }
+                        setTab('mine');
+                      }}
+                    >
+                      Leave it for now
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </section>
       </div>
 
       <div
@@ -1689,12 +2058,17 @@ export default function Advertise() {
                     } : null}
                   />
                 )}
-                {lookup.status === 'approved' && (
+                {/* Booking is open before approval now. The whole thing can be filled
+                    in one sitting and reviewed afterwards; nothing reaches a viewer
+                    until a person has approved the product AND the ad video, which
+                    the server enforces at serving time rather than here. */}
+                {(lookup.status === 'pending' || lookup.status === 'approved') && (
                   <CampaignPanel
                     reference={lookupRef.trim()}
                     pricing={pricing}
                     creatives={creativeList}
                     production={bookProduction}
+                    awaitingApproval={lookup.status !== 'approved'}
                   />
                 )}
               </div>

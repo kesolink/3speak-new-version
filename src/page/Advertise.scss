@@ -146,6 +146,163 @@
     }
   }
 
+  /* ── the enrollment wizard ──────────────────────────────── */
+  .mkt-wiz-nav {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+  }
+
+  .mkt-wiz-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+
+    &.current { color: var(--text-primary); font-weight: 700; }
+    &.done { color: var(--text-secondary); }
+  }
+
+  .mkt-wiz-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    font-size: 12px;
+    font-weight: 700;
+
+    .mkt-wiz-step.current & {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+      color: var(--text-inverse);
+    }
+
+    .mkt-wiz-step.done & { border-color: var(--accent-primary); color: var(--accent-primary); }
+  }
+
+  /* Video or banner. Two cards rather than a select: the choice changes what the
+     rest of the step asks for, so it should read as a decision, not a setting. */
+  .mkt-adtype-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .mkt-adtype-opt {
+    flex: 1 1 240px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--card-bg);
+    cursor: pointer;
+
+    &.selected { border-color: var(--accent-primary); background: var(--bg-hover); }
+
+    /* `.mkt-field input` sets width:100% for text inputs, which made this radio
+       take the whole card and squeezed the text to one word per line. */
+    input[type="radio"] {
+      width: 16px;
+      height: 16px;
+      min-width: 16px;
+      padding: 0;
+      margin-top: 3px;
+      flex: none;
+      accent-color: var(--accent-primary);
+      cursor: pointer;
+    }
+
+    /* flex:1 matters. Without it this column takes its MIN-content width inside the
+       flex row and the blurb wraps one word per line. */
+    > span {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    strong { font-size: 14px; color: var(--text-primary); }
+  }
+
+  .mkt-adtype { margin-bottom: 18px; }
+
+  .mkt-wiz-cancel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+
+    .mkt-fine { margin: 0; }
+
+    code {
+      padding: 1px 6px;
+      border-radius: 5px;
+      background: var(--bg-tertiary);
+      user-select: all;
+    }
+  }
+
+  .mkt-wiz-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+  }
+
+  .mkt-wiz-exit {
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    code {
+      padding: 1px 6px;
+      border-radius: 5px;
+      background: var(--bg-tertiary);
+      user-select: all;
+    }
+  }
+
+  /* The way in, from the overview. Centred: it is the one action on a page that is
+     otherwise all explanation, so it should not read as another left-aligned item
+     in the column of text. */
+  .mkt-enroll-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 4px auto 26px;
+    padding: 14px 26px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent-primary);
+    color: var(--text-inverse);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover { background: var(--accent-hover); }
+
+    &:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+  }
+
   /* ── tabs ───────────────────────────────────────────────── */
   .mkt-tabs {
     display: flex;
@@ -895,6 +1052,32 @@
     .mkt-fine { margin: 0; }
   }
 
+  /* The uploaded banner, shown rather than linked. Capped so a wide strip does not
+     push the row's other content out, and on a dark ground because that is what it
+     will actually sit on. */
+  .mkt-creative-thumb {
+    display: block;
+    flex: none;
+    /* 1.5x the original 220x70. Both caps scale together, or the aspect the strip
+       is judged on would change with the size. */
+    max-width: 330px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background: #111;
+    line-height: 0;
+
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 105px;
+      object-fit: contain;
+    }
+
+    &:hover { border-color: var(--accent-primary); }
+  }
+
   .mkt-upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
   /* A <label> wearing a button's clothes, so the file input can stay hidden. It used
@@ -978,8 +1161,19 @@
   }
 
   /* Field groups inside the booking form. */
+  /* The right-hand column: placement above video-length targeting. */
+  .mkt-group-col {
+    flex: 1 1 320px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .mkt-group { flex: 0 0 auto; }
+  }
+
   .mkt-group {
-    flex: 1 1 300px;
+    flex: 1 1 320px;
     min-width: 0;
     margin: 0;
     padding: 12px 14px 14px;
@@ -1092,16 +1286,30 @@
     flex-wrap: wrap;
     gap: 12px;
 
-    .mkt-field { flex: 0 1 170px; }
+    /* Grow, do not just shrink. `flex: 0 1 170px` capped every field at 170px even
+       when its group was 400px wide, so a lone field left two thirds of its box
+       empty and wrapped its hint to five lines. */
+    .mkt-field { flex: 1 1 170px; }
 
     /* Every hint sits at the same height regardless of how long it wraps, so the
        inputs above them stay on one line. */
     .mkt-field .mkt-hint { min-height: 2.6em; }
   }
 
+  /* The one action that commits money, so it is centred and filled rather than
+     sitting at the end of a line as another outline button. The total reads above
+     it: the number first, then the thing that acts on it. */
   .mkt-book-total {
+    /* Full width of the form, not a flex item sharing the row with the field
+       groups. Without this it centred inside whatever space was left beside "The
+       booking", which put it under the left column rather than under the form. */
+    flex: 1 1 100%;
+    width: 100%;
     display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    text-align: center;
     gap: 12px;
     font-size: 13px;
     color: var(--text-secondary);
