@@ -354,9 +354,21 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   // positions are called and whether pre-roll's warning applies.
   const isBanner = fmt?.creativeKind === 'image';
 
+  const slotRow = (p) => slotState?.find((x) => x.percent === p) || null;
+  // FULL, not merely occupied. A position now carries several advertisers at once and
+  // rotation splits the plays between them, so one holder is not a closed door — it
+  // only changes what this flight would be quoted.
   const slotTaken = (p) => {
-    const row = slotState?.find((x) => x.percent === p);
+    const row = slotRow(p);
     return row ? !row.available : false;
+  };
+  const sharesLeft = (p) => {
+    const row = slotRow(p);
+    return row && Number.isFinite(row.sharesLeft) ? row.sharesLeft : null;
+  };
+  const sharingWith = (p) => {
+    const row = slotRow(p);
+    return row && Number.isFinite(row.sharesTaken) ? row.sharesTaken : 0;
   };
   // Default to the first slot that is NOT pre-roll, since pre-roll is the one we
   // recommend against — leading with it would be selling against our own advice.
@@ -616,7 +628,9 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                 {p === 0 && !isBanner
                   ? 'Before the video (not recommended)'
                   : slotLabel({ percent: p, banner: isBanner })}
-                {slotTaken(p) ? ' — taken for these dates' : ''}
+                {slotTaken(p)
+                  ? ' — full for these dates'
+                  : (sharingWith(p) > 0 ? ` — ${sharesLeft(p)} of ${slotRow(p).sharesTotal} places left` : '')}
               </option>
             ))}
           </select>
@@ -624,7 +638,12 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
             {/* A position is sold to one advertiser at a time, across every format —
                 so this says what is actually for sale, not what exists. */}
             How far into each video it runs. Later reaches fewer people, but reaches
-            them watching. One advertiser per position at a time.
+            them watching.
+            {sharingWith(chosenSlot) > 0
+              ? ` You would share this position with ${sharingWith(chosenSlot)} other `
+                + `${sharingWith(chosenSlot) === 1 ? 'advertiser' : 'advertisers'}, taking turns, `
+                + 'so the forecast on your booking is your share of it rather than the whole position.'
+              : ` A position carries up to ${slotRow(chosenSlot)?.sharesTotal || 3} advertisers at a time, taking turns.`}
           </span>
         </div>
         </fieldset>
