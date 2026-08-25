@@ -52,16 +52,50 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * Read and written through try/catch: storage throws outright in some privacy modes,
  * and an ad decision must never be the thing that breaks a page.
  */
-const COOLDOWN_KEY = '3speak-ad-last-seen';
-export function lastAdSeenAt() {
+const SEEN_KEY = '3speak-ads-seen';
+const SEEN_MINUTES = 30;   // matches AD_FREQUENCY_CAP_MINUTES on the server
+
+/**
+ * Which ADS this viewer has already been shown recently, so the same advertiser does
+ * not follow them from one video to the next.
+ *
+ * 🚨 Per AD, not per viewer. The server has always capped repeats of the same
+ * campaign, but it keys that on the signed-in name or on CAP_ID — and CAP_ID is per
+ * page load by design, so for anyone not signed in the cap reset on every navigation
+ * and one advertiser could run the whole session. This is the part that persists.
+ *
+ * What is stored is a list of opaque `adKey`s with the time each was seen. Not
+ * viewing history: it says which ADVERTS were shown, never which videos were watched,
+ * and each entry expires on its own within the cap window. Sending it can only cost
+ * the viewer ads, never earn them extra, which is why the server can accept it
+ * without trusting it.
+ *
+ * Read and written through try/catch — storage throws outright in some privacy modes,
+ * and an ad decision must never be the thing that breaks a page.
+ */
+function readSeen() {
   try {
-    const n = Number(localStorage.getItem(COOLDOWN_KEY));
-    return Number.isFinite(n) && n > 0 ? n : null;
-  } catch { return null; }
+    const raw = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}');
+    const cutoff = Date.now() - SEEN_MINUTES * 60 * 1000;
+    const out = {};
+    for (const [k, t] of Object.entries(raw)) if (Number(t) > cutoff) out[k] = Number(t);
+    return out;
+  } catch { return {}; }
 }
-export function rememberAdSeen(at = Date.now()) {
-  try { localStorage.setItem(COOLDOWN_KEY, String(Math.round(at))); }
-  catch { /* storage unavailable — the server still caps a signed-in viewer */ }
+
+export function recentAdKeys() {
+  return Object.keys(readSeen());
+}
+
+export function rememberAdSeen(...keys) {
+  const flat = keys.flat().filter((k) => typeof k === 'string' && k);
+  if (!flat.length) return;
+  try {
+    const seen = readSeen();
+    const now = Date.now();
+    for (const k of flat) seen[k] = now;
+    localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+  } catch { /* storage unavailable — the server still caps a signed-in viewer */ }
 }
 
 const CAP_ID = (() => {
@@ -131,15 +165,15 @@ export function createAdBreak() {
           // withhold an ad, never as a reason to grant one.
           body: JSON.stringify({
             owner, permlink, viewer: viewer || null, manifestUrl, capId: CAP_ID,
-            lastAdAt: lastAdSeenAt(),
+            recentAdKeys: recentAdKeys(),
           }),
         });
         if (!res.ok) return null;
         const data = await res.json();
         premium = data?.premium === true;
-        // Stamped as soon as the server hands one over, not when it finishes playing:
-        // a viewer who skips away mid-spot has still had their ad for this window.
-        if (data?.ad?.manifestUrl || data?.banner?.manifestUrl) rememberAdSeen();
+        // Remembered as soon as the server hands one over, not when it finishes
+        // playing: a viewer who skips away mid-spot has still been shown that ad.
+        rememberAdSeen(data?.ad?.adKey, data?.banner?.adKey);
 
         // Kept whether or not there is also a spot: a playback can carry a banner
         // alone, and then the banner's manifest is the one to load.

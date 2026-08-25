@@ -17,7 +17,7 @@
  * system had a bad day.
  */
 import { CHECKER_URL } from '../utils/config';
-import { rememberAdSeen } from './adBreak';
+import { rememberAdSeen, recentAdKeys } from './adBreak';
 
 let watchedSinceAd = 0;
 
@@ -49,6 +49,7 @@ export async function requestShortsAd({ owner, permlink, viewer }) {
         permlink: permlink || null,
         viewer: viewer || null,
         shortsWatched: watchedSinceAd,
+        recentAdKeys: recentAdKeys(),
       }),
     });
     if (!res.ok) return null;
@@ -58,9 +59,10 @@ export async function requestShortsAd({ owner, permlink, viewer }) {
     // The counter resets on a SPOT SERVED, not on a request. A run of "not yet"
     // answers must keep counting up, or the cadence never arrives.
     watchedSinceAd = 0;
-    // A spot here also counts as this viewer's most recent ad for the watch page's
-    // quiet period — one shared notion of "you have just seen an ad".
-    rememberAdSeen();
+    // Remembered in the same store the watch page uses, so a spot seen in the feed
+    // is not repeated on the next watch page either. One shared notion of "already
+    // shown this ad".
+    rememberAdSeen(data.shortsAd.adKey);
     return data.shortsAd;
   } catch {
     return null;
