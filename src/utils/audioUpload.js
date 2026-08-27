@@ -1,23 +1,13 @@
-import axios from 'axios';
-import { getHiveUrl } from './hiveNode';
-import { THREESPEAK_AUDIO_API_URL, THREESPEAK_API_KEY, HIVE_API_URL } from './config';
+import { resolveSnapsContainer } from './snapsContainer';
+import { THREESPEAK_AUDIO_API_URL, THREESPEAK_API_KEY } from './config';
 
 /**
  * Resolve the latest peak.snaps container post — used as the parent for snap-style replies.
- * Mirrors snapie-io's `getLastSnapsContainer` (lib/hive/client-functions.ts).
+ * Delegates to the shared resolver, which walks every Hive node and both
+ * hivemind APIs before giving up (see utils/snapsContainer.js).
  */
-export async function getSnapsContainer() {
-  const author = 'peak.snaps';
-  const beforeDate = new Date().toISOString().split('.')[0];
-  const { data } = await axios.post(getHiveUrl(), {
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'condenser_api.get_discussions_by_author_before_date',
-    params: [author, '', beforeDate, 1],
-  });
-  const container = data?.result?.[0];
-  if (!container?.permlink) throw new Error('No peak.snaps container found');
-  return { author, permlink: container.permlink };
+export async function getSnapsContainer(opts) {
+  return resolveSnapsContainer(opts);
 }
 
 /**

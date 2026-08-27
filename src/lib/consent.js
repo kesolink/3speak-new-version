@@ -33,18 +33,35 @@
  *       stays on your device and is never sent to us, but you did not ask for it
  *       by name, so it is offered as a choice rather than assumed.
  *
- * What is NOT here, deliberately: no analytics, no advertising, no third-party
- * pixels, no tracking IDs. The watch-duration tracking stores nothing on your
- * device at all (see the note on `sid` in watchTracking.js).
+ *   ADVERTISING (optional, and only exists at all when third-party ads are
+ *   switched on via VITE_ENABLE_THIRDPARTY_ADS):
+ *     • Whatever a third-party ad SDK stores once it is allowed to load. We do not
+ *       get to enumerate it the way we can enumerate our own keys, which is exactly
+ *       why it is a separate opt-in rather than folded into "functional". Withheld
+ *       consent means the SDK is never injected, so there is nothing to store: see
+ *       canLoadAdScripts() in thirdPartyAds.js.
+ *
+ * What is NOT here while VITE_ENABLE_THIRDPARTY_ADS is off: no analytics, no
+ * advertising, no third-party pixels, no tracking IDs. The watch-duration tracking
+ * stores nothing on your device at all (see the note on `sid` in watchTracking.js).
+ *
+ * The banner copy is driven by the same flag, so it cannot drift out of step with
+ * what the site actually does. That drift is the failure mode worth engineering
+ * against: a truthful "we run no advertising" notice becomes a false statement the
+ * moment someone ships an ad tag, and nobody remembers to edit the banner.
  */
+import { ENABLE_THIRDPARTY_ADS } from '../utils/config';
 
 const KEY = '3speak_cookie_consent';
-const VERSION = 1; // bump to re-ask everyone (e.g. if a new category is introduced)
+// Bump to re-ask everyone. Tied to the ads flag on purpose: switching third-party
+// ads on introduces a category nobody has seen, and carrying forward an old "Accept"
+// would count as consent to something that did not exist when it was given.
+const VERSION = ENABLE_THIRDPARTY_ADS ? 2 : 1;
 
 // Written by the @mantequilla-soft/3speak-player SDK, one per video watched.
 const RESUME_KEY_PREFIX = '3speak_pos_';
 
-const DEFAULTS = { essential: true, functional: false };
+const DEFAULTS = { essential: true, functional: false, advertising: false };
 
 function read() {
   try {
@@ -66,6 +83,10 @@ export function hasDecided() {
 /** Current consent for a category. Essential is always true; anything unknown is false. */
 export function hasConsent(category) {
   if (category === 'essential') return true;
+  // Belt and braces: with the flag off there is no advertising category, so nothing
+  // may claim consent for one. Without this, a stored record from an ads-enabled
+  // build would keep returning true after the flag was switched back off.
+  if (category === 'advertising' && !ENABLE_THIRDPARTY_ADS) return false;
   const c = read();
   return c ? !!c[category] : DEFAULTS[category] ?? false;
 }
@@ -76,12 +97,16 @@ export function hasConsent(category) {
  * Purging matters: the player SDK writes resume positions on its own, so "declined"
  * has to mean we actively remove them, not merely that we promise not to look.
  */
-export function setConsent({ functional }) {
+export function setConsent({ functional, advertising }) {
   try {
     localStorage.setItem(KEY, JSON.stringify({
       version: VERSION,
       essential: true,
       functional: !!functional,
+      // Pinned to false whenever the flag is off, so a stored "yes" from a period
+      // when ads were enabled cannot silently re-authorise them if they are later
+      // switched off and on again.
+      advertising: ENABLE_THIRDPARTY_ADS ? !!advertising : false,
       decidedAt: new Date().toISOString(),
     }));
   } catch {

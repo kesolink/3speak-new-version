@@ -7,6 +7,45 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.56',
+    date: '2026-08-27',
+    summary:
+      'Big uploads on mobile connections now finish instead of getting stuck near the end. '
+      + 'Videos are sent in smaller pieces, so a weak signal no longer makes the last part of '
+      + 'an upload retry over and over, and uploads now start on one connection and open more '
+      + 'only once the first piece arrives. The upload screen also shows the correct confirmed '
+      + 'amount instead of about half of it.',
+  },
+  {
+    version: '1.78.55',
+    date: '2026-08-27',
+    summary:
+      'The community picker when you publish now lists the communities you are subscribed to '
+      + 'straight away, under Your communities, so you can pick one without searching. 3Speak '
+      + 'stays pinned at the top, and if you are not subscribed anywhere yet you get a list of '
+      + 'popular communities to choose from.',
+  },
+  {
+    version: '1.78.54',
+    date: '2026-08-27',
+    summary:
+      '3Speak now picks the best-connected Hive server when it starts and sticks with the ones responding fastest. Profiles, comment threads and posting all load more steadily.',
+  },
+  {
+    version: '1.78.53',
+    date: '2026-08-27',
+    summary:
+      'Posting a short, an audio snap or a community snap now lands the first time. 3Speak checks several Hive servers automatically instead of relying on just one.',
+  },
+  {
+    version: '1.78.52',
+    date: '2026-08-24',
+    summary:
+      'You can now copy a video\'s transcript with or without timestamps, and we remember which '
+      + 'you prefer. Publishing a video and pressing "Go To My Profile" now takes you to your '
+      + 'profile instead of back to the uploader.',
+  },
+  {
     version: '1.78.51',
     date: '2026-08-22',
     summary:

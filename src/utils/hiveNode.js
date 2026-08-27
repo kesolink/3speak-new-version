@@ -10,7 +10,9 @@
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES } from './config';
 
-const SESSION_KEY = 'hive-rpc-node';
+// v2: the probe now also requires hivemind, so old (possibly hivemind-less)
+// pins from a previous build must not be trusted.
+const SESSION_KEY = 'hive-rpc-node-v2';
 const PROBE_TIMEOUT_MS = 2500;
 
 const CLIENT_OPTS = { timeout: 3000, failoverThreshold: 2, consoleOnFailover: true };
@@ -51,21 +53,47 @@ export function getHiveUrl() {
   return chosen;
 }
 
-async function probe(url) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+async function rpcOk(url, body, check, signal) {
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'condenser_api.get_dynamic_global_properties', params: [], id: 1 }),
-      signal: ctrl.signal,
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, ...body }),
+      signal,
     });
     if (!res.ok) return false;
     const j = await res.json();
-    return !!(j && j.result && j.result.head_block_number);
+    // Hive returns node-side failures in the body with HTTP 200.
+    if (!j || j.error) return false;
+    return check(j.result);
   } catch {
     return false;
+  }
+}
+
+// A node is only usable if it answers BOTH layers:
+//   - hived      → is it alive and synced (head block)
+//   - hivemind   → do `bridge.*` / discussion calls work
+// Checking only hived was letting a hivemind-less node (e.g. techcoderx.com,
+// which serves hived but answers every bridge call with "Unable to parse
+// endpoint data.") win the race and get pinned for the whole session. Every
+// hivemind-backed feature then failed for that user until they reloaded —
+// most visibly snap posting, which could not resolve its @peak.snaps parent.
+async function probe(url) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+  try {
+    const [hived, hivemind] = await Promise.all([
+      rpcOk(url, {
+        method: 'condenser_api.get_dynamic_global_properties',
+        params: [],
+      }, (r) => !!(r && r.head_block_number), ctrl.signal),
+      rpcOk(url, {
+        method: 'bridge.list_communities',
+        params: { limit: 1 },
+      }, (r) => Array.isArray(r) && r.length > 0, ctrl.signal),
+    ]);
+    return hived && hivemind;
   } finally {
     clearTimeout(t);
   }
@@ -73,32 +101,66 @@ async function probe(url) {
 
 let _ensure = null;
 
+// Rebuild the dhive client so it only ever fails over to nodes that actually
+// passed the probe. dhive surfaces a JSON-RPC error as a thrown RPCError
+// instead of rotating to the next peer, so a hivemind-less node left in this
+// list breaks every `bridge.*` call (profiles, spotlight, comment threads)
+// the moment dhive rotates onto it.
+function adoptHealthy(primary, healthyList) {
+  const usable = healthyList && healthyList.length ? healthyList : CANDIDATES;
+  const order = [primary, ...usable.filter((n) => n !== primary)];
+  _client = new Client(order, CLIENT_OPTS);
+}
+
+// Probe every candidate exactly once and expose two views of the same run:
+//   first   — resolves as soon as ANY node answers (fast pin, keeps boot snappy)
+//   healthy — resolves once every probe settles (accurate failover list)
+function probeAll() {
+  const results = CANDIDATES.map((url) => probe(url).then((ok) => ({ url, ok })));
+  let resolveFirst;
+  const first = new Promise((r) => { resolveFirst = r; });
+  results.forEach((p) => p.then(({ url, ok }) => { if (ok) resolveFirst(url); }));
+  const healthy = Promise.all(results).then((rs) => rs.filter((r) => r.ok).map((r) => r.url));
+  // Nothing healthy at all — unblock `first` rather than hanging the boot.
+  healthy.then((ok) => resolveFirst(ok[0] || null));
+  return { first, healthy };
+}
+
 // Idempotent: probes all candidates in parallel, pins the first healthy one
 // for the session. Safe to call repeatedly — only runs once per load.
 export function ensureHealthyNode() {
   if (_ensure) return _ensure;
+
+  const { first, healthy } = probeAll();
+
+  // Runs in the background — never blocks the first Hive call. Narrows the
+  // failover list to hivemind-capable nodes, and re-pins if the node we
+  // adopted (including one restored from sessionStorage) turns out unusable.
+  healthy.then((ok) => {
+    if (!ok.length) return;
+    if (!ok.includes(chosen)) {
+      chosen = ok[0];
+      try { sessionStorage.setItem(SESSION_KEY, chosen); } catch { /* ignore */ }
+    }
+    adoptHealthy(chosen, ok);
+  }).catch(() => { /* keep whatever we already have */ });
+
   _ensure = (async () => {
-    // Already pinned earlier this session — trust it (and make sure the
-    // client is ordered with it first).
-    if (sessionNode()) {
-      chosen = sessionNode();
-      _client = buildClient(chosen);
+    // Already pinned earlier this session — adopt it immediately; the
+    // background pass above still verifies it and corrects course if needed.
+    const pinned = sessionNode();
+    if (pinned) {
+      chosen = pinned;
+      adoptHealthy(chosen, null);
       return chosen;
     }
-    const healthy = await new Promise((resolve) => {
-      let pending = CANDIDATES.length;
-      let settled = false;
-      CANDIDATES.forEach(async (url) => {
-        const ok = await probe(url);
-        if (ok && !settled) { settled = true; resolve(url); }
-        else if (--pending === 0 && !settled) { settled = true; resolve(null); }
-      });
-    });
-    chosen = healthy || CANDIDATES[0];
+    const winner = await first;
+    chosen = winner || CANDIDATES[0];
     try { sessionStorage.setItem(SESSION_KEY, chosen); } catch { /* ignore */ }
-    _client = buildClient(chosen);
+    adoptHealthy(chosen, null);
     return chosen;
   })();
+
   return _ensure;
 }
 

@@ -30,6 +30,14 @@ export function isNewerVersion(a, b) {
 // Returns the latest version string if GitHub's production branch is newer than
 // the running build, otherwise null (also null on any network error / offline).
 export async function fetchNewerVersion() {
+  // Never on the dev server. preview.3speak.tv runs Vite in dev mode off a feature
+  // branch, so this would compare a branch build against `production` — two
+  // different things. Preview is routinely a commit or two behind production while
+  // work is in flight, and the prompt that produces cannot be satisfied: refreshing
+  // reloads preview's own build, which is still the version it was. It nagged on
+  // every focus and every 30 minutes with no way out.
+  if (import.meta.env.DEV) return null;
+
   try {
     const res = await fetch(`${REMOTE_VERSION_URL}?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;

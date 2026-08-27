@@ -15,6 +15,11 @@ const PLAYER_URL = PLAYER_URLS[0] || '';
 const HIVE_API_URL = import.meta.env.VITE_HIVE_API_URL || 'https://api.hive.blog';
 const FEED_URL = import.meta.env.VITE_FEED_URL || 'https://legacy.3speak.tv';
 const CHECKER_URL = import.meta.env.VITE_CHECKER_URL || 'https://checker.3speak.tv';
+// Shorts spots. OFF until someone has watched one on a real phone: the shorts feed
+// drives a SINGLE persistent <video> (iOS allows no more), so handing that player an
+// ad manifest and taking it back is a change to the playback state machine that
+// cannot be verified on this box — it has no H.264 decoder in any browser.
+const SHORTS_ADS_ENABLED = String(import.meta.env.VITE_SHORTS_ADS || '').toLowerCase() === 'true';
 const TAG_FEED_URL = CHECKER_URL;
 const PLAYLISTS_API_URL = import.meta.env.VITE_PLAYLISTS_API_URL || 'https://3speak-playlists.okinoko.io/api';
 // Playlist READS go through the 3speak server proxy (/api/pl/*), which holds the
@@ -231,6 +236,23 @@ const adsEnabledFor = (user) => ENABLE_ADS
   || isTestUser(user)
   || (!!user && ADS_BETA_USERS.has(String(user).toLowerCase()));
 
+// THIRD-PARTY advertising. Distinct from ENABLE_ADS above, and the distinction
+// matters: ENABLE_ADS gates OUR OWN ad system (the /advertise page, house campaigns
+// paid in HIVE/HBD, server-side stitched by the checker). This flag gates loading
+// SOMEONE ELSE'S JavaScript into the page, which is a different question legally and
+// a different question for trust.
+//
+// Consequences of turning this on, all of which are handled automatically:
+//   • The cookie banner stops claiming we run no advertising, because we would.
+//   • An `advertising` consent category appears, defaulted to off.
+//   • consent.js bumps its stored VERSION, so every existing visitor is asked again
+//     rather than being silently opted into a category they never saw.
+//
+// Nothing third-party may load unless this is true AND the visitor has consented.
+// The enforcement point is canLoadAdScripts() in lib/thirdPartyAds.js, not here:
+// a flag is a UI decision, and this one must fail closed at the loader.
+const ENABLE_THIRDPARTY_ADS = import.meta.env.VITE_ENABLE_THIRDPARTY_ADS === 'true';
+
 // Hosts whose live streams / rooms are kept OUT of the discovery feeds
 // (discover, follow, new). Same spirit as the checker's LEADERBOARD_EXCLUDED_USERS
 // — the account still works normally and its streams stay reachable by direct
@@ -270,6 +292,7 @@ export {
   VIEWS_URL,
   MY_VIDEOS_URL,
   CHECKER_URL,
+  SHORTS_ADS_ENABLED,
   PLAYER_URL,
   PLAYER_URLS,
   PLAYLISTS_API_URL,
@@ -315,6 +338,7 @@ export {
   openpodsEnabledFor,
   ENABLE_ADS,
   adsEnabledFor,
+  ENABLE_THIRDPARTY_ADS,
   FEED_EXCLUDED_HOSTS,
   ENABLE_CAMERA_RECORD,
   cameraRecordEnabledFor,

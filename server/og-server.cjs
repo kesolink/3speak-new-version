@@ -608,7 +608,7 @@ function buildOgHtml({
 // than a broken response. Mirrors index.html's primary OG/Twitter tags.
 function buildGenericHtml(siteUrl) {
   const url = escapeHtml(siteUrl);
-  const title = '3Speak | Real People - Real Stories';
+  const title = '3S | Real People - Real Stories';
   const desc =
     '3Speak is a decentralized video sharing platform built on blockchain technology. Watch, upload, and share videos while earning cryptocurrency rewards.';
   return `<!DOCTYPE html>

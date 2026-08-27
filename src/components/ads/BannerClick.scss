@@ -1,0 +1,65 @@
+/* The click target over a burned-in banner. Invisible on purpose: the banner is
+   already in the picture, and drawing anything on top of it would obscure the thing
+   the advertiser paid for. All this contributes is a place to click. */
+.watch-banner-hit {
+  position: absolute;
+  /* Above the play/pause surface (.video-interact-overlay, z-index 5) for the same
+     reason the ad disclosure is: otherwise a tap here toggles playback instead of
+     opening the advertiser's site, and on touch that handler calls preventDefault()
+     so the tap is swallowed outright. Below the controls, which must stay reachable
+     while a banner is on screen. */
+  z-index: 7;
+  pointer-events: auto;
+  cursor: pointer;
+  display: block;
+  /* No background, no border, no text. */
+  background: transparent;
+  border-radius: 6px;
+
+  /* No highlight over the frame itself — a tinted rectangle over part of the picture
+     reads as a rendering fault rather than an affordance. Hover and focus brighten
+     the open icon instead, which is a hint rather than a change to the video. */
+  &:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  &:hover .watch-banner-open,
+  &:focus-visible .watch-banner-open { opacity: 1; }
+}
+
+/* Top-right of the banner, clear of the advertiser's own artwork. Given its own dark
+   disc because it is drawn over an image we do not control and can be any colour —
+   the same problem the disclosure overlay solves with its own ground. */
+.watch-banner-open {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  padding: 3px;
+  box-sizing: content-box;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  /* Present but quiet: the banner is the advertiser's, and this is a hint on top of
+     it rather than a control competing with it. Full strength on hover and focus. */
+  opacity: 0.75;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-banner-open { transition: none; }
+}
+
+/* A small banner on a phone should not be half covered by its own affordance. */
+@media (max-width: 640px) {
+  .watch-banner-open {
+    top: 2px;
+    right: 2px;
+    width: 13px;
+    height: 13px;
+    padding: 2px;
+  }
+}

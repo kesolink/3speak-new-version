@@ -1,18 +1,9 @@
-import axios from 'axios';
-import { getHiveUrl } from './hiveNode';
+import { resolveSnapsContainer } from './snapsContainer';
 
-// node URL comes from the session node manager
-
+// Returns { author, permlink } for the newest @peak.snaps container. The
+// lookup itself (multi-node, multi-API, retried) lives in snapsContainer.js.
 export async function fetchLatestSnapsPost() {
-  const res = await axios.post(getHiveUrl(), {
-    jsonrpc: '2.0',
-    method: 'bridge.get_account_posts',
-    params: { sort: 'posts', account: 'peak.snaps', start_author: '', start_permlink: '', limit: 1 },
-    id: 1,
-  });
-  const post = res.data?.result?.[0];
-  if (!post) throw new Error('No posts found from @peak.snaps');
-  return post;
+  return resolveSnapsContainer();
 }
 
 export function buildOpenPodSnapBody(roomTitle, roomUrl, thumbnailUrl) {

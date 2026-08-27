@@ -5,6 +5,7 @@ import axios from "axios";
 import { Users, PenLine, ChevronDown, Loader2 } from "lucide-react";
 import { CHECKER_URL } from "../../utils/config";
 import { getSubscriptions } from "../../hive-api/hiveApi";
+import { getHiveUrl } from "../../utils/hiveNode";
 import { useAppStore } from "../../lib/store";
 import { getHiveRenderer } from '../../lib/hiveRenderer';
 
@@ -172,8 +173,24 @@ function CommunitieModal({ isOpen, data, close, setCommunity, selected }) {
 
   // The current user's subscribed communities, shown in the default (no-search)
   // list alongside the 3Speak / selected community.
-  const user = useAppStore((s) => s.user);
-  const { data: subscriptions = [] } = useQuery({
+  //
+  // The store's `user` is briefly null on a fresh load until initializeAuth()
+  // runs, and it stays null for the whole render pass on the cookie-based
+  // (ButrAuth/ManteAuth) path if the picker is opened first. `user_id` is the
+  // same username written by every login and removed by LogOut and by the
+  // expired-session branch of initializeAuth, so falling back to it never
+  // resurrects a logged-out account — it only closes that gap.
+  const storeUser = useAppStore((s) => s.user);
+  let user = storeUser;
+  if (!user) {
+    try { user = localStorage.getItem("user_id") || null; } catch { user = null; }
+  }
+
+  const {
+    data: subscriptions = [],
+    isPending: subsPending,
+    isError: subsError,
+  } = useQuery({
     queryKey: ["community-subscriptions", user],
     enabled: isOpen && !!user,
     queryFn: async () => {
@@ -182,6 +199,27 @@ function CommunitieModal({ isOpen, data, close, setCommunity, selected }) {
       return (res || []).map((s) => ({ name: s[0], title: s[1] || s[0] }));
     },
     staleTime: 5 * 60_000,
+  });
+
+  // Fallback list for an account that is subscribed to nothing. Callers that
+  // already hold a community list pass it in as `data` (the embed studio's
+  // details route does not — that page never runs the studio's own fetch), so
+  // only ask Hive when we have neither subscriptions nor a passed-in list.
+  const hasPassedList = (data || []).length > 0;
+  const noSubs = !subsPending && subscriptions.length === 0;
+  const { data: popularFetched = [] } = useQuery({
+    queryKey: ["community-popular"],
+    enabled: isOpen && noSubs && !hasPassedList,
+    queryFn: async () => {
+      const res = await axios.post(getHiveUrl(), {
+        jsonrpc: "2.0",
+        method: "bridge.list_communities",
+        params: { last: "", limit: 20 },
+        id: 1,
+      });
+      return res.data?.result || [];
+    },
+    staleTime: 30 * 60_000,
   });
 
   // Lock the page behind the modal so touch-scrolling moves the modal (the
@@ -224,13 +262,23 @@ function CommunitieModal({ isOpen, data, close, setCommunity, selected }) {
     })
     .sort((a, b) => (b.subscribers || 0) - (a.subscribers || 0));
 
-  // Default list: the selected/3Speak community first, then the user's
-  // subscribed communities (sorted by size) — deduped by name (first wins).
-  const seenNames = new Set();
-  const defaultList = [defaultCommunity, ...sortedSubs].filter(
+  // Default list: the selected/3Speak community pinned first, then the user's
+  // subscribed communities (sorted by size), deduped against the pinned one.
+  const seenNames = new Set([defaultCommunity?.name]);
+  const mySubs = sortedSubs.filter(
     (c) => c && c.name && !seenNames.has(c.name) && seenNames.add(c.name)
   );
-  const visibleCommunities = searching ? searchResults : defaultList;
+
+  // A brand-new account is subscribed to nothing, which would leave the picker
+  // as a single 3Speak card and a search box. Fall back to the biggest
+  // communities (the caller's list when it has one, otherwise the small
+  // bridge.list_communities fetch above) so there is always something to pick
+  // without typing.
+  const POPULAR_LIMIT = 12;
+  const popular = (hasPassedList ? data : popularFetched)
+    .filter((c) => c && c.name && !seenNames.has(c.name))
+    .slice(0, POPULAR_LIMIT);
+  const showPopular = noSubs && popular.length > 0;
 
   if (!isOpen) return null;
 
@@ -269,16 +317,63 @@ function CommunitieModal({ isOpen, data, close, setCommunity, selected }) {
 
           {/* LIST */}
           <div className="community-list-wrap">
-            {visibleCommunities.length > 0 ? (
-              visibleCommunities.map((community, index) => (
+            {searching ? (
+              searchResults.length > 0 ? (
+                searchResults.map((community, index) => (
+                  <CommunityCard
+                    key={community.name || index}
+                    community={community}
+                    onSelect={onSelect}
+                  />
+                ))
+              ) : (
+                !isLoading && <p>No communities found.</p>
+              )
+            ) : (
+              <>
+                {/* Pinned: whatever is already selected, else 3Speak. */}
                 <CommunityCard
-                  key={community.name || index}
-                  community={community}
+                  key={defaultCommunity.name}
+                  community={defaultCommunity}
                   onSelect={onSelect}
                 />
-              ))
-            ) : (
-              !isLoading && searching && <p>No communities found.</p>
+
+                {/* The user's own subscriptions, listed up front so posting to
+                    one never requires guessing its name in the search box. */}
+                {user && (subsPending || mySubs.length > 0) && (
+                  <span className="community-group-label">Your communities</span>
+                )}
+                {user && subsPending && (
+                  <div className="community-card-loading">
+                    <Loader2 size={15} className="spin" /> Loading your communities…
+                  </div>
+                )}
+                {mySubs.map((community, index) => (
+                  <CommunityCard
+                    key={community.name || index}
+                    community={community}
+                    onSelect={onSelect}
+                  />
+                ))}
+                {user && !subsPending && subsError && (
+                  <div className="community-card-loading">
+                    Couldn&apos;t load your communities. Search for one instead.
+                  </div>
+                )}
+
+                {showPopular && (
+                  <>
+                    <span className="community-group-label">Popular communities</span>
+                    {popular.map((community, index) => (
+                      <CommunityCard
+                        key={community.name || index}
+                        community={community}
+                        onSelect={onSelect}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </div>
 

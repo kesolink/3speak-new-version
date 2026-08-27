@@ -27,9 +27,7 @@ function EmbedPreview() {
     uploadProgress,
     statusText,
     statusMessages,
-    embedUrl,
     publishToEmbed,
-    resetUploadState,
     user,
     fromStories,
     community,
@@ -49,7 +47,11 @@ function EmbedPreview() {
   // the popup automatically — see the "Give feedback" button below.
   const openReview = useReviewModal((s) => s.openReview);
 
-  if (!description || (!fromStories && !title)) {
+  // `completed` first: once the upload has finished this screen is the
+  // destination, not a half-filled form to bounce out of. Without that, anything
+  // clearing the draft while this is mounted redirects the user away from their
+  // own success screen.
+  if (!completed && (!description || (!fromStories && !title))) {
     return <Navigate to="/embed-studio" replace />;
   }
 
@@ -293,13 +295,6 @@ function EmbedPreview() {
                   <>
                     Your video has been published!<br />
                     It&apos;s now encoding in the background, which can take a few minutes.
-                    {embedUrl && (
-                      <>
-                        <br />It&apos;ll be available{' '}
-                        <a className="success-embed-link" href={embedUrl} target="_blank" rel="noopener noreferrer">here</a>
-                        {' '}once it&apos;s ready.
-                      </>
-                    )}
                   </>
                 )}
             </p>
@@ -311,12 +306,14 @@ function EmbedPreview() {
                 </button>
               )}
               <button
-                onClick={() => {
-                  navigate("/profile");
-                  setTimeout(() => {
-                    resetUploadState();
-                  }, 50);
-                }}
+                // Just navigate. The reset used to run 50ms later, which sent the
+                // user straight back to the uploader instead: ProfilePage is lazy,
+                // so this component is still mounted while its chunk loads, and
+                // clearing title/description tripped the redirect guard above —
+                // with `replace`, so it overwrote the pending /profile navigation.
+                // EmbedStudioPage already resets on mount when `completed`, which
+                // is the right moment for it anyway.
+                onClick={() => navigate("/profile")}
                 className="profile-btn"
               >
                 Go To My Profile →
