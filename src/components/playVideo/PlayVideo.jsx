@@ -984,13 +984,18 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                     }}
                     onMouseDown={() => {
                       if (Date.now() - lastTouchRef.current < 500) return;
-                      if (window.innerWidth <= 767) videoControls.onToggleControls();
+                      // While a spot is on screen the controls are hidden, so the
+                      // small-screen gesture that normally reveals them has nothing
+                      // to reveal. Pause instead — a tap has to do SOMETHING, and
+                      // pausing is what tapping a playing ad should do anyway.
+                      if (window.innerWidth <= 767 && !adPlaying) videoControls.onToggleControls();
                       else videoControls.onTogglePlay();
                     }}
                     onTouchStart={(e) => {
                       lastTouchRef.current = Date.now();
                       e.preventDefault();
-                      videoControls.onToggleControls();
+                      if (adPlaying) videoControls.onTogglePlay();
+                      else videoControls.onToggleControls();
                     }}
                   />
                   <VideoControls

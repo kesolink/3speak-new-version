@@ -355,7 +355,13 @@ function VideoControls({
     onMarkerSelect?.(index);
   }, [onSeek, onMarkerSelect]);
 
-  const show = isVisible || hovering;
+  // The WHOLE bar goes down for the length of a spot, not just the scrubber: rewind,
+  // skip-forward and the time readout are all ways past an ad somebody paid for, and
+  // a settings menu over a spot is chrome for a video that is not playing.
+  //
+  // The disclosure and the countdown are NOT in here — they live in PlayVideo — so
+  // the viewer keeps being told what they are watching and how long is left.
+  const show = (isVisible || hovering) && !adPlaying;
 
   return (
     <div
