@@ -8,7 +8,11 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  z-index: 6;
+  // Above .bottomOverlay (15), which is the creator's name, title and subscribe
+  // button. That layer is hidden outright during a spot (see `.ad-playing` in
+  // Short.scss); this is the belt to that braces — if the hide ever regresses, the
+  // disclosure still ends up on top rather than buried under the creator's byline.
+  z-index: 20;
 
   &-top {
     display: flex;
@@ -16,6 +20,18 @@
     gap: 8px;
     padding: 12px;
     pointer-events: auto;
+    // The cover is absolutely positioned, and a positioned element paints above
+    // static siblings whatever the DOM order. Without this the "Ad" tag and the
+    // countdown disappear behind it for exactly as long as the spot is loading —
+    // which is the one moment the disclosure most needs to be up.
+    position: relative;
+    z-index: 1;
+  }
+
+  // The cover already shows the logo and the name, centred and larger. The bottom
+  // card underneath it would be the same two facts a second time.
+  &.is-loading &-brand {
+    display: none;
   }
 
   &-tag {
@@ -36,23 +52,15 @@
     border-radius: 4px;
   }
 
-  &-skip {
-    margin-left: auto;
-    background: rgba(0, 0, 0, 0.6);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    border-radius: 4px;
-    font-size: 12px;
-    padding: 4px 10px;
-    cursor: pointer;
-
-    &:hover { background: rgba(0, 0, 0, 0.8); }
-  }
-
   &-brand {
     display: flex;
     align-items: center;
     gap: 10px;
+    // The parent is a column flex container, so without this the card stretches the
+    // full width of the player — a mostly-empty bar pinned across the bottom. It
+    // should be exactly as wide as the logo and the words in it.
+    align-self: flex-start;
+    max-width: calc(100% - 24px);
     margin: 0 12px 84px;   // clear of the shorts action rail
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.62);
@@ -89,4 +97,84 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+}
+
+// The loading cover. Sits inside .mkt-shortad (which is `inset: 0`) and fills it, so
+// it hides the black player underneath for the second or so the spot takes to fetch
+// its playlist and first segment.
+//
+// Opaque, not translucent: there is nothing behind it worth showing through, and a
+// translucent panel over black just looks like a dimmed mistake.
+.mkt-shortad-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;            // under .mkt-shortad-top (z-index 1), over the video
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #0b0b0b;
+  pointer-events: auto;  // swallow taps aimed at a player that is not showing yet
+
+  &-logo {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    object-fit: cover;
+  }
+
+  &-name {
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    padding: 0 24px;
+  }
+
+  // Clamped to three lines, one more than the bottom card allows — there is a whole
+  // screen to play with here rather than a corner. Still clamped, though: an
+  // advertiser who pastes a paragraph must not push the sweep bar off the bottom.
+  &-slogan {
+    margin-top: -6px;      // pull under the name; the flex gap is sized for the logo
+    max-width: 20rem;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: center;
+    padding: 0 24px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  // A determinate-looking bar rather than a spinner: this resolves in about a second,
+  // and a spinner at that length reads as a stall.
+  &-bar {
+    width: 96px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+
+    i {
+      display: block;
+      width: 40%;
+      height: 100%;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.75);
+      animation: mkt-shortad-sweep 1.1s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes mkt-shortad-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+// Respect a reduced-motion preference — the bar is decoration, not information.
+@media (prefers-reduced-motion: reduce) {
+  .mkt-shortad-cover-bar i { animation: none; width: 100%; opacity: 0.5; }
 }

@@ -2,7 +2,14 @@ import PropTypes from 'prop-types';
 import './ShortsAdOverlay.scss';
 
 /**
- * The chrome around a shorts spot: who it is from, that it is an ad, and a way out.
+ * The chrome around a shorts spot: who it is from, that it is an ad, and how long is
+ * left of it.
+ *
+ * NO SKIP BUTTON, and no way out generally — the feed's own navigation is disabled for
+ * the length of the spot too. What keeps that from being a trap is that the countdown
+ * is not the player's: it runs off the server-reported duration in Short.jsx, ticks
+ * down on a plain interval, and ends the spot when it reaches zero whatever the video
+ * element is doing. A spot with no duration ends immediately rather than never.
  *
  * 🚨 Draws NO video. The shorts feed has exactly one <video> element on purpose —
  * iOS will not play a second one — so the spot is loaded into that same persistent
@@ -14,17 +21,27 @@ import './ShortsAdOverlay.scss';
  * not hide the spot, because the spot IS the video that is playing. The disclosure is
  * the thing at risk, not the impression, which is the right way round.
  */
-export default function ShortsAdOverlay({ brand, secondsLeft, onSkip, canSkip }) {
+export default function ShortsAdOverlay({ brand, secondsLeft, loading }) {
   if (!brand) return null;
   return (
-    <div className="mkt-shortad">
+    <div className={`mkt-shortad${loading ? ' is-loading' : ''}`}>
+      {/* Covers the ~1s of black while the shared player fetches the spot's playlist
+          and first segment. Not a spinner on its own: the advertiser's own card is
+          what the viewer is about to see anyway, so showing it early reads as the ad
+          arriving rather than as the feed stalling. */}
+      {loading && (
+        <div className="mkt-shortad-cover">
+          {brand.logoUrl && <img src={brand.logoUrl} alt="" className="mkt-shortad-cover-logo" />}
+          <span className="mkt-shortad-cover-name">{brand.productName || brand.account}</span>
+          {brand.slogan && <span className="mkt-shortad-cover-slogan">{brand.slogan}</span>}
+          <span className="mkt-shortad-cover-bar"><i /></span>
+        </div>
+      )}
+
       <div className="mkt-shortad-top">
         <span className="mkt-shortad-tag">Ad</span>
         {Number.isFinite(secondsLeft) && secondsLeft > 0 && (
           <span className="mkt-shortad-count">{secondsLeft}s</span>
-        )}
-        {canSkip && (
-          <button type="button" className="mkt-shortad-skip" onClick={onSkip}>Skip</button>
         )}
       </div>
 
@@ -54,6 +71,5 @@ ShortsAdOverlay.propTypes = {
     clickUrl: PropTypes.string,
   }),
   secondsLeft: PropTypes.number,
-  onSkip: PropTypes.func,
-  canSkip: PropTypes.bool,
+  loading: PropTypes.bool,
 };

@@ -243,6 +243,28 @@ const VideoShort = () => {
   const [shortsAd, setShortsAd] = useState(null);
   const [adSecondsLeft, setAdSecondsLeft] = useState(0);
   const adBusyRef = useRef(false);
+  // A spot the server has already handed over, waiting for the next swipe to play it
+  // on. Held in a ref rather than state on purpose: it must not render anything until
+  // it is consumed, and a re-render between arriving and being taken would be noise.
+  const pendingAdRef = useRef(null);
+  // While this is true the surface belongs to the ADVERTISER. The short underneath is
+  // only paused, so every piece of chrome that names its creator or acts on their post
+  // has to stand down — see the `.ad-playing` block in Short.scss and the guard in
+  // quickUpvote(). Leaving them up attributes the spot to the creator, and a stray tap
+  // would vote or comment on their post while somebody else's ad is on screen.
+  const adPlaying = SHORTS_ADS_ENABLED && !!shortsAd;
+  // Has the spot actually put a frame on screen yet? Until it has, the shared <video>
+  // is showing black — it was handed a new source and has to fetch a playlist and a
+  // segment before it can paint. That gap cannot be prefetched away (lib/shortsAd.js
+  // explains why), so it is COVERED instead: the overlay draws the advertiser's card
+  // over the top until this flips.
+  //
+  // Driven off the first timeupdate with a real currentTime rather than the `play`
+  // event, because `play` fires when playback is requested, not when a frame lands —
+  // covering only until `play` would uncover onto the same black.
+  const [adStarted, setAdStarted] = useState(false);
+  const adPlayingRef = useRef(false);
+  adPlayingRef.current = adPlaying;
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentIndexRef = useRef(0);
   currentIndexRef.current = currentIndex;
@@ -647,6 +669,11 @@ const VideoShort = () => {
 
   // Quick upvote via double-tap — opens vote popup (same as sidebar heart button)
   const quickUpvote = useCallback(() => {
+    // The sidebar heart is disabled by CSS during a spot, but double-tap reaches this
+    // through the gesture overlay instead, which the ad chrome deliberately lets taps
+    // pass through (it is `pointer-events: none` so the player keeps play/pause). So
+    // the guard belongs here — the one place both the mouse and touch paths funnel to.
+    if (adPlaying) return;
     const video = videos[currentIndex];
     if (!video) return;
     if (video.hivePostMissing) {
@@ -661,7 +688,7 @@ const VideoShort = () => {
     setSelectedComment({ author: video.author, permlink: video.hivePermlink });
     setShowTooltip(true);
     setActiveTooltipPermlink(video.hivePermlink);
-  }, [videos, currentIndex, authenticated]);
+  }, [videos, currentIndex, authenticated, adPlaying]);
 
   // Desktop mouse handlers: mouseDown starts a long-press timer (mute/unmute), mouseUp cancels it,
   // click fires the single/double-click gesture (play/pause or upvote).
@@ -832,22 +859,46 @@ const VideoShort = () => {
     // Update tracking refs
     // One short finished. Counted on ADVANCE rather than on open, so a short that was
     // scrolled past without watching does not pay into the cadence.
+    let takingSpot = false;
     if (SHORTS_ADS_ENABLED && prevIndex !== currentIndex && prevIndex >= 0) {
       countShortWatched();
-      const finished = videos[prevIndex];
-      if (!adBusyRef.current && finished) {
-        adBusyRef.current = true;
-        requestShortsAd({
-          owner: finished.author,
-          permlink: finished.permlink || finished.hivePermlink,
-          viewer: (useAppStore.getState().user || '').toLowerCase() || null,
-        }).then((spot) => {
-          // A spot only interrupts if the feed has not moved on again while we asked.
-          if (spot && currentIndexRef.current === currentIndex) {
-            setShortsAd(spot);
-            setAdSecondsLeft(Math.round(Number(spot.durationSeconds) || 0));
-          }
-        }).finally(() => { adBusyRef.current = false; });
+      // A spot bought at the PREVIOUS boundary and held until now. Consumed before
+      // anything else, and it suppresses this advance's own request — we are about to
+      // play an ad, so asking for a second one is pointless.
+      if (pendingAdRef.current) {
+        const spot = pendingAdRef.current;
+        pendingAdRef.current = null;
+        takingSpot = true;
+        setShortsAd(spot);
+        setAdStarted(false);
+        setAdSecondsLeft(Math.round(Number(spot.durationSeconds) || 0));
+      } else {
+        const finished = videos[prevIndex];
+        if (!adBusyRef.current && finished) {
+          adBusyRef.current = true;
+          requestShortsAd({
+            owner: finished.author,
+            permlink: finished.permlink || finished.hivePermlink,
+            viewer: (useAppStore.getState().user || '').toLowerCase() || null,
+          }).then((spot) => {
+            // 🚨 HELD for the next swipe rather than shown now. The request goes out
+            // when a short STARTS, so by the time it answers that short is already
+            // playing — and showing the spot here yanked it away mid-play, which is
+            // the one thing a feed must not do. Buffered, it lands on the following
+            // boundary instead, where an interruption is expected and costs nothing.
+            //
+            // Holding it owes nobody anything: an impression is recorded when a
+            // segment is FETCHED (recordDelivery, checker adServe.js), so a spot that
+            // is never reached simply expires with its session.
+            //
+            // No currentIndex check any more. It used to matter because the spot
+            // interrupted a specific short; now it waits for whichever boundary comes
+            // next, and the feed having moved on is exactly the case it is for.
+            // Held only. Nothing is fetched ahead of time — see the note at the foot
+            // of lib/shortsAd.js for why prefetching a spot bills for it.
+            if (spot) pendingAdRef.current = spot;
+          }).finally(() => { adBusyRef.current = false; });
+        }
       }
     }
 
@@ -857,6 +908,14 @@ const VideoShort = () => {
     // Reset ready state for the new video
     readyPlayers.current.clear();
     setReadyPlayerIds(new Set());
+
+    // The spot taken above is already loading into the shared player. Loading this
+    // short on top of it would race two sources through one <video> and the ad would
+    // lose — which is the bug where a short flashed up before the ad, seen from the
+    // other side. endShortsAd() loads this short when the spot finishes.
+    if (takingSpot) {
+      return undefined;
+    }
 
     // Load new video into the persistent player (reuses same <video> element + Player instance)
     const player = playerRef.current;
@@ -929,6 +988,7 @@ const VideoShort = () => {
   // When the spot is done — its time is up, or the viewer skipped — put the short back.
   const endShortsAd = useCallback(() => {
     setShortsAd(null);
+    setAdStarted(false);
     setAdSecondsLeft(0);
     const player = playerRef.current;
     const vid = videos[currentIndexRef.current];
@@ -947,6 +1007,12 @@ const VideoShort = () => {
 
   // Force-show fallback: if the player hasn't fired ready after 6s, show it anyway and try playing
   useEffect(() => {
+    // Not while a spot is on. The short deliberately was NOT loaded — the ad has the
+    // player — so this would always find it un-ready and start calling play() against
+    // the ad. Harmless in itself, but it also marks the short ready before it has
+    // loaded a frame. Dropping adPlaying re-runs this, which is exactly right: the
+    // 6-second clock should start when the short actually gets the player back.
+    if (adPlaying) return;
     const currentVid = videos[currentIndex];
     if (!currentVid || readyPlayers.current.has(currentVid.id)) return;
 
@@ -966,7 +1032,7 @@ const VideoShort = () => {
     }, 6000);
 
     return () => clearTimeout(timer);
-  }, [currentIndex, videos]);
+  }, [currentIndex, videos, adPlaying]);
 
   // Lazy enrichment: when a short becomes visible and hasn't been enriched yet,
   // fetch full Hive data (vote status, reaction chain, child reactions) in background
@@ -2046,7 +2112,13 @@ const VideoShort = () => {
   }, [setShortsFeedMode]);
 
   // Find the nearest ready player index in a given direction, skipping up to `maxSkip` non-ready videos
+  // 🚨 Both nav functions bail while a spot is on screen, and this is the ONLY place
+  // that needs to say so: the wheel handler, the arrow keys, the on-screen arrows and
+  // the touch swipe all funnel through these two. Guarding here rather than at each
+  // call site is what stops the next surface that learns to navigate from quietly
+  // reopening the hole.
   const handlePrevious = () => {
+    if (adPlaying) return;
     if (currentIndex === 0) return;
     shortHistoryRef.current = [];
     triggerSwipeAnimation('down');
@@ -2054,6 +2126,7 @@ const VideoShort = () => {
   };
 
   const handleNext = async () => {
+    if (adPlaying) return;
     if (currentIndex >= videos.length - 1) {
       if (hasMore && !loadingMoreRef.current) {
         await loadMoreVideos();
@@ -2193,7 +2266,10 @@ const VideoShort = () => {
   };
 
   const onTouchMove = (e) => {
-    if (showComments) return;
+    // adPlaying: handleNext/handlePrevious already refuse to move, but without this
+    // the card still rubber-bands under the finger and then snaps back — which reads
+    // as the swipe having failed rather than as it being switched off.
+    if (showComments || adPlaying) return;
     const y = e.targetTouches[0].clientY;
     setTouchEnd(y);
     // Live drag: clamp to ±120px for visual feedback
@@ -2227,7 +2303,7 @@ const VideoShort = () => {
     const distance = startY != null && endY != null ? startY - endY : 0;
     const wasSwipe = Math.abs(distance) > minSwipeDistance;
 
-    if (startY != null && endY != null && !showComments && !isTransitioning) {
+    if (startY != null && endY != null && !showComments && !isTransitioning && !adPlaying) {
       // `|| interestsMode` so a swipe at the END of the interests feed still reaches
       // handleNext, which is what triggers the automatic fall-back to Discover.
       if (distance > minSwipeDistance && (currentIndex < videos.length - 1 || hasMore || interestsMode)) {
@@ -2385,6 +2461,11 @@ const VideoShort = () => {
       durationRef.current = duration;
       updateProgressBar();
       setIsPlaying(!paused);
+
+      // A spot has painted its first frame — the cover can come off. Read through a
+      // ref because this listener is registered once at player setup and would
+      // otherwise close over the state as it was then.
+      if (adPlayingRef.current && currentTime > 0) setAdStarted(true);
 
       // Watch-duration heartbeat while genuinely playing (throttled to beatMs;
       // the server measures the real wall-clock gap between beats + which part
@@ -2608,7 +2689,7 @@ const VideoShort = () => {
 
   return (
     <>
-    <main className={`short-main${shortsCommentBar ? '' : ' no-bottom-bar'}`}>
+    <main className={`short-main${shortsCommentBar ? '' : ' no-bottom-bar'}${adPlaying ? ' ad-playing' : ''}`}>
       <div className="landscape-block"
         onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
         onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
@@ -2655,8 +2736,7 @@ const VideoShort = () => {
             <ShortsAdOverlay
               brand={shortsAd.brand}
               secondsLeft={adSecondsLeft}
-              canSkip={adSecondsLeft <= 0 || adSecondsLeft < (Number(shortsAd.durationSeconds) || 0) - 4}
-              onSkip={endShortsAd}
+              loading={!adStarted}
             />
           )}
           {currentVideo && (

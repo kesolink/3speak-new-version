@@ -73,3 +73,22 @@ export async function requestShortsAd({ owner, permlink, viewer }) {
 export function resetShortsAdCount() {
   watchedSinceAd = 0;
 }
+
+/**
+ * 🚫 DO NOT ADD A PREFETCH HERE. It was tried, and it is wrong twice over.
+ *
+ * The obvious fix for the black frame is to pull the spot's playlist and first segment
+ * into the HTTP cache while the previous short is still playing. Neither half works:
+ *
+ *   1. The checker serves /m/<sid>/short.m3u8 with `Cache-Control: no-store`, so the
+ *      browser is forbidden from keeping it. The player re-fetches everything cold
+ *      regardless, and the warm-up is pure overhead.
+ *
+ *   2. Worse, the segments in that playlist are OUR endpoints (/m/<sid>/a and /b), not
+ *      the CDN's — and fetching one is what records the delivery. A prefetch bills the
+ *      advertiser for a spot nobody has seen yet, and starts the pacing clock early,
+ *      so the real playback then looks too fast and gets refused a count.
+ *
+ * The black frame is covered in the UI instead — see the `loading` branch of
+ * ShortsAdOverlay, held until the first timeupdate proves a frame has rendered.
+ */

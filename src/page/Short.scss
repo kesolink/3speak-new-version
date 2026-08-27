@@ -2593,3 +2593,68 @@
     right: 100px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   A shorts spot is on screen.
+
+   The short underneath is only PAUSED — its author, title, subscribe button and
+   action rail are all still mounted, and until this block existed they stayed
+   visible over the ad. Two things wrong with that, in order of severity:
+
+     1. It attributes the ad to the creator. Someone swiping past sees a stranger's
+        product with @badadib's name under it, which is the one impression the
+        disclosure exists to prevent.
+     2. Every control still ACTS on the short. A tap on the heart, the comment
+        button or the comment bar votes on or replies to a post the viewer is not
+        currently looking at.
+
+   So the byline goes away entirely and the controls stand down. They are dimmed
+   rather than removed on purpose: the rail vanishing and reappearing would shift
+   the desktop layout twice per spot, and a greyed control reads as "not now"
+   rather than as a bug.
+
+   Voting also has a second route in — double-tap on the video, which the ad chrome
+   lets through because it is `pointer-events: none` so play/pause keeps working.
+   CSS cannot catch that one; quickUpvote() in Short.jsx guards it.
+   --------------------------------------------------------------------------- */
+.short-main.ad-playing {
+  /* Creator byline, title, subscribe, audio marquee, subtitles. */
+  .bottomOverlay {
+    display: none;
+  }
+
+  /* Vote, comment, reshare, save, share, remix, edit — the mobile comment bar, and the
+     desktop up/down arrows. The arrows are inert during a spot (handleNext and
+     handlePrevious both bail), so they have to LOOK inert; a button that visibly does
+     nothing when pressed is read as broken. */
+  .actionSidebar,
+  .shortsBottomComment,
+  .navigationArrows {
+    pointer-events: none;
+    opacity: 0.35;
+    filter: grayscale(1);
+    transition: opacity 0.2s ease, filter 0.2s ease;
+  }
+
+  /* The rail sets `cursor: pointer` on its items; without this they still look
+     clickable while doing nothing, which is worse than looking disabled. */
+  .actionSidebar .actionItem,
+  .actionSidebar .actionButton {
+    cursor: default;
+  }
+
+  /* The reaction chain names a DIFFERENT creator again — the author of the original
+     this short replied to, with their avatar and thumbnail. Same misattribution as
+     the byline, so it goes the same way. */
+  .reactionChainOverlay {
+    display: none;
+  }
+
+  /* Back button. Not a misattribution, but it is `top: 12px; left: 12px` at z-index
+     55 — which is exactly where the "Ad" tag renders, and above the overlay. It would
+     sit on the disclosure. Hidden for the length of the spot; the history it walks
+     back through is still there afterwards. */
+  .shortBackBtn {
+    display: none;
+  }
+}
