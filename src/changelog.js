@@ -7,6 +7,16 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.56',
+    date: '2026-08-27',
+    summary:
+      'Big uploads on mobile connections now finish instead of getting stuck near the end. '
+      + 'Videos are sent in smaller pieces, so a weak signal no longer makes the last part of '
+      + 'an upload retry over and over, and uploads now start on one connection and open more '
+      + 'only once the first piece arrives. The upload screen also shows the correct confirmed '
+      + 'amount instead of about half of it.',
+  },
+  {
     version: '1.78.55',
     date: '2026-08-27',
     summary:

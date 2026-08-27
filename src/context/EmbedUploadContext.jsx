@@ -505,19 +505,25 @@ export function EmbedUploadProvider({ children }) {
     const MB = 1024 * 1024;
     const sizeBytes = videoFile.size || 0;
     const conn = getConnectionProfile();
-    let chunkSize, parallelUploads;
-    if (conn.weak) {
-      // Thin/flaky/metered uplink: small SEQUENTIAL chunks. Each PATCH finishes
-      // well inside the server read-timeout, a drop loses little, and we avoid the
-      // multi-stream contention that caused the read-timeout/interrupt cascade.
-      chunkSize = 4 * MB; parallelUploads = 1;
-    }
+    // chunkSize is a RETRY UNIT, not a throughput knob. tus re-sends the whole
+    // chunk from the server's offset on every retry, so the unit is what a flaky
+    // link has to carry in one unbroken request — and the LAST chunk is the one
+    // that decides whether the upload finishes at all. A 636MB upload sized from
+    // navigator.connection ("4g dl10") took 16MB chunks, reached 97.8%, then spent
+    // ten minutes re-sending the same final 14MB chunk and never landed it.
+    //
+    // So do NOT size this from navigator.connection. That API reports
+    // optimistically on mobile — a dying carrier link still answers "4g", and the
+    // same phone reported dl0.05 and dl10 on two attempts minutes apart. This is
+    // the same trap the chunked tier was taken off in 1.78.51; the weak hint now
+    // only decides whether we open a second stream, never how big a bite we take.
+    // 4MB is the largest unit that still re-sends cheaply on a bad link, and it
+    // is bounded by the uplink, not by us: throughput comes from the pipe.
+    const chunkSize = 4 * MB;
     // Parallel multi-part uploads split the uplink N ways and each part is a
     // separate upload that can strand — great on a fat pipe, fragile otherwise.
-    // Cap at 2 and keep chunks modest so a stall costs little and resumes fast.
-    else if (sizeBytes > 500 * MB) { chunkSize = 16 * MB; parallelUploads = 2; }
-    else if (sizeBytes > 50 * MB) { chunkSize = 8 * MB; parallelUploads = 2; }
-    else { chunkSize = 5 * MB; parallelUploads = 1; }
+    // Cap at 2 and only where there is real work to split.
+    const parallelUploads = (!conn.weak && sizeBytes > 50 * MB) ? 2 : 1;
     patchUploadDetail({ chunkBytes: chunkSize, workers: parallelUploads });
 
     // Cross-session resume only on tusd-backed hosts (see endpointSupportsResume).
@@ -535,6 +541,19 @@ export function EmbedUploadProvider({ children }) {
     // A false positive is cheap: the chunked fallback is also resumable.
     const WATCHDOG_MS = 15000;
     let firstAck = false;
+    // Server-confirmed offset per PARTIAL upload, keyed by that partial's own URL.
+    // tus fires onChunkComplete on each partial with no way to tell them apart, so
+    // summing there is impossible and the old code just showed whichever partial
+    // reported last AS IF it were the whole upload: a 636MB upload that genuinely
+    // had 652,084,181 bytes on the server displayed "304 MB confirmed" — the exact
+    // number that makes a healthy upload look like it lost half its data. The
+    // request URL is the identity the callback lacks.
+    const ackedByPart = new Map();
+    const totalAcked = () => {
+      let sum = 0;
+      for (const v of ackedByPart.values()) sum += v;
+      return Math.min(sum, videoFile.size || sum);
+    };
     let watchdog = setTimeout(() => {
       if (!firstAck) {
         try { upload.abort(); } catch { /* ignore */ }
@@ -584,12 +603,13 @@ export function EmbedUploadProvider({ children }) {
       // reliable "a PATCH actually landed" signal. onProgress alone isn't enough:
       // it reflects bytes the browser pushed into the socket, which a proxy can
       // accept and then black-hole. First ack ⇒ PATCH works ⇒ disarm the watchdog.
-      onChunkComplete: (chunkSize, bytesAccepted) => {
+      onChunkComplete: (_partChunkSize, bytesAccepted) => {
         if (bytesAccepted > 0 && !firstAck) { firstAck = true; clearWatchdog(); }
-        // Server-confirmed bytes. Distinct from onProgress below, which is only
-        // "pushed into the socket" — the gap between the two is exactly what a
-        // black-holing proxy looks like, so show both.
-        patchUploadDetail({ acked: bytesAccepted, phase: 'Uploading' });
+        // Server-confirmed bytes, summed across partials (see ackedByPart).
+        // Distinct from onProgress below, which is only "pushed into the socket" —
+        // the gap between the two is exactly what a black-holing proxy looks like,
+        // so show both.
+        patchUploadDetail({ acked: totalAcked(), phase: 'Uploading' });
       },
       onProgress: (bytesUploaded, bytesTotal) => {
         const pct = Math.round((bytesUploaded / bytesTotal) * 100);
@@ -610,6 +630,22 @@ export function EmbedUploadProvider({ children }) {
       onAfterResponse: (req, res) => {
         const header = res.getHeader('X-Embed-URL') || res.getHeader('x-embed-url');
         if (header) capturedEmbedUrl = header;
+        try {
+          // HEAD as well as PATCH: on a resume the partials already hold bytes we
+          // never sent this session, and tus HEADs each one to find its offset.
+          // Without it a resumed 652MB upload would read "0 confirmed" until the
+          // first chunk of the session landed. The final concatenated upload can
+          // get a HEAD too, but its offset is the full size and totalAcked()
+          // clamps to the file, so it can only ever read correct-and-complete.
+          const m = req.getMethod();
+          if (m === 'PATCH' || m === 'HEAD') {
+            const off = parseInt(res.getHeader('Upload-Offset') || '', 10);
+            if (Number.isFinite(off)) {
+              ackedByPart.set(req.getURL(), off);
+              patchUploadDetail({ acked: totalAcked() });
+            }
+          }
+        } catch { /* header shapes vary by stack — never break the upload for a counter */ }
       },
     });
     tusUploadRef.current = upload;
@@ -961,7 +997,28 @@ export function EmbedUploadProvider({ children }) {
     // them. Independent TCP connections are what give the stall isolation.
     const MAX_INFLIGHT_BYTES = 1.25 * MB;
     const parallel = Math.max(1, Math.min(5, Math.floor(MAX_INFLIGHT_BYTES / chunkSize)));
-    patchUploadDetail({ chunkBytes: chunkSize, workers: parallel });
+    patchUploadDetail({ chunkBytes: chunkSize, workers: 1 });
+
+    // Ramp, don't fan out. Worker count is derived from chunkSize, and the FLOOR
+    // chunk size is chosen precisely BECAUSE the probe could not get through — so
+    // the worst links were the ones handed the most concurrent streams. Measured
+    // across every user on this path: floor-size sessions (5 workers) delivered
+    // ZERO bytes 15 times in 28, while every 1-worker session moved data. Five
+    // flows do not multiply a saturated uplink, they just make each request five
+    // times longer and five times likelier to hit STALL_MS.
+    //
+    // So prove the transport can carry one chunk before opening the rest. A
+    // healthy link ramps in seconds; a link that never lands its first chunk now
+    // fails having tied up one stream instead of five. The gate must also open on
+    // the way out, or workers parked on it would hang Promise.all forever.
+    let ramped = false;
+    let openRamp;
+    const rampGate = new Promise((r) => { openRamp = r; });
+    const releaseRamp = () => {
+      if (ramped) return;
+      ramped = true;
+      openRamp();
+    };
 
     // Progress = bytes the SERVER has confirmed + bytes currently in flight. The
     // in-flight half is what keeps the bar alive: without it the bar can only step
@@ -1007,7 +1064,9 @@ export function EmbedUploadProvider({ children }) {
     let failed = null;
     let retries = 0;
 
-    const worker = async () => {
+    const worker = async (slot) => {
+      // Everyone but the pathfinder waits for the first server-acked chunk.
+      if (slot > 0) await rampGate;
       while (queue.length && !failed) {
         const index = queue.shift();
         const start = index * chunkSize;
@@ -1037,6 +1096,8 @@ export function EmbedUploadProvider({ children }) {
               },
             );
             ok = true;
+            // A chunk landed: the transport works, so open the other streams.
+            if (!ramped) { patchUploadDetail({ workers: parallel }); releaseRamp(); }
             inflight.delete(index);
             if (Number.isFinite(r.receivedBytes)) serverBytes = r.receivedBytes;
             paint();
@@ -1067,7 +1128,13 @@ export function EmbedUploadProvider({ children }) {
             const st = await postForm(`${base}/upload/chunk/status`, { sessionId }, null, { timeoutMs: 30000 });
             if (st && Array.isArray(st.received)) {
               if (Number.isFinite(st.receivedBytes)) { serverBytes = st.receivedBytes; paint(); }
-              if (st.received.includes(index)) ok = true;   // it did land — move on
+              if (st.received.includes(index)) {
+                ok = true;   // it did land — move on
+                // Landed-but-unacked still proves the transport carries a chunk,
+                // so this must open the ramp too. Otherwise a link whose ACKs keep
+                // getting lost would run on one worker for the whole upload.
+                if (!ramped) { patchUploadDetail({ workers: parallel }); releaseRamp(); }
+              }
             }
           } catch { /* status unreachable — fall through to the failure below */ }
         }
@@ -1076,7 +1143,11 @@ export function EmbedUploadProvider({ children }) {
     };
 
     const workers = Math.max(1, Math.min(parallel, queue.length || 1));
-    await Promise.all(Array.from({ length: workers }, worker));
+    await Promise.all(Array.from({ length: workers }, (_, slot) => (
+      // The pathfinder opens the gate on its way out HOWEVER it exits, so a first
+      // chunk that never lands can never strand the ramped workers on Promise.all.
+      slot === 0 ? worker(0).finally(releaseRamp) : worker(slot)
+    )));
     if (failed) throw failed;
 
     const fin = await postForm(`${base}/upload/chunk/finish`, { sessionId }, null, { timeoutMs: 60000 });
