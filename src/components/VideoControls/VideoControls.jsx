@@ -45,6 +45,14 @@ function formatTime(seconds) {
 
 
 function VideoControls({
+  // A video ROLL is on screen. The scrubber goes away for the length of the spot —
+  // an advertiser paying for five seconds should not be handed a drag handle
+  // straight past them.
+  //
+  // 🚨 Rolls only. A banner is painted into the creator's video while it plays
+  // normally, so it never sets this: taking the timeline away then would be
+  // removing a control from ordinary playback.
+  adPlaying = false,
   currentTime,
   duration,
   buffered,
@@ -356,7 +364,7 @@ function VideoControls({
       onMouseLeave={() => { if (!isTouchDevice) setHovering(false); }}
     >
       {/* Progress bar */}
-      <div className="vc-progress-row">
+      <div className={`vc-progress-row${adPlaying ? ' vc-ad-locked' : ''}`}>
         <div
           className="vc-progress-track"
           ref={trackRef}

@@ -1722,6 +1722,7 @@ function Watch({ v2 = false }) {
         onRetryPlayback={retryPlayback}
         mediaLoading={!isLive && mediaLoading}
         videoRef={videoRef}
+        adPlaying={sponsorVisible}
         sponsorLabel={sponsorVisible ? (
           // A node, not a string: the disclosure now names the advertiser, their
           // product and their slogan, and draws their logo. AdOverlay is the same
