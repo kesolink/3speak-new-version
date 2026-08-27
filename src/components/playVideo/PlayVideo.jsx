@@ -72,7 +72,7 @@ import SummaryModal from '../SummaryModal/SummaryModal';
 
 dayjs.extend(relativeTime);
 
-const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null, belowPlayerSlot = null, sponsorLabel = null }) => {
+const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, mediaBlocked = false, onRetryPlayback = null, mediaLoading = false, playlistData, onClosePlaylist, videoControls, mobileReactionPanel, cinemaReactionPanel, videoRef, wrapperRef, onVideoEdited, overrideBody, scheduled = false, scheduledOn = null, onEditScheduled, v2 = false, isLive = false, streamRoom = null, liveChatSlot = null, onLiveChatSent = null, vodAssetPending = false, onStreamRoomMeta = null, belowPlayerSlot = null, sponsorLabel = null, adCountdown = null, bannerHit = null, adPlaying = false }) => {
   const { user, authenticated } = useAppStore();
   const interests = useAppStore((s) => s.interests);
   const setInterests = useAppStore((s) => s.setInterests);
@@ -807,12 +807,23 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                   onRoomMeta={onStreamRoomMeta}
                 />
               )}
+              {adCountdown != null && (
+                // Bottom-right, opposite the disclosure, so the two never collide.
+                // aria-live so it is announced once rather than on every tick.
+                <div className="watch-ad-countdown" role="status" aria-live="polite">
+                  Ad in {adCountdown}
+                </div>
+              )}
               {sponsorLabel && (
                 // Disclosure while a sponsor spot is playing. Rendered inside the
                 // player frame rather than as a page-level element: a filter list
                 // cannot hide it without hiding the video with it.
-                <div className="watch-sponsor-note">{sponsorLabel}</div>
+                <div className="watch-sponsor-note watch-sponsor-slot">{sponsorLabel}</div>
               )}
+              {/* Click target over a burned-in banner. Positions itself against the
+                  <video> element's displayed frame, so it belongs inside the same
+                  wrapper the video is in. */}
+              {bannerHit}
               <video
                 ref={videoRef}
                 style={{
@@ -893,7 +904,10 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                   )}
                 </div>
               )}
-              {videoControls?.subtitleCues?.length > 0 && (
+              {/* Not over the spot. contentTime() clamps to the cut point while the
+                  break runs, so without this the last cue before the ad would sit
+                  frozen on top of somebody else's video for its whole length. */}
+              {videoControls?.subtitleCues?.length > 0 && !adPlaying && (
                 <SubtitleOverlay
                   currentTime={videoControls.subtitleCurrentTime}
                   cues={videoControls.subtitleCues}
@@ -970,16 +984,22 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                     }}
                     onMouseDown={() => {
                       if (Date.now() - lastTouchRef.current < 500) return;
-                      if (window.innerWidth <= 767) videoControls.onToggleControls();
+                      // While a spot is on screen the controls are hidden, so the
+                      // small-screen gesture that normally reveals them has nothing
+                      // to reveal. Pause instead — a tap has to do SOMETHING, and
+                      // pausing is what tapping a playing ad should do anyway.
+                      if (window.innerWidth <= 767 && !adPlaying) videoControls.onToggleControls();
                       else videoControls.onTogglePlay();
                     }}
                     onTouchStart={(e) => {
                       lastTouchRef.current = Date.now();
                       e.preventDefault();
-                      videoControls.onToggleControls();
+                      if (adPlaying) videoControls.onTogglePlay();
+                      else videoControls.onToggleControls();
                     }}
                   />
                   <VideoControls
+                    adPlaying={adPlaying}
                     currentTime={videoControls.currentTime}
                     duration={videoControls.duration}
                     buffered={videoControls.buffered}

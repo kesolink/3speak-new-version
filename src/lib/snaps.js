@@ -9,12 +9,12 @@
 import axios from 'axios';
 import { CHECKER_URL } from '../utils/config';
 import { getHiveUrl } from '../utils/hiveNode';
+import { resolveSnapsContainer } from '../utils/snapsContainer';
 import { commentWithAioha } from '../hive-api/aioha';
 
 // Must match SNAP_APP in the checker's routes/snaps.js — it's how a snap is told
 // apart from any other comment the account has under @peak.snaps.
 const SNAP_APP = '3speak/snap';
-const SNAP_CONTAINER = 'peak.snaps';
 // Built-in tag on every community snap (in addition to the user's own tags).
 export const SNAP_TAG = 'community';
 export const MAX_USER_TAGS = 9; // + the built-in `community` = Hive's practical 10-tag limit
@@ -64,17 +64,8 @@ export function unhideSnapCreator(user, author) {
 // The @peak.snaps container is one long-running "daily" post; we reply under its
 // newest one, exactly like the shorts uploader does.
 async function getSnapsContainer() {
-  const res = await axios.post(getHiveUrl(), {
-    jsonrpc: '2.0',
-    method: 'bridge.get_account_posts',
-    params: { sort: 'posts', account: SNAP_CONTAINER, start_author: '', start_permlink: '', limit: 1 },
-    id: 1,
-  });
-  const latest = res.data?.result?.[0];
-  if (!latest?.author || !latest?.permlink) {
-    throw new Error('Could not find a snaps container to post under — try again shortly');
-  }
-  return { author: latest.author, permlink: latest.permlink };
+  // Multi-node, multi-API, retried — see utils/snapsContainer.js.
+  return resolveSnapsContainer();
 }
 
 function makePermlink(body) {

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MdContentCopy, MdKeyboardArrowDown, MdKeyboardArrowUp } from 'react-icons/md';
+import {
+  MdContentCopy, MdKeyboardArrowDown, MdKeyboardArrowUp, MdSchedule,
+} from 'react-icons/md';
 import {
   listSubtitleLanguages,
   loadSubtitleCues,
@@ -30,6 +32,7 @@ import './Transcript.scss';
  */
 
 const AUTOSCROLL_PAUSE_MS = 6000;
+const COPY_TIMES_KEY = '3speak-transcript-copy-times';
 
 const stamp = (seconds) => {
   const s = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -46,6 +49,13 @@ export default function Transcript({ author, permlink, currentTime = 0, onSeek, 
   const [cues, setCues] = useState([]);
   const [expanded, setExpanded] = useState(embedded);
   const [copied, setCopied] = useState(false);
+  // Copying is done for two different reasons and they want different text:
+  // quoting a moment ("he says it at 4:12") needs the times, feeding the words
+  // to something else does not. Remembered, because a given reader almost
+  // always wants the same one every time.
+  const [withTimes, setWithTimes] = useState(() => {
+    try { return localStorage.getItem(COPY_TIMES_KEY) !== '0'; } catch { return true; }
+  });
 
   const listRef = useRef(null);
   const lastUserScrollRef = useRef(0);
@@ -116,13 +126,29 @@ export default function Transcript({ author, permlink, currentTime = 0, onSeek, 
     el?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, expanded]);
 
+  const toggleTimes = useCallback(() => {
+    setWithTimes((v) => {
+      try { localStorage.setItem(COPY_TIMES_KEY, v ? '0' : '1'); } catch { /* private mode */ }
+      return !v;
+    });
+  }, []);
+
   const copy = useCallback(async () => {
+    // One cue per line. A cue's own text may be wrapped across two lines, but
+    // that is a caption-rendering detail, not a break in the sentence, so it
+    // gets flattened back to a space.
+    const text = cues
+      .map((c) => {
+        const line = String(c.text).replace(/\s*\n\s*/g, ' ').trim();
+        return withTimes ? `[${stamp(c.start)}] ${line}` : line;
+      })
+      .join('\n');
     try {
-      await navigator.clipboard.writeText(cues.map((c) => c.text).join('\n'));
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch { /* clipboard blocked — nothing useful to say */ }
-  }, [cues]);
+  }, [cues, withTimes]);
 
   if (!cues.length) return null;
 
@@ -141,7 +167,21 @@ export default function Transcript({ author, permlink, currentTime = 0, onSeek, 
               {languages.map((l) => <option key={l.lang} value={l.lang}>{l.label || l.lang}</option>)}
             </select>
           )}
-          <button type="button" className="transcript-copy" onClick={copy} title="Copy transcript">
+          <button
+            type="button"
+            className={`transcript-times${withTimes ? ' active' : ''}`}
+            onClick={toggleTimes}
+            aria-pressed={withTimes}
+            title={withTimes ? 'Copying with timecodes' : 'Copying text only'}
+          >
+            <MdSchedule size={15} /> <span className="transcript-times-label">Timecodes</span>
+          </button>
+          <button
+            type="button"
+            className="transcript-copy"
+            onClick={copy}
+            title={withTimes ? 'Copy transcript with timecodes' : 'Copy transcript text'}
+          >
             <MdContentCopy size={15} /> {copied ? 'Copied' : 'Copy'}
           </button>
         </div>

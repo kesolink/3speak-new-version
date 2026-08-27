@@ -1676,25 +1676,65 @@
 
 /* Sponsored disclosure, shown only while a stitched ad is playing. Inside the
    player frame on purpose: a filter list cannot hide it without hiding the video. */
+/* Placement only. The disclosure itself is AdOverlay, which brings its own ground,
+   padding and type — this just decides where on the video it sits. It used to carry
+   the box styling too, which would have double-framed the overlay. */
 .watch-sponsor-note {
   position: absolute;
   top: 12px;
   left: 12px;
-  z-index: 4;
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.66);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1.4;
+  /* Must beat .video-interact-overlay (z-index 5), the click-to-play surface that
+     spans the frame from `top: 40px` down. At z-index 4 this overlay sits at
+     `top: 12px`, so only its first 28px took a click and the rest of it — most of
+     the disclosure, including the logo and product name — toggled play/pause
+     instead of opening the advertiser's site. On touch that handler also calls
+     preventDefault(), so the tap was swallowed outright. 7, not 6, so it does not
+     tie with the replay/ended overlays and depend on DOM order to win.
+     .watch-ad-countdown stays at 4 deliberately: it has no click target, and the
+     interact overlay is transparent, so being underneath costs it nothing. */
+  z-index: 7;
   pointer-events: none;
+  /* `right` as well as `left` on purpose. With only `left` this box is shrink-to-fit,
+     and then a max-width on it does NOT constrain a wider child: the overlay simply
+     overflowed it and stayed 340px on a 380px player. Bounding both sides gives the
+     box a real width, which the overlay fills and never exceeds. The percentage
+     resolves against the player frame, which is what it should measure against. */
+  right: 12px;
+  max-width: min(340px, 62%);
 
   @media (max-width: 600px) {
     top: 8px;
     left: 8px;
-    font-size: 11px;
+    right: 8px;
+    /* Was 82%, which let the overlay cover most of the frame on a phone. The
+       disclosure only has to be readable. */
+    max-width: 58%;
+  }
+}
+
+/* "Ad in 3" — bottom-right, opposite the disclosure top-left so they never overlap.
+   Small on purpose: it is a courtesy, not an announcement. */
+.watch-ad-countdown {
+  position: absolute;
+  right: 12px;
+  bottom: 56px; /* clear of the control bar */
+  z-index: 4;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+
+  @media (max-width: 600px) {
+    right: 8px;
+    bottom: 44px;
     padding: 3px 8px;
+    font-size: 11px;
   }
 }

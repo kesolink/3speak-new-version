@@ -154,3 +154,52 @@
     border-color: var(--border-color, rgba(127, 127, 127, 0.35));
   }
 }
+
+/* Granular toggles. Only rendered when third-party ads are switched on, because
+   until then there is exactly one optional thing and the buttons alone carry it. */
+.cookie-consent-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+
+.cookie-consent-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    margin: 2px 0 0;
+    accent-color: var(--accent-primary, #e23a3a);
+    cursor: pointer;
+  }
+
+  /* Unticked by default and styled identically to each other: neither optional
+     category is presented as the expected or recommended answer. */
+  span {
+    display: block;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--text-muted, #666);
+  }
+
+  strong {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-primary, #222);
+  }
+
+  &:hover strong { color: var(--accent-primary, #e23a3a); }
+}
+
+/* Three actions do not fit side by side in a 380px card without truncating, and a
+   truncated "Essential only" is exactly the button that must stay legible. Stack
+   instead, reversed so the layout matches the phone breakpoint below. */
+.cookie-consent-actions.three-up {
+  flex-direction: column-reverse;
+}

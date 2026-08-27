@@ -1156,3 +1156,12 @@
 @keyframes vc-enable-clicks {
   to { pointer-events: auto; }
 }
+
+/* While a video roll is on screen. Hidden with visibility rather than display so
+   the control bar keeps its height and nothing below it jumps as the spot starts
+   and ends. Rolls only — a banner plays over the creator's own video, which stays
+   fully scrubbable. */
+.vc-progress-row.vc-ad-locked {
+  visibility: hidden;
+  pointer-events: none;
+}
