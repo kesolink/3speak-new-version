@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
-import { getHiveUrl } from '../utils/hiveNode';
+import { resolveSnapsContainer } from '../utils/snapsContainer';
 import { getCreatorSettings, isUploadBlocked } from '../utils/creatorSettings';
 import { useSupportBlock } from '../lib/supportBlockStore';
 import { useNavigate } from 'react-router-dom';
@@ -1698,24 +1698,22 @@ export function EmbedUploadProvider({ children }) {
         addMessage(`Replying to @${parentAuthor}/${parentPermlink}`);
       } else if (fromStories) {
         addMessage('Finding snaps container post...');
+        setStatusText('Finding snaps container post...');
         try {
-          const snapsRes = await axios.post(getHiveUrl(), {
-            jsonrpc: '2.0',
-            method: 'bridge.get_account_posts',
-            params: { sort: 'posts', account: 'peak.snaps', start_author: '', start_permlink: '', limit: 1 },
-            id: 1,
+          // @peak.snaps always has a live container (a new one every ~8-13h,
+          // and the previous one keeps accepting replies), so a failure here
+          // is the RPC node, not a gap in the containers. The shared resolver
+          // therefore walks every configured node and both hivemind APIs,
+          // retrying in rounds, instead of giving up after one call.
+          const container = await resolveSnapsContainer({
+            onProgress: (msg) => { addMessage(msg); setStatusText(msg); },
           });
-          const latestSnap = snapsRes.data?.result?.[0];
-          if (latestSnap) {
-            parentAuthor = latestSnap.author;
-            parentPermlink = latestSnap.permlink;
-            addMessage(`Replying to @${parentAuthor}/${parentPermlink}`);
-          } else {
-            throw new Error('No posts found from @peak.snaps');
-          }
+          parentAuthor = container.author;
+          parentPermlink = container.permlink;
+          addMessage(`Replying to @${parentAuthor}/${parentPermlink}`);
         } catch (snapErr) {
           console.error('Failed to fetch snaps container:', snapErr);
-          throw new Error('Could not find a snaps container post to reply to');
+          throw new Error(snapErr?.message || 'Could not find a snaps container post to reply to');
         }
       }
 
