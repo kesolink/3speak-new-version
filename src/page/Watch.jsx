@@ -1820,7 +1820,12 @@ function Watch({ v2 = false }) {
           onSubtitleChange: selectSubtitleLang,
           subtitleLoading,
           subtitleCues,
-          subtitleCurrentTime: playerState.currentTime,
+          // CONTENT time, not player time. Cues are timed against the creator's
+          // video; a stitched spot pushes everything after it later in the PLAYER's
+          // timeline, so raw currentTime runs every cue early by the length of the
+          // spot for the whole rest of the video. Same mapping the watch tracking
+          // already uses, and for the same reason.
+          subtitleCurrentTime: adBreakRef.current.contentTime(playerState.currentTime),
           subtitleStyle,
           onSubtitleStyleChange: updateSubtitleStyle,
           playbackRate: playerState.playbackRate,

@@ -904,7 +904,10 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
                   )}
                 </div>
               )}
-              {videoControls?.subtitleCues?.length > 0 && (
+              {/* Not over the spot. contentTime() clamps to the cut point while the
+                  break runs, so without this the last cue before the ad would sit
+                  frozen on top of somebody else's video for its whole length. */}
+              {videoControls?.subtitleCues?.length > 0 && !adPlaying && (
                 <SubtitleOverlay
                   currentTime={videoControls.subtitleCurrentTime}
                   cues={videoControls.subtitleCues}
