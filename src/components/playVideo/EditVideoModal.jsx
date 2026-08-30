@@ -10,6 +10,8 @@ import { HIVE_API_NODES, CHECKER_URL, CHECKER_API_KEY } from '../../utils/config
 import { commentWithAioha } from '../../hive-api/aioha';
 import { uploadThumbnail } from '../../utils/uploadThumbnail';
 import { uploadVideoAsset, probeVideoDuration, registerMediaReplacement } from '../../utils/uploadVideoAsset';
+import { setChannelTrailer, fetchChannelTrailer, trailerMatches } from '../../utils/channelTrailer';
+import { useAppStore } from '../../lib/store';
 import PromoteModal from '../Promote/PromoteModal';
 import { Rocket } from 'lucide-react';
 import './EditVideoModal.scss';
@@ -145,6 +147,19 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
   const initialReusableRef = useRef(true);
   const initialThumbRef = useRef(''); // loaded thumbnail baseline (for dirty check)
 
+  // Channel trailer. Offered only for landscape videos — the Overview trailer
+  // frame is 16:9, the same reason the uploader hides it for shorts — and only to
+  // the creator themself, since it pins the video to THEIR profile.
+  // `trailerKnown` gates the row on having actually read the current value: a
+  // toggle that defaulted to off after a failed read would offer to "set" a
+  // trailer that is already this video, or hide that another one is pinned.
+  const loggedInUser = useAppStore((st) => st.user);
+  const isOwner = !!loggedInUser
+    && String(loggedInUser).toLowerCase() === String(author || '').toLowerCase();
+  const [isTrailer, setIsTrailer] = useState(false);
+  const [trailerKnown, setTrailerKnown] = useState(false);
+  const initialTrailerRef = useRef(false);
+
   // Fetch original post when modal opens
   useEffect(() => {
     if (!isOpen || !author || !permlink) return;
@@ -233,6 +248,20 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
         } catch (_) {
           if (!cancelled) { setIsNsfw(tagNsfw); initialNsfwRef.current = tagNsfw; }
         }
+
+        // What is pinned as this creator's trailer right now, so the toggle
+        // reflects reality and can also UNPIN this video.
+        if (!isShort && isOwner) {
+          try {
+            const trailer = await fetchChannelTrailer(author);
+            if (!cancelled) {
+              const on = trailerMatches(trailer, author, permlink);
+              setIsTrailer(on);
+              initialTrailerRef.current = on;
+              setTrailerKnown(true);
+            }
+          } catch { /* couldn't read it — leave the row out entirely */ }
+        }
       } catch (err) {
         if (cancelled) return;
         console.error('Failed to load post for edit:', err);
@@ -263,9 +292,12 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
     setReusable(true);
     setPromotedUntil(null);
     setPromoteOpen(false);
+    setIsTrailer(false);
+    setTrailerKnown(false);
     initialListedRef.current = true;
     initialNsfwRef.current = false;
     initialReusableRef.current = true;
+    initialTrailerRef.current = false;
   }, [isOpen]);
 
   // Parse tags input (space/comma separated, lowercased, deduplicated)
@@ -329,12 +361,13 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
 
   const listingChanged = listed !== initialListedRef.current;
   const nsfwChanged = isNsfw !== initialNsfwRef.current;
+  const trailerChanged = isTrailer !== initialTrailerRef.current;
   // A replaced video file is deliberately NOT part of contentDirty: the media is
   // swapped on the existing embed entry, so the post's json_metadata and body
   // keep pointing at the same URL and no Hive broadcast is needed for it.
   const videoDirty = !!newAsset;
   // Checker-only changes (listing) don't need a broadcast but should enable Save.
-  const isDirty = contentDirty || listingChanged || videoDirty;
+  const isDirty = contentDirty || listingChanged || videoDirty || trailerChanged;
 
   const handleThumbFilePick = async (e) => {
     const file = e.target.files?.[0];
@@ -535,6 +568,23 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
         } catch (e) {
           console.warn('Listing update failed:', e?.message);
           toast.error('Could not update the listing.');
+        }
+      }
+
+      // Channel trailer (pin / unpin on the creator's own profile). Last, and
+      // best-effort: it broadcasts an account_update2 of its own to mirror the
+      // choice on chain, and a refused signature there must not read as the whole
+      // edit having failed.
+      if (trailerChanged) {
+        try {
+          await setChannelTrailer(author, isTrailer ? permlink : null, { author });
+          initialTrailerRef.current = isTrailer;
+          toast.success(isTrailer
+            ? 'Set as your channel trailer.'
+            : 'Removed as your channel trailer.');
+        } catch (e) {
+          console.warn('Channel trailer update failed:', e?.message);
+          toast.error('Could not update your channel trailer.');
         }
       }
 
@@ -781,6 +831,26 @@ export default function EditVideoModal({ isOpen, onClose, author, permlink, onSa
                 <span className="evm-switch__label">
                   <strong>Allow Remix/Clip</strong>
                   <small>{reusable ? 'Others can create remixes/clips; you are credited as original author.' : 'Others cannot remix or clip this video.'}</small>
+                </span>
+              </button>
+              )}
+
+              {/* Landscape only: the trailer frame on Overview is 16:9. */}
+              {!isShort && isOwner && trailerKnown && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isTrailer}
+                className={`evm-switch${isTrailer ? ' is-on' : ''}`}
+                onClick={() => setIsTrailer((v) => !v)}
+                disabled={saving}
+              >
+                <span className="evm-switch__track"><span className="evm-switch__thumb" /></span>
+                <span className="evm-switch__label">
+                  <strong>Channel trailer</strong>
+                  <small>{isTrailer
+                    ? 'Autoplays at the top of your profile\u2019s Overview tab, replacing any trailer you set before.'
+                    : 'Make this the video that autoplays at the top of your profile\u2019s Overview tab.'}</small>
                 </span>
               </button>
               )}
