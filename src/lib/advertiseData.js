@@ -11,6 +11,7 @@ import {
   signMessageWithAioha,
   getCurrentProvider,
   isManteAuthLogin,
+  establishWalletSession,
   KeyTypes,
   Providers,
 } from '../hive-api/aioha';
@@ -68,6 +69,26 @@ export async function fetchApplication(reference) {
   return readJson(await fetch(`${BASE}/application/${encodeURIComponent(reference)}`));
 }
 
+/**
+ * Whether this account may actually use the ad surfaces, straight from the gate
+ * that enforces it (checker `ADS_STAGE` + `ADS_BETA_USERS`).
+ *
+ * Returns `null` when the question could not be answered — an older checker with
+ * no /access route, or the network. That is NOT "no": the caller has to decide
+ * for itself, and the decision differs by surface.
+ */
+export async function fetchAdAccess(account) {
+  try {
+    const res = await fetch(`${BASE}/access/${encodeURIComponent(account)}`);
+    if (!res.ok) return null;
+    const body = await res.json();
+    if (!body || typeof body.allowed !== 'boolean') return null;
+    return { allowed: body.allowed, stage: body.stage || null };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchCreatorAdPrefs(account) {
   return readJson(await fetch(`${BASE}/creator/prefs/${encodeURIComponent(account)}`));
 }
@@ -100,35 +121,56 @@ const prefsMessage = (account, adsEnabled, communitySharePct, timestamp) =>
  * Ask our own backend to sign the preference with @threespeak's posting key,
  * under the authority the creator already granted it.
  *
- * This exists so the setting works for every login. A creator on HiveSigner or
- * Butter Auth has no key in the browser, so demanding a local signature would
- * leave exactly those people unable to turn ads off on their own videos — the
- * wrong group to lock out of a consent control. We send only a boolean; the
- * backend builds and signs the message itself, so it can never be talked into
- * signing arbitrary bytes.
+ * This is the path nearly every creator takes. Most have already granted
+ * @threespeak posting authority, and a login that has done so should not be asked
+ * to approve a preference toggle in a wallet popup — the grant is what it is for.
+ * It also happens to be the only path that works at all for HiveSigner and Butter
+ * Auth, which hold no key in the browser.
+ *
+ * We send only a boolean; the backend builds and signs the message itself, so it
+ * can never be talked into signing arbitrary bytes. It refuses with a 403 when the
+ * account has not granted the authority, which is what makes the wallet fallback
+ * in setCreatorAdPrefs reachable.
  */
 async function signViaThreespeak(adsEnabled, communitySharePct, account) {
   const provider = getCurrentProvider();
-  const headers = { 'Content-Type': 'application/json' };
-  const body = { adsEnabled, communitySharePct };
+  const isWallet = !!provider && provider !== Providers.HiveSigner && !isManteAuthLogin();
 
-  if (provider === Providers.HiveSigner) {
-    const token = localStorage.getItem('hivesignerToken');
-    if (!token) throw new Error('Your HiveSigner session expired — reconnect and try again.');
-    headers.Authorization = `Bearer ${token}`;
-  } else if (!isManteAuthLogin()) {
-    headers['X-API-Key'] = EMBED_API_KEY;
-    body.username = account;
+  const doPost = async () => {
+    const headers = { 'Content-Type': 'application/json' };
+    const body = { adsEnabled, communitySharePct };
+
+    if (provider === Providers.HiveSigner) {
+      const token = localStorage.getItem('hivesignerToken');
+      if (!token) throw new Error('Your HiveSigner session expired — reconnect and try again.');
+      headers.Authorization = `Bearer ${token}`;
+    } else if (!isManteAuthLogin()) {
+      headers['X-API-Key'] = EMBED_API_KEY;
+      body.username = account;
+    }
+
+    const r = await fetch(`${THREESPEAK_API}/ads/opt-out-signature`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    return { r, d: await r.json().catch(() => ({})) };
+  };
+
+  let { r: res, d: data } = await doPost();
+  // Same 401 recovery /api/broadcast does before it will post a video: mint the
+  // SIWH session cookie, then ask again. The cookie is a real credential (the user
+  // signed a challenge with their posting key at login) and the server checks it
+  // ahead of the claimed-username path, so this is what keeps delegated signing
+  // working for wallet logins if ALLOW_APPKEY_AUTH is ever turned off.
+  if (isWallet && res.status === 401 && await establishWalletSession()) {
+    ({ r: res, d: data } = await doPost());
   }
-
-  const res = await fetch(`${THREESPEAK_API}/ads/opt-out-signature`, {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.signature) {
+    // A 403 here means exactly one thing: @threespeak holds no posting authority on
+    // this account, so it cannot sign for them. The message the server sends back
+    // already says so in words, and is what a login that cannot sign locally shows.
     throw new Error(data.error || 'Could not save the setting. Please try again.');
   }
   return { signature: data.signature, timestamp: data.timestamp };
@@ -147,8 +189,9 @@ async function signLocally(account, adsEnabled, communitySharePct) {
 
 /**
  * Save this creator's ad settings: whether their videos carry ads, and how much of
- * the creator pool goes to the community they posted in. Signs locally when the
- * wallet can, and falls back to the delegated backend signature otherwise.
+ * the creator pool goes to the community they posted in. Signed by @threespeak
+ * under the posting authority the creator already granted it, falling back to the
+ * creator's own wallet only when that authority is not there.
  *
  * Both fields go in one signed message, so saving is one signature rather than one
  * per field — which matters when the wallet shows a prompt for each.
@@ -158,9 +201,24 @@ export async function setCreatorAdPrefs(account, { adsEnabled, communitySharePct
   // second copy in the browser is a copy that can drift out of step with the
   // message being signed. Omitting the field lets the server decide; passing 0
   // means the creator chose zero.
-  const { signature, timestamp } = canSignLocally()
-    ? await signLocally(account, adsEnabled, communitySharePct)
-    : await signViaThreespeak(adsEnabled, communitySharePct, account);
+  //
+  // 🚨 Delegated FIRST, wallet second — the reverse of what this used to do.
+  // Most creators here have already granted @threespeak posting authority, and
+  // preferring the local signature meant every one of them got a wallet popup for
+  // a preference toggle when the grant they already gave us could cover it. The
+  // client-side signature is now the fallback for the accounts that have NOT set
+  // up that authority, which is the only case where it is actually needed.
+  let signed;
+  try {
+    signed = await signViaThreespeak(adsEnabled, communitySharePct, account);
+  } catch (err) {
+    // A 403 is "no @threespeak grant". Anything else is a session or server
+    // problem. Either way, a wallet that can sign should just sign rather than
+    // hand the creator an error about authority they may not want to grant.
+    if (!canSignLocally()) throw err;
+    signed = await signLocally(account, adsEnabled, communitySharePct);
+  }
+  const { signature, timestamp } = signed;
 
   return readJson(await fetch(`${BASE}/creator/prefs`, {
     method: 'POST',

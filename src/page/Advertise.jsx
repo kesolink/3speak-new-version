@@ -1660,9 +1660,10 @@ export default function Advertise() {
           <li>
             <strong>Your ad videos</strong>
             <span>
-              The clip that plays inside someone&apos;s video, up to 15 seconds. Upload as
-              many as you like under one product, or ask us to make one. We watch each one
-              before it can run.
+              The clip that plays inside someone&apos;s video
+              {pricing?.maxCreativeSeconds ? `, up to ${pricing.maxCreativeSeconds} seconds` : ''}.
+              {' '}Upload as many as you like under one product, or ask us to make one. We watch
+              each one before it can run.
             </span>
           </li>
           <li>
@@ -1837,7 +1838,15 @@ export default function Advertise() {
                     <span className="mkt-label">What are you running?</span>
                     <div className="mkt-adtype-row">
                       {[
-                        { id: 'video', title: 'A video ad', blurb: 'Plays inside the video, up to 15 seconds.' },
+                        {
+                          id: 'video',
+                          title: 'A video ad',
+                          // From the rate card, not typed in: this number moved from 15 to 30
+                          // and the two places it had been written by hand did not move with it.
+                          blurb: pricing?.maxCreativeSeconds
+                            ? `Plays inside the video, up to ${pricing.maxCreativeSeconds} seconds.`
+                            : 'Plays inside the video.',
+                        },
                         { id: 'banner', title: 'A player banner', blurb: 'A still shown over the video while it plays.' },
                         { id: 'shorts', title: 'A shorts spot', blurb: 'Plays full screen between shorts. Upright video only.' },
                       ].map((o) => (

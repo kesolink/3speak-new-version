@@ -132,6 +132,7 @@ import LoginModal from "./components/LoginModal/LoginModal";
 import ActiveAuthModal from "./components/ActiveAuthModal/ActiveAuthModal";
 import InterestsPrompt from "./components/InterestsPrompt/InterestsPrompt";
 import WelcomePrompt from "./components/WelcomePrompt/WelcomePrompt";
+import AdsPrompt from "./components/AdsPrompt/AdsPrompt";
 import AvatarSync from "./components/HiveAvatar/AvatarSync";
 import EditorModal from "./components/modal/EditorModal";
 import { FEATURE_EDITOR } from "./utils/config";
@@ -676,10 +677,11 @@ function App() {
         />
         <ActiveAuthModal />
         <AvatarSync />
-        {/* Welcome first, interests after — WelcomePrompt claims the modal slot
-            so the two never stack (see utils/welcomeGate). */}
+        {/* Welcome first, then interests, then the ads pair. Each claims the modal
+            slot while it is up so they never stack (see utils/welcomeGate). */}
         <WelcomePrompt />
         <InterestsPrompt />
+        <AdsPrompt />
         {FEATURE_EDITOR && (
           <EditorModal
             isOpen={editorModalOpen}

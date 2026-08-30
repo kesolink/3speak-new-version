@@ -232,9 +232,18 @@ const ADS_BETA_USERS = new Set(
   (import.meta.env.VITE_ADS_BETA_USERS || '')
     .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
 );
-const adsEnabledFor = (user) => ENABLE_ADS
-  || isTestUser(user)
+// The narrow half of the gate: accounts this build believes are IN the closed
+// test, without the blanket VITE_ENABLE_ADS flag. Used where showing the feature
+// to someone the checker will refuse is worse than hiding it from a tester — the
+// onboarding prompts, which pitch a thing you then can't do. It is only the
+// fallback for when the checker's own /advertise/access answer can't be reached.
+const adsBetaUserFor = (user) => isTestUser(user)
   || (!!user && ADS_BETA_USERS.has(String(user).toLowerCase()));
+
+// Whether the ad UI exists in this build at all. A necessary condition everywhere,
+// but on its own NOT proof the account may use it — VITE_ENABLE_ADS opens the
+// surface to every visitor while the checker still refuses their writes.
+const adsEnabledFor = (user) => ENABLE_ADS || adsBetaUserFor(user);
 
 // THIRD-PARTY advertising. Distinct from ENABLE_ADS above, and the distinction
 // matters: ENABLE_ADS gates OUR OWN ad system (the /advertise page, house campaigns
@@ -338,6 +347,7 @@ export {
   openpodsEnabledFor,
   ENABLE_ADS,
   adsEnabledFor,
+  adsBetaUserFor,
   ENABLE_THIRDPARTY_ADS,
   FEED_EXCLUDED_HOSTS,
   ENABLE_CAMERA_RECORD,
