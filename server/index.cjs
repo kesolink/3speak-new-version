@@ -958,17 +958,39 @@ async function resolveDelegatedSignUser(req, res) {
   // silently broke an hour after login while broadcasting still worked.
   const butrUser = await resolveButrUser(req, res)
   if (butrUser) return butrUser.toLowerCase()
+
+  // SIWH wallet session cookie — the same credential /api/broadcast checks before
+  // it will post a video for someone. The user proved posting-key control at login
+  // and the username is bound to a server-signed cookie, so a wallet login that has
+  // signed in is identified here rather than falling through to the claimed-name
+  // path below. This check was missing, which is why the comment underneath used to
+  // claim parity with /api/broadcast that did not exist: broadcast tries this first
+  // and gates the app key behind a flag, and this helper did neither.
+  const ws = req.cookies?.[WSESSION_COOKIE_NAME]
+  const wu = ws && verifyWalletSession(ws)
+  if (wu) return String(wu).toLowerCase()
+
   const authHeader = req.headers.authorization || ''
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
   if (bearer) {
     const u = await verifyHiveSignerToken(bearer)
     if (u) return u.toLowerCase()
   }
-  // Wallet logins: trust the public app key + claimed username (same as broadcast).
-  const apiKey = req.headers['x-api-key'] || ''
-  if (EMBED_API_KEY && apiKey === EMBED_API_KEY) {
-    const claimed = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : ''
-    if (claimed) return claimed
+
+  // LEGACY app-key path, now gated by the same ALLOW_APPKEY_AUTH as /api/broadcast.
+  // It trusts the PUBLIC app key (it ships in the frontend bundle) plus a CLAIMED
+  // username, so anyone holding the key could ask for a signature as any account
+  // that opted into @threespeak. Setting ALLOW_APPKEY_AUTH=0 now closes it here too,
+  // instead of closing it on broadcast while leaving the signing oracles open.
+  if (ALLOW_APPKEY_AUTH) {
+    const apiKey = req.headers['x-api-key'] || ''
+    if (EMBED_API_KEY && apiKey === EMBED_API_KEY) {
+      const claimed = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : ''
+      if (claimed) {
+        console.warn(`[appkey-auth] delegated signing as @${claimed} via legacy public-app-key path (no SIWH session)`)
+        return claimed
+      }
+    }
   }
   return null
 }
