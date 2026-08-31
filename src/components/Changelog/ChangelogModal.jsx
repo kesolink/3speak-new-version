@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { IoClose, IoChevronBack, IoChevronForward, IoLogoGithub, IoCheckmarkCircle } from 'react-icons/io5';
 import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
@@ -29,7 +30,18 @@ function timeAgo(dateStr) {
   return years === 1 ? '1 year ago' : `${years} years ago`;
 }
 
+// Routes that must never be interrupted by "what's new". /advertise is a landing
+// page we send people to from outside 3Speak, and a changelog for an app they have
+// not used yet is the worst possible first thing to put in front of them.
+const SILENT_ROUTES = ['/advertise'];
+const isSilentRoute = (pathname) => {
+  const p = String(pathname || '').toLowerCase();
+  return SILENT_ROUTES.some((r) => p === r || p.startsWith(`${r}/`));
+};
+
 export default function ChangelogModal() {
+  const { pathname } = useLocation();
+  const silenced = isSilentRoute(pathname);
   const appUpdatedFrom = useAppStore((s) => s.appUpdatedFrom);
   const setAppUpdatedFrom = useAppStore((s) => s.setAppUpdatedFrom);
   const theme = useAppStore((s) => s.theme);
@@ -43,6 +55,9 @@ export default function ChangelogModal() {
   const trackRef = useRef(null);
 
   useEffect(() => {
+    // Held, not spent: `appUpdatedFrom` is left alone and markVersionSeen() is not
+    // called, so the popup still appears the moment they leave this route.
+    if (silenced) return;
     if (DUMMY_MODE) {
       setOpen(true);
       return;
@@ -55,15 +70,17 @@ export default function ChangelogModal() {
       return;
     }
     setOpen(true);
-  }, [appUpdatedFrom, setAppUpdatedFrom]);
+  }, [appUpdatedFrom, setAppUpdatedFrom, silenced]);
 
   // Lock the page behind the popup so the scroll wheel never scrolls the site.
+  // Must honour `silenced` too: a popup that is open but not rendered would
+  // otherwise leave the page underneath unscrollable with nothing to close.
   useEffect(() => {
-    if (!open) return;
+    if (!open || silenced) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previous; };
-  }, [open]);
+  }, [open, silenced]);
 
   // Recompute edge fades + the custom scrollbar thumb size/position.
   const updateFades = useCallback(() => {
@@ -154,7 +171,9 @@ export default function ChangelogModal() {
     };
   }, [open, updateFades]);
 
-  if (!open) return null;
+  // Also covers arriving at a silenced route with the popup already up: it goes
+  // away, and comes back on the way out, because `open` is never cleared here.
+  if (!open || silenced) return null;
 
   const entries = DUMMY_MODE ? CHANGELOG : changelogSince(appUpdatedFrom);
   if (entries.length === 0) return null;

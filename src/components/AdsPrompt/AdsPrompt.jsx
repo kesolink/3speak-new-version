@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAppStore } from '../../lib/store';
 import { adsEnabledFor, adsBetaUserFor } from '../../utils/config';
 import { readCreatorAdChoice } from '../../utils/adSettings';
@@ -61,10 +62,23 @@ export default function AdsPrompt() {
   // So the second condition is the checker's answer for THIS account, asked of the
   // gate that actually enforces it. `null` = not answered yet, and stays closed.
   const uiAvailable = adsEnabledFor(user);
+
+  // And never on /advertise itself. Someone already reading the ad page does not
+  // need a dialog opening on top of it to tell them the page exists, and from the
+  // rollout on this is a link people arrive at from outside 3Speak. Held rather
+  // than spent: the "already asked" flags are untouched, so a prompt that is still
+  // owed comes up once they are somewhere else.
+  const { pathname } = useLocation();
+  const onAdvertise = (() => {
+    const p = String(pathname || '').toLowerCase();
+    return p === '/advertise' || p.startsWith('/advertise/');
+  })();
+  const mayPrompt = uiAvailable && !onAdvertise;
+
   // Stamped with the account it was fetched for, so a session switch invalidates
   // it rather than carrying one creator's verdict over to the next.
   const [access, setAccess] = useState(null);
-  const visible = uiAvailable && !!user && access?.account === user && access.allowed === true;
+  const visible = mayPrompt && !!user && access?.account === user && access.allowed === true;
 
   useEffect(() => {
     if (!authenticated || !user || !uiAvailable) return undefined;

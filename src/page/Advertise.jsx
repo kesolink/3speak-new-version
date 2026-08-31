@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MdCampaign, MdInfoOutline, MdCheckCircle, MdSchedule, MdCancel } from 'react-icons/md';
 import { toast } from 'sonner';
 import { useAppStore } from '../lib/store';
-import { adsEnabledFor } from '../utils/config';
+import { adsEnabledFor, ENABLE_BUTRAUTH } from '../utils/config';
 import SEOHead from '../components/SEOHead';
 import NotFound from './NotFound';
 import AdOverlay from '../components/ads/AdOverlay';
@@ -248,6 +248,89 @@ function FormatPicker({ formats, value, onChange }) {
   );
 }
 
+// Where each format actually runs, in the reader's terms. Keyed off `surface`,
+// which is the server's own word for it, so a format on a new surface shows the
+// raw key rather than being silently mislabelled as one of these.
+const SURFACE_LABEL = {
+  watch: 'Inside videos',
+  shorts: 'Between shorts',
+  upload: 'Before an upload',
+};
+
+/**
+ * The full rate card: every bookable spot, each with its own price.
+ *
+ * Built from `pricing.formats`, the same array FormatPicker reads, so a format
+ * added on the server appears here without a frontend change. The section used to
+ * quote one number — the video roll's — as though it were the price of the page,
+ * which understated the banner and left the shorts and pre-upload spots off the
+ * page entirely.
+ *
+ * Tiles rather than a table: these are four different products, not four readings
+ * of one measure, and a row per product invited a price comparison down a column
+ * that is not the point. Each tile carries a worked example, because a raw
+ * per-second-per-day rate is a number nobody can price a campaign from in their head.
+ */
+const EXAMPLE_SECONDS = 10;
+
+function RateCard({ pricing }) {
+  const formats = pricing?.formats || [];
+  if (!formats.length) return null;
+  const days = pricing?.minDays || null;
+
+  return (
+    <ul className="mkt-ratecard">
+      {formats.map((f) => {
+        // Quoted at one length across every tile, so they compare the SPOTS rather
+        // than their maximum lengths. Clamped, so a format capped under the
+        // baseline is quoted at its cap and says so.
+        const seconds = Math.min(EXAMPLE_SECONDS, f.maxSeconds || EXAMPLE_SECONDS);
+        const example = days && f.ratePerSecondDayHbd
+          ? Math.round(f.ratePerSecondDayHbd * days * seconds * 1000) / 1000
+          : null;
+        return (
+          <li key={f.key} className="mkt-rc-tile">
+            <div className="mkt-rc-head">
+              <h3>{f.label}</h3>
+              <span className="mkt-rc-rate">
+                {f.ratePerSecondDayHbd} HBD
+                <span className="mkt-rc-unit"> /sec /day</span>
+              </span>
+            </div>
+
+            <p className="mkt-rc-blurb">{f.blurb}</p>
+
+            <dl className="mkt-rc-facts">
+              <div>
+                <dt>Where it runs</dt>
+                <dd>{SURFACE_LABEL[f.surface] || f.surface}</dd>
+              </div>
+              <div>
+                <dt>You supply</dt>
+                <dd>
+                  {f.creativeKind === 'image' ? 'An image' : 'A video'}
+                  {f.maxSeconds ? `, up to ${f.maxSeconds}s` : null}
+                </dd>
+              </div>
+            </dl>
+
+            {example != null ? (
+              <div className="mkt-rc-example">
+                <span className="mkt-rc-example-price">{example} HBD</span>
+                <span className="mkt-rc-example-note">
+                  for a {seconds}s spot over {days} days
+                </span>
+              </div>
+            ) : null}
+
+            {f.rateIsCustom ? <span className="mkt-tag">your agreed rate</span> : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function StatusBadge({ status }) {
   const map = {
     pending: { Icon: MdSchedule, label: 'Under review' },
@@ -306,9 +389,17 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   const [picked, setPicked] = useState({});
   const [saving, setSaving] = useState(null);
 
+  // Credit carried from earlier flights that under-delivered. Comes back with the
+  // campaign list rather than needing its own request, because it is only ever shown
+  // next to them.
+  const [balanceHbd, setBalanceHbd] = useState(0);
+
   const refresh = useCallback(() => {
     fetchCampaigns(reference)
-      .then((r) => setCampaigns(r.campaigns || []))
+      .then((r) => {
+        setCampaigns(r.campaigns || []);
+        setBalanceHbd(r.balanceHbd || 0);
+      })
       .catch(() => { /* an unreadable list is not worth an error banner */ });
   }, [reference]);
   useEffect(() => { refresh(); }, [refresh]);
@@ -451,7 +542,12 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         maxVideoSeconds: Number.isFinite(maxVideoNum) && maxVideoNum > 0 ? maxVideoNum : undefined,
         production: wantProduction ? { requested: true, brief: brief.trim() } : undefined,
       });
-      toast.success('Booked. Send the payment to start it');
+      // Credit from an earlier flight that under-delivered is spent at booking, so
+      // there may be nothing left to send. Telling someone to pay when they do not
+      // have to would send them looking for a payment step that is not there.
+      toast.success(res?.payment?.alreadyCovered
+        ? 'Booked and scheduled — covered in full by your credit'
+        : 'Booked. Send the payment to start it');
       refresh();
       if (!creatives.length) onNeedCreative?.();
       return res;
@@ -690,6 +786,19 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                 {fmt?.rateIsCustom ? ` at your agreed ${rate} HBD` : ` at ${rate} HBD`}
                 {' '}per second per day
               </span>
+              {/* What they will actually be asked to transfer. The server spends the
+                  balance when the campaign is created, so quoting only the total
+                  would overstate what this booking costs them. Mirrors the same
+                  min(balance, price) the backend applies — matching `total` works
+                  because priceHbd there is likewise flight + production fee. */}
+              {balanceHbd > 0 ? (
+                <span className="mkt-hint">
+                  {' '}· {Math.min(balanceHbd, total)} HBD credit applied, so you send{' '}
+                  <strong>
+                    {Math.round(Math.max(0, total - balanceHbd) * 1000) / 1000} HBD
+                  </strong>
+                </span>
+              ) : null}
             </span>
           ) : null}
           <button
@@ -703,6 +812,17 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         </div>
       </form>
       {error ? <p className="mkt-upload-error">{error}</p> : null}
+
+      {/* Shown whether or not they have campaigns: credit somebody has to go looking
+          for is credit they will never spend, which would make "we credit you instead
+          of refunding" a way of keeping the money rather than an alternative to
+          sending it back. It comes off the next booking on its own. */}
+      {balanceHbd > 0 && (
+        <p className="mkt-balance">
+          You have <strong>{balanceHbd} HBD</strong> in credit from flights that
+          under-delivered. It comes off your next booking automatically.
+        </p>
+      )}
 
       {campaigns.length > 0 && (
         <ul className="mkt-campaign-list">
@@ -742,6 +862,15 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                     <strong>@{c.payTo}</strong> with the memo <code>{c.memo}</code>. HIVE works too and
                     is valued at the on-chain price.
                   </p>
+                  {/* Without this the figure above simply does not match the price on
+                      the line beside it, which reads as a pricing bug rather than a
+                      discount. Say where the difference went. */}
+                  {c.creditAppliedHbd > 0 && (
+                    <p className="mkt-hint">
+                      {c.priceHbd} HBD less {c.creditAppliedHbd} HBD credit from an earlier
+                      flight that under-delivered.
+                    </p>
+                  )}
                   <button type="button" className="mkt-secondary" onClick={() => onCheckPayment(c.id)}>
                     I have sent it
                   </button>
@@ -802,10 +931,19 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                 <div className="mkt-delivery">
                   <span><strong>{formatCount(c.delivered)}</strong> play{c.delivered === 1 ? '' : 's'} delivered
                     {c.forecast ? ` of ${formatCount(c.forecast)} forecast` : ''}</span>
+                  {/* A shortfall against forecast is settled as credit toward the
+                      next booking, not as a transfer back. Saying "we will send it"
+                      would leave them waiting for money that is not coming. */}
                   {c.refundHbd > 0 && (
                     <span className="mkt-refund">
-                      {c.refundHbd} HBD owed back for under-delivery
-                      {c.refundStatus === 'pending' ? ' — we will send it' : ''}
+                      {c.refundStatus === 'credited'
+                        ? `${c.creditHbd ?? c.refundHbd} HBD credited to you for under-delivery — it comes off your next booking`
+                        : `${c.refundHbd} HBD short of forecast — we are looking at this one`}
+                    </span>
+                  )}
+                  {c.creditAppliedHbd > 0 && (
+                    <span className="mkt-credit-used">
+                      {c.creditAppliedHbd} HBD of credit went into this booking
                     </span>
                   )}
                 </div>
@@ -1185,7 +1323,10 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
   );
 }
 
-export default function Advertise() {
+// `openLoginModal` comes from the app root, which owns the login modal. Opening it
+// in place matters here: the /login route redirects home first, and this is a page
+// people arrive at from outside 3Speak, so bouncing them off it loses the visit.
+export default function Advertise({ openLoginModal }) {
   const user = useAppStore((s) => s.user);
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -1696,10 +1837,19 @@ export default function Advertise() {
 
       <section className="mkt-section">
         <h2>How it is priced</h2>
-        {pricing?.pricePerSecondDayHbd ? (
-          // Straight from /advertise/pricing rather than typed into the copy: this is
-          // the number the booking will actually charge, and a hardcoded price is a
-          // promise the server has no idea it made.
+        {/* Every number here comes from /advertise/pricing rather than the copy: a
+            hardcoded price is a promise the server has no idea it made. */}
+        <RateCard pricing={pricing} />
+        {pricing?.formats?.length ? (
+          <p className="mkt-fine">
+            Every spot is priced per second of ad, per day it runs, so a longer spot or a
+            longer flight costs proportionally more. Each example above prices a
+            {' '}{EXAMPLE_SECONDS}-second spot over the {pricing.minDays}-day minimum, as a
+            like-for-like comparison rather than a limit.
+            {pricing.maxDays ? ` A booking can run up to ${pricing.maxDays} days.` : null}
+          </p>
+        ) : pricing?.pricePerSecondDayHbd ? (
+          // Fallback for a checker too old to send the rate card: one product, one price.
           <p className="mkt-headline-price">
             <strong>{pricing.pricePerSecondDayHbd} HBD</strong> per second of spot, per day
             {pricing.minDays && pricing.maxCreativeSeconds ? (
@@ -1817,6 +1967,27 @@ export default function Advertise() {
                 Log in with the Hive account you want to advertise from. Your product is tied
                 to that account, and it is the wallet the booking is paid from.
               </p>
+              {/* Sign up rides the same ENABLE_BUTRAUTH gate as the one in the nav, so
+                  the two never disagree about whether an account can be made yet. With
+                  it off, Log in is the only action and takes the primary styling. */}
+              <div className="mkt-signin-actions">
+                <button
+                  type="button"
+                  className={ENABLE_BUTRAUTH ? 'mkt-secondary' : 'mkt-primary'}
+                  onClick={() => openLoginModal?.('login')}
+                >
+                  Log in
+                </button>
+                {ENABLE_BUTRAUTH && (
+                  <button
+                    type="button"
+                    className="mkt-primary"
+                    onClick={() => openLoginModal?.('signup')}
+                  >
+                    Sign up
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <>

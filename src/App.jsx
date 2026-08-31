@@ -630,7 +630,7 @@ function App() {
             />
             <Route path="/t/:tag" element={<TagFeed />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/advertise" element={<Advertise />} />
+            <Route path="/advertise" element={<Advertise openLoginModal={openLoginModal} />} />
             <Route path="/profile" element={<ProfilePage />} />
             {/* Spotlight — creator link page. Canonical: 3speak.tv/links/username (no @).
                 Legacy /@handle/links still resolves (nginx 301s it to /links/ in prod). */}
