@@ -31,9 +31,13 @@ const HIVE_ACCOUNT = process.env.THREESPEAK_HIVE_ACCOUNT || 'badadib'
 const AD_CREATOR_POOL_PCT = Number(process.env.AD_CREATOR_POOL_PCT) || 50
 // Must equal AD_DEFAULT_COMMUNITY_PCT on the checker. Both sides build the signed
 // message, so a disagreement here signs one split and stores another.
+// 🚨 Zero on purpose: sharing ad income with a community is opt IN. This was 25,
+// which quietly donated half of every creator's share for them. Changing it on one
+// side only would sign one split and store another, so the checker and BOTH API
+// servers move together or not at all.
 const AD_DEFAULT_COMMUNITY_PCT = Number.isInteger(Number(process.env.AD_DEFAULT_COMMUNITY_PCT))
   ? Number(process.env.AD_DEFAULT_COMMUNITY_PCT)
-  : 25
+  : 0
 // Shared app key (same one the embed TUS upload uses) — authenticates wallet
 // logins (Keychain/HiveAuth/PeakVault/Ledger) on the post-creation path, which
 // can't present a token/cookie. Same trust level the upload pipeline already
