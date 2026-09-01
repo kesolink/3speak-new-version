@@ -132,6 +132,7 @@ import LoginModal from "./components/LoginModal/LoginModal";
 import ActiveAuthModal from "./components/ActiveAuthModal/ActiveAuthModal";
 import InterestsPrompt from "./components/InterestsPrompt/InterestsPrompt";
 import WelcomePrompt from "./components/WelcomePrompt/WelcomePrompt";
+import AdsPrompt from "./components/AdsPrompt/AdsPrompt";
 import AvatarSync from "./components/HiveAvatar/AvatarSync";
 import EditorModal from "./components/modal/EditorModal";
 import { FEATURE_EDITOR } from "./utils/config";
@@ -629,7 +630,7 @@ function App() {
             />
             <Route path="/t/:tag" element={<TagFeed />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/advertise" element={<Advertise />} />
+            <Route path="/advertise" element={<Advertise openLoginModal={openLoginModal} />} />
             <Route path="/profile" element={<ProfilePage />} />
             {/* Spotlight — creator link page. Canonical: 3speak.tv/links/username (no @).
                 Legacy /@handle/links still resolves (nginx 301s it to /links/ in prod). */}
@@ -676,10 +677,11 @@ function App() {
         />
         <ActiveAuthModal />
         <AvatarSync />
-        {/* Welcome first, interests after — WelcomePrompt claims the modal slot
-            so the two never stack (see utils/welcomeGate). */}
+        {/* Welcome first, then interests, then the ads pair. Each claims the modal
+            slot while it is up so they never stack (see utils/welcomeGate). */}
         <WelcomePrompt />
         <InterestsPrompt />
+        <AdsPrompt />
         {FEATURE_EDITOR && (
           <EditorModal
             isOpen={editorModalOpen}

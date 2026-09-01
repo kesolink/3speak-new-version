@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAppStore } from '../../lib/store';
 import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
-import { useWelcomeActive } from '../../utils/welcomeGate';
+import { usePromptsActive, setPromptActive } from '../../utils/welcomeGate';
 import { refreshHomeFeeds } from '../../utils/feedSeed';
 import TagsV2Picker from '../tooltip/TagsV2Picker';
 import './InterestsPrompt.scss';
@@ -36,12 +36,13 @@ export default function InterestsPrompt() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState([]);
   const [saving, setSaving] = useState(false);
-  // The welcome flow gets the screen to itself; we re-run once it's done.
-  const welcomeActive = useWelcomeActive();
+  // Whichever app-root prompt is on screen gets it to itself; we re-run once it
+  // is done. Was welcome-only, which was enough until the ads prompts existed.
+  const promptsActive = usePromptsActive('interests');
 
   useEffect(() => {
     if (!authenticated || !user || wasPrompted(user)) return;
-    if (welcomeActive) return;
+    if (promptsActive) return;
     let alive = true;
     // Small delay so we don't collide with the login flow / other modals.
     const t = setTimeout(async () => {
@@ -54,16 +55,24 @@ export default function InterestsPrompt() {
         return;
       }
       setSelected([]);
+      // Claim the slot in the same tick we decide to open, so a prompt still
+      // making up its mind cannot open underneath this one.
+      setPromptActive('interests', true);
       setOpen(true);
     }, 1200);
     return () => { alive = false; clearTimeout(t); };
-  }, [authenticated, user, welcomeActive]);
+  }, [authenticated, user, promptsActive]);
+
+  // Release the slot however this unmounts, so a prompt waiting on it is not
+  // left waiting forever by a route change mid-decision.
+  useEffect(() => () => setPromptActive('interests', false), []);
 
   if (!open) return null;
 
   const dismiss = () => {
     if (user) markPrompted(user);
     setOpen(false);
+    setPromptActive('interests', false);
   };
 
   const save = async () => {
@@ -74,6 +83,7 @@ export default function InterestsPrompt() {
       if (user) markPrompted(user);
       toast.success('Interests saved — change them anytime in Settings');
       setOpen(false);
+      setPromptActive('interests', false);
       // Refetch the home feeds in place (no page reload) so they immediately
       // reflect the new interests. Runs after setInterests so the feed params
       // read the fresh list from the store.
