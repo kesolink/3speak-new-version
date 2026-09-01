@@ -24,6 +24,27 @@ const clean = (u) => String(u || '').trim().replace(/^@/, '').toLowerCase();
 const RETRY_DELAYS_MS = [3000, 6000, 10000, 15000];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Read a creator's current trailer, or null when they have none.
+ *
+ * Throws when the lookup itself fails, which the edit surfaces need kept apart
+ * from a genuine "no trailer": a failed read shown as "not the trailer" would
+ * offer to clear a trailer that is actually set.
+ */
+export async function fetchChannelTrailer(username) {
+  const u = clean(username);
+  if (!u) return null;
+  const { data } = await axios.get(`${CHECKER_URL}/user/${encodeURIComponent(u)}/trailer`);
+  return data?.trailer || null;
+}
+
+/** Is `permlink` (by `author`) the trailer currently pinned on `username`'s profile? */
+export function trailerMatches(trailer, author, permlink) {
+  if (!trailer?.permlink) return false;
+  return String(trailer.permlink).toLowerCase() === String(permlink || '').toLowerCase()
+    && String(trailer.author || '').toLowerCase() === String(author || '').toLowerCase();
+}
+
 /** Point a creator's trailer at one of their videos (null clears it). */
 export async function setChannelTrailer(username, permlink, { author } = {}) {
   const u = clean(username);

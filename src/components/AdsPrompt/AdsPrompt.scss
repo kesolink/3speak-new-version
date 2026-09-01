@@ -1,0 +1,337 @@
+// Shared by both ad prompts. Deliberately the same shell as InterestsPrompt.scss
+// (520px card, bottom sheet on mobile) so the app-root prompts a new creator sees
+// in a row do not each look like a different product.
+
+.ads-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.ads-prompt {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--bg-secondary, #1e1e1e);
+  color: var(--text-primary, #f1f1f1);
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.ads-prompt-step {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #aaa);
+  opacity: 0.8;
+}
+
+.ads-prompt-title {
+  margin: 0 0 6px;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.ads-prompt-text {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary, #aaa);
+
+  strong { color: var(--text-primary, #f1f1f1); font-weight: 600; }
+}
+
+/* ─── the split, drawn ─────────────────────────────────────────────────── */
+
+.ads-prompt-bar {
+  display: flex;
+  height: 34px;
+  border-radius: 9px;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 700;
+
+  > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.ads-prompt-bar-creators {
+  background: var(--accent-primary, #e0594b);
+  color: #fff;
+}
+
+.ads-prompt-bar-platform {
+  flex: 1 1 auto;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.08));
+  color: var(--text-secondary, #aaa);
+}
+
+.ads-prompt-bar-legend {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0 16px;
+  font-size: 11.5px;
+  color: var(--text-secondary, #aaa);
+}
+
+.ads-prompt-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  li {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text-secondary, #aaa);
+    padding-left: 14px;
+    border-left: 2px solid var(--border-light, rgba(255, 255, 255, 0.1));
+  }
+
+  strong { color: var(--text-primary, #f1f1f1); font-weight: 600; }
+}
+
+/* ─── step two ─────────────────────────────────────────────────────────── */
+
+.ads-prompt-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+}
+
+.ads-prompt-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 auto;
+}
+
+.ads-prompt-row-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f1f1);
+}
+
+.ads-prompt-row-desc {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary, #aaa);
+}
+
+.ads-prompt-switch {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 24px;
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.16));
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &.is-on { background: var(--accent-primary, #e0594b); }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+}
+
+.ads-prompt-switch-knob {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+
+  .ads-prompt-switch.is-on & { transform: translateX(18px); }
+}
+
+.ads-prompt-share {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+
+  input[type='range'] {
+    width: 100%;
+    margin: 8px 0 2px;
+    accent-color: var(--accent-primary, #e0594b);
+    cursor: pointer;
+
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+}
+
+.ads-prompt-breakdown {
+  display: flex;
+  gap: 8px;
+
+  span {
+    flex: 1 1 0;
+    padding: 8px 6px;
+    border-radius: 9px;
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.06));
+    font-size: 12px;
+    text-align: center;
+    color: var(--text-secondary, #aaa);
+
+    b {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary, #f1f1f1);
+    }
+  }
+
+  .muted b { color: var(--text-secondary, #aaa); }
+}
+
+/* ─── the pitch ────────────────────────────────────────────────────────── */
+
+.ads-prompt-formats {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  li {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  }
+}
+
+.ads-prompt-format-name {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f1f1);
+}
+
+.ads-prompt-format-blurb {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary, #aaa);
+}
+
+.ads-prompt-reach {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 10px;
+  border: 1px dashed var(--border-light, rgba(255, 255, 255, 0.16));
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary, #aaa);
+}
+
+/* ─── actions ──────────────────────────────────────────────────────────── */
+
+.ads-prompt-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.ads-prompt-ghost,
+.ads-prompt-primary {
+  padding: 9px 18px;
+  border-radius: 9px;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.12s ease, background 0.12s ease;
+
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+}
+
+.ads-prompt-ghost {
+  background: transparent;
+  color: var(--text-secondary, #aaa);
+  &:hover:not(:disabled) { color: var(--text-primary, #f1f1f1); }
+}
+
+// Filled accent, matching InterestsPrompt's save button rather than the outline
+// style used in the OpenPods create-room dialog: these two prompts appear back to
+// back and a different primary in each would read as a different app.
+.ads-prompt-primary {
+  background: var(--accent-primary, #e0594b);
+  color: #fff;
+  // Link and button share the class, and only the link needs centring.
+  display: inline-flex;
+  align-items: center;
+}
+
+.ads-prompt-note {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-secondary, #aaa);
+  opacity: 0.85;
+}
+
+// Bottom sheet on mobile (convention: all popups are bottom modals on phones).
+// After the base rules so these win on a tie.
+@media (max-width: 640px) {
+  .ads-prompt-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .ads-prompt {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+    max-height: 88vh;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+    animation: ads-prompt-sheet-up 0.28s ease forwards;
+  }
+
+  .ads-prompt-actions {
+    gap: 8px;
+
+    .ads-prompt-ghost,
+    .ads-prompt-primary {
+      flex: 1 1 0;
+      padding: 12px 18px;
+      justify-content: center;
+      text-align: center;
+    }
+  }
+}
+
+@keyframes ads-prompt-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}

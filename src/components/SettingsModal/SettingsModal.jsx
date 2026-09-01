@@ -6,7 +6,8 @@ import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { getHiveUrl } from '../../utils/hiveNode';
 import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
-import { fetchCreatorAdPrefs, setCreatorAdPrefs } from '../../lib/advertiseData';
+import { fetchCreatorAdPrefs } from '../../lib/advertiseData';
+import { saveCreatorAdSettings } from '../../utils/adSettings';
 import { adsEnabledFor } from '../../utils/config';
 import {
   pushSupported, getPushState, enablePush, disablePush, getPushPrefs, setPushPrefs,
@@ -139,11 +140,17 @@ function AdsSection() {
     setSaving(true);
     setError(null);
     try {
-      const res = await setCreatorAdPrefs(user, {
+      // Writes both copies: the checker row the ad server reads, and the creator's
+      // own posting_json_metadata. The chain half is best effort, so a rejected
+      // wallet prompt does not undo a setting that has already taken effect here.
+      const res = await saveCreatorAdSettings(user, {
         adsEnabled: nextEnabled,
         communitySharePct: nextCommunity,
       });
       if (res.split) { setSplit(res.split); setDraftCommunity(String(res.split.communityPct)); }
+      if (!res.chainSaved) {
+        setError('Saved on 3Speak, but not on your Hive account. Try again to store it there too.');
+      }
       return true;
     } catch (err) {
       setError(err.message || 'Could not save the setting.');

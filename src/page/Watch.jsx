@@ -679,7 +679,19 @@ function Watch({ v2 = false }) {
         const source = await sdkApiRef.current.fetchSource(author, permlink);
         if (!active || !source?.url) throw new Error('no source');
         const meta = await resolveVideoMeta(sdkApiRef.current, author, permlink);
-        const spot = await adBreakRef.current.request({
+        // 🚨 NEVER ON A SHORT. The only slot that fits inside one is a pre-roll, and a
+        // 15-second spot in front of a 12-second short delivers an impression to
+        // someone who never wanted the content — which is why shorts have their own
+        // format, played BETWEEN them rather than inside one.
+        //
+        // The shorts FEED honoured this by never asking; a short opened on a watch
+        // page asks like any other video. The server refuses too, but not asking is
+        // the better fix: it costs one condition on data already in hand.
+        //
+        // The FLAG, not the length: the shorts that surfaced this are 61-68s, past
+        // any threshold anyone would pick, and one row in the wild is flagged short
+        // at seven hours.
+        const spot = meta?.short === true ? null : await adBreakRef.current.request({
           owner: meta?.owner || author,
           permlink: meta?.permlink || permlink,
           viewer,
