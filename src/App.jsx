@@ -133,6 +133,7 @@ import ActiveAuthModal from "./components/ActiveAuthModal/ActiveAuthModal";
 import InterestsPrompt from "./components/InterestsPrompt/InterestsPrompt";
 import WelcomePrompt from "./components/WelcomePrompt/WelcomePrompt";
 import AdsPrompt from "./components/AdsPrompt/AdsPrompt";
+import ViewerRewardsPrompt from "./components/AdsPrompt/ViewerRewardsPrompt";
 import AvatarSync from "./components/HiveAvatar/AvatarSync";
 import EditorModal from "./components/modal/EditorModal";
 import { FEATURE_EDITOR } from "./utils/config";
@@ -682,6 +683,7 @@ function App() {
         <WelcomePrompt />
         <InterestsPrompt />
         <AdsPrompt />
+        <ViewerRewardsPrompt />
         {FEATURE_EDITOR && (
           <EditorModal
             isOpen={editorModalOpen}

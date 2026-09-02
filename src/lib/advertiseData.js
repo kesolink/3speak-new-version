@@ -227,6 +227,93 @@ export async function setCreatorAdPrefs(account, { adsEnabled, communitySharePct
   }));
 }
 
+/* ─── viewer rewards: consent to be identified ────────────────────────── */
+
+// Must match viewerPrefsMessage() in 3speakchecks/routes/advertise.js exactly.
+// A distinct action string from creator-prefs, so a signature taken for one can
+// never be replayed into the other.
+const viewerPrefsMessage = (account, rewardsEnabled, timestamp) =>
+  ['3speak-ads', 'viewer-prefs', account, rewardsEnabled ? 'on' : 'off',
+    String(timestamp)].join('|');
+
+/**
+ * Has this viewer answered the question yet, and what did they say?
+ *
+ * `decided` is the field the prompt keys off. Without it "said no" and "never
+ * asked" both look like `rewardsEnabled: false`, and we would nag someone who has
+ * already declined every time they open the app.
+ */
+export async function fetchViewerAdPrefs(account) {
+  return readJson(await fetch(`${BASE}/viewer/prefs/${encodeURIComponent(account)}`));
+}
+
+async function signViewerViaThreespeak(rewardsEnabled, account) {
+  const provider = getCurrentProvider();
+  const isWallet = !!provider && provider !== Providers.HiveSigner && !isManteAuthLogin();
+
+  const doPost = async () => {
+    const headers = { 'Content-Type': 'application/json' };
+    const body = { rewardsEnabled };
+    if (provider === Providers.HiveSigner) {
+      const token = localStorage.getItem('hivesignerToken');
+      if (!token) throw new Error('Your HiveSigner session expired — reconnect and try again.');
+      headers.Authorization = `Bearer ${token}`;
+    } else if (!isManteAuthLogin()) {
+      headers['X-API-Key'] = EMBED_API_KEY;
+      body.username = account;
+    }
+    const r = await fetch(`${THREESPEAK_API}/ads/viewer-signature`, {
+      method: 'POST', headers, credentials: 'include', body: JSON.stringify(body),
+    });
+    return { r, d: await r.json().catch(() => ({})) };
+  };
+
+  let { r: res, d: data } = await doPost();
+  if (isWallet && res.status === 401 && await establishWalletSession()) {
+    ({ r: res, d: data } = await doPost());
+  }
+  if (!res.ok || !data.signature) {
+    throw new Error(data.error || 'Could not save the setting. Please try again.');
+  }
+  return { signature: data.signature, timestamp: data.timestamp };
+}
+
+/**
+ * Record whether this viewer wants to be identified so they can earn a share of ad
+ * revenue. Delegated signature first, wallet second — same order and same reasoning
+ * as the creator settings: most accounts have already granted @threespeak posting
+ * authority, and a preference toggle should not summon a wallet popup when it has.
+ *
+ * ⚠️ Turning this OFF also deletes the identified watch rows already collected.
+ * The server does that, not the client, but it is the reason the copy says the
+ * data is removed rather than merely that collection stops.
+ */
+export async function setViewerAdPrefs(account, { rewardsEnabled }) {
+  let signed;
+  try {
+    signed = await signViewerViaThreespeak(rewardsEnabled, account);
+  } catch (err) {
+    if (!canSignLocally()) throw err;
+    const timestamp = Date.now();
+    const res = await signMessageWithAioha(
+      viewerPrefsMessage(account, rewardsEnabled, timestamp),
+      KeyTypes.Posting,
+      rewardsEnabled ? 'Turn on viewer rewards' : 'Turn off viewer rewards',
+    );
+    // `cause` carries the delegated-signing failure that sent us down the wallet
+    // path, so a rejected prompt does not erase why we asked for one.
+    if (!res?.success || !res.result) throw new Error('Signature was rejected.', { cause: err });
+    signed = { signature: res.result, timestamp };
+  }
+  const { signature, timestamp } = signed;
+
+  return readJson(await fetch(`${BASE}/viewer/prefs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account, rewardsEnabled, signature, timestamp }),
+  }));
+}
+
 /* ─── finding your own applications ───────────────────────────────────── */
 
 // Remembering the references we have already proved ownership of. The reference IS

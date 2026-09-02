@@ -7,6 +7,13 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.58',
+    date: '2026-09-02',
+    summary:
+      'Video thumbnails show the video\u2019s length again. The duration was being drawn '
+      + 'behind the picture, so it only appeared on cards whose image had not loaded yet.',
+  },
+  {
     version: '1.78.57',
     date: '2026-08-30',
     summary:

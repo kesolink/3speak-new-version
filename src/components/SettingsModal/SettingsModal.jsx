@@ -6,7 +6,7 @@ import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { getHiveUrl } from '../../utils/hiveNode';
 import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
-import { fetchCreatorAdPrefs } from '../../lib/advertiseData';
+import { fetchCreatorAdPrefs, fetchViewerAdPrefs, setViewerAdPrefs } from '../../lib/advertiseData';
 import { saveCreatorAdSettings } from '../../utils/adSettings';
 import { adsEnabledFor } from '../../utils/config';
 import {
@@ -246,6 +246,86 @@ function AdsSection() {
           {error
             || (split && !draftValid ? `Enter a whole number between 0 and ${split.poolPct}.` : null)
             || (saving ? 'Saving\u2026' : 'Loading your current setting\u2026')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Viewer rewards. A separate section from AdsSection on purpose: that one is about
+ * what runs on YOUR videos as a creator, this one is about being paid for watching
+ * other people's. Same person, two unrelated decisions, and merging them would
+ * imply that turning ads off on your channel also gives up your viewer share.
+ *
+ * The consent is the feature. We cannot pay someone we cannot name, so the toggle
+ * is really "may we store your username against what you watch" — and the copy
+ * says that plainly rather than hiding it behind the word "rewards".
+ */
+function ViewerRewardsSection() {
+  const user = useAppStore((s) => s.user);
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const visible = adsEnabledFor(user);
+
+  useEffect(() => {
+    if (!user || !visible) return undefined;
+    let alive = true;
+    setLoading(true);
+    fetchViewerAdPrefs(user)
+      .then((r) => { if (alive) setEnabled(r.rewardsEnabled === true); })
+      .catch(() => { /* an unreadable setting is not worth an error banner */ })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [user, visible]);
+
+  if (!user || !visible) return null;
+
+  async function onToggle(next) {
+    // Optimistic, then rolled back on failure. Every save costs a signature, so the
+    // switch must not sit unresponsive while a wallet prompt is open.
+    const previous = enabled;
+    setEnabled(next);
+    setSaving(true);
+    setError(null);
+    try {
+      await setViewerAdPrefs(user, { rewardsEnabled: next });
+      toast.success(next
+        ? 'Viewer rewards on'
+        : 'Viewer rewards off, and your watch data has been deleted');
+    } catch (err) {
+      setEnabled(previous);
+      setError(err.message || 'Could not save that setting.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="settings-modal-section">
+      <h3 className="settings-section-title">Earn while you watch</h3>
+      <div className="settings-modal-row">
+        <div className="settings-row-text">
+          <span className="settings-row-title">Viewer rewards</span>
+          <span className="settings-row-desc">
+            Share of the ad revenue for the videos you watch, paid in HBD. 3Speak already
+            keeps your watch history for the Watched page; this additionally records how
+            much of each video you watched, which is what your share is worked out from.
+            Turn it off and we delete that straight away.
+          </span>
+        </div>
+        <Switch
+          checked={enabled}
+          onChange={onToggle}
+          ariaLabel="Earn a share of ad revenue for what you watch"
+        />
+      </div>
+      {(loading || saving || error) && (
+        <p className={`settings-ads-status${error ? ' error' : ''}`}>
+          {error || (saving ? 'Saving…' : 'Loading your current setting…')}
         </p>
       )}
     </div>
@@ -625,6 +705,7 @@ export default function SettingsModal({ isOpen, onClose }) {
             />
           </div>
           <AdsSection />
+          <ViewerRewardsSection />
           </>
         )}
 
