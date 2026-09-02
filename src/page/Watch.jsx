@@ -45,6 +45,7 @@ import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import AmbientGlow, { useAmbientGlow } from '../components/AmbientGlow/AmbientGlow';
 import useSubtitles from '../hooks/useSubtitles';
 import useWatchDuration from '../hooks/useWatchDuration';
+import { usePremiumStatus } from '../hooks/usePremiumStatus';
 import { fetchScheduledPost, getScheduledEmbedRef } from '../utils/scheduledPosts';
 import EditScheduledModal from '../components/modal/EditScheduledModal';
 import { getHiveRenderer } from '../lib/hiveRenderer';
@@ -270,6 +271,10 @@ function Watch({ v2 = false }) {
 
   const { glowMode, toggleGlow } = useAmbientGlow();
 
+  // Pro status for the logged-in viewer, from the checker rather than inferred
+  // from whether an ad happened to be served. See the `premium` note below.
+  const premiumStatus = usePremiumStatus(user);
+
   // Subtitles
   const {
     availableLanguages: subtitleLanguages,
@@ -486,7 +491,19 @@ function Watch({ v2 = false }) {
     // Report CONTENT time. Without this a stitched spot's seconds are credited as
     // watch time on the creator's video.
     mapPosition: (t) => adBreakRef.current.contentTime(t),
-    premium: adBreakRef.current.isPremiumViewer,
+    /* 🚨 Asked of the checker directly, NOT taken from the ad response.
+     *
+     * `adBreak.isPremiumViewer` starts false and is only set when /m/session
+     * answers, which happens AFTER this hook has already opened the watch session.
+     * So every session was stamped `premium: false`, a Pro subscriber's included,
+     * and services/adInventory.js — which filters `premium: {$ne: true}` precisely
+     * so we never sell inventory we will not serve — was counting them as sellable.
+     * Serving itself was never affected: adDecision() resolves premium server-side
+     * from embed-users.
+     *
+     * usePremiumStatus returns null while loading, so `=== true` keeps an
+     * unresolved answer out of the flag rather than guessing either way. */
+    premium: premiumStatus?.premium === true,
   });
 
   // Also record a normal view once playback actually starts (increments the view
