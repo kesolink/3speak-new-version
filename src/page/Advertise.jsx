@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MdCampaign, MdInfoOutline, MdCheckCircle, MdSchedule, MdCancel, MdVideocam, MdTv } from 'react-icons/md';
 import { toast } from 'sonner';
 import { useAppStore } from '../lib/store';
+import { transferWithAioha, getOperationUser } from '../hive-api/aioha';
 import { adsEnabledFor, ENABLE_BUTRAUTH } from '../utils/config';
 import SEOHead from '../components/SEOHead';
 import NotFound from './NotFound';
@@ -544,6 +545,50 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   }, [creatives]);
   const autoAvailable = latestSpotSeconds != null && fmt?.creativeKind !== 'image';
   const [autoLength, setAutoLength] = useState(true);
+
+  /* Paying from the wallet, rather than making somebody copy three fields into one.
+   *
+   * transferWithAioha already routes every login correctly: Keychain, HiveAuth,
+   * PeakVault and Ledger sign directly, and a Butter Auth session — which holds no key
+   * and cannot sign an active op — goes through ActiveAuthModal, the wallet picker
+   * mounted in App.jsx. So there is no provider branching to do here.
+   *
+   * 🚨 The account matters as much as the amount. A transfer only buys the flight if it
+   * comes from the account the campaign is booked under; anything else is refused and
+   * returned. Checked before signing, because the alternative is letting someone pay
+   * and find out days later. */
+  const [payBusy, setPayBusy] = useState(null);
+  const [payError, setPayError] = useState(null);
+
+  const payWithWallet = useCallback(async (c) => {
+    const owed = Math.round((c.priceHbd - c.paidHbd) * 1000) / 1000;
+    if (!(owed > 0)) return;
+    setPayError(null);
+    const signer = getOperationUser();
+    if (!signer) {
+      setPayError('Log in with the account this flight is booked under to pay from your wallet.');
+      return;
+    }
+    if (c.payFrom && signer.toLowerCase() !== String(c.payFrom).toLowerCase()) {
+      setPayError(`This flight is booked under @${c.payFrom}, and only a payment from that account buys it. You are signed in as @${signer}, so a transfer from here would be returned to you. Switch account, or send it manually from @${c.payFrom}.`);
+      return;
+    }
+    setPayBusy(c.id);
+    try {
+      await transferWithAioha(c.payTo, owed, 'HBD', c.memo);
+      // The transfer is signed, not yet irreversible-block. Give the chain a moment
+      // before asking the checker to look, or the first check reliably finds nothing
+      // and reads as a failure to the advertiser.
+      await new Promise((r) => setTimeout(r, 4000));
+      onCheckPayment(c.id);
+    } catch (err) {
+      // A cancelled signature is not an error worth shouting about, but a failed one is.
+      const msg = String(err?.message || err || 'Transfer failed');
+      setPayError(/cancel|reject|denied/i.test(msg) ? null : msg);
+    } finally {
+      setPayBusy(null);
+    }
+  }, [onCheckPayment]);
   const autoOn = autoLength && autoAvailable;
 
   const chosenLength = autoOn ? latestSpotSeconds : (spotSeconds ?? maxSpot);
@@ -987,9 +1032,20 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                       flight that under-delivered.
                     </p>
                   )}
-                  <button type="button" className="mkt-secondary" onClick={() => onCheckPayment(c.id)}>
-                    I have sent it
-                  </button>
+                  <div className="mkt-pay-actions">
+                    <button
+                      type="button"
+                      className="mkt-outline"
+                      disabled={payBusy === c.id}
+                      onClick={() => payWithWallet(c)}
+                    >
+                      {payBusy === c.id ? 'Waiting for your wallet…' : 'Send with wallet'}
+                    </button>
+                    <button type="button" className="mkt-secondary" onClick={() => onCheckPayment(c.id)}>
+                      Manually sent
+                    </button>
+                  </div>
+                  {payError && <p className="mkt-upload-error">{payError}</p>}
                 </div>
               )}
 

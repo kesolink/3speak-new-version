@@ -405,6 +405,15 @@ $mkt-sub: 12px;
      what the number means, so putting it underneath reads as a separate question. */
   /* The same number the field holds, in minutes. Its own line under the hint, at the
      hint's size: it is a reading of the input, not a second instruction. */
+  /* Pay from the wallet, or say you already sent it. Side by side because they are two
+     answers to one question, and wrapping on a phone rather than shrinking to fit. */
+  .mkt-pay-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
   .mkt-mins {
     display: block;
     margin-top: 2px;
