@@ -375,7 +375,7 @@ const isVideoAd = (t) => t === 'video' || t === 'shorts';
 
 function CampaignPanel({ reference, pricing, creatives, onNeedCreative, production, awaitingApproval = false, lockFormat = null }) {
   const [campaigns, setCampaigns] = useState([]);
-  const [days, setDays] = useState(pricing?.minDays || 7);
+  const [days, setDays] = useState(pricing?.minDays || 1);
   // When it should start. Optional: blank means "as soon as it is approved and paid",
   // which is what most people want and what the server already did on its own.
   const [startAt, setStartAt] = useState('');
@@ -684,11 +684,11 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         <div className="mkt-field">
           <label htmlFor="mkt-days">Days</label>
           <input
-            id="mkt-days" type="number" min={pricing?.minDays || 7} max={pricing?.maxDays || 90}
+            id="mkt-days" type="number" min={pricing?.minDays || 1} max={pricing?.maxDays || 90}
             value={days} onChange={(e) => setDays(e.target.value)}
           />
           <span className="mkt-hint">
-            How long it runs. {pricing?.minDays || 7} to {pricing?.maxDays || 90}.
+            How long it runs. {pricing?.minDays || 1} to {pricing?.maxDays || 90}.
           </span>
         </div>
         <div className="mkt-field">
