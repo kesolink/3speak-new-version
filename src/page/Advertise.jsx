@@ -282,6 +282,22 @@ const EXAMPLE_DAYS = 3;
  * incoming HIVE transfer, so what is quoted here is what would actually be credited.
  * It moves, hence "about".
  */
+/**
+ * A seconds field read back in minutes.
+ *
+ * Video length is entered in seconds because that is what the server filters on, but
+ * nobody thinks about a ten minute video as 600. Shown alongside rather than replacing
+ * the input: converting the field itself would make "601" impossible to type.
+ */
+function inMinutes(raw) {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const mins = Math.floor(n / 60);
+  const secs = n % 60;
+  if (!mins) return `${secs} sec`;
+  return secs ? `${mins} min ${secs} sec` : `${mins} min`;
+}
+
 function hiveEquivalent(hbd, hbdPerHive) {
   const rate = Number(hbdPerHive);
   if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(hbd) || hbd <= 0) return null;
@@ -852,6 +868,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
             value={minVideo} onChange={(e) => setMinVideo(e.target.value)}
           />
           <span className="mkt-hint">Seconds. Blank for no minimum.</span>
+          {inMinutes(minVideo) ? <span className="mkt-mins">{inMinutes(minVideo)}</span> : null}
         </div>
 
         <div className="mkt-field">
@@ -865,6 +882,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
               ? 'Seconds. Blank for no maximum.'
               : 'The longest cannot be shorter than the shortest.'}
           </span>
+          {inMinutes(maxVideo) ? <span className="mkt-mins">{inMinutes(maxVideo)}</span> : null}
         </div>
         </fieldset>
         ) : null}
