@@ -273,6 +273,24 @@ const SURFACE_LABEL = {
  */
 const EXAMPLE_SECONDS = 10;
 
+/**
+ * The same total expressed in HIVE, or null when we cannot say.
+ *
+ * Shown ONLY on totals, never on the per-second rate: the rate card is denominated
+ * in HBD, and a second price on every line would read as two rate cards. A total is
+ * the number an advertiser actually has to send, so that is where naming the other
+ * asset earns its place.
+ *
+ * `hbdPerHive` is the on-chain median, the same figure the claim uses to value an
+ * incoming HIVE transfer, so what is quoted here is what would actually be credited.
+ * It moves, hence "about".
+ */
+function hiveEquivalent(hbd, hbdPerHive) {
+  const rate = Number(hbdPerHive);
+  if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(hbd) || hbd <= 0) return null;
+  return Math.round((hbd / rate) * 1000) / 1000;
+}
+
 function RateCard({ pricing }) {
   const formats = pricing?.formats || [];
   if (!formats.length) return null;
@@ -316,7 +334,14 @@ function RateCard({ pricing }) {
 
             {example != null ? (
               <div className="mkt-rc-example">
-                <span className="mkt-rc-example-price">{example} HBD</span>
+                <span className="mkt-rc-example-price">
+                  {example} HBD
+                  {hiveEquivalent(example, pricing?.hbdPerHive) != null ? (
+                    <span className="mkt-rc-example-hive">
+                      {' '}or about {hiveEquivalent(example, pricing.hbdPerHive)} HIVE
+                    </span>
+                  ) : null}
+                </span>
                 <span className="mkt-rc-example-note">
                   for a {seconds}s spot over {days} days
                 </span>
@@ -780,6 +805,11 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
           {total != null ? (
             <span>
               <strong>{total} HBD</strong> total
+              {hiveEquivalent(total, pricing?.hbdPerHive) != null ? (
+                <span className="mkt-hint">
+                  {' '}(about {hiveEquivalent(total, pricing.hbdPerHive)} HIVE)
+                </span>
+              ) : null}
               {productionFee > 0 ? <span className="mkt-hint"> ({flight} booking + {productionFee} production)</span> : null}
               <span className="mkt-hint">
                 {' '}· {fmt ? `${fmt.label}, ` : ''}{chosenLength}s × {days} days
@@ -1855,7 +1885,7 @@ export default function Advertise({ openLoginModal }) {
             {pricing.minDays && pricing.maxCreativeSeconds ? (
               <span className="mkt-hint">
                 {' '}· a {pricing.maxCreativeSeconds}s spot for the {pricing.minDays}-day minimum
-                is {Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000} HBD,
+                  is {Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000} HBD{hiveEquivalent(Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000, pricing.hbdPerHive) != null ? ` (about ${hiveEquivalent(Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000, pricing.hbdPerHive)} HIVE)` : ''},
                 and a shorter spot costs proportionally less
               </span>
             ) : null}

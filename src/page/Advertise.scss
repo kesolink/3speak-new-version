@@ -863,6 +863,17 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* The same total in HIVE. Deliberately quieter than the HBD figure beside it:
+     the rate card is priced in HBD and this is a convenience for anyone paying in
+     the other asset, not a second headline price. */
+  .mkt-rc-example-hive {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
   .mkt-rc-example-note {
     font-size: 12px;
     color: var(--text-muted);
