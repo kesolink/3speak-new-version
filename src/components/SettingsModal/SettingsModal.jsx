@@ -6,9 +6,9 @@ import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { getHiveUrl } from '../../utils/hiveNode';
 import { fetchUserInterests, saveInterestsToHive } from '../../utils/interests';
-import { fetchCreatorAdPrefs, fetchViewerAdPrefs, setViewerAdPrefs } from '../../lib/advertiseData';
+import { fetchAdAccess, fetchCreatorAdPrefs, fetchViewerAdPrefs, setViewerAdPrefs } from '../../lib/advertiseData';
 import { saveCreatorAdSettings } from '../../utils/adSettings';
-import { adsEnabledFor } from '../../utils/config';
+import { adsEnabledFor, adsBetaUserFor } from '../../utils/config';
 import {
   pushSupported, getPushState, enablePush, disablePush, getPushPrefs, setPushPrefs,
 } from '../../utils/webPush';
@@ -514,12 +514,30 @@ export default function SettingsModal({ isOpen, onClose }) {
   const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled, shortsCommentBar, setShortsCommentBar, openShortsOnStart, setOpenShortsOnStart, inlineShorts, setInlineShorts, hideWatched, setHideWatched, privateMode, setPrivateMode, simpleFeed, setSimpleFeed } = useAppStore();
   /* Whether the Ads & rewards page exists at all.
    *
-   * Both its sections are gated on the same test group and render nothing outside it, so
-   * showing the tab regardless would be a tab that opens onto blank space. Hidden rather
-   * than emptied: a page you cannot use is not worth announcing while the feature is
-   * closed. */
+   * 🚨 THE CHECKER DECIDES, not the build flag. adsEnabledFor() is true for everybody
+   * whenever VITE_ENABLE_ADS is set, which it is on preview — so gating on it showed the
+   * page to every logged-in account while the checker was still refusing all of them for
+   * not being in the closed test. A settings page whose every write is rejected is worse
+   * than no page.
+   *
+   * `/advertise/access` is the same answer the ad prompts already use, with the local
+   * beta list as the fallback for when it cannot be reached. The build flag stays as a
+   * necessary condition: it says whether this build has the feature at all. */
   const settingsUser = useAppStore((st) => st.user);
-  const rewardsVisible = !!settingsUser && adsEnabledFor(settingsUser);
+  const [adAccess, setAdAccess] = useState(null);
+  useEffect(() => {
+    if (!isOpen || !settingsUser || !adsEnabledFor(settingsUser)) { setAdAccess(null); return undefined; }
+    let alive = true;
+    fetchAdAccess(settingsUser).then((a) => {
+      if (!alive) return;
+      setAdAccess({ account: settingsUser, allowed: a ? a.allowed : adsBetaUserFor(settingsUser) });
+    });
+    return () => { alive = false; };
+  }, [isOpen, settingsUser]);
+  const rewardsVisible = !!settingsUser
+    && adsEnabledFor(settingsUser)
+    && adAccess?.account === settingsUser
+    && adAccess.allowed === true;
   const visibleTabs = useMemo(
     () => TABS.filter((t) => t.id !== 'rewards' || rewardsVisible),
     [rewardsVisible],
