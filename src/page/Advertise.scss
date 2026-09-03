@@ -401,6 +401,29 @@ $mkt-sub: 12px;
   /* No max-width here on purpose. The page is already 860px wide; a 66ch cap on
      top of that broke 13px copy at about half the column, which reads as stray
      line breaks in the middle of a sentence rather than as a narrow measure. */
+  /* The length input and its Automatic toggle sit on one line: the checkbox decides
+     what the number means, so putting it underneath reads as a separate question. */
+  .mkt-length-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    input[type="number"] { flex: 0 1 auto; min-width: 0; }
+    input[type="number"]:disabled { opacity: 0.55; cursor: not-allowed; }
+  }
+
+  .mkt-auto-length {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    cursor: pointer;
+
+    // A checkbox nobody can tick yet should look it, not just refuse the click.
+    &:has(input:disabled) { opacity: 0.5; cursor: not-allowed; }
+    input { cursor: inherit; }
+  }
+
   .mkt-fine {
     margin: 10px 0 0;
     font-size: $mkt-sub;

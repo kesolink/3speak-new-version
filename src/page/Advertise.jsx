@@ -511,8 +511,28 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   // may run, and quoting one number for both was how the old form read.
   const maxSpot = fmt?.maxSeconds || pricing?.maxCreativeSeconds || 15;
   const minSpot = pricing?.minSpotSeconds || 1;
-  const chosenLength = spotSeconds ?? maxSpot;
+  /* The spot's own length, taken from the most recent video uploaded to this campaign.
+   * The list arrives newest first, and a campaign almost always carries one file, so
+   * "the latest video" is the file being booked.
+   *
+   * Ceil, not round: the video has to FIT inside the length being bought, and buying 8s
+   * for an 8.4s spot is buying too little. A format that takes an image has no duration
+   * to read, so automatic simply is not offered there.
+   *
+   * Not clamped to the format's cap on purpose. A 30s file against a 15s format is a
+   * real problem the advertiser has to see and fix, and quietly booking 15s would price
+   * a spot that cannot run. lengthOk already refuses it, and the hint says why. */
+  const latestSpotSeconds = useMemo(() => {
+    const v = (creatives || []).find((c) => c.kind !== 'image' && Number(c.durationSeconds) > 0);
+    return v ? Math.ceil(Number(v.durationSeconds)) : null;
+  }, [creatives]);
+  const autoAvailable = latestSpotSeconds != null && fmt?.creativeKind !== 'image';
+  const [autoLength, setAutoLength] = useState(true);
+  const autoOn = autoLength && autoAvailable;
+
+  const chosenLength = autoOn ? latestSpotSeconds : (spotSeconds ?? maxSpot);
   const lengthOk = Number.isInteger(chosenLength) && chosenLength >= minSpot && chosenLength <= maxSpot;
+  const autoTooLong = autoOn && chosenLength > maxSpot;
 
   // Video-length targeting, entered in seconds and open-ended at both ends.
   const [minVideo, setMinVideo] = useState('');
@@ -720,20 +740,49 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
           <label htmlFor="mkt-length">
             {fmt?.creativeKind === 'image' ? 'How long it shows' : 'Ad length'}
           </label>
-          <input
-            id="mkt-length"
-            type="number"
-            min={minSpot}
-            max={maxSpot}
-            step="1"
-            value={chosenLength}
-            onChange={(e) => setSpotSeconds(e.target.value === '' ? '' : Number(e.target.value))}
-          />
+          <div className="mkt-length-row">
+            <input
+              id="mkt-length"
+              type="number"
+              min={minSpot}
+              max={maxSpot}
+              step="1"
+              value={chosenLength}
+              disabled={autoOn}
+              onChange={(e) => setSpotSeconds(e.target.value === '' ? '' : Number(e.target.value))}
+            />
+            {fmt?.creativeKind !== 'image' && (
+              <label className="mkt-check mkt-auto-length" title={autoAvailable ? '' : 'Upload your ad video first'}>
+                <input
+                  type="checkbox"
+                  checked={autoOn}
+                  disabled={!autoAvailable}
+                  onChange={(e) => {
+                    // Turning it off keeps the number that was on screen instead of
+                    // falling back to the format's maximum. This is a price field, and
+                    // jumping 8s to 30s the moment you take manual control quadruples
+                    // the quote without anyone typing anything.
+                    if (!e.target.checked && spotSeconds == null) setSpotSeconds(chosenLength);
+                    setAutoLength(e.target.checked);
+                  }}
+                />
+                <span>Automatic</span>
+              </label>
+            )}
+          </div>
           <span className={`mkt-hint${lengthOk ? '' : ' mkt-hint-short'}`}>
-            Seconds, {minSpot} to {maxSpot}.{' '}
-            {fmt?.creativeKind === 'image'
-              ? 'How long the banner stays on screen.'
-              : 'Your ad video has to fit inside this.'}
+            {autoTooLong
+              ? `Your spot is ${chosenLength}s, longer than this format allows. Upload a shorter one, or pick a format that takes it.`
+              : (
+                <>
+                  Seconds, {minSpot} to {maxSpot}.{' '}
+                  {autoOn
+                    ? 'Taken from the ad video you uploaded.'
+                    : (fmt?.creativeKind === 'image'
+                      ? 'How long the banner stays on screen.'
+                      : 'Your ad video has to fit inside this.')}
+                </>
+              )}
           </span>
         </div>
 
