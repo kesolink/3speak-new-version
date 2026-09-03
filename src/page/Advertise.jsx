@@ -1821,11 +1821,11 @@ export default function Advertise({ openLoginModal }) {
           <li>
             <strong>Your ad videos</strong>
             <span>
-              The clip that plays inside someone&apos;s video
-              {pricing?.maxCreativeSeconds ? `, up to ${pricing.maxCreativeSeconds} seconds` : ''}.
+              The clip that plays inside someone&apos;s video.
             </span>
             <span className="mkt-step-detail">
-              Upload as many as you like, or ask us to make one. We watch each before it runs.
+              Upload as many as you like{pricing?.maxCreativeSeconds ? ` (up to ${pricing.maxCreativeSeconds} seconds)` : ''}, or ask
+              us to make one. We watch each before it runs.
             </span>
           </li>
           <li>

@@ -1,6 +1,20 @@
 @use "../mixins.scss" as mix;
 
+/* Below the masthead this page runs on three type sizes and no others: a heading,
+   body copy, and a smaller line for anything supporting. A fourth size is almost
+   always a request for a different hierarchy, so add the hierarchy instead. */
+$mkt-head: 18px;
+$mkt-text: 14px;
+$mkt-sub: 12px;
+
 .mkt-page {
+  /* The floor for the three-size rule. Without it a heading whose container has no
+     rule of its own falls through to the browser default, which is how a fourth
+     size gets onto the page without anyone choosing it. Every rule below is more
+     specific than these, so the deliberate ones still win. */
+  h2, h3, h4, h5 { font-size: $mkt-head; }
+  p, li, label, input, select, textarea, button, td, th { font-size: $mkt-text; }
+
   max-width: 860px;
   margin: 0 auto;
   padding: 20px 16px 80px;
@@ -43,12 +57,12 @@
   .mkt-lede {
     margin: 0 0 8px;
     color: var(--text-secondary);
-    font-size: 15px;
+    font-size: $mkt-text;
     line-height: 1.55;
     max-width: 68ch;
 
     &:first-of-type {
-      font-size: 18px;
+      font-size: $mkt-head;
       line-height: 1.45;
       color: var(--text-primary);
       margin-bottom: 10px;
@@ -58,11 +72,6 @@
 
     strong { color: var(--accent-primary); }
 
-    @include mix.respond(phone) {
-      font-size: 14px;
-
-      &:first-of-type { font-size: 16px; }
-    }
   }
 
   /* ── how it works, above the tabs ───────────────────────── */
@@ -71,14 +80,14 @@
 
     h2 {
       margin: 0 0 4px;
-      font-size: 18px;
+      font-size: $mkt-head;
       font-weight: 700;
     }
   }
 
   .mkt-intro-lede {
     margin: 0 0 14px;
-    font-size: 14px;
+    font-size: $mkt-text;
     color: var(--text-secondary);
   }
 
@@ -124,7 +133,7 @@
         border-radius: 50%;
         background: var(--accent-primary);
         color: var(--text-inverse);
-        font-size: 12px;
+        font-size: $mkt-sub;
         font-weight: 700;
         display: flex;
         align-items: center;
@@ -133,15 +142,26 @@
 
       strong {
         display: block;
-        font-size: 14px;
+        font-size: $mkt-text;
         margin-bottom: 3px;
         color: var(--text-primary);
       }
 
       span {
-        font-size: 13px;
+        font-size: $mkt-text;
         line-height: 1.5;
         color: var(--text-secondary);
+
+        /* The supporting line under the tile's lead sentence. It has to be nested
+           here rather than written as its own rule: a bare .mkt-step-detail rule
+           loses to this one and the detail silently renders at body size. */
+        &.mkt-step-detail {
+          display: block;
+          margin-top: 4px;
+          font-size: $mkt-sub;
+          line-height: 1.45;
+          color: var(--text-muted);
+        }
       }
     }
   }
@@ -160,7 +180,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
+    font-size: $mkt-sub;
     color: var(--text-muted);
 
     &.current { color: var(--text-primary); font-weight: 700; }
@@ -176,7 +196,7 @@
     flex: none;
     border-radius: 50%;
     border: 1px solid var(--border-color);
-    font-size: 12px;
+    font-size: $mkt-sub;
     font-weight: 700;
 
     .mkt-wiz-step.current & {
@@ -232,7 +252,7 @@
       min-width: 0;
     }
 
-    strong { font-size: 14px; color: var(--text-primary); }
+    strong { font-size: $mkt-text; color: var(--text-primary); }
   }
 
   .mkt-adtype { margin-bottom: 18px; }
@@ -294,7 +314,7 @@
     background: var(--accent-primary);
     color: var(--text-inverse);
     font: inherit;
-    font-size: 16px;
+    font-size: $mkt-text;
     font-weight: 700;
     cursor: pointer;
 
@@ -328,7 +348,7 @@
     margin-bottom: -1px;
     background: none;
     font: inherit;
-    font-size: 14px;
+    font-size: $mkt-text;
     font-weight: 600;
     color: var(--text-muted);
     white-space: nowrap;
@@ -352,7 +372,7 @@
     border-radius: 999px;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: $mkt-sub;
     font-weight: 700;
   }
 
@@ -365,7 +385,7 @@
 
     h2 {
       margin: 0 0 14px;
-      font-size: 18px;
+      font-size: $mkt-head;
       font-weight: 700;
     }
 
@@ -381,7 +401,7 @@
      line breaks in the middle of a sentence rather than as a narrow measure. */
   .mkt-fine {
     margin: 10px 0 0;
-    font-size: 13px;
+    font-size: $mkt-sub;
     line-height: 1.5;
     color: var(--text-muted);
   }
@@ -395,7 +415,7 @@
 
   .mkt-panel-muted {
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: $mkt-text;
     line-height: 1.5;
   }
 
@@ -432,20 +452,20 @@
     background: var(--card-bg);
 
     .mkt-stat-value {
-      font-size: 28px;
+      font-size: $mkt-head;
       font-weight: 700;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
     }
 
     .mkt-stat-label {
-      font-size: 13px;
+      font-size: $mkt-text;
       font-weight: 600;
       color: var(--text-secondary);
     }
 
     .mkt-stat-note {
-      font-size: 12px;
+      font-size: $mkt-sub;
       color: var(--text-muted);
     }
   }
@@ -453,7 +473,7 @@
   .mkt-slots h3,
   .mkt-countries h3 {
     margin: 0 0 10px;
-    font-size: 15px;
+    font-size: $mkt-head;
     font-weight: 700;
   }
 
@@ -467,7 +487,7 @@
   .mkt-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
+    font-size: $mkt-text;
 
     th,
     td {
@@ -478,7 +498,7 @@
     }
 
     th {
-      font-size: 12px;
+      font-size: $mkt-sub;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.06em;
@@ -505,7 +525,7 @@
     padding: 1px 7px;
     border: 1px solid var(--border-color);
     border-radius: 999px;
-    font-size: 11px;
+    font-size: $mkt-sub;
     text-transform: none;
     letter-spacing: 0;
     color: var(--text-muted);
@@ -524,12 +544,11 @@
       grid-template-columns: minmax(90px, 150px) 1fr 48px;
       align-items: center;
       gap: 12px;
-      font-size: 14px;
+      font-size: $mkt-text;
 
       @include mix.respond(phone) {
         grid-template-columns: minmax(80px, 110px) 1fr 42px;
         gap: 8px;
-        font-size: 13px;
       }
     }
   }
@@ -571,14 +590,14 @@
     border-left: 3px solid var(--accent-primary);
     border-radius: 0 8px 8px 0;
     background: var(--bg-secondary);
-    font-size: 13px;
+    font-size: $mkt-sub;
     line-height: 1.55;
     color: var(--text-secondary);
 
     svg {
       flex-shrink: 0;
       margin-top: 2px;
-      font-size: 17px;
+      font-size: $mkt-text;
       color: var(--accent-primary);
     }
 
@@ -604,7 +623,7 @@
 
     label,
     .mkt-label {
-      font-size: 13px;
+      font-size: $mkt-text;
       font-weight: 600;
       color: var(--text-primary);
     }
@@ -619,7 +638,7 @@
       background: var(--input-bg);
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 14px;
+      font-size: $mkt-text;
 
       &:focus {
         outline: none;
@@ -648,7 +667,7 @@
   }
 
   .mkt-hint {
-    font-size: 12px;
+    font-size: $mkt-sub;
     color: var(--text-muted);
     line-height: 1.45;
   }
@@ -665,7 +684,7 @@
     border-radius: 999px;
     background: var(--bg-secondary);
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: $mkt-sub;
     cursor: pointer;
 
     &:hover { background: var(--bg-hover); }
@@ -703,7 +722,7 @@
   .mkt-outline {
     padding: 10px 20px;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: $mkt-text;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
@@ -752,7 +771,7 @@
     gap: 3px;
 
     strong {
-      font-size: 15px;
+      font-size: $mkt-text;
       color: var(--text-primary);
     }
   }
@@ -796,7 +815,7 @@
 
     h3 {
       margin: 0;
-      font-size: 15px;
+      font-size: $mkt-head;
       font-weight: 700;
       color: var(--text-primary);
     }
@@ -804,21 +823,21 @@
 
   .mkt-rc-rate {
     flex: none;
-    font-size: 13px;
+    font-size: $mkt-text;
     font-weight: 700;
     color: var(--accent-primary);
     white-space: nowrap;
   }
 
   .mkt-rc-unit {
-    font-size: 11px;
+    font-size: $mkt-sub;
     font-weight: 600;
     color: var(--text-muted);
   }
 
   .mkt-rc-blurb {
     margin: 0;
-    font-size: 13px;
+    font-size: $mkt-sub;
     line-height: 1.5;
     color: var(--text-secondary);
   }
@@ -833,7 +852,7 @@
       display: flex;
       justify-content: space-between;
       gap: 10px;
-      font-size: 12.5px;
+      font-size: $mkt-sub;
     }
 
     dt { color: var(--text-muted); }
@@ -857,7 +876,7 @@
   }
 
   .mkt-rc-example-price {
-    font-size: 18px;
+    font-size: $mkt-head;
     font-weight: 700;
     color: var(--text-primary);
     font-variant-numeric: tabular-nums;
@@ -868,25 +887,25 @@
      the other asset, not a second headline price. */
   .mkt-rc-example-hive {
     display: block;
-    font-size: 12px;
+    font-size: $mkt-sub;
     font-weight: 500;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
 
   .mkt-rc-example-note {
-    font-size: 12px;
+    font-size: $mkt-sub;
     color: var(--text-muted);
   }
 
   .mkt-headline-price {
     margin: 0 0 12px;
-    font-size: 20px;
+    font-size: $mkt-head;
     color: var(--text-primary);
 
     strong { color: var(--accent-primary); }
 
-    .mkt-hint { font-size: 13px; }
+    .mkt-hint { font-size: $mkt-sub; }
   }
 
   /* A character counter that has not been satisfied yet is a blocker, not a note. */
@@ -911,7 +930,7 @@
     border-radius: 6px;
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    font-size: 14px;
+    font-size: $mkt-text;
     user-select: all;
   }
 
@@ -921,12 +940,12 @@
     gap: 6px;
     padding: 4px 12px;
     border-radius: 999px;
-    font-size: 13px;
+    font-size: $mkt-text;
     font-weight: 600;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
 
-    svg { font-size: 16px; }
+    svg { font-size: $mkt-text; }
   }
 
   .mkt-status-approved { color: #1e8f5e; }
@@ -952,7 +971,7 @@
       background: var(--input-bg);
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 14px;
+      font-size: $mkt-text;
 
       &:focus-visible {
         outline: 2px solid var(--accent-primary);
@@ -976,7 +995,7 @@
   }
 
   .mkt-lookup-note {
-    font-size: 14px;
+    font-size: $mkt-sub;
     line-height: 1.55;
   }
 
@@ -990,7 +1009,7 @@
     border-radius: 10px;
     background: var(--bg-secondary);
 
-    h2 { font-size: 16px; }
+    h2 { font-size: $mkt-head; }
     > p:last-child { margin-bottom: 0; }
   }
 
@@ -1023,7 +1042,7 @@
   .mkt-split-nav {
     min-width: 0;
 
-    h2 { margin: 0 0 12px; font-size: 18px; font-weight: 700; }
+    h2 { margin: 0 0 12px; font-size: $mkt-head; font-weight: 700; }
 
     @media (min-width: 860px) {
       position: sticky;
@@ -1085,7 +1104,7 @@
     flex: 1;
 
     strong {
-      font-size: 14px;
+      font-size: $mkt-text;
       color: var(--text-primary);
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1101,11 +1120,11 @@
     gap: 14px;
     width: 100%;
 
-    h3 { margin: 0 0 2px; font-size: 18px; font-weight: 700; }
+    h3 { margin: 0 0 2px; font-size: $mkt-head; font-weight: 700; }
   }
 
   .mkt-mine-meta {
-    font-size: 12px;
+    font-size: $mkt-sub;
     color: var(--text-muted);
 
     code {
@@ -1138,7 +1157,7 @@
     margin-bottom: 4px;
     border-bottom: 1px solid var(--border-color);
 
-    h3 { margin: 0; font-size: 15px; font-weight: 700; }
+    h3 { margin: 0; font-size: $mkt-head; font-weight: 700; }
     .mkt-fine { margin: 0; }
   }
 
@@ -1182,7 +1201,7 @@
     flex-direction: column;
     gap: 10px;
 
-    h3 { margin: 0; font-size: 15px; font-weight: 700; }
+    h3 { margin: 0; font-size: $mkt-head; font-weight: 700; }
     .mkt-fine { margin: 0; }
   }
 
@@ -1239,7 +1258,7 @@
 
   .mkt-upload-error {
     margin: 0;
-    font-size: 13px;
+    font-size: $mkt-text;
     line-height: 1.45;
     color: var(--accent-primary);
   }
@@ -1261,7 +1280,7 @@
       border: 1px solid var(--border-color);
       border-radius: 8px;
       background: var(--bg-secondary);
-      font-size: 13px;
+      font-size: $mkt-text;
     }
   }
 
@@ -1270,7 +1289,7 @@
     border-radius: 999px;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: $mkt-sub;
     font-weight: 600;
     white-space: nowrap;
   }
@@ -1279,7 +1298,6 @@
   .mkt-creative-rejected { color: #c0392b; }
 
   .mkt-creative-meta { color: var(--text-muted); }
-
 
   /* ── flights ────────────────────────────────────────────── */
   .mkt-campaigns {
@@ -1291,7 +1309,7 @@
     flex-direction: column;
     gap: 12px;
 
-    h3 { margin: 0; font-size: 15px; font-weight: 700; }
+    h3 { margin: 0; font-size: $mkt-head; font-weight: 700; }
   }
 
   /* Field groups inside the booking form. */
@@ -1320,7 +1338,7 @@
 
     legend {
       padding: 0 6px;
-      font-size: 12px;
+      font-size: $mkt-sub;
       font-weight: 700;
       letter-spacing: 0.03em;
       text-transform: uppercase;
@@ -1383,32 +1401,32 @@
   }
 
   .mkt-format-name {
-    font-size: 14px;
+    font-size: $mkt-text;
     font-weight: 700;
   }
 
   .mkt-format-rate {
     flex: none;
-    font-size: 13px;
+    font-size: $mkt-text;
     font-weight: 700;
     color: var(--accent-primary);
     white-space: nowrap;
   }
 
   .mkt-format-rate-unit {
-    font-size: 11px;
+    font-size: $mkt-sub;
     font-weight: 500;
     color: var(--text-muted);
   }
 
   .mkt-format-blurb {
-    font-size: 12px;
+    font-size: $mkt-sub;
     line-height: 1.45;
     color: var(--text-secondary);
   }
 
   .mkt-format-meta {
-    font-size: 11px;
+    font-size: $mkt-sub;
     color: var(--text-muted);
   }
 
@@ -1445,7 +1463,7 @@
     justify-content: center;
     text-align: center;
     gap: 12px;
-    font-size: 13px;
+    font-size: $mkt-text;
     color: var(--text-secondary);
   }
 
@@ -1456,7 +1474,7 @@
     border: 1px solid var(--border-color);
     border-radius: 8px;
     background: var(--bg-tertiary);
-    font-size: 13px;
+    font-size: $mkt-text;
     line-height: 1.5;
     color: var(--text-secondary);
 
@@ -1479,7 +1497,7 @@
       border: 1px solid var(--border-color);
       border-radius: 10px;
       background: var(--bg-secondary);
-      font-size: 13px;
+      font-size: $mkt-text;
     }
   }
 
@@ -1499,7 +1517,7 @@
     border-radius: 6px;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: $mkt-sub;
   }
 
   .mkt-pay {
@@ -1524,7 +1542,7 @@
       background: var(--input-bg);
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 13px;
+      font-size: $mkt-text;
     }
   }
 
@@ -1543,16 +1561,14 @@
      credit is news, spending it is a receipt. */
   .mkt-credit-used {
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: $mkt-sub;
   }
-
 
   /* The closed-trial notice sits above the figures it qualifies. */
   .mkt-note-trial {
     order: -1;
     border-left-color: var(--text-muted);
   }
-
 
   /* "Have us make the video" — asked on the application form and again at booking,
      where the fee is actually charged. Spans the form grid in both places. */
@@ -1573,7 +1589,7 @@
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    font-size: 13px;
+    font-size: $mkt-text;
     line-height: 1.5;
     color: var(--text-secondary);
     cursor: pointer;
@@ -1607,12 +1623,3 @@
     .mkt-section { margin-bottom: 0; }
   }
 
-  /* The supporting line under each tile's lead sentence. Smaller so the first
-     sentence still carries the tile and the detail does not compete with it. */
-  .mkt-steps li .mkt-step-detail {
-    display: block;
-    margin-top: 4px;
-    font-size: 12px;
-    line-height: 1.45;
-    color: var(--text-muted);
-  }
