@@ -1011,7 +1011,21 @@ $mkt-sub: 12px;
     border-radius: 10px;
     background: var(--bg-secondary);
 
-    h2 { font-size: $mkt-head; }
+    /* Flex rather than an inline icon: an svg on a text baseline sits low and drags
+       the line height around. The gap does the spacing, so the markup needs no
+       non-breaking space to hold the icon off the word. */
+    h2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: $mkt-head;
+
+      svg {
+        flex-shrink: 0;
+        font-size: 20px;
+        color: var(--accent-primary);
+      }
+    }
 
     /* The whole tile body is one size. These are asides to an advertiser rather than
        the pitch, so neither line needs to shout. Both lines land on the same colour in

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MdCampaign, MdInfoOutline, MdCheckCircle, MdSchedule, MdCancel } from 'react-icons/md';
+import { MdCampaign, MdInfoOutline, MdCheckCircle, MdSchedule, MdCancel, MdVideocam, MdTv } from 'react-icons/md';
 import { toast } from 'sonner';
 import { useAppStore } from '../lib/store';
 import { adsEnabledFor, ENABLE_BUTRAUTH } from '../utils/config';
@@ -262,6 +262,13 @@ const SURFACE_LABEL = {
  * per-second-per-day rate is a number nobody can price a campaign from in their head.
  */
 const EXAMPLE_SECONDS = 10;
+/* The window every example price is quoted over.
+ *
+ * Deliberately NOT the bookable minimum. That is now one day, and a one-day quote makes
+ * every format look like small change, which reads as a toy rather than as a rate card.
+ * Three days is short enough to still be a real booking and long enough that the numbers
+ * separate. Floored at the minimum so this cannot quote a window nobody can book. */
+const EXAMPLE_DAYS = 3;
 
 /**
  * The same total expressed in HIVE, or null when we cannot say.
@@ -284,7 +291,7 @@ function hiveEquivalent(hbd, hbdPerHive) {
 function RateCard({ pricing }) {
   const formats = pricing?.formats || [];
   if (!formats.length) return null;
-  const days = pricing?.minDays || null;
+  const days = Math.max(EXAMPLE_DAYS, pricing?.minDays || 0) || null;
 
   return (
     <ul className="mkt-ratecard">
@@ -1861,8 +1868,9 @@ export default function Advertise({ openLoginModal }) {
           <p className="mkt-intro-lede">
             Every spot is priced per second of ad, per day it runs, so a longer spot or a
             longer flight costs proportionally more. Examples use a
-            {' '}{EXAMPLE_SECONDS}-second spot over the {pricing.minDays}-day minimum
-            {pricing.maxDays ? `; bookings run up to ${pricing.maxDays} days` : ''}.
+            {' '}{EXAMPLE_SECONDS}-second spot over {Math.max(EXAMPLE_DAYS, pricing.minDays || 0)} days
+            {pricing.minDays ? `; you can book from ${pricing.minDays} day${pricing.minDays === 1 ? '' : 's'}` : ''}
+            {pricing.maxDays ? ` up to ${pricing.maxDays}` : ''}.
           </p>
         ) : pricing?.pricePerSecondDayHbd ? (
           // Fallback for a checker too old to send the rate card: one product, one price.
@@ -1895,7 +1903,7 @@ export default function Advertise({ openLoginModal }) {
           advertiser reading this page should see that the money goes somewhere real. */}
       <div className="mkt-audience-pair">
         <section className="mkt-section mkt-creators">
-          <h2>If you are a creator</h2>
+          <h2><MdVideocam aria-hidden="true" /> If you are a creator</h2>
           <p>
             Ads run on your videos and you earn a share of what they make, along with the
             community you posted in.
@@ -1907,7 +1915,7 @@ export default function Advertise({ openLoginModal }) {
         </section>
 
         <section className="mkt-section mkt-viewers">
-          <h2>If you are a viewer</h2>
+          <h2><MdTv aria-hidden="true" /> If you are a viewer</h2>
           <p>
             You earn a share too, for the videos you actually watch. Paid in HBD or HIVE,
             same as everyone else.
