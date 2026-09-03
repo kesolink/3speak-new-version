@@ -311,7 +311,8 @@ function ViewerRewardsSection() {
         <div className="settings-row-text">
           <span className="settings-row-title">Viewer rewards</span>
           <span className="settings-row-desc">
-            Share of the ad revenue for the videos you watch, paid in HBD. 3Speak already
+            Share of the ad revenue for the videos you watch, paid in whatever the
+            advertiser paid with, HBD or HIVE. 3Speak already
             keeps your watch history for the Watched page; this additionally records how
             much of each video you watched, which is what your share is worked out from.
             Turn it off and we delete that straight away.

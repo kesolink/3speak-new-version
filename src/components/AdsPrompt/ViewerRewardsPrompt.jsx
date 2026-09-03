@@ -98,8 +98,9 @@ export default function ViewerRewardsPrompt() {
       <div className="ads-prompt" role="dialog" aria-modal="true" aria-labelledby="viewer-rewards-title">
         <h3 className="ads-prompt-title" id="viewer-rewards-title">Get paid for watching</h3>
         <p className="ads-prompt-text">
-          Ads on 3Speak pay the creator, their community, and now you. Your share arrives
-          in HBD, for videos you were going to watch anyway.
+          Ads on 3Speak pay the creator, their community, and now you. Your share is paid
+          in whatever the advertiser paid with, HBD or HIVE, for videos you were going to
+          watch anyway.
         </p>
         <p className="ads-prompt-note">
           3Speak already keeps your watch history so you can find things again. This lets
