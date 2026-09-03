@@ -412,6 +412,34 @@ $mkt-sub: 12px;
   /* The one line somebody has to act on: an account, an amount and a memo they may be
      copying by hand. Body size rather than the fine-print size the rest of this panel
      uses, because a mistyped memo is a payment nobody can match to a booking. */
+  /* The list heading and its one action. Nothing else belongs on this row, so the
+     button sits at the end of it rather than under the list where a long list hides it. */
+  .mkt-split-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+
+    h2 { margin: 0; }
+  }
+
+  .mkt-newproduct {
+    flex-shrink: 0;
+    padding: 4px 12px;
+    border: 1px solid var(--accent-primary);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--accent-primary);
+    font: inherit;
+    font-size: $mkt-sub;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover:not(:disabled) { background: var(--accent-primary); color: var(--text-inverse); }
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+
   .mkt-copy {
     padding: 1px 8px;
     border: 1px solid var(--border-color);

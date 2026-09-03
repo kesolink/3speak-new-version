@@ -2432,7 +2432,48 @@ export default function Advertise({ openLoginModal }) {
             once you scrolled into its bookings. */}
         <div className="mkt-split">
           <aside className="mkt-split-nav">
-            <h2>Your products</h2>
+            <div className="mkt-split-head">
+              <h2>Your products</h2>
+              {user && (() => {
+                /* The server allows many products but only ONE application under review
+                   at a time, so that a reviewer is not reading the same person twice.
+                   Saying so on the button beats letting somebody fill in the whole form
+                   and meet a 409 at the end of it. */
+                const pending = (myApps || []).find((a) => a.status === 'pending');
+                return (
+                <button
+                  type="button"
+                  className="mkt-newproduct"
+                  disabled={!!pending}
+                  title={pending
+                    ? `${pending.projectName || 'A product'} is still under review. We come back to you on that one before you start another.`
+                    : 'Register another product'}
+                  onClick={() => {
+                    /* A second product is a fresh enrollment, so the wizard has to be
+                       genuinely empty. Clearing storage alone is not enough: `receipt`
+                       holds the product registered earlier in this session and wins over
+                       storage when wizRef is resolved, so the wizard would reopen the one
+                       you just finished instead of starting a new one. */
+                    clearWizard(user);
+                    setReceipt(null);
+                    setRefsVersion((v) => v + 1);
+                    setWizStep(1);
+                    setLookupRef('');
+                    setTab('wizard');
+                  }}
+                >
+                  <span aria-hidden="true">+</span> New
+                </button>
+                );
+              })()}
+            </div>
+            {/* Said in the panel too, not only in a tooltip nobody hovers on a phone. */}
+            {user && (myApps || []).some((a) => a.status === 'pending') && (
+              <p className="mkt-fine">
+                One product is under review. We come back to you on that one before you
+                start another.
+              </p>
+            )}
 
             {!user && (
               <div className="mkt-panel mkt-panel-muted">
