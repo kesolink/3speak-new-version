@@ -1522,6 +1522,10 @@ const PlayVideo = ({ videoDetails, author, permlink, mediaUnavailable = false, m
           open={shareChooserOpen}
           url={`${window.location.origin}/watch?v=${author}/${permlink}`}
           title={videoDetails?.title}
+          /* Embed code is offered only for something a stranger's page can
+             actually play: a scheduled post isn't public yet, and a live stream
+             has no VOD asset for the player to resolve. */
+          embed={!scheduled && !isLive ? { author, permlink } : null}
           onClose={() => setShareChooserOpen(false)}
           onGeneralShare={handleShare}
         />

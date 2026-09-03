@@ -7,6 +7,15 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.59',
+    date: '2026-09-03',
+    summary:
+      'The Share menu on a video page now has an “Embed on a website” option. It gives you '
+      + 'ready made HTML to paste into a blog or any other site, either a responsive size that '
+      + 'fits the page it sits on or a fixed size like 560 x 315, and one click copies it to '
+      + 'your clipboard.',
+  },
+  {
     version: '1.78.58',
     date: '2026-09-02',
     summary:
