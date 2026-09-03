@@ -152,7 +152,7 @@ function InventoryPanel({ data, isLoading, error }) {
         <p className="mkt-fine">
           <strong>Not recommended:</strong> an ad before the video reaches more sessions on
           paper, but almost half of all
-          watching here stops inside fifteen seconds — so most of those plays land on
+          watching here stops inside fifteen seconds, so most of those plays land on
           someone who was already leaving. An ad placed further in is counted only when
           the viewer actually got there.
         </p>
@@ -561,7 +561,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
       // there may be nothing left to send. Telling someone to pay when they do not
       // have to would send them looking for a payment step that is not there.
       toast.success(res?.payment?.alreadyCovered
-        ? 'Booked and scheduled — covered in full by your credit'
+        ? 'Booked and scheduled, covered in full by your credit'
         : 'Booked. Send the payment to start it');
       refresh();
       if (!creatives.length) onNeedCreative?.();
@@ -580,7 +580,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
       refresh();
     } catch (err) {
       // A missing payment is the normal case right after booking, not a failure.
-      setError(err.status === 404 ? 'No matching transfer found yet — it can take a moment to appear on chain.' : (err.message || 'Could not check'));
+      setError(err.status === 404 ? 'No matching transfer found yet. It can take a moment to appear on chain.' : (err.message || 'Could not check'));
     }
   }
 
@@ -674,7 +674,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
           />
           <span className={startOk ? 'mkt-hint' : 'mkt-upload-error'}>
             {!startOk
-              ? 'The earliest start is tomorrow — a flight has to be approved and paid first.'
+              ? 'The earliest start is tomorrow, because a flight has to be approved and paid first.'
               : runsUntil
                 ? `Runs to ${runsUntil}.`
                 : 'Leave blank to start as soon as it is approved and paid.'}
@@ -740,8 +740,8 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                   ? 'Before the video (not recommended)'
                   : slotLabel({ percent: p, banner: isBanner })}
                 {slotTaken(p)
-                  ? ' — full for these dates'
-                  : (sharingWith(p) > 0 ? ` — ${sharesLeft(p)} of ${slotRow(p).sharesTotal} places left` : '')}
+                  ? ' (full for these dates)'
+                  : (sharingWith(p) > 0 ? ` (${sharesLeft(p)} of ${slotRow(p).sharesTotal} places left)` : '')}
               </option>
             ))}
           </select>
@@ -957,8 +957,8 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                   {c.refundHbd > 0 && (
                     <span className="mkt-refund">
                       {c.refundStatus === 'credited'
-                        ? `${c.creditHbd ?? c.refundHbd} HBD credited to you for under-delivery — it comes off your next booking`
-                        : `${c.refundHbd} HBD short of forecast — we are looking at this one`}
+                        ? `${c.creditHbd ?? c.refundHbd} HBD credited to you for under-delivery. It comes off your next booking`
+                        : `${c.refundHbd} HBD short of forecast. We are looking at this one`}
                     </span>
                   )}
                   {c.creditAppliedHbd > 0 && (
@@ -1156,7 +1156,7 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
           throw new Error(`That video is ${durationSeconds} seconds. The most an ad can run is ${maxSeconds}.`);
         }
         await uploadCreative({ file, account, reference, durationSeconds });
-        toast.success('Spot uploaded — we will review it before it runs');
+        toast.success('Spot uploaded. We will review it before it runs');
       }
       refresh();
     } catch (err) {
@@ -1641,7 +1641,7 @@ export default function Advertise({ openLoginModal }) {
                 id="mkt-contact"
                 value={form.contact}
                 onChange={set('contact')}
-                placeholder="Discord, Telegram, email — whatever you actually read"
+                placeholder="Discord, Telegram, email, whatever you actually read"
                 required
               />
             </div>
@@ -2075,7 +2075,7 @@ export default function Advertise({ openLoginModal }) {
                     {wizType === 'banner'
                       ? 'Upload the image that will be shown over the video.'
                       : (wizType === 'shorts'
-                        ? 'Upload the upright video that will play between shorts. It has to be portrait — a landscape spot plays small with black bars either side. 1080x1920 works well.'
+                        ? 'Upload the upright video that will play between shorts. It has to be portrait, because a landscape spot plays small with black bars either side. 1080x1920 works well.'
                         : 'Upload the video that will play, or ask us to make it. This is also where the logo and slogan shown over your ad are set.')}
                   </p>
                   <CreativePanel
