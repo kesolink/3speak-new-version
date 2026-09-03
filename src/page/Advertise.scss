@@ -409,6 +409,36 @@ $mkt-sub: 12px;
      answers to one question, and wrapping on a phone rather than shrinking to fit. */
   /* Which asset the transfer is in. Two states of one choice, so a segmented pair
      rather than two independent-looking buttons. */
+  /* The one line somebody has to act on: an account, an amount and a memo they may be
+     copying by hand. Body size rather than the fine-print size the rest of this panel
+     uses, because a mistyped memo is a payment nobody can match to a booking. */
+  .mkt-copy {
+    padding: 1px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: $mkt-sub;
+    cursor: pointer;
+    vertical-align: baseline;
+
+    &:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+    // Confirmation lives on the button itself: a toast for a clipboard write is more
+    // interruption than the action deserves.
+    &.done { border-color: var(--accent-primary); color: var(--accent-primary); }
+  }
+
+  .mkt-pay-line {
+    margin: 0 0 10px;
+    font-size: $mkt-text;
+    line-height: 1.5;
+    color: var(--text-secondary);
+
+    strong { color: var(--text-primary); }
+    code { font-size: $mkt-text; }
+  }
+
   .mkt-pay-ccy {
     display: inline-flex;
     margin: 0 0 10px;

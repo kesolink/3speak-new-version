@@ -307,6 +307,41 @@ function inMinutes(raw) {
  * time, so an amount converted at the rate we quoted and rounded down can land a
  * thousandth short and leave the flight unpaid for no reason anyone can see.
  */
+/**
+ * Copy one value to the clipboard.
+ *
+ * The memo is the field that has to be exact: an account or an amount that is wrong
+ * gets noticed, a mistyped memo produces a payment nobody can match to a booking and a
+ * support conversation to untangle it.
+ *
+ * Falls back silently. The clipboard API needs a secure context and can be refused
+ * outright, and the value is on screen either way, so a refusal is not worth an error.
+ */
+function CopyButton({ value }) {
+  const [done, setDone] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return (
+    <button
+      type="button"
+      className={`mkt-copy${done ? ' done' : ''}`}
+      title="Copy the memo"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(String(value));
+          setDone(true);
+          clearTimeout(timer.current);
+          timer.current = setTimeout(() => setDone(false), 1500);
+        } catch {
+          // Nothing to say: the memo is right there to select.
+        }
+      }}
+    >
+      {done ? 'Copied' : 'Copy'}
+    </button>
+  );
+}
+
 function hivePayable(hbd, hbdPerHive) {
   const rate = Number(hbdPerHive);
   if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(hbd) || hbd <= 0) return null;
@@ -1033,7 +1068,11 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                 </div>
               )}
 
-              {c.blockedBy && (
+              {/* 'unpaid' is left out: the campaign's own status already says awaiting
+                  payment, and the panel asking for the payment is directly below. The
+                  key stays in BLOCKED_REASON because dropping it would fall through to
+                  the raw `unpaid` for anything else that reads the map. */}
+              {c.blockedBy && c.blockedBy !== 'unpaid' && (
                 <div className="mkt-campaign-blocked">
                   {BLOCKED_REASON[c.blockedBy] || c.blockedBy}
                 </div>
@@ -1048,11 +1087,6 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                     const shown = ccy === 'HIVE' ? inHive : owed;
                     return (
                       <>
-                        <p className="mkt-fine">
-                          Send <strong>{shown != null ? shown.toFixed(3) : '—'} {ccy}</strong> to{' '}
-                          <strong>@{c.payTo}</strong> with the memo <code>{c.memo}</code>.
-                          {ccy === 'HIVE' ? ' HIVE is valued at the on-chain price when it arrives, so this covers the price at today\u2019s.' : ''}
-                        </p>
                         <div className="mkt-pay-ccy" role="group" aria-label="Pay with">
                           {['HBD', 'HIVE'].map((k) => (
                             <button
@@ -1069,6 +1103,14 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                             </button>
                           ))}
                         </div>
+                        {/* After the choice, because it describes what that choice
+                            means: the amount and the asset both change with it. */}
+                        <p className="mkt-pay-line">
+                          Send <strong>{shown != null ? shown.toFixed(3) : '—'} {ccy}</strong> to{' '}
+                          <strong>@{c.payTo}</strong> with the memo <code>{c.memo}</code>{' '}
+                          <CopyButton value={c.memo} />.
+                          {ccy === 'HIVE' ? ' HIVE is valued at the on-chain price when it arrives, so this covers the price at today\u2019s.' : ''}
+                        </p>
                       </>
                     );
                   })()}
