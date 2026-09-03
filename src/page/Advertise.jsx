@@ -1858,7 +1858,7 @@ export default function Advertise({ openLoginModal }) {
       <section className="mkt-section">
         <h2>How it is priced</h2>
         {pricing?.formats?.length ? (
-          <p className="mkt-fine mkt-fine-lead">
+          <p className="mkt-intro-lede">
             Every spot is priced per second of ad, per day it runs, so a longer spot or a
             longer flight costs proportionally more. Examples use a
             {' '}{EXAMPLE_SECONDS}-second spot over the {pricing.minDays}-day minimum

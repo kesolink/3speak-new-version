@@ -85,6 +85,8 @@ $mkt-sub: 12px;
     }
   }
 
+  /* The line under a section heading that introduces what follows. Used by more than
+     one section, so it is a shared class rather than a per-section modifier. */
   .mkt-intro-lede {
     margin: 0 0 14px;
     font-size: $mkt-text;
@@ -405,11 +407,6 @@ $mkt-sub: 12px;
     line-height: 1.5;
     color: var(--text-muted);
   }
-
-  /* The same note, but leading its section instead of trailing the tiles: it carries
-     the gap underneath it rather than above. Doubled class so it wins outright rather
-     than on source order, which the next edit to this file could quietly reverse. */
-  .mkt-fine.mkt-fine-lead { margin: 0 0 14px; }
 
   .mkt-panel {
     padding: 18px;
@@ -1015,6 +1012,11 @@ $mkt-sub: 12px;
     background: var(--bg-secondary);
 
     h2 { font-size: $mkt-head; }
+
+    /* The whole tile body is one size. These are asides to an advertiser rather than
+       the pitch, so neither line needs to shout. Both lines land on the same colour in
+       this theme, so the heading is the only hierarchy inside the tile. */
+    p { font-size: $mkt-sub; }
     > p:last-child { margin-bottom: 0; }
   }
 
