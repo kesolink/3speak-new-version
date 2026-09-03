@@ -588,11 +588,21 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
    * Not clamped to the format's cap on purpose. A 30s file against a 15s format is a
    * real problem the advertiser has to see and fix, and quietly booking 15s would price
    * a spot that cannot run. lengthOk already refuses it, and the hint says why. */
-  const latestSpotSeconds = useMemo(() => {
-    const v = (creatives || []).find((c) => c.kind !== 'image' && Number(c.durationSeconds) > 0);
-    return v ? Math.ceil(Number(v.durationSeconds)) : null;
-  }, [creatives]);
+  const spotCandidates = useMemo(() => (
+    (creatives || []).filter((c) => c.kind !== 'image' && Number(c.durationSeconds) > 0)
+  ), [creatives]);
+  /* Exactly one file, or none of this. With two uploaded, "the length of your video" has
+     no answer and picking the newest would quietly price against a file the advertiser
+     may not have meant. They choose, and the number is theirs to type.
+     
+     Note this does NOT wait for encoding. The duration is known from the moment the file
+     is uploaded and does not change, so gating on the encode would make somebody wait for
+     a number we already have. */
+  const latestSpotSeconds = spotCandidates.length === 1
+    ? Math.ceil(Number(spotCandidates[0].durationSeconds))
+    : null;
   const autoAvailable = latestSpotSeconds != null && fmt?.creativeKind !== 'image';
+  const tooManySpots = spotCandidates.length > 1 && fmt?.creativeKind !== 'image';
   const [autoLength, setAutoLength] = useState(true);
 
   /* Paying from the wallet, rather than making somebody copy three fields into one.
@@ -886,7 +896,14 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
               onChange={(e) => setSpotSeconds(e.target.value === '' ? '' : Number(e.target.value))}
             />
             {fmt?.creativeKind !== 'image' && (
-              <label className="mkt-check mkt-auto-length" title={autoAvailable ? '' : 'Upload your ad video first'}>
+              <label
+                className="mkt-check mkt-auto-length"
+                title={autoAvailable
+                  ? ''
+                  : (tooManySpots
+                    ? 'You have more than one ad video, so we cannot tell which length to use. Enter it yourself.'
+                    : 'Upload your ad video first')}
+              >
                 <input
                   type="checkbox"
                   checked={autoOn}
@@ -914,7 +931,9 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                     ? 'Taken from the ad video you uploaded.'
                     : (fmt?.creativeKind === 'image'
                       ? 'How long the banner stays on screen.'
-                      : 'Your ad video has to fit inside this.')}
+                      : (tooManySpots
+                        ? 'More than one ad video uploaded, so enter the length of the one you are booking.'
+                        : 'Your ad video has to fit inside this.'))}
                 </>
               )}
           </span>
@@ -1623,7 +1642,12 @@ export default function Advertise({ openLoginModal }) {
   // so without this the list would keep showing the pre-apply set until a reload.
   const [refsVersion, setRefsVersion] = useState(0);
   // Lifted so the flight panel can offer the spots the creative panel has loaded.
+  /* Two lists, not one. Both panels stay MOUNTED — the tabs hide with `hidden`, they do
+     not unmount — so a single shared list is written by whichever panel fetched last.
+     It was only ever fed by the My-products panel, which is why the wizard's booking
+     step saw no creatives at all and could not offer the automatic length. */
   const [creativeList, setCreativeList] = useState([]);
+  const [wizCreativeList, setWizCreativeList] = useState([]);
 
   const { data: inventory, isLoading, error } = useQuery({
     queryKey: ['advertise-inventory'],
@@ -2353,6 +2377,7 @@ export default function Advertise({ openLoginModal }) {
                        would collect something that is never drawn. */
                     brand={wizType === 'banner' ? null : { productName: wizRef.projectName, logoUrl: null, slogan: null }}
                     offer={wizType === 'banner' ? null : { ...bookProduction, feeHbd: pricing?.productionFeeHbd, onChange: setBookProduction }}
+                    onCreatives={setWizCreativeList}
                   />
                   <div className="mkt-wiz-actions">
                     <button type="button" className="mkt-primary" onClick={() => goStep(3)}>
@@ -2374,7 +2399,7 @@ export default function Advertise({ openLoginModal }) {
                   <CampaignPanel
                     reference={wizRef.reference}
                     pricing={pricing}
-                    creatives={creativeList}
+                    creatives={wizCreativeList}
                     production={bookProduction}
                     awaitingApproval={wizRef.status !== 'approved'}
                     lockFormat={WIZ_FORMAT[wizType] || 'video_roll'}
