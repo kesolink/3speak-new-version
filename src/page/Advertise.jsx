@@ -299,6 +299,20 @@ function inMinutes(raw) {
   return secs ? `${mins} min ${secs} sec` : `${mins} min`;
 }
 
+/**
+ * The HIVE to actually SEND for an HBD price.
+ *
+ * Rounds UP, unlike hiveEquivalent() which rounds to the nearest and is for display.
+ * The server credits a HIVE payment at `amount * hbdPerHive` using the rate at CLAIM
+ * time, so an amount converted at the rate we quoted and rounded down can land a
+ * thousandth short and leave the flight unpaid for no reason anyone can see.
+ */
+function hivePayable(hbd, hbdPerHive) {
+  const rate = Number(hbdPerHive);
+  if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(hbd) || hbd <= 0) return null;
+  return Math.ceil((hbd / rate) * 1000) / 1000;
+}
+
 function hiveEquivalent(hbd, hbdPerHive) {
   const rate = Number(hbdPerHive);
   if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(hbd) || hbd <= 0) return null;
@@ -557,12 +571,21 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
    * comes from the account the campaign is booked under; anything else is refused and
    * returned. Checked before signing, because the alternative is letting someone pay
    * and find out days later. */
+  // Per campaign, not one shared value: with two unpaid flights on screen, a single
+  // toggle would silently change the currency of the one you are not looking at.
+  const [payCcy, setPayCcy] = useState({});
   const [payBusy, setPayBusy] = useState(null);
   const [payError, setPayError] = useState(null);
 
   const payWithWallet = useCallback(async (c) => {
     const owed = Math.round((c.priceHbd - c.paidHbd) * 1000) / 1000;
     if (!(owed > 0)) return;
+    const ccy = payCcy[c.id] === 'HIVE' ? 'HIVE' : 'HBD';
+    const amount = ccy === 'HIVE' ? hivePayable(owed, pricing?.hbdPerHive) : owed;
+    if (amount == null) {
+      setPayError('We cannot read the HIVE price right now. Pay in HBD, or try again shortly.');
+      return;
+    }
     setPayError(null);
     const signer = getOperationUser();
     if (!signer) {
@@ -575,7 +598,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
     }
     setPayBusy(c.id);
     try {
-      await transferWithAioha(c.payTo, owed, 'HBD', c.memo);
+      await transferWithAioha(c.payTo, amount, ccy, c.memo);
       // The transfer is signed, not yet irreversible-block. Give the chain a moment
       // before asking the checker to look, or the first check reliably finds nothing
       // and reads as a failure to the advertiser.
@@ -588,7 +611,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
     } finally {
       setPayBusy(null);
     }
-  }, [onCheckPayment]);
+  }, [onCheckPayment, payCcy, pricing?.hbdPerHive]);
   const autoOn = autoLength && autoAvailable;
 
   const chosenLength = autoOn ? latestSpotSeconds : (spotSeconds ?? maxSpot);
@@ -1018,11 +1041,37 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
 
               {c.paidHbd < c.priceHbd && (
                 <div className="mkt-pay">
-                  <p className="mkt-fine">
-                    Send <strong>{(c.priceHbd - c.paidHbd).toFixed(3)} HBD</strong> to{' '}
-                    <strong>@{c.payTo}</strong> with the memo <code>{c.memo}</code>. HIVE works too and
-                    is valued at the on-chain price.
-                  </p>
+                  {(() => {
+                    const owed = Math.round((c.priceHbd - c.paidHbd) * 1000) / 1000;
+                    const ccy = payCcy[c.id] === 'HIVE' ? 'HIVE' : 'HBD';
+                    const inHive = hivePayable(owed, pricing?.hbdPerHive);
+                    const shown = ccy === 'HIVE' ? inHive : owed;
+                    return (
+                      <>
+                        <p className="mkt-fine">
+                          Send <strong>{shown != null ? shown.toFixed(3) : '—'} {ccy}</strong> to{' '}
+                          <strong>@{c.payTo}</strong> with the memo <code>{c.memo}</code>.
+                          {ccy === 'HIVE' ? ' HIVE is valued at the on-chain price when it arrives, so this covers the price at today\u2019s.' : ''}
+                        </p>
+                        <div className="mkt-pay-ccy" role="group" aria-label="Pay with">
+                          {['HBD', 'HIVE'].map((k) => (
+                            <button
+                              key={k}
+                              type="button"
+                              className={`mkt-ccy${ccy === k ? ' selected' : ''}`}
+                              // No HIVE price, no HIVE option: an unpriced button would
+                              // send an amount we cannot work out.
+                              disabled={k === 'HIVE' && inHive == null}
+                              aria-pressed={ccy === k}
+                              onClick={() => setPayCcy((m) => ({ ...m, [c.id]: k }))}
+                            >
+                              {k}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()}
                   {/* Without this the figure above simply does not match the price on
                       the line beside it, which reads as a pricing bug rather than a
                       discount. Say where the difference went. */}

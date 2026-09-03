@@ -407,6 +407,30 @@ $mkt-sub: 12px;
      hint's size: it is a reading of the input, not a second instruction. */
   /* Pay from the wallet, or say you already sent it. Side by side because they are two
      answers to one question, and wrapping on a phone rather than shrinking to fit. */
+  /* Which asset the transfer is in. Two states of one choice, so a segmented pair
+     rather than two independent-looking buttons. */
+  .mkt-pay-ccy {
+    display: inline-flex;
+    margin: 0 0 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+
+    .mkt-ccy {
+      padding: 5px 14px;
+      border: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: $mkt-sub;
+      font-weight: 700;
+      cursor: pointer;
+
+      &.selected { background: var(--accent-primary); color: var(--text-inverse); }
+      &:disabled { opacity: 0.4; cursor: not-allowed; }
+    }
+  }
+
   .mkt-pay-actions {
     display: flex;
     flex-wrap: wrap;
