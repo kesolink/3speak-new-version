@@ -776,6 +776,17 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
 
   const ready = creatives.filter((c) => c.status === 'ready');
   /**
+   * Has this flight's kind of spot been uploaded and be waiting on US?
+   *
+   * `pending` is still encoding and `review` is waiting for a person, and in both cases
+   * the advertiser has done everything they can. Scoped by kind, because a video
+   * sitting in review says nothing useful about a banner flight.
+   */
+  const awaitingUs = (campaign) => creatives.some(
+    (cr) => (cr.status === 'review' || cr.status === 'pending')
+      && (cr.kind || 'video') === (campaign.creativeKind || 'video'),
+  );
+  /**
    * Only the creatives THIS flight can use. A banner flight cannot run a video and a
    * spot flight cannot run a still, so offering both and letting the server refuse
    * is a worse experience than offering the one that works.
@@ -1072,11 +1083,17 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                   payment, and the panel asking for the payment is directly below. The
                   key stays in BLOCKED_REASON because dropping it would fall through to
                   the raw `unpaid` for anything else that reads the map. */}
-              {c.blockedBy && c.blockedBy !== 'unpaid' && (
-                <div className="mkt-campaign-blocked">
-                  {BLOCKED_REASON[c.blockedBy] || c.blockedBy}
-                </div>
-              )}
+              {c.blockedBy && c.blockedBy !== 'unpaid' && (() => {
+                /* "No spot attached yet" is true of the CAMPAIGN and false of the
+                   advertiser: the server means no creative is attached, but a spot that
+                   is uploaded and waiting on our review is not attachable yet. Telling
+                   someone who has done their part that they have not is how a paid
+                   advertiser ends up wondering what they missed. */
+                const label = (c.blockedBy === 'no_creative' && awaitingUs(c))
+                  ? 'The team will review your ad file soon. We attach it for you once it passes, and get in touch if there is a choice to make.'
+                  : (BLOCKED_REASON[c.blockedBy] || c.blockedBy);
+                return <div className="mkt-campaign-blocked">{label}</div>;
+              })()}
 
               {c.paidHbd < c.priceHbd && (
                 <div className="mkt-pay">
