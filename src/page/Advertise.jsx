@@ -426,6 +426,20 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   }, [reference]);
   useEffect(() => { refresh(); }, [refresh]);
 
+  /* A spot finishes encoding on its own schedule, and the server only notices on its
+   * next sweep. This list was fetched once on mount and never again, so "still
+   * encoding" stuck on screen permanently — the upload was done in seconds and the page
+   * kept saying otherwise until someone thought to reload.
+   *
+   * Polls only while something is actually pending and stops the moment nothing is, so
+   * an idle advertiser page makes no requests at all. */
+  const awaitingEncode = creatives.some((c) => c.kind !== 'image' && !c.encoded);
+  useEffect(() => {
+    if (!awaitingEncode) return undefined;
+    const t = setInterval(refresh, 15000);
+    return () => clearInterval(t);
+  }, [awaitingEncode, refresh]);
+
   const formats = pricing?.formats || [];
   // Default to the first format the server offers rather than naming one here: the
   // registry decides what exists and in what order.
@@ -637,17 +651,21 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
     <div className="mkt-campaigns">
       <h3>Your bookings</h3>
 
-      {/* Said before they choose, not after they pay. Slots are held by approval, not
-          by booking, so a position picked now is a request rather than a reservation
-          — and somebody reviewed ahead of you may take it. */}
+      {/* Said before they choose, not after they pay. Booking DOES hold the position
+          now: utils/adSlots.js treats a draft or awaiting-payment campaign as holding
+          its slot for AD_SLOT_HOLD_HOURS, on the window it would get if it paid. The
+          note used to say the opposite, that slots were settled at approval, which had
+          simply stopped being true. The duration comes from the server so this cannot
+          drift the same way twice. */}
       {awaitingApproval && (
         <p className="mkt-note">
           <MdInfoOutline aria-hidden="true" />
           <span>
-            You can book now, while we review you. We cannot promise the position yet:
-            another advertiser may have applied for the same slot before you, and slots
-            are settled when we approve, not when they are booked. If yours is taken by
-            then we will come back to you before anything runs or is charged.
+            You can book now, while we review you. Booking holds the position
+            {pricing?.slotHoldHours ? ` for ${pricing.slotHoldHours} hours` : ''}, so it
+            is yours if your payment arrives in that time. If it does not, the hold
+            lapses and the slot goes back on sale. Nothing runs and nothing is charged
+            until you pay.
           </span>
         </p>
       )}
