@@ -981,7 +981,10 @@
   }
 
   /* ── creators ───────────────────────────────────────────── */
-  .mkt-creators {
+  /* The creator and viewer tiles are the same object with different copy, so they
+     share one rule rather than drifting apart the moment one of them is edited. */
+  .mkt-creators,
+  .mkt-viewers {
     padding: 18px 20px;
     border: 1px solid var(--border-color);
     border-radius: 10px;
@@ -1588,3 +1591,28 @@
   }
 
 }
+
+  /* Creator and viewer, side by side. They are the two halves of the same fact —
+     ad money reaches real people — so they read as a pair rather than as one
+     section with an afterthought under it. Stacks on a phone. */
+  .mkt-audience-pair {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+
+    @media (min-width: 700px) {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .mkt-section { margin-bottom: 0; }
+  }
+
+  /* The supporting line under each tile's lead sentence. Smaller so the first
+     sentence still carries the tile and the detail does not compete with it. */
+  .mkt-steps li .mkt-step-detail {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-muted);
+  }

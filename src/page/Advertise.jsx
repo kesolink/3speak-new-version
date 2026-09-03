@@ -105,7 +105,7 @@ function InventoryPanel({ data, isLoading, error }) {
   }
   if (!data) return null;
 
-  const { audience, slots, quality, trial } = data;
+  const { audience, slots, quality } = data;
   // Mid-roll first: it is what we actually sell, and leading with the bigger
   // pre-roll number would be selling a slot we do not recommend.
   // Plain time order. It used to push pre-roll to the bottom so the biggest number
@@ -116,14 +116,6 @@ function InventoryPanel({ data, isLoading, error }) {
 
   return (
     <div className="mkt-inventory">
-      {trial?.active && (
-        // Without this a reader takes platform capacity for what their spot would
-        // reach today. The restriction is real and stating it costs us nothing.
-        <p className="mkt-note mkt-note-trial">
-          <MdInfoOutline aria-hidden="true" />
-          <span>{trial.note}</span>
-        </p>
-      )}
       <div className="mkt-stats">
         <StatTile value={formatCount(audience?.sessionsPerDay)} label="Watch sessions a day" note="Trailing 7 days, after filtering" />
         <StatTile value={formatCount(audience?.videos)} label="Videos in the pool" note={`Last ${data.windowDays} days`} />
@@ -185,12 +177,10 @@ function InventoryPanel({ data, isLoading, error }) {
 
       {quality && (
         <p className="mkt-note">
-          <MdInfoOutline aria-hidden="true" />
           <span>
             <strong>{quality.removedPct}% of raw traffic is excluded</strong> from these
-            figures — sessions under {quality.minEngagedSeconds} seconds, accounts whose
-            average session is too short to be a person watching, and videos whose creator
-            opted out. What is left is what we are willing to sell.
+            figures: sessions under {quality.minEngagedSeconds} seconds, accounts too fast to
+            be real viewers, and videos whose creator opted out. What is left is what we sell.
           </span>
         </p>
       )}
@@ -1822,10 +1812,10 @@ export default function Advertise({ openLoginModal }) {
         <ol className="mkt-steps">
           <li>
             <strong>Your product</strong>
-            <span>
-              Whatever you want to advertise. Tell us about it once and a person reads it.
-              Advertising something different later means a new product, reviewed on its
-              own.
+            <span>Whatever you want to advertise.</span>
+            <span className="mkt-step-detail">
+              Tell us once and a person reads it. Something different later means a new
+              product.
             </span>
           </li>
           <li>
@@ -1833,23 +1823,23 @@ export default function Advertise({ openLoginModal }) {
             <span>
               The clip that plays inside someone&apos;s video
               {pricing?.maxCreativeSeconds ? `, up to ${pricing.maxCreativeSeconds} seconds` : ''}.
-              {' '}Upload as many as you like under one product, or ask us to make one. We watch
-              each one before it can run.
+            </span>
+            <span className="mkt-step-detail">
+              Upload as many as you like, or ask us to make one. We watch each before it runs.
             </span>
           </li>
           <li>
             <strong>Your bookings</strong>
-            <span>
-              When your ad runs, where in the video it falls, and what it costs. Book as
-              many as you like under one product. Each booking uses one of your ad videos
-              and starts once your payment lands.
+            <span>When your ad runs, where it falls, and what it costs.</span>
+            <span className="mkt-step-detail">
+              Book as many as you like. Each uses one of your ad videos and starts when your
+              payment lands.
             </span>
           </li>
         </ol>
         <p className="mkt-fine">
-          Bookings are priced per second of ad, per day, never by the thousand impressions.
-          Nothing runs in front of anyone until both your product and the ad video have been
-          approved.
+          Priced per second of ad, per day. Nothing runs until your product and ad video are
+          both approved.
         </p>
       </section>
 
@@ -1873,10 +1863,9 @@ export default function Advertise({ openLoginModal }) {
         {pricing?.formats?.length ? (
           <p className="mkt-fine">
             Every spot is priced per second of ad, per day it runs, so a longer spot or a
-            longer flight costs proportionally more. Each example above prices a
-            {' '}{EXAMPLE_SECONDS}-second spot over the {pricing.minDays}-day minimum, as a
-            like-for-like comparison rather than a limit.
-            {pricing.maxDays ? ` A booking can run up to ${pricing.maxDays} days.` : null}
+            longer flight costs proportionally more. Examples use a
+            {' '}{EXAMPLE_SECONDS}-second spot over the {pricing.minDays}-day minimum
+            {pricing.maxDays ? `; bookings run up to ${pricing.maxDays} days` : ''}.
           </p>
         ) : pricing?.pricePerSecondDayHbd ? (
           // Fallback for a checker too old to send the rate card: one product, one price.
@@ -1892,28 +1881,42 @@ export default function Advertise({ openLoginModal }) {
           </p>
         ) : null}
         <p>
-          Spots are sold as a flat booking — your spot runs across the network for a fixed
-          period, at a fixed price in HBD. We do not sell by the thousand impressions: at
-          this scale that would mean quoting numbers too small to mean anything, and it
-          rewards padding the count instead of finding the right audience.
+          A flat booking: your spot runs across the network for a fixed period at a fixed
+          price. No CPM, so nobody has a reason to pad the count.
         </p>
         <p>
           You are quoted against the forecast above and reported against what actually
-          played. If delivery falls short of the forecast, the difference comes back as
-          credit on your next booking.
+          played. Fall short and the difference comes back as credit on your next booking.
         </p>
       </section>
 
-      <section className="mkt-section mkt-creators">
-        <h2>If you are a creator</h2>
-        <p>
-          Spots run across the network by default, and a share of what they earn goes to the
-          creator whose video carried them and to the community it was posted in. You can turn
-          ads off for your own videos at any time &mdash; a video with ads switched off is
-          removed from the availability figures above as well, so nothing is sold that we have
-          promised not to use.
-        </p>
-      </section>
+      {/* Two audiences who are not buying anything, side by side: the people whose
+          videos carry the ads and the people who watch them. Both are paid, and an
+          advertiser reading this page should see that the money goes somewhere real. */}
+      <div className="mkt-audience-pair">
+        <section className="mkt-section mkt-creators">
+          <h2>If you are a creator</h2>
+          <p>
+            Ads run on your videos and you earn a share of what they make, along with the
+            community you posted in.
+          </p>
+          <p className="mkt-fine">
+            Switch them off any time in Settings. Your videos are then removed from what we
+            offer advertisers too.
+          </p>
+        </section>
+
+        <section className="mkt-section mkt-viewers">
+          <h2>If you are a viewer</h2>
+          <p>
+            You earn a share too, for the videos you actually watch. Paid in HBD or HIVE,
+            same as everyone else.
+          </p>
+          <p className="mkt-fine">
+            Opt in from Settings. We only count a video once you have watched most of it.
+          </p>
+        </section>
+      </div>
       </div>
 
       <div
