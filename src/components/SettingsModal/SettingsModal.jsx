@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
 import { toast } from 'sonner';
@@ -311,11 +311,12 @@ function ViewerRewardsSection() {
         <div className="settings-row-text">
           <span className="settings-row-title">Viewer rewards</span>
           <span className="settings-row-desc">
-            Share of the ad revenue for the videos you watch, paid in whatever the
-            advertiser paid with, HBD or HIVE. 3Speak already
-            keeps your watch history for the Watched page; this additionally records how
-            much of each video you watched, which is what your share is worked out from.
-            Turn it off and we delete that straight away.
+            Earn a share of ad revenue for what you watch, paid in HBD or HIVE. You are
+            paid on videos watched, whether or not an ad played, so it rewards watching
+            rather than sitting through ads. Ads themselves play for everyone except
+            3Speak Pro subscribers. We record how much of each video you watched, on top
+            of the watch history the Watched page already keeps, and delete it the moment
+            you turn this off.
           </span>
         </div>
         <Switch
@@ -496,6 +497,10 @@ const TABS = [
   { id: 'general', label: 'General' },
   { id: 'shorts', label: 'Shorts' },
   { id: 'content', label: 'Content' },
+  // Its own page rather than a tail on Content. Both halves are about money moving
+  // between advertisers, creators and viewers, and they were the two longest things on
+  // a page otherwise made of one-line switches.
+  { id: 'rewards', label: 'Ads & rewards' },
   { id: 'interests', label: 'Interests' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'about', label: 'About / Contact' },
@@ -507,7 +512,24 @@ const TABS = [
  */
 export default function SettingsModal({ isOpen, onClose }) {
   const { theme, showNsfw, setShowNsfw, toggleTheme, sidebarHidden, setSidebarHidden, homeCardSize, setHomeCardSize, previewEnabled, setPreviewEnabled, shortsCommentBar, setShortsCommentBar, openShortsOnStart, setOpenShortsOnStart, inlineShorts, setInlineShorts, hideWatched, setHideWatched, privateMode, setPrivateMode, simpleFeed, setSimpleFeed } = useAppStore();
+  /* Whether the Ads & rewards page exists at all.
+   *
+   * Both its sections are gated on the same test group and render nothing outside it, so
+   * showing the tab regardless would be a tab that opens onto blank space. Hidden rather
+   * than emptied: a page you cannot use is not worth announcing while the feature is
+   * closed. */
+  const settingsUser = useAppStore((st) => st.user);
+  const rewardsVisible = !!settingsUser && adsEnabledFor(settingsUser);
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => t.id !== 'rewards' || rewardsVisible),
+    [rewardsVisible],
+  );
   const [tab, setTab] = useState('general');
+  // Losing the group (or logging out) while standing on that page would leave the modal
+  // with no tab selected and nothing rendered.
+  useEffect(() => {
+    if (tab === 'rewards' && !rewardsVisible) setTab('general');
+  }, [tab, rewardsVisible]);
 
   // Lock background page scroll while the modal is open (restore on close).
   useEffect(() => {
@@ -600,7 +622,7 @@ export default function SettingsModal({ isOpen, onClose }) {
         </div>
 
         <div className="settings-tabs" role="tablist">
-          {TABS.map(({ id, label }) => (
+          {visibleTabs.map(({ id, label }) => (
             <button
               key={id}
               type="button"
@@ -705,8 +727,13 @@ export default function SettingsModal({ isOpen, onClose }) {
               onChange={(v) => setPrivateMode(v)}
             />
           </div>
-          <AdsSection />
-          <ViewerRewardsSection />
+          </>
+        )}
+
+        {tab === 'rewards' && (
+          <>
+            <AdsSection />
+            <ViewerRewardsSection />
           </>
         )}
 
