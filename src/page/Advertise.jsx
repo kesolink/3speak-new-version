@@ -542,15 +542,19 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   const videoRangeOk = !(Number.isFinite(minVideoNum) && Number.isFinite(maxVideoNum)
     && minVideoNum > maxVideoNum);
 
-  // The earliest start we will accept: tomorrow, in the viewer's own timezone. Not
-  // today — a flight still has to be approved and paid before anything runs, so a
-  // start of "today" is a promise the pipeline cannot keep, and a start in the past
-  // was only ever silently clamped to now by the server. Built from the local date
-  // parts on purpose: toISOString is UTC and would offer yesterday to anyone west of
-  // it.
+  /* The earliest start we accept: TODAY, in the viewer's own timezone.
+   *
+   * It used to be tomorrow, on the reasoning that a flight has to be approved and paid
+   * before it runs. But windowFrom() already begins the clock at the later of now and
+   * the requested date, so "today" does not promise anything early: it means start the
+   * moment it is approved and paid, which is the thing an advertiser actually wants and
+   * is what a blank field has always done. Offering tomorrow as the floor just pushed
+   * every same-day booking a day out for no reason.
+   *
+   * Built from the local date parts on purpose: toISOString is UTC and would offer
+   * yesterday to anyone west of it. */
   const earliestISO = useMemo(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
   // `min` on a date input stops the PICKER, not a typed or pasted value, so the same
@@ -719,10 +723,10 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
           />
           <span className={startOk ? 'mkt-hint' : 'mkt-upload-error'}>
             {!startOk
-              ? 'The earliest start is tomorrow, because a flight has to be approved and paid first.'
+              ? 'That date has passed. Pick today or later.'
               : runsUntil
                 ? `Runs to ${runsUntil}.`
-                : 'Leave blank to start as soon as it is approved and paid.'}
+                : 'Leave blank, or pick today, to start as soon as it is approved and paid.'}
           </span>
         </div>
 
