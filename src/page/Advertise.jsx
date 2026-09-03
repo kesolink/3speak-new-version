@@ -1857,11 +1857,8 @@ export default function Advertise({ openLoginModal }) {
 
       <section className="mkt-section">
         <h2>How it is priced</h2>
-        {/* Every number here comes from /advertise/pricing rather than the copy: a
-            hardcoded price is a promise the server has no idea it made. */}
-        <RateCard pricing={pricing} />
         {pricing?.formats?.length ? (
-          <p className="mkt-fine">
+          <p className="mkt-fine mkt-fine-lead">
             Every spot is priced per second of ad, per day it runs, so a longer spot or a
             longer flight costs proportionally more. Examples use a
             {' '}{EXAMPLE_SECONDS}-second spot over the {pricing.minDays}-day minimum
@@ -1880,6 +1877,9 @@ export default function Advertise({ openLoginModal }) {
             ) : null}
           </p>
         ) : null}
+        {/* Every number here comes from /advertise/pricing rather than the copy: a
+            hardcoded price is a promise the server has no idea it made. */}
+        <RateCard pricing={pricing} />
         <p>
           A flat booking: your spot runs across the network for a fixed period at a fixed
           price. No CPM, so nobody has a reason to pad the count.
