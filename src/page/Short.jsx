@@ -1,4 +1,13 @@
 import { SHORTS_ADS_ENABLED } from '../utils/config';
+
+/* How long a spot may sit there without producing a frame before we give the feed back.
+ *
+ * Needed because the countdown now starts on PLAYBACK rather than on arrival. That is
+ * what stops an 8 second spot being cut short by loading, but it also means a spot that
+ * never plays would hold the surface forever, where the old on-arrival timer would at
+ * least have run out. Nothing is charged for it either way: an impression is recorded
+ * from the measured segments, which a spot that never played never fetches. */
+const SHORTS_AD_START_TIMEOUT_MS = 8000;
 import { countShortWatched, requestShortsAd } from '../lib/shortsAd';
 import ShortsAdOverlay from '../components/ads/ShortsAdOverlay';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -981,9 +990,29 @@ const VideoShort = () => {
         setShortsAd(null);
       });
     }
+    return undefined;
+  }, [shortsAd]);
+
+  /* The countdown runs on PLAYBACK, not on arrival.
+   *
+   * It used to start in the effect above, the moment the spot was taken — so the clock
+   * was already running while the manifest was still being fetched and the first
+   * segment decoded. An 8 second spot could lose a second or two of that to loading and
+   * be pulled off screen before it finished: the advertiser paid for 8 seconds and the
+   * viewer saw six.
+   *
+   * `adStarted` is set from the player's own time, so this begins when a frame has
+   * actually played. Deliberately a SEPARATE effect: adding adStarted to the deps above
+   * would re-run player.load() and restart the spot the instant it began.
+   *
+   * Kept as a timer rather than moved to the player's `ended` event for the reason
+   * above: a missed `ended` strands a viewer on a finished ad, and a timer plus Skip
+   * cannot strand anybody. */
+  useEffect(() => {
+    if (!SHORTS_ADS_ENABLED || !shortsAd || !adStarted) return undefined;
     const tick = setInterval(() => setAdSecondsLeft((n) => (n > 0 ? n - 1 : 0)), 1000);
     return () => clearInterval(tick);
-  }, [shortsAd]);
+  }, [shortsAd, adStarted]);
 
   // When the spot is done — its time is up, or the viewer skipped — put the short back.
   const endShortsAd = useCallback(() => {
@@ -1004,6 +1033,17 @@ const VideoShort = () => {
     if (!shortsAd || adSecondsLeft > 0) return;
     endShortsAd();
   }, [shortsAd, adSecondsLeft, endShortsAd]);
+
+  // The floor under the playback-driven countdown: a spot that never starts gives the
+  // feed back rather than holding a viewer on a still frame with only Skip for a way out.
+  useEffect(() => {
+    if (!shortsAd || adStarted) return undefined;
+    const bail = setTimeout(() => {
+      console.warn('[VideoShort] shorts spot never started playing; returning to the feed');
+      endShortsAd();
+    }, SHORTS_AD_START_TIMEOUT_MS);
+    return () => clearTimeout(bail);
+  }, [shortsAd, adStarted, endShortsAd]);
 
   // Force-show fallback: if the player hasn't fired ready after 6s, show it anyway and try playing
   useEffect(() => {
