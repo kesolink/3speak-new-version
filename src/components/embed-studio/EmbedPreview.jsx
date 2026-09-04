@@ -58,38 +58,30 @@ function EmbedPreview() {
    * of ours must never become their problem.
    */
   const [gateAd, setGateAd] = React.useState(null);
-  const [gateOpen, setGateOpen] = React.useState(false);
+  const [gateBusy, setGateBusy] = React.useState(false);
   const gateSidRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!user) return undefined;
-    let alive = true;
-    fetchUploadGateAd(user)
-      .then((ad) => {
-        if (!alive || !ad) return;
-        setGateAd(ad);
-        // Shown straight away rather than on the button. The spot is a CONDITION of
-        // posting, so it belongs before the decision, not as a surprise after somebody
-        // has committed to publishing. Post Video stays disabled until it has run.
-        setGateOpen(true);
-      })
-      .catch(() => { /* fail open: no gate */ });
-    return () => { alive = false; };
-  }, [user]);
+  /* Whether this visit has already settled its gate — watched the spot, or asked and
+   * been told there was none. Kept so a failed publish, or any second press, does not
+   * ask somebody to sit through another one. */
+  const gateDoneRef = React.useRef(false);
 
-  /* Watched. The button unlocks; it does NOT publish on its own.
+  /* Watched, so publish. The press that opened the spot WAS the decision.
    *
-   * Auto-publishing here would take the decision away: the spot appears unbidden when
-   * the preview loads, so treating its end as consent would post somebody's video
-   * because they sat through an ad. They still press the button. */
+   * ⚠️ This used to unlock the button instead, on the reasoning that a spot appearing
+   * unbidden must not be treated as consent to publish. That was right while the ad
+   * played on arrival at the preview; it is wrong now that nothing plays until Post
+   * Video is pressed. Asking for a second press after the spot would be asking somebody
+   * to confirm a decision they already made. */
   const onGateWatched = React.useCallback(() => {
-    setGateOpen(false);
     // Keep the session id: the impression is completed by the POST, not by the watch,
     // and this is the only place the id is still to hand. A ref, not state — nothing
     // renders from it, and setting state here only to clear it later is a render loop
     // waiting to happen.
     gateSidRef.current = gateSessionId(gateAd);
+    gateDoneRef.current = true;
     setGateAd(null);
-  }, [gateAd]);
+    publishToEmbed();
+  }, [gateAd, publishToEmbed]);
 
   /* Completed on the POST, not on the watch: the checker will not take the claim
    * without a video to point at, so it has to wait for one to exist. */
@@ -153,17 +145,41 @@ function EmbedPreview() {
   const userBeneficiaries = beneList.filter((b) => b && b.account);
 
 
-  const handlePostVideo = () => {
-    // Belt and braces: the button is disabled while a spot is outstanding, but a
-    // disabled button is a presentation detail and this is the publish path.
-    if (gateAd) { setGateOpen(true); return; }
-    publishToEmbed();
+  /* The spot plays HERE, on the press, not on arrival at the preview.
+   *
+   * The preview is where people catch their own mistakes — a wrong thumbnail, a typo in
+   * the title — and go back to fix them. Playing the spot when the page loads charged
+   * them an ad for every one of those trips, which punishes exactly the care we want
+   * them to take. Pressing Post Video is the one unambiguous moment of commitment, so
+   * that is where the spot belongs.
+   *
+   * The request is made here too, rather than prefetched, so nobody who never presses
+   * the button is asked for a spot at all. It costs a moment of loading, which the gate
+   * itself shows and bounds with its own watchdog.
+   *
+   * Fails open at every step, like the gate: no ad, a request that throws, a network
+   * that never answers — all of them publish. */
+  const handlePostVideo = async () => {
+    if (gateBusy || gateAd) return;          // already asking, or already showing
+    if (gateDoneRef.current || !user) { publishToEmbed(); return; }
+    setGateBusy(true);
+    // fetchUploadGateAd already resolves null on every failure it can see; the catch is
+    // for the ones it cannot, and it means the same thing here — publish.
+    const ad = await fetchUploadGateAd(user).catch(() => null);
+    setGateBusy(false);
+    if (!ad) {
+      // Nothing to show, and nothing to ask again about on a retry.
+      gateDoneRef.current = true;
+      publishToEmbed();
+      return;
+    }
+    setGateAd(ad);
   };
 
 
   return (
     <>
-      {gateOpen && gateAd && <UploadGate ad={gateAd} onWatched={onGateWatched} />}
+      {gateAd && <UploadGate ad={gateAd} onWatched={onGateWatched} />}
       {/* PREVIEW & PUBLISH BUTTON */}
       {!uploading && !completed && (
         <div className="studio-main-container">
@@ -272,11 +288,10 @@ function EmbedPreview() {
                   type="button"
                   className="ep-btn ep-btn--primary"
                   onClick={handlePostVideo}
-                  disabled={!!gateAd}
-                  title={gateAd ? 'Watch the sponsor message first' : undefined}
+                  disabled={gateBusy}
                 >
-                  {gateAd
-                    ? 'Watch the sponsor message'
+                  {gateBusy
+                    ? 'One moment...'
                     : (fromStories ? 'Post Short' : 'Post Video')}
                 </button>
               </div>
