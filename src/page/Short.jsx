@@ -1018,9 +1018,15 @@ const VideoShort = () => {
    * cannot strand anybody. */
   useEffect(() => {
     if (!SHORTS_ADS_ENABLED || !shortsAd || !adStarted) return undefined;
+    // Paused means paused. The spacebar still works during a spot, and a countdown that
+    // kept running through a paused ad would just be the Skip button with extra steps:
+    // hold space, watch nothing, get your feed back. Stopping the clock instead means an
+    // advertiser is paid for seconds that were actually on screen, and the viewer keeps
+    // an ordinary control.
+    if (!isPlaying) return undefined;
     const tick = setInterval(() => setAdSecondsLeft((n) => (n > 0 ? n - 1 : 0)), 1000);
     return () => clearInterval(tick);
-  }, [shortsAd, adStarted]);
+  }, [shortsAd, adStarted, isPlaying]);
 
   // When the spot is done — its time is up, or the viewer skipped — put the short back.
   const endShortsAd = useCallback(() => {
@@ -1046,12 +1052,15 @@ const VideoShort = () => {
   // feed back rather than holding a viewer on a still frame with only Skip for a way out.
   useEffect(() => {
     if (!shortsAd || adStarted) return undefined;
+    // Not while the viewer has paused before a frame ever played: that is a choice, not
+    // the stall this exists to catch, and ending the spot would be punishing them for it.
+    if (!isPlaying) return undefined;
     const bail = setTimeout(() => {
       console.warn('[VideoShort] shorts spot never started playing; returning to the feed');
       endShortsAd();
     }, SHORTS_AD_START_TIMEOUT_MS);
     return () => clearTimeout(bail);
-  }, [shortsAd, adStarted, endShortsAd]);
+  }, [shortsAd, adStarted, isPlaying, endShortsAd]);
 
   // Force-show fallback: if the player hasn't fired ready after 6s, show it anyway and try playing
   useEffect(() => {
