@@ -7,6 +7,20 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.63',
+    date: '2026-09-04',
+    summary:
+      'The 3Speak Pro panel in your wallet now opens on a General tab, listing the '
+      + 'benefits that apply to everyone first.',
+  },
+  {
+    version: '1.78.62',
+    date: '2026-09-04',
+    summary:
+      'The page tabs in the top bar now fold away behind the logo. Click it to show or '
+      + 'hide them, and your choice is remembered.',
+  },
+  {
     version: '1.78.61',
     date: '2026-09-04',
     summary:
