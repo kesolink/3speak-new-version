@@ -112,7 +112,7 @@ export default function UploadGate({ ad, onWatched }) {
             {playing ? `${left}s` : 'loading…'}
           </span>
         </div>
-        <p className="upload-gate-note">Your video posts as soon as this finishes.</p>
+        <p className="upload-gate-note">Watch this to unlock Post Video.</p>
       </div>
     </div>
   );

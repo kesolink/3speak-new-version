@@ -63,16 +63,27 @@ function EmbedPreview() {
     if (!user) return undefined;
     let alive = true;
     fetchUploadGateAd(user)
-      .then((ad) => { if (alive) setGateAd(ad); })
+      .then((ad) => {
+        if (!alive || !ad) return;
+        setGateAd(ad);
+        // Shown straight away rather than on the button. The spot is a CONDITION of
+        // posting, so it belongs before the decision, not as a surprise after somebody
+        // has committed to publishing. Post Video stays disabled until it has run.
+        setGateOpen(true);
+      })
       .catch(() => { /* fail open: no gate */ });
     return () => { alive = false; };
   }, [user]);
 
+  /* Watched. The button unlocks; it does NOT publish on its own.
+   *
+   * Auto-publishing here would take the decision away: the spot appears unbidden when
+   * the preview loads, so treating its end as consent would post somebody's video
+   * because they sat through an ad. They still press the button. */
   const onGateWatched = React.useCallback(() => {
     setGateOpen(false);
-    setGateAd(null);        // watched, so the next press goes straight through
-    publishToEmbed();
-  }, [publishToEmbed]);
+    setGateAd(null);
+  }, []);
   // On the success screen we offer feedback (area:'upload'), rather than opening
   // the popup automatically — see the "Give feedback" button below.
   const openReview = useReviewModal((s) => s.openReview);
@@ -129,7 +140,8 @@ function EmbedPreview() {
 
 
   const handlePostVideo = () => {
-    // Shown once. A second press after watching posts, rather than replaying the spot.
+    // Belt and braces: the button is disabled while a spot is outstanding, but a
+    // disabled button is a presentation detail and this is the publish path.
     if (gateAd) { setGateOpen(true); return; }
     publishToEmbed();
   };
@@ -246,8 +258,12 @@ function EmbedPreview() {
                   type="button"
                   className="ep-btn ep-btn--primary"
                   onClick={handlePostVideo}
+                  disabled={!!gateAd}
+                  title={gateAd ? 'Watch the sponsor message first' : undefined}
                 >
-                  {fromStories ? 'Post Short' : 'Post Video'}
+                  {gateAd
+                    ? 'Watch the sponsor message'
+                    : (fromStories ? 'Post Short' : 'Post Video')}
                 </button>
               </div>
             </div>
