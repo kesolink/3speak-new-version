@@ -190,7 +190,21 @@ async function signViaThreespeak(adsEnabled, communitySharePct, account) {
   // signed a challenge with their posting key at login) and the server checks it
   // ahead of the claimed-username path, so this is what keeps delegated signing
   // working for wallet logins if ALLOW_APPKEY_AUTH is ever turned off.
-  if (isWallet && res.status === 401 && await establishWalletSession()) {
+  /* Re-mint the session and retry, for a refusal AND for a signature made in somebody
+   * else's name.
+   *
+   * The API session cookie outlives a front-end account switch: the page is on the new
+   * account while the cookie still names the old one, so the signer signs for the old
+   * one and the checker rejects it. Switching accounts should just work, so the mismatch
+   * is treated exactly like the 401 it resembles — establishWalletSession() re-mints for
+   * whoever is logged in NOW, and the second attempt is signed for them.
+   *
+   * assertSignedForUs() below is still the backstop, for when re-minting cannot fix it. */
+  const signedForSomeoneElse = () => {
+    const got = String(data?.username || '').toLowerCase();
+    return !!got && got !== String(account || '').toLowerCase();
+  };
+  if (isWallet && (res.status === 401 || signedForSomeoneElse()) && await establishWalletSession(account)) {
     ({ r: res, d: data } = await doPost());
   }
   if (!res.ok || !data.signature) {
@@ -296,7 +310,21 @@ async function signViewerViaThreespeak(rewardsEnabled, account) {
   };
 
   let { r: res, d: data } = await doPost();
-  if (isWallet && res.status === 401 && await establishWalletSession()) {
+  /* Re-mint the session and retry, for a refusal AND for a signature made in somebody
+   * else's name.
+   *
+   * The API session cookie outlives a front-end account switch: the page is on the new
+   * account while the cookie still names the old one, so the signer signs for the old
+   * one and the checker rejects it. Switching accounts should just work, so the mismatch
+   * is treated exactly like the 401 it resembles — establishWalletSession() re-mints for
+   * whoever is logged in NOW, and the second attempt is signed for them.
+   *
+   * assertSignedForUs() below is still the backstop, for when re-minting cannot fix it. */
+  const signedForSomeoneElse = () => {
+    const got = String(data?.username || '').toLowerCase();
+    return !!got && got !== String(account || '').toLowerCase();
+  };
+  if (isWallet && (res.status === 401 || signedForSomeoneElse()) && await establishWalletSession(account)) {
     ({ r: res, d: data } = await doPost());
   }
   if (!res.ok || !data.signature) {
