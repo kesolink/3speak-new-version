@@ -26,7 +26,7 @@ import { ImSpinner9 } from "react-icons/im";
 import { useNavigate } from "react-router-dom";
 import BarLoader from "../Loader/BarLoader";
 import TipModal from "../../components/tip-reward/TipModal";
-import { toast } from 'sonner';
+import { toastIn } from '../../utils/toast';
 import { TailChase } from 'ldrs/react';
 import 'ldrs/react/TailChase.css';
 import { getFollowers, getRelationshipBetweenAccounts } from "../../hive-api/api";
@@ -69,6 +69,10 @@ import { MdFlag, MdEdit, MdAutoAwesome } from 'react-icons/md';
 import useTitleMeta from '../../hooks/useTitleMeta';
 import TitleTranslate from '../TitleTranslate/TitleTranslate';
 import SummaryModal from '../SummaryModal/SummaryModal';
+
+// Every toast from this module is headed "Video"; the message becomes the
+// line under it. See utils/toast.js.
+const toast = toastIn('Video');
 
 dayjs.extend(relativeTime);
 

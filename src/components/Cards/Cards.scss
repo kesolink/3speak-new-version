@@ -8,7 +8,7 @@ html[data-card-size="large"] { --card-min-w: 420px; }
 
 .card-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-w, 460px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min-w, 280px), 1fr));
   grid-column-gap: 16px;
   // Match the vertical gap to the horizontal one on desktop (was a roomier 30px).
   // Mobile keeps its own tighter row-gap in the phone block below.

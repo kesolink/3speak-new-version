@@ -15,6 +15,7 @@ import { useMyPlaylists } from "../../hooks/useMyPlaylists";
 import ShortsIcon from "../icons/ShortsIcon";
 import UploadLinks from "../UploadLinks";
 import NotificationBell from "./NotificationBell";
+import { hideToastLayer, showToastLayer } from "../../utils/toast";
 import ChatButton from "../Chat/ChatButton";
 import PremiumBadge from "../PremiumBadge/PremiumBadge";
 import { FiSettings, FiLogIn } from "react-icons/fi";
@@ -130,6 +131,39 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
     document.documentElement.style.setProperty('--nav-top-offset', navHidden ? '0px' : 'var(--nav-height, 50px)');
   }, [navHidden]);
 
+  // Toasts get out of the way of the right-hand nav's panels, and come back on
+  // the next click anywhere else. Bound on the document rather than on each
+  // panel because those panels own their open state privately (the Share
+  // flyout, the bell, the profile drawer) and threading a callback through all
+  // of them would be four places to keep in step for one visual rule.
+  //
+  // The click that OPENS a panel lands inside .nav-right and is skipped here,
+  // so it cannot un-hide what the capture handler just hid.
+  useEffect(() => {
+    // The cluster itself plus the surfaces it opens. A click inside an open
+    // panel is someone still using it, so the stack stays down; the backdrop
+    // is deliberately NOT in this list, because clicking it closes the drawer
+    // and the toasts should come straight back.
+    const KEEP_HIDDEN = '.nav-right, .profile-wrap, .notif-dropdown, .nav-upload-flyout';
+    const onDocClick = (e) => {
+      if (e.target instanceof Element && e.target.closest(KEEP_HIDDEN)) return;
+      showToastLayer();
+    };
+    document.addEventListener('click', onDocClick);
+    return () => {
+      document.removeEventListener('click', onDocClick);
+      showToastLayer();
+    };
+  }, []);
+
+  // ...and put it back to zero when the bar is not rendered at all (mobile Shorts
+  // unmounts it). Everything that hangs off this — the toasts, Discover's sticky
+  // filter row, the watch-page rail — should sit flush when there is no bar above
+  // them, and a stale value from the last route is how you get a gap under nothing.
+  useEffect(() => () => {
+    document.documentElement.style.setProperty('--nav-top-offset', '0px');
+  }, []);
+
   // The top nav stays locked/visible — no scroll-based auto-hide (it flickered).
   // The only time it hides is immersive landscape video on /watch, which is
   // orientation-driven (not scroll-driven), so there's nothing to flicker.
@@ -214,7 +248,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
       <NavSearch />
 
       {authenticated ? (
-        <div className="nav-right flex-div">
+        <div className="nav-right flex-div" onClickCapture={hideToastLayer}>
           <NavUploadDropdown />
           <Link to="/discover" className="nav-mobile-discover" title="Discover">
             <MdOutlineSearch size={19} />
@@ -228,7 +262,7 @@ function Nav({ setSideBar, toggleProfileNav, openLoginModal }) {
           </span>
         </div>
       ) : (
-        <div className="nav-right flex-div">
+        <div className="nav-right flex-div" onClickCapture={hideToastLayer}>
           <Link to="/discover" className="nav-mobile-discover" title="Discover">
             <MdOutlineSearch size={19} />
           </Link>

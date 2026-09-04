@@ -27,7 +27,8 @@ import RouteTitle from "./components/RouteTitle";
 import OpenShortsOnStart from "./components/OpenShortsOnStart";
 import AddAccount_modal from "./components/modal/AddAccount_modal";
 // import TestingLogin from "./page/Login/TestingLogin";
-import { toast, Toaster } from 'sonner'
+import { Toaster } from 'sonner';
+import { toastIn } from './utils/toast';
 import { CircleCheck, CircleX, TriangleAlert, Info } from 'lucide-react'
 import './toast.css'
 import { fetchNewerVersion, reloadForUpdate } from './utils/checkLatestVersion'
@@ -145,6 +146,10 @@ import { KeyTypes, Providers } from "@aioha/aioha";
 import '@aioha/react-ui/dist/build.css';
 import { LOCAL_STORAGE_USER_ID_KEY } from "./hooks/localStorageKeys";
 
+// Every toast from this module is headed "Sign in"; the message becomes the
+// line under it. See utils/toast.js.
+const toast = toastIn('Sign in');
+
 // Hive-like URL redirects: /@user → profile, /@user/permlink → post view, /@user/shorts → profile shorts tab
 // PostView handles 3Speak video detection and redirects to /watch when appropriate
 const HiveLinkRedirect = () => {
@@ -189,7 +194,7 @@ function App() {
   // Reflect the card-size preference on <html> so the card grids (home, profile,
   // playlists) can size themselves via CSS variables.
   useEffect(() => {
-    document.documentElement.setAttribute('data-card-size', homeCardSize || 'large');
+    document.documentElement.setAttribute('data-card-size', homeCardSize || 'small');
   }, [homeCardSize]);
   const clearSessionExpired = useAppStore((s) => s.clearSessionExpired);
   const { aioha, user: aiohaUser } = useAioha();
@@ -528,16 +533,29 @@ function App() {
     <div onClick={()=> {setGlobalCloseRender(true)}}>
       <Toaster
         position="top-right"
+        /* Below the title bar, never on top of it. The user icon sits in the
+           top-right corner, so a toast landing there made the avatar unclickable for
+           as long as any message was on screen — and the messages that fire most
+           often are the login ones, i.e. exactly when someone is reaching for it.
+
+           Driven by --nav-top-offset, which Nav.jsx sets from the bar's OWN measured
+           height (and 0 when the bar is hidden or unmounted), so this tracks the real
+           bar instead of a hardcoded guess that goes wrong the moment it reflows. */
+        offset={{ top: 'calc(var(--nav-top-offset, 50px) + 12px)', right: '16px' }}
+        mobileOffset={{ top: 'calc(var(--nav-top-offset, 50px) + 8px)', right: '8px', left: '8px' }}
         expand
         visibleToasts={6}
         gap={12}
         closeButton
         swipeDirections={['right']}
+        /* 20px to match the rail-style toast in toast.css — the icon now sits
+           beside the text rather than out on its own, so it reads as part of
+           the line instead of a badge. */
         icons={{
-          success: <CircleCheck size={22} strokeWidth={2.25} />,
-          error: <CircleX size={22} strokeWidth={2.25} />,
-          warning: <TriangleAlert size={22} strokeWidth={2.25} />,
-          info: <Info size={22} strokeWidth={2.25} />,
+          success: <CircleCheck size={20} strokeWidth={2.25} />,
+          error: <CircleX size={20} strokeWidth={2.25} />,
+          warning: <TriangleAlert size={20} strokeWidth={2.25} />,
+          info: <Info size={20} strokeWidth={2.25} />,
         }}
         toastOptions={{
           classNames: {

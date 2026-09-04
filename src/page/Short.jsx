@@ -87,7 +87,7 @@ import { recordWatch } from '../utils/watchHistory';
 import { recordReshare, getResharesForVideo, deleteReshare } from '../utils/reshares';
 import axios from 'axios';
 import { Helmet } from 'react-helmet-async';
-import { toast } from 'sonner';
+import { toastIn } from '../utils/toast';
 import CommentVoteTooltip from '../components/tooltip/CommentVoteTooltip';
 import { FEATURE_EDITOR } from '../utils/config';
 import { getHiveRenderer } from '../lib/hiveRenderer';
@@ -107,6 +107,10 @@ import EditorModal from '../components/modal/EditorModal';
 import EditVideoModal from '../components/playVideo/EditVideoModal';
 import { notifyMediaPlay, onMediaPlay } from '../utils/mediaCoordinator';
 import HiveAvatar from '../components/HiveAvatar/HiveAvatar';
+
+// Every toast from this module is headed "Shorts"; the message becomes the
+// line under it. See utils/toast.js.
+const toast = toastIn('Shorts');
 
 // Thin wrapper: reads currentTime from a ref via polling to avoid re-rendering the whole Shorts page
 // The Watch Later playlist is identified by NAME — same convention as the watch

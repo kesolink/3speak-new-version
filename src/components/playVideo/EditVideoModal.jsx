@@ -3,7 +3,7 @@ import { getHiveClient } from '../../utils/hiveNode';
 import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
 import { MdImage, MdUpload } from 'react-icons/md';
-import { toast } from 'sonner';
+import { toastIn } from '../../utils/toast';
 import axios from 'axios';
 import { Client } from '@hiveio/dhive';
 import { HIVE_API_NODES, CHECKER_URL, CHECKER_API_KEY } from '../../utils/config';
@@ -15,6 +15,10 @@ import { useAppStore } from '../../lib/store';
 import PromoteModal from '../Promote/PromoteModal';
 import { Rocket } from 'lucide-react';
 import './EditVideoModal.scss';
+
+// Every toast from this module is headed "Video"; the message becomes the
+// line under it. See utils/toast.js.
+const toast = toastIn('Video');
 
 const hiveClient = getHiveClient();
 

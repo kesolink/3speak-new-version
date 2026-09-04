@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { toast } from 'sonner';
+import { MdTv } from 'react-icons/md';
+import { toastIn } from '../../utils/toast';
 import { useAppStore } from '../../lib/store';
 import { adsEnabledFor, adsBetaUserFor } from '../../utils/config';
 import { fetchAdAccess, fetchViewerAdPrefs, setViewerAdPrefs } from '../../lib/advertiseData';
 import { usePromptsActive, setPromptActive } from '../../utils/welcomeGate';
 import './AdsPrompt.scss';
+
+// Every toast from this module is headed "Advertising"; the message becomes the
+// line under it. See utils/toast.js.
+const toast = toastIn('Advertising');
 
 /**
  * Asks a viewer, once, whether they want a share of ad revenue for what they watch.
@@ -96,11 +101,24 @@ export default function ViewerRewardsPrompt() {
   return (
     <div className="ads-prompt-overlay">
       <div className="ads-prompt" role="dialog" aria-modal="true" aria-labelledby="viewer-rewards-title">
-        <h3 className="ads-prompt-title" id="viewer-rewards-title">Get paid for watching</h3>
+        {/* The viewer half of /advertise, same icon and same promise. The three ad
+            dialogs share this header shape and differ only by icon, so which side of
+            the deal you are being asked about is legible before the copy is read. */}
+        <header className="ads-prompt-head">
+          <MdTv className="ads-prompt-head-icon" aria-hidden="true" />
+          <div>
+            <h3 className="ads-prompt-title" id="viewer-rewards-title">Get paid for watching</h3>
+            <p className="ads-prompt-lede">
+              You earn a share of what the ads make, for the videos you actually watch.
+              Paid in <strong>HBD or HIVE</strong>, same as everyone else.
+            </p>
+          </div>
+        </header>
+
         <p className="ads-prompt-text">
-          Ads on 3Speak pay the creator, their community, and now you. Your share is paid
-          in whatever the advertiser paid with, HBD or HIVE, for videos you were going to
-          watch anyway.
+          Ads on 3Speak pay the creator, their community, and now you. Your share comes
+          out of what the advertiser paid, in whatever they paid with, for videos you were
+          going to watch anyway.
         </p>
         <p className="ads-prompt-note">
           3Speak already keeps your watch history so you can find things again. This lets

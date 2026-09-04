@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { IoClose } from 'react-icons/io5';
-import { toast } from 'sonner';
+import { toastIn } from '../../utils/toast';
 import { useAppStore } from '../../lib/store';
 import { APP_VERSION } from '../../version';
 import { getHiveUrl } from '../../utils/hiveNode';
@@ -15,6 +15,10 @@ import {
 import TagsV2Picker from '../tooltip/TagsV2Picker';
 import DataRequestForm from './DataRequestForm';
 import './SettingsModal.scss';
+
+// Every toast from this module is headed "Settings"; the message becomes the
+// line under it. See utils/toast.js.
+const toast = toastIn('Settings');
 
 const sameSet = (a, b) =>
   JSON.stringify([...(a || [])].sort()) === JSON.stringify([...(b || [])].sort());

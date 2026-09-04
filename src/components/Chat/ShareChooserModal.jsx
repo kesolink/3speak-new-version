@@ -2,10 +2,14 @@ import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, Code2, Copy, MessageCircle, Share2, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
+import { toastIn } from '../../utils/toast';
 import { useChat } from '../../context/ChatContext'
 import { EMBED_SIZES, buildEmbedHtml } from '../../utils/embedCode'
 import './shareChooser.scss'
+
+// Every toast from this module is headed "Chat"; the message becomes the
+// line under it. See utils/toast.js.
+const toast = toastIn('Chat');
 
 /**
  * A small chooser shown when sharing a video/short: send it inside 3Speak Chat,
