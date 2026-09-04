@@ -30,55 +30,110 @@ export default function UploadGate({ ad, onWatched }) {
   const [playing, setPlaying] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  // One place to leave, so every exit runs the same teardown.
-  const finish = useCallback(() => {
+  /* One place to leave, so every exit runs the same teardown.
+   *
+   * 🚨 `played` says whether the spot actually reached its end, and the caller MUST NOT
+   * ignore it. Every exit here unlocks the upload — that is the fail-open promise — but
+   * only a real playthrough is an impression. Reporting a bailed spot as watched would
+   * bill an advertiser for a spot that never rendered a frame, and pay the creator for
+   * it, every time a manifest 404'd. */
+  const finish = useCallback((played) => {
     try { hlsRef.current?.destroy(); } catch { /* already gone */ }
     hlsRef.current = null;
-    onWatched();
+    onWatched(played === true);
   }, [onWatched]);
+
+  // A spot that cannot be played must not cost somebody their upload. Hoisted out of
+  // the loader because the stall watchdog below needs the same exit.
+  const bail = useCallback((why) => {
+    console.warn('[uploadGate] letting the post through:', why);
+    setFailed(true);
+    finish(false);          // unlocked, but nothing was watched and nothing is owed
+  }, [finish]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !ad?.manifestUrl) return undefined;
     let alive = true;
-
-    // A spot that cannot be loaded must not cost somebody their upload.
-    const bail = (why) => {
-      if (!alive) return;
-      console.warn('[uploadGate] letting the post through:', why);
-      setFailed(true);
-      finish();
-    };
+    const bailIfAlive = (why) => { if (alive) bail(why); };
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Safari plays HLS natively and hls.js refuses to attach there.
       video.src = ad.manifestUrl;
-      video.play().catch(() => bail('autoplay refused'));
+      video.play().catch(() => bailIfAlive('autoplay refused'));
     } else if (Hls.isSupported()) {
       const hls = new Hls({ enableWorker: true });
       hlsRef.current = hls;
-      hls.on(Hls.Events.ERROR, (_e, data) => { if (data?.fatal) bail(`hls ${data.type}`); });
+      hls.on(Hls.Events.ERROR, (_e, data) => { if (data?.fatal) bailIfAlive(`hls ${data.type}`); });
       hls.loadSource(ad.manifestUrl);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => bail('autoplay refused')));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => bailIfAlive('autoplay refused')));
     } else {
-      bail('no HLS support in this browser');
+      bailIfAlive('no HLS support in this browser');
       return undefined;
     }
 
-    // Belt and braces: if nothing has played after twice the spot's length, stop
-    // holding the upload. A stall that never fires an error would otherwise trap
-    // somebody on a still frame with no way forward.
-    const secs = Number(ad.durationSeconds) || 15;
-    const deadline = setTimeout(() => bail('spot never finished'), (secs * 2 + 12) * 1000);
-
     return () => {
       alive = false;
-      clearTimeout(deadline);
       try { hlsRef.current?.destroy(); } catch { /* already gone */ }
       hlsRef.current = null;
     };
-  }, [ad, finish]);
+  }, [ad, bail]);
+
+  /* Paused while the tab is in the background, and picked up again on return.
+   *
+   * Somebody who clicks through to the advertiser is doing the thing the advertiser
+   * paid for, and they should not come back to a spot that ran to the end without
+   * them. It also closes the obvious dodge: open the gate, switch away, come back to
+   * an unlocked button having watched nothing.
+   *
+   * The countdown already tracks `playing`, so pausing the video stops the clock with
+   * no extra bookkeeping.
+   */
+  useEffect(() => {
+    const onVisibility = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      if (document.hidden) {
+        try { video.pause(); } catch { /* nothing to pause */ }
+      } else {
+        // May be refused when the tab regains focus; the viewer can press play, and
+        // the countdown simply waits. Never a reason to fail the gate.
+        video.play().catch(() => { /* they can start it themselves */ });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  /* Stall watchdog: bails only when the spot SHOULD be advancing and is not.
+   *
+   * ⚠️ This was a fixed timeout of twice the spot's length from arrival, which was
+   * fine while nothing could pause it. It is wrong now: reading the advertiser's page
+   * for half a minute would have tripped it, letting the post through on a spot that
+   * never finished — the gate quietly opening as a reward for clicking the ad.
+   *
+   * So it measures PROGRESS instead of wall-clock, and ignores time while the tab is
+   * hidden or the video is legitimately paused. What it still catches is the case it
+   * was written for: a frozen player that fires no error and would otherwise strand
+   * somebody on a still frame with no way forward.
+   */
+  useEffect(() => {
+    if (failed) return undefined;
+    const video = videoRef.current;
+    if (!video) return undefined;
+    let lastProgress = Date.now();
+    const bump = () => { lastProgress = Date.now(); };
+    video.addEventListener('timeupdate', bump);
+    const tick = setInterval(() => {
+      if (document.hidden || video.paused) { lastProgress = Date.now(); return; }
+      if (Date.now() - lastProgress > 20000) bail('spot stalled with no error');
+    }, 1000);
+    return () => {
+      clearInterval(tick);
+      video.removeEventListener('timeupdate', bump);
+    };
+  }, [failed, bail]);
 
   // Ticks only while the video is actually moving, so loading and pausing do not
   // consume the advertiser's seconds.
@@ -98,8 +153,8 @@ export default function UploadGate({ ad, onWatched }) {
           playsInline
           onPlaying={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
-          onEnded={finish}
-          onError={() => { setFailed(true); finish(); }}
+          onEnded={() => finish(true)}
+          onError={() => { setFailed(true); finish(false); }}
         />
         <div className="upload-gate-bar">
           <span className="upload-gate-label">{ad?.label || 'Sponsored'}</span>
