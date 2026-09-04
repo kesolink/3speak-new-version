@@ -13,7 +13,7 @@ import PromoteModal from "../Promote/PromoteModal";
 import { Rocket, Star } from "lucide-react";
 import { useReviewModal } from "../../lib/reviewStore";
 import UploadGate from "../ads/UploadGate";
-import { fetchUploadGateAd } from "../../lib/uploadGate";
+import { fetchUploadGateAd, confirmUploadGatePost, gateSessionId } from "../../lib/uploadGate";
 
 function EmbedPreview() {
   const {
@@ -59,6 +59,7 @@ function EmbedPreview() {
    */
   const [gateAd, setGateAd] = React.useState(null);
   const [gateOpen, setGateOpen] = React.useState(false);
+  const gateSidRef = React.useRef(null);
   React.useEffect(() => {
     if (!user) return undefined;
     let alive = true;
@@ -82,8 +83,21 @@ function EmbedPreview() {
    * because they sat through an ad. They still press the button. */
   const onGateWatched = React.useCallback(() => {
     setGateOpen(false);
+    // Keep the session id: the impression is completed by the POST, not by the watch,
+    // and this is the only place the id is still to hand. A ref, not state — nothing
+    // renders from it, and setting state here only to clear it later is a render loop
+    // waiting to happen.
+    gateSidRef.current = gateSessionId(gateAd);
     setGateAd(null);
-  }, []);
+  }, [gateAd]);
+
+  /* Completed on the POST, not on the watch: the checker will not take the claim
+   * without a video to point at, so it has to wait for one to exist. */
+  React.useEffect(() => {
+    if (!gateSidRef.current || !publishedPermlink) return;
+    confirmUploadGatePost(gateSidRef.current, publishedPermlink);
+    gateSidRef.current = null;   // once only
+  }, [publishedPermlink]);
   // On the success screen we offer feedback (area:'upload'), rather than opening
   // the popup automatically — see the "Give feedback" button below.
   const openReview = useReviewModal((s) => s.openReview);
