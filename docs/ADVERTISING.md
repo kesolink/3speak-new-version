@@ -226,10 +226,10 @@ the same settlement run. If a video is not in a community, the whole creator sha
 with the creator: keeping it would be the self serving reading of a choice made for
 somebody else's benefit.
 
-**Community is read from the Hive blockchain, not from our database.** Our copy of a
-video's category is a denormalised convenience, and it was measurably wrong on a small
-share of videos, which silently underpaid those communities. The chain is the source of
-truth for anything that decides where money goes.
+**Community is read from the Hive blockchain, not from our database.** Our own copy of a
+video's category is a convenience for search and display, and a cached copy can always
+drift from the thing it was copied from. Anything that decides where money goes is read
+from the chain, where the post itself is the record.
 
 ---
 
@@ -280,9 +280,9 @@ ads, and still a share of the ad revenue.
 
 **Below the minimum, you keep your entitlement.** A viewer whose share is under Hive's
 0.001 precision is not paid that period, and critically their watch record is *not*
-marked settled. Their seconds keep earning and the money that would have been theirs is
-carried forward with them. An earlier version claimed those rows and paid nothing, which
-silently erased the entitlement of exactly the casual viewers the feature exists for.
+marked settled. Their seconds keep earning, and the money that would have been theirs is
+carried forward alongside them, so a small share is deferred rather than forfeited. Watch
+a little and watch occasionally, and it accumulates until it is worth sending.
 
 ---
 
