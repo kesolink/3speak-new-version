@@ -12,6 +12,8 @@ import EmbedPreviewPlayer from "./EmbedPreviewPlayer";
 import PromoteModal from "../Promote/PromoteModal";
 import { Rocket, Star } from "lucide-react";
 import { useReviewModal } from "../../lib/reviewStore";
+import UploadGate from "../ads/UploadGate";
+import { fetchUploadGateAd } from "../../lib/uploadGate";
 
 function EmbedPreview() {
   const {
@@ -43,6 +45,34 @@ function EmbedPreview() {
 
   const navigate = useNavigate();
   const [promoteOpen, setPromoteOpen] = React.useState(false);
+
+  /* The pre-upload spot, if this account is being shown one.
+   *
+   * Asked for ONCE when the preview mounts, not when the button is pressed: a request
+   * in the click handler puts a network round trip between the press and anything
+   * happening, and the button that publishes your video is the last place to add a
+   * pause of unknown length.
+   *
+   * Everything here fails open. No ad, a request that errors, a spot that will not
+   * play — all of them post immediately. It is somebody's finished video; an ad problem
+   * of ours must never become their problem.
+   */
+  const [gateAd, setGateAd] = React.useState(null);
+  const [gateOpen, setGateOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!user) return undefined;
+    let alive = true;
+    fetchUploadGateAd(user)
+      .then((ad) => { if (alive) setGateAd(ad); })
+      .catch(() => { /* fail open: no gate */ });
+    return () => { alive = false; };
+  }, [user]);
+
+  const onGateWatched = React.useCallback(() => {
+    setGateOpen(false);
+    setGateAd(null);        // watched, so the next press goes straight through
+    publishToEmbed();
+  }, [publishToEmbed]);
   // On the success screen we offer feedback (area:'upload'), rather than opening
   // the popup automatically — see the "Give feedback" button below.
   const openReview = useReviewModal((s) => s.openReview);
@@ -97,12 +127,17 @@ function EmbedPreview() {
   }
   const userBeneficiaries = beneList.filter((b) => b && b.account);
 
+
   const handlePostVideo = () => {
+    // Shown once. A second press after watching posts, rather than replaying the spot.
+    if (gateAd) { setGateOpen(true); return; }
     publishToEmbed();
   };
 
+
   return (
     <>
+      {gateOpen && gateAd && <UploadGate ad={gateAd} onWatched={onGateWatched} />}
       {/* PREVIEW & PUBLISH BUTTON */}
       {!uploading && !completed && (
         <div className="studio-main-container">
