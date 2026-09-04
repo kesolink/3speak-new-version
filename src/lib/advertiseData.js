@@ -77,6 +77,32 @@ export async function fetchApplication(reference) {
  * no /access route, or the network. That is NOT "no": the caller has to decide
  * for itself, and the decision differs by surface.
  */
+/**
+ * The delegated signer signs for whoever the SESSION says you are, not for the account
+ * the page thinks you are. Those can disagree: an API session cookie outlives a
+ * front-end login, so a browser that has switched accounts keeps the old one until it
+ * signs in again.
+ *
+ * When they disagree the signature is over a different username, the checker rebuilds
+ * the message with the account we sent, the two do not match, and it comes back as
+ * "Invalid signature" — which reads as a broken key and is really a stale cookie. It
+ * cost a session to find, because the signature itself was perfectly valid: it just
+ * named somebody else.
+ *
+ * Refuse rather than send the mismatched pair. Sending `data.username` instead would be
+ * worse: it would quietly save the setting onto the wrong account.
+ */
+function assertSignedForUs(data, account) {
+  const signedFor = String(data?.username || '').toLowerCase();
+  const want = String(account || '').toLowerCase();
+  if (signedFor && want && signedFor !== want) {
+    throw new Error(
+      `You are signed in as @${signedFor} on the server but acting as @${want}. `
+      + 'Log out and back in, then try again.',
+    );
+  }
+}
+
 export async function fetchAdAccess(account) {
   try {
     const res = await fetch(`${BASE}/access/${encodeURIComponent(account)}`);
@@ -173,6 +199,7 @@ async function signViaThreespeak(adsEnabled, communitySharePct, account) {
     // already says so in words, and is what a login that cannot sign locally shows.
     throw new Error(data.error || 'Could not save the setting. Please try again.');
   }
+  assertSignedForUs(data, account);
   return { signature: data.signature, timestamp: data.timestamp };
 }
 
@@ -275,6 +302,7 @@ async function signViewerViaThreespeak(rewardsEnabled, account) {
   if (!res.ok || !data.signature) {
     throw new Error(data.error || 'Could not save the setting. Please try again.');
   }
+  assertSignedForUs(data, account);
   return { signature: data.signature, timestamp: data.timestamp };
 }
 
