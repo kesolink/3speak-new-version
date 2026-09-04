@@ -8,7 +8,7 @@ This document explains how it works: what an advertiser buys, what a creator ear
 what a viewer gets, and exactly how each number is calculated.
 
 > **Status:** the system is built and running in a closed beta. Rates, splits and
-> formats below are what the code does today. See [Where this is not finished](#where-this-is-not-finished).
+> formats below are what the code does today. See [Where things stand](#where-things-stand).
 
 ---
 
@@ -18,9 +18,9 @@ what a viewer gets, and exactly how each number is calculated.
 <tr><th align="left">If you are a…</th><th align="left">Here is the short version</th></tr>
 <tr><td><b>Viewer</b></td><td>You can opt in to <b>earn a share of ad revenue for videos you watch</b>, paid in real HBD or HIVE to your Hive account. Viewers take <b>10% of all ad revenue</b>. <b>3Speak Pro subscribers see no ads and still earn</b>. Nothing is tracked unless you opt in, and opting out deletes what was kept.</td></tr>
 <tr><td><b>Creator</b></td><td>Ads on your videos pay <b>you</b>, not a network. Creators take <b>50% of all ad revenue</b>, and you can choose to route part of your share to your community. You can switch ads off on your videos entirely. You are never shown an ad on your own video.</td></tr>
-<tr><td><b>Advertiser</b></td><td>You buy a spot for a number of seconds, over a number of days, at a published rate. No auction, no CPM, no minimum spend beyond the format price. Pay in HBD or HIVE with one transfer. Longer flights cost meaningfully less per day.</td></tr>
-<tr><td><b>Investor</b></td><td>3Speak retains <b>40%</b> of gross ad revenue. Revenue recognition is pro rata by time, not by delivery, so a 30 day flight books across the periods it runs in. Payouts are in the same asset the advertiser paid with, so the platform carries no currency risk on the revenue share. Every distribution is on chain and auditable.</td></tr>
-<tr><td><b>Engineer</b></td><td>Server side ad stitching into HLS, epoch anchored settlement periods, idempotent claim-then-send payouts with per asset legs, and a measurement path that never proxies video bytes. Start at <a href="#how-the-code-is-laid-out">How the code is laid out</a>.</td></tr>
+<tr><td><b>Advertiser</b></td><td>You buy a spot for a number of seconds, over a number of days, at a published rate. No auction, no CPM, no minimum spend beyond the format price. Pay in HBD or HIVE with one transfer. Longer bookings, called flights, cost meaningfully less per day.</td></tr>
+<tr><td><b>Investor</b></td><td>3Speak retains <b>40%</b> of gross ad revenue. Revenue recognition is pro rata by time, not by delivery, so a 30-day flight books across the periods it runs in. Payouts are in the same asset the advertiser paid with, so the platform carries no currency risk on the revenue share. Every distribution is on chain and auditable.</td></tr>
+<tr><td><b>Engineer</b></td><td>Server-side ad stitching into HLS, epoch-anchored settlement periods, idempotent claim-then-send payouts with per-asset legs, and a measurement path that never proxies video bytes. Start at <a href="#how-the-code-is-laid-out">How the code is laid out</a>.</td></tr>
 </table>
 
 ---
@@ -46,8 +46,12 @@ flowchart LR
 ```
 
 **The split is on gross revenue, not on what is left after costs.** Creator 50, viewer 10,
-platform 40. The creator share does not move when a viewer opts in: viewer rewards come
-out of the platform's own 40, never out of the creator's 50.
+3Speak 40, and those are the three shares of every HBD an advertiser spends.
+
+The creator's 50 does not move when a viewer opts in. Viewer rewards are funded entirely
+out of what 3Speak would otherwise keep: without them the platform would retain 50, and
+with them it retains 40. Nobody is paid out of a creator's share but the creator and the
+community they chose.
 
 ---
 
@@ -74,12 +78,12 @@ price = rate x spot_seconds x days^0.85
 ```
 
 That exponent is the whole pricing story. At `1.0` you would have a straight line, where
-30 days costs 30 times one day. At **0.85** each additional day costs slightly less than
-the one before, so a long booking is worth making. The one day price is deliberately
+thirty days costs thirty times one day. At **0.85** each additional day costs slightly less than
+the one before, so a long booking is worth making. The one-day price is deliberately
 unchanged, because `1^0.85` is still 1: the discount is funded by duration, not by cutting
 the entry price everybody judges you on.
 
-**Published rates, and what a 15 second spot costs:**
+**Published rates, and what a 15-second spot costs:**
 
 | Format | Rate (HBD per second, per day) | 1 day | 7 days | 30 days | 90 days |
 |---|---|---|---|---|---|
@@ -96,7 +100,7 @@ the entry price everybody judges you on.
 
 Two things that do **not** curve:
 
-- **Delivery stays linear.** A 30 day flight gets 30 days of plays. Only the price bends.
+- **Delivery stays linear.** A 30-day flight gets 30 days of plays. Only the price bends.
 - **Spot length stays linear.** A 20 second spot costs exactly twice a 10 second one, at
   any flight length. Length is airtime on every single play, so it is charged in full.
 
@@ -136,6 +140,20 @@ refund rather than credited.
 and pay. Nothing is shown to a single viewer until a human has approved the advertiser,
 and the check fails closed: a campaign whose advertiser cannot be confirmed as approved
 does not serve.
+
+### If a campaign under-delivers
+
+Every booking is quoted against a forecast of what that position should deliver over the
+flight, and that forecast is recorded at the moment of booking. It is the number you were
+shown, so it is the number any shortfall is measured against, and a later change in
+traffic cannot quietly rewrite what you were promised.
+
+When a flight ends, delivery is compared with that forecast. If it fell short, the
+difference is worked out as a proportion of what you paid and **banked as credit against
+your next campaign**, applied automatically to the next thing you book. Credit rather than
+a transfer back, because it is the difference between a supplier owing you a refund and a
+supplier owing you inventory, and inventory is what you came for. A campaign whose
+forecast cannot be established is flagged for a human rather than settled on a guess.
 
 ---
 
@@ -181,7 +199,8 @@ measurement honest without paying to move an advertiser's video twice.
 - they are the **author of the video** they are watching (creators replay their own
   uploads constantly to check them, and every replay would otherwise bill an advertiser
   and pay the creator),
-- they have already seen that campaign within the frequency cap window (30 minutes).
+- they have already seen that campaign within the frequency cap window (30 minutes for
+  a spot, and a shorter one for banners).
 
 ---
 
@@ -202,7 +221,7 @@ us to steer inventory toward whichever format pays the platform best.
 
 ### A worked example
 
-An advertiser books a 15 second video spot for 7 days and pays **19.61 HBD**. Say that
+An advertiser books a 15-second video spot for 7 days and pays **19.61 HBD**. Say that
 period sees 1,000 completed impressions across all creators, and 40 of them were on your
 video.
 
@@ -223,7 +242,7 @@ which is 40% of your 50% share. It is capped at 50, so it can never exceed your 
 Creators choose it themselves, from 0 to 50 points, signed with their Hive key. If a
 video is posted in a community, that community's account is paid directly, on chain, in
 the same settlement run. If a video is not in a community, the whole creator share stays
-with the creator: keeping it would be the self serving reading of a choice made for
+with the creator: keeping it would be the self-serving reading of a choice made for
 somebody else's benefit.
 
 **Community is read from the Hive blockchain, not from our database.** Our own copy of a
@@ -256,8 +275,8 @@ flowchart TD
 your share = viewer pool x (your qualifying seconds / everyone's qualifying seconds)
 ```
 
-**Rewatching a video earns nothing.** There is exactly one row per viewer per video, ever,
-and it records the *best* coverage you ever reached rather than adding up. This is the
+**Rewatching a video earns nothing.** There is exactly one record per viewer per video,
+ever, and it keeps the *best* coverage you ever reached rather than adding viewings up. This is the
 core anti-fraud rule for viewer rewards, and it is not theoretical: when we measured it,
 rewatching inflated total plays by 63% over distinct viewer-video pairs, and one account
 had replayed a single video 85 times. Paying per playback would have paid for all 85.
@@ -275,14 +294,28 @@ makes a video worth advertising against in the first place, whether or not a spo
 shown to them personally. Charging someone for an ad-free experience and then also
 excluding them from the revenue their viewing helps generate would be taking twice.
 
-So the two things stack. Pro is the fastest a viewer can be net positive on 3Speak: no
-ads, and still a share of the ad revenue.
+So the two stack, and that combination exists nowhere else on the platform: no ads, and
+still a share of what the ads make.
 
 **Below the minimum, you keep your entitlement.** A viewer whose share is under Hive's
 0.001 precision is not paid that period, and critically their watch record is *not*
 marked settled. Their seconds keep earning, and the money that would have been theirs is
 carried forward alongside them, so a small share is deferred rather than forfeited. Watch
 a little and watch occasionally, and it accumulates until it is worth sending.
+
+### How the money reaches you
+
+There is nothing to claim and nothing to withdraw. Payouts are Hive transfers sent
+straight to your account at the end of each settlement period, with the period in the
+memo. If you can receive HIVE, you can receive this.
+
+The switches are in **Settings**:
+
+- **Creators** choose whether ads run on their videos at all, and what share of their
+  half goes to their community.
+- **Viewers** choose whether to earn rewards. Switching it off deletes what was stored.
+
+Both are signed with your Hive key, so nobody can change your settings but you.
 
 ---
 
@@ -300,12 +333,12 @@ This is not a detail. It means:
 
 Money that could not be distributed (a period with revenue but no impressions, or a long
 tail of amounts under Hive's precision) is **carried forward in the asset it arrived as**.
-A HIVE funded period carrying into an HBD funded one still pays out HIVE. Folding it into
+A HIVE-funded period carrying into an HBD-funded one still pays out HIVE. Folding it into
 whatever the next period happened to be funded in would have us sending HBD nobody ever
 sent us.
 
 > ⚠️ **An HBD figure is a valuation, not a balance.** Campaign totals are shown in HBD for
-> comparison, but a HIVE funded campaign pays out HIVE. "7 HBD worth of HIVE" is not
+> comparison, but a HIVE-funded campaign pays out HIVE. "7 HBD worth of HIVE" is not
 > "7 HIVE".
 
 ---
@@ -329,11 +362,11 @@ Periods are **3 days**, anchored to a fixed epoch so every period boundary is de
 and no two runs can disagree about which period a moment belongs to. Boundaries are set
 to land in the European morning, so a human is around when money moves.
 
-**Revenue is recognised pro rata by time, not by delivery.** A 30 day flight paying 300 HBD
+**Revenue is recognised pro rata by time, not by delivery.** A 30-day flight paying 300 HBD
 accrues 10 HBD per day regardless of how many impressions land on any given day. That
 keeps a creator's earnings stable against the advertiser's delivery curve.
 
-**Sending is claim-then-send, with each asset leg recorded as it lands.** A two leg payout
+**Sending is claim-then-send, with each asset leg recorded as it lands.** A two-leg payout
 whose second leg fails leaves the first marked as sent, so a retry sends only what is
 still owed. Hive transfers carry no idempotency key, so the irreducible risk is a crash
 in the instant between broadcasting a leg and recording it, and that is bounded to one leg.
@@ -382,7 +415,7 @@ Things that are **not** fully solved, stated plainly:
 
 ---
 
-## Where this is not finished
+## Where things stand
 
 | Area | State |
 |---|---|
