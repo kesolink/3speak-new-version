@@ -745,7 +745,15 @@ const VideoShort = () => {
     }
   }, [showComments, togglePlayPause, quickUpvote]);
 
+  /* Seeking is the viewer's control over THEIR short, and during a spot the player is
+   * showing the advertiser's. Guarded here rather than at each caller because there are
+   * several — two keyboard handlers and the progress bar — and the arrow keys were still
+   * scrubbing through an ad after the bar itself was hidden.
+   *
+   * Ref, not state: these handlers are bound once and would otherwise close over the
+   * value as it was when they were attached. */
   const seekTo = useCallback((time) => {
+    if (adPlayingRef.current) return;
     sendCommand('seek', { time });
   }, [sendCommand]);
 
