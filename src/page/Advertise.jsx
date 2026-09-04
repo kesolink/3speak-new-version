@@ -88,8 +88,7 @@ function InventoryPanel({ data, isLoading, error }) {
 
   if (error) {
     // A 503 means the forecast job has not produced a snapshot yet — that is a
-    // different message from "something broke"
-, and an advertiser deserves the
+    // different message from "something broke", and an advertiser deserves the
     // honest one rather than a spinner that never resolves.
     // 404 means the whole ad surface is switched off server-side, not that one
     // number is missing — and in that state the form below does NOT work either,
@@ -382,6 +381,24 @@ function hiveEquivalent(hbd, hbdPerHive) {
   return Math.round((hbd / rate) * 1000) / 1000;
 }
 
+/**
+ * How much cheaper a day is on an N-day flight than on a one-day one, as a percentage.
+ *
+ * The curve is `days^K`, so the day rate is `days^(K-1)` of the single-day rate and the
+ * spot length and HBD rate cancel out entirely — this is a property of the curve, not of
+ * any particular format, which is why one number can be quoted for the whole page.
+ *
+ * Returns null when there is nothing to advertise: no curve (K = 1, or a checker too old
+ * to send one) or a saving too small to be worth a sentence.
+ */
+function savingAt(days, pricing) {
+  const k = Number(pricing?.dayCurveK);
+  if (!(k > 0 && k < 1) || !(days > 1)) return null;
+  if (pricing?.maxDays && days > pricing.maxDays) return null;
+  const saving = Math.round((1 - days ** (k - 1)) * 100);
+  return saving >= 5 ? saving : null;
+}
+
 function RateCard({ pricing }) {
   const formats = pricing?.formats || [];
   if (!formats.length) return null;
@@ -408,8 +425,10 @@ function RateCard({ pricing }) {
           if (!pricing?.maxDays || LONG_EXAMPLE_DAYS > pricing.maxDays) return null;
           const price = flightPrice(LONG_EXAMPLE_DAYS, f.ratePerSecondDayHbd, seconds, k);
           if (price == null) return null;
-          const saving = Math.round((1 - (price / LONG_EXAMPLE_DAYS) / (example / days)) * 100);
-          return saving >= 5 ? { days: LONG_EXAMPLE_DAYS, price, saving } : null;
+          // Against the ONE-day rate, the same baseline the section above quotes, so
+          // the two numbers on the page cannot disagree about the same curve.
+          const saving = savingAt(LONG_EXAMPLE_DAYS, pricing);
+          return saving ? { days: LONG_EXAMPLE_DAYS, price, saving } : null;
         })();
         return (
           <li key={f.key} className="mkt-rc-tile">
@@ -760,6 +779,23 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
     ? flightPrice(days, rate, chosenLength, pricing?.dayCurveK)
     : null;
   const total = flight != null ? Math.round((flight + productionFee) * 1000) / 1000 : null;
+  /* What a day of this flight actually costs per second, after the curve. Derived from
+   * the quote rather than recomputed, so it can never describe a different number than
+   * the one above it. */
+  const effectiveDayRate = flight != null && Number(days) > 0 && chosenLength > 0
+    ? Math.round((flight / Number(days) / chosenLength) * 10000) / 10000
+    : null;
+  const daysSaving = savingAt(Number(days), pricing);
+  /* The next length worth suggesting, and only while there is a real gain left in it.
+   * Past a month the curve has given most of what it has, and a booking form that keeps
+   * asking for more is a booking form people stop reading. */
+  const nextStep = (() => {
+    const d = Number(days);
+    const step = [7, 14, 30].find((n) => n > d);
+    if (!step) return null;
+    const saving = savingAt(step, pricing);
+    return saving && saving > (daysSaving || 0) + 2 ? { days: step, saving } : null;
+  })();
   const briefTooShort = wantProduction && brief.trim().length < 20;
 
   async function onBook(e) {
@@ -927,6 +963,11 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
           />
           <span className="mkt-hint">
             How long it runs. {pricing?.minDays || 1} to {pricing?.maxDays || 90}.
+            {/* The nudge, at the moment the number is being chosen. Once they are past
+                a month there is little left to sell them, so it stops rather than
+                badgering — and it never appears at all if the curve is off. */}
+            {daysSaving ? ` At ${days} days you pay about ${daysSaving}% less per day than a single day.` : ''}
+            {nextStep ? ` ${nextStep.days} days would make it about ${nextStep.saving}% less.` : ''}
           </span>
         </div>
         <div className="mkt-field">
@@ -1079,10 +1120,16 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                 </span>
               ) : null}
               {productionFee > 0 ? <span className="mkt-hint"> ({flight} booking + {productionFee} production)</span> : null}
+              {/* ⚠️ This used to read "{chosenLength}s x {days} days at {rate} HBD per
+                  second per day", which is a multiplication that no longer reproduces
+                  the total: the day rate falls with the length of the flight. Quoting
+                  the EFFECTIVE day rate keeps the line arithmetically honest and shows
+                  the discount at the same time. */}
               <span className="mkt-hint">
-                {' '}· {fmt ? `${fmt.label}, ` : ''}{chosenLength}s × {days} days
-                {fmt?.rateIsCustom ? ` at your agreed ${rate} HBD` : ` at ${rate} HBD`}
-                {' '}per second per day
+                {' '}· {fmt ? `${fmt.label}, ` : ''}{chosenLength}s over {days} day{Number(days) === 1 ? '' : 's'}
+                {fmt?.rateIsCustom ? ' at your agreed rate, ' : ', '}
+                {effectiveDayRate != null ? `${effectiveDayRate} HBD per second per day` : `${rate} HBD per second per day`}
+                {daysSaving ? ` — ${rate} on a single day, ${daysSaving}% less at this length` : ''}
               </span>
               {/* What they will actually be asked to transfer. The server spends the
                   balance when the campaign is created, so quoting only the total
@@ -2192,8 +2239,14 @@ export default function Advertise({ openLoginModal }) {
         <h2>How it is priced</h2>
         {pricing?.formats?.length ? (
           <p className="mkt-intro-lede">
-            Every spot is priced per second of ad, per day it runs, and a longer flight
-            costs less per day than a short one. Examples use a
+            Every spot is priced per second of ad, per day it runs, and the day rate
+            falls the longer you book
+            {/* Named in real numbers rather than described. "Cheaper for longer" is a
+                claim every rate card makes; a week at 25% off is a reason to book a
+                week. Both figures come from the server's own curve, so they cannot
+                drift from what the booking form will quote. */}
+            {savingAt(7, pricing) ? ` — a week costs about ${savingAt(7, pricing)}% less per day than a single day, a month about ${savingAt(30, pricing)}% less` : ''}.
+            {' '}Examples use a
             {' '}{EXAMPLE_SECONDS}-second spot over {Math.max(EXAMPLE_DAYS, pricing.minDays || 0)} days
             {pricing.minDays ? `; you can book from ${pricing.minDays} day${pricing.minDays === 1 ? '' : 's'}` : ''}
             {pricing.maxDays ? ` up to ${pricing.maxDays}` : ''}.
