@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MdCampaign, MdInfoOutline, MdCheckCircle, MdSchedule, MdCancel, MdVideocam, MdTv } from 'react-icons/md';
-import { toast } from 'sonner';
+import { toastIn } from '../utils/toast';
 import { useAppStore } from '../lib/store';
 import { transferWithAioha, getOperationUser } from '../hive-api/aioha';
 import { adsEnabledFor, ENABLE_BUTRAUTH } from '../utils/config';
@@ -40,6 +40,10 @@ import {
   countryName,
 } from '../lib/advertiseData';
 import './Advertise.scss';
+
+// Every toast from this module is headed "Advertising"; the message becomes the
+// line under it. See utils/toast.js.
+const toast = toastIn('Advertising');
 
 // The inventory forecast only moves every few hours, so a long stale time keeps
 // the page instant on revisit without ever showing a number the backend disowns.
@@ -84,7 +88,8 @@ function InventoryPanel({ data, isLoading, error }) {
 
   if (error) {
     // A 503 means the forecast job has not produced a snapshot yet — that is a
-    // different message from "something broke", and an advertiser deserves the
+    // different message from "something broke"
+, and an advertiser deserves the
     // honest one rather than a spinner that never resolves.
     // 404 means the whole ad surface is switched off server-side, not that one
     // number is missing — and in that state the form below does NOT work either,
@@ -270,6 +275,8 @@ const EXAMPLE_SECONDS = 10;
  * Three days is short enough to still be a real booking and long enough that the numbers
  * separate. Floored at the minimum so this cannot quote a window nobody can book. */
 const EXAMPLE_DAYS = 3;
+/** The longer flight quoted beside it, to show the day rate falling. */
+const LONG_EXAMPLE_DAYS = 30;
 
 /**
  * The same total expressed in HIVE, or null when we cannot say.
@@ -342,6 +349,27 @@ function CopyButton({ value }) {
   );
 }
 
+/**
+ * What a flight costs: rate x seconds x days^K.
+ *
+ * Mirrors priceForDays() in 3speakchecks/utils/adModel.js, and takes K from the pricing
+ * payload rather than declaring its own. A second copy of a pricing constant is how a
+ * page ends up quoting one number and the server charging another; if the curve ever
+ * moves, this follows without being touched.
+ *
+ * Falls back to a straight line when the server sent no K, which is what an older
+ * checker means — never a discount we then fail to honour.
+ */
+function flightPrice(days, ratePerSecondDay, seconds, dayCurveK) {
+  const d = Number(days);
+  const r = Number(ratePerSecondDay);
+  const secs = Number(seconds);
+  if (!Number.isFinite(d) || d <= 0 || !Number.isFinite(r) || !Number.isFinite(secs)) return null;
+  const k = Number(dayCurveK);
+  const exp = Number.isFinite(k) && k > 0 && k <= 1 ? k : 1;
+  return Math.round((d ** exp) * r * secs * 1000) / 1000;
+}
+
 function hivePayable(hbd, hbdPerHive) {
   const rate = Number(hbdPerHive);
   if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(hbd) || hbd <= 0) return null;
@@ -367,8 +395,22 @@ function RateCard({ pricing }) {
         // baseline is quoted at its cap and says so.
         const seconds = Math.min(EXAMPLE_SECONDS, f.maxSeconds || EXAMPLE_SECONDS);
         const example = days && f.ratePerSecondDayHbd
-          ? Math.round(f.ratePerSecondDayHbd * days * seconds * 1000) / 1000
+          ? flightPrice(days, f.ratePerSecondDayHbd, seconds, pricing?.dayCurveK)
           : null;
+        /* The same spot over a month, quoted beside it. A day rate that falls as the
+         * flight grows is the offer, and nobody acts on an offer they have to derive —
+         * so the longer number sits next to the short one rather than being implied.
+         * Hidden when there is no curve to advertise (K = 1, or a checker too old to
+         * send one) and when the saving is too small to be worth a sentence. */
+        const longer = (() => {
+          const k = Number(pricing?.dayCurveK);
+          if (!example || !days || !(k > 0 && k < 1)) return null;
+          if (!pricing?.maxDays || LONG_EXAMPLE_DAYS > pricing.maxDays) return null;
+          const price = flightPrice(LONG_EXAMPLE_DAYS, f.ratePerSecondDayHbd, seconds, k);
+          if (price == null) return null;
+          const saving = Math.round((1 - (price / LONG_EXAMPLE_DAYS) / (example / days)) * 100);
+          return saving >= 5 ? { days: LONG_EXAMPLE_DAYS, price, saving } : null;
+        })();
         return (
           <li key={f.key} className="mkt-rc-tile">
             <div className="mkt-rc-head">
@@ -407,6 +449,13 @@ function RateCard({ pricing }) {
                 </span>
                 <span className="mkt-rc-example-note">
                   for a {seconds}s spot over {days} days
+                  {longer ? (
+                    <>
+                      {'; '}
+                      <strong>{longer.price} HBD</strong> for {longer.days} days, about
+                      {' '}{longer.saving}% less per day
+                    </>
+                  ) : null}
                 </span>
               </div>
             ) : null}
@@ -708,7 +757,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   // writes have to agree.
   const rate = fmt ? fmt.ratePerSecondDayHbd : pricing?.pricePerSecondDayHbd;
   const flight = rate != null
-    ? Math.round(days * rate * chosenLength * 1000) / 1000
+    ? flightPrice(days, rate, chosenLength, pricing?.dayCurveK)
     : null;
   const total = flight != null ? Math.round((flight + productionFee) * 1000) / 1000 : null;
   const briefTooShort = wantProduction && brief.trim().length < 20;
@@ -2143,8 +2192,8 @@ export default function Advertise({ openLoginModal }) {
         <h2>How it is priced</h2>
         {pricing?.formats?.length ? (
           <p className="mkt-intro-lede">
-            Every spot is priced per second of ad, per day it runs, so a longer spot or a
-            longer flight costs proportionally more. Examples use a
+            Every spot is priced per second of ad, per day it runs, and a longer flight
+            costs less per day than a short one. Examples use a
             {' '}{EXAMPLE_SECONDS}-second spot over {Math.max(EXAMPLE_DAYS, pricing.minDays || 0)} days
             {pricing.minDays ? `; you can book from ${pricing.minDays} day${pricing.minDays === 1 ? '' : 's'}` : ''}
             {pricing.maxDays ? ` up to ${pricing.maxDays}` : ''}.
@@ -2156,7 +2205,7 @@ export default function Advertise({ openLoginModal }) {
             {pricing.minDays && pricing.maxCreativeSeconds ? (
               <span className="mkt-hint">
                 {' '}· a {pricing.maxCreativeSeconds}s spot for the {pricing.minDays}-day minimum
-                  is {Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000} HBD{hiveEquivalent(Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000, pricing.hbdPerHive) != null ? ` (about ${hiveEquivalent(Math.round(pricing.pricePerSecondDayHbd * pricing.minDays * pricing.maxCreativeSeconds * 1000) / 1000, pricing.hbdPerHive)} HIVE)` : ''},
+                  is {flightPrice(pricing.minDays, pricing.pricePerSecondDayHbd, pricing.maxCreativeSeconds, pricing.dayCurveK)} HBD{hiveEquivalent(flightPrice(pricing.minDays, pricing.pricePerSecondDayHbd, pricing.maxCreativeSeconds, pricing.dayCurveK), pricing.hbdPerHive) != null ? ` (about ${hiveEquivalent(flightPrice(pricing.minDays, pricing.pricePerSecondDayHbd, pricing.maxCreativeSeconds, pricing.dayCurveK), pricing.hbdPerHive)} HIVE)` : ''},
                 and a shorter spot costs proportionally less
               </span>
             ) : null}
