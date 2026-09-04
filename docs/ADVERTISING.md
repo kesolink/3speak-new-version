@@ -16,7 +16,7 @@ what a viewer gets, and exactly how each number is calculated.
 
 <table>
 <tr><th align="left">If you are a…</th><th align="left">Here is the short version</th></tr>
-<tr><td><b>Viewer</b></td><td>You can opt in to <b>earn a share of ad revenue for videos you watch</b>, paid in real HBD or HIVE to your Hive account. Viewers take <b>10% of all ad revenue</b>. If you subscribe to 3Speak Pro you see no ads at all. Nothing is tracked unless you opt in, and opting out deletes what was kept.</td></tr>
+<tr><td><b>Viewer</b></td><td>You can opt in to <b>earn a share of ad revenue for videos you watch</b>, paid in real HBD or HIVE to your Hive account. Viewers take <b>10% of all ad revenue</b>. <b>3Speak Pro subscribers see no ads and still earn</b>. Nothing is tracked unless you opt in, and opting out deletes what was kept.</td></tr>
 <tr><td><b>Creator</b></td><td>Ads on your videos pay <b>you</b>, not a network. Creators take <b>50% of all ad revenue</b>, and you can choose to route part of your share to your community. You can switch ads off on your videos entirely. You are never shown an ad on your own video.</td></tr>
 <tr><td><b>Advertiser</b></td><td>You buy a spot for a number of seconds, over a number of days, at a published rate. No auction, no CPM, no minimum spend beyond the format price. Pay in HBD or HIVE with one transfer. Longer flights cost meaningfully less per day.</td></tr>
 <tr><td><b>Investor</b></td><td>3Speak retains <b>40%</b> of gross ad revenue. Revenue recognition is pro rata by time, not by delivery, so a 30 day flight books across the periods it runs in. Payouts are in the same asset the advertiser paid with, so the platform carries no currency risk on the revenue share. Every distribution is on chain and auditable.</td></tr>
@@ -175,7 +175,8 @@ measurement honest without paying to move an advertiser's video twice.
 
 **Nobody is shown an ad if:**
 
-- they subscribe to **3Speak Pro** (the ad-free tier),
+- they subscribe to **3Speak Pro** (the ad-free tier, which still earns: see
+  [Pro subscribers earn too](#pro-subscribers-earn-too)),
 - the creator has **switched ads off** on their channel,
 - they are the **author of the video** they are watching (creators replay their own
   uploads constantly to check them, and every replay would otherwise bill an advertiser
@@ -260,6 +261,22 @@ and it records the *best* coverage you ever reached rather than adding up. This 
 core anti-fraud rule for viewer rewards, and it is not theoretical: when we measured it,
 rewatching inflated total plays by 63% over distinct viewer-video pairs, and one account
 had replayed a single video 85 times. Paying per playback would have paid for all 85.
+
+### Pro subscribers earn too
+
+**Paying for 3Speak Pro removes the ads from your own viewing. It does not remove you
+from the pool.** A Pro subscriber who opts in to viewer rewards banks qualifying watches
+and is paid out of the same 10% as everybody else, on the same terms.
+
+That is deliberate, and it is worth being explicit about because most platforms work the
+other way round. The viewer pool is a share of what advertisers paid for *the whole
+audience's attention*, and a subscriber is part of that audience: their watching is what
+makes a video worth advertising against in the first place, whether or not a spot was
+shown to them personally. Charging someone for an ad-free experience and then also
+excluding them from the revenue their viewing helps generate would be taking twice.
+
+So the two things stack. Pro is the fastest a viewer can be net positive on 3Speak: no
+ads, and still a share of the ad revenue.
 
 **Below the minimum, you keep your entitlement.** A viewer whose share is under Hive's
 0.001 precision is not paid that period, and critically their watch record is *not*
