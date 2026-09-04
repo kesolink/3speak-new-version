@@ -7,6 +7,20 @@
 // 1.0.0 — that way they see all of these when develop is pushed to production.
 export const CHANGELOG = [
   {
+    version: '1.78.61',
+    date: '2026-09-04',
+    summary:
+      'The home page now shows smaller video cards by default. You can change this in '
+      + 'Settings.',
+  },
+  {
+    version: '1.78.60',
+    date: '2026-09-04',
+    summary:
+      'Pop-up messages now show a short heading saying what they are about, and sit below '
+      + 'the title bar instead of covering the account menu.',
+  },
+  {
     version: '1.78.59',
     date: '2026-09-03',
     summary:
