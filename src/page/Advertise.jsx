@@ -231,7 +231,7 @@ function FormatPicker({ formats, value, onChange }) {
               </span>
               <span className="mkt-format-blurb">{f.blurb}</span>
               <span className="mkt-format-meta">
-                {f.creativeKind === 'image' ? 'You supply an image' : 'You supply a video'}
+                {`You supply ${suppliesFor(f).toLowerCase()}`}
                 {' · up to '}{f.maxSeconds}s
                 {f.rateIsCustom ? ' · your agreed rate' : null}
               </span>
@@ -391,6 +391,21 @@ function hiveEquivalent(hbd, hbdPerHive) {
  * Returns null when there is nothing to advertise: no curve (K = 1, or a checker too old
  * to send one) or a saving too small to be worth a sentence.
  */
+/**
+ * What an advertiser has to bring for a format, in words.
+ *
+ * Reads the LIST of accepted kinds rather than the single `creativeKind`, because the
+ * banner takes either and saying "an image" would turn away somebody who has a video
+ * ready. Falls back to the singular for a checker too old to send the list.
+ */
+function suppliesFor(f) {
+  const kinds = f?.creativeKinds?.length ? f.creativeKinds : (f ? [f.creativeKind] : []);
+  const image = kinds.includes('image');
+  const video = kinds.includes('video');
+  if (image && video) return 'An image or a video';
+  return image ? 'An image' : 'A video';
+}
+
 function savingAt(days, pricing) {
   const k = Number(pricing?.dayCurveK);
   if (!(k > 0 && k < 1) || !(days > 1)) return null;
@@ -450,7 +465,7 @@ function RateCard({ pricing }) {
               <div>
                 <dt>You supply</dt>
                 <dd>
-                  {f.creativeKind === 'image' ? 'An image' : 'A video'}
+                  {suppliesFor(f)}
                   {f.maxSeconds ? `, up to ${f.maxSeconds}s` : null}
                 </dd>
               </div>
@@ -613,7 +628,15 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   // nobody has approved would let anyone reserve the rate card by filling in a form.
   // Burned into the picture rather than spliced before it, which changes what the
   // positions are called and whether pre-roll's warning applies.
-  const isBanner = fmt?.creativeKind === 'image';
+  /* ⚠️ A banner is a format that BURNS INTO the picture. It is not "the format whose
+   * creative is an image", which is what this asked before a banner could also be a
+   * video: every one of these checks would have flipped the moment somebody uploaded
+   * a moving banner, and the page would have started calling it a pre-roll. */
+  const isBanner = !!fmt?.burnsIn;
+  // What this format will actually take. Older checkers send no list, so fall back to
+  // the single kind they do send.
+  const acceptedKinds = fmt?.creativeKinds?.length ? fmt.creativeKinds : (fmt ? [fmt.creativeKind] : []);
+  const takesVideo = acceptedKinds.includes('video');
 
   const slotRow = (p) => slotState?.find((x) => x.percent === p) || null;
   // FULL, not merely occupied. A position now carries several advertisers at once and
@@ -669,8 +692,17 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
   const latestSpotSeconds = spotCandidates.length === 1
     ? Math.ceil(Number(spotCandidates[0].durationSeconds))
     : null;
-  const autoAvailable = latestSpotSeconds != null && fmt?.creativeKind !== 'image';
-  const tooManySpots = spotCandidates.length > 1 && fmt?.creativeKind !== 'image';
+  /* Automatic length reads the uploaded video's own duration.
+   *
+   * It now covers banners too, which is the one place the number means something
+   * different: for a roll it is how long the spot plays, for a banner it is how long
+   * the banner is ON SCREEN, and the video loops to fill it. Ticking it on a banner
+   * therefore books exactly one clean pass of the loop.
+   *
+   * Keyed on whether a VIDEO was uploaded rather than on the format, so a banner with
+   * a still has no length to read and the box stays out of reach, exactly as before. */
+  const autoAvailable = latestSpotSeconds != null && takesVideo;
+  const tooManySpots = spotCandidates.length > 1 && takesVideo;
   const [autoLength, setAutoLength] = useState(true);
 
   /* Paying from the wallet, rather than making somebody copy three fields into one.
@@ -972,7 +1004,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         </div>
         <div className="mkt-field">
           <label htmlFor="mkt-length">
-            {fmt?.creativeKind === 'image' ? 'How long it shows' : 'Ad length'}
+            {isBanner ? 'How long it shows' : 'Ad length'}
           </label>
           <div className="mkt-length-row">
             <input
@@ -985,7 +1017,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
               disabled={autoOn}
               onChange={(e) => setSpotSeconds(e.target.value === '' ? '' : Number(e.target.value))}
             />
-            {fmt?.creativeKind !== 'image' && (
+            {takesVideo && (
               <label
                 className="mkt-check mkt-auto-length"
                 title={autoAvailable
@@ -1019,8 +1051,8 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                   Seconds, {minSpot} to {maxSpot}.{' '}
                   {autoOn
                     ? 'Taken from the ad video you uploaded.'
-                    : (fmt?.creativeKind === 'image'
-                      ? 'How long the banner stays on screen.'
+                    : (isBanner
+                      ? 'How long the banner stays on screen. A video banner loops to fill it.'
                       : (tooManySpots
                         ? 'More than one ad video uploaded, so enter the length of the one you are booking.'
                         : 'Your ad video has to fit inside this.'))}
@@ -1573,7 +1605,9 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
         {adType === 'banner'
           ? (
             <>
-              A player banner is a single still, shown over the video while it plays.
+              A player banner is a still or a short video, shown over the video while it
+              plays. A video banner loops for as long as the banner runs, so a few
+              seconds of footage is enough.
               {bannerSpec
                 ? ` ${bannerSpec.recommended} works well, and it needs to be a strip between `
                   + `${bannerSpec.minAspect}:1 and ${bannerSpec.maxAspect}:1.`
@@ -1611,12 +1645,15 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
         </p>
       )}
 
+      {/* A banner takes a still OR a video, and the video loops for the seconds it
+          runs. Deliberately not offering GIFs: the compositor takes real video, and a
+          GIF would be accepted by the picker and then refused by the encoder. */}
       <div className="mkt-upload-row">
         <input
           ref={inputRef}
           id="mkt-creative-file"
           type="file"
-          accept={adType === 'banner' ? 'image/*' : (isVideoAd(adType) ? 'video/*' : 'video/*,image/*')}
+          accept={adType === 'banner' ? 'image/*,video/*' : (isVideoAd(adType) ? 'video/*' : 'video/*,image/*')}
           onChange={onFile}
           disabled={busy || atLimit}
           className="mkt-visually-hidden"
@@ -1630,7 +1667,7 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
             ? 'Uploading…'
             : (atLimit
               ? 'Replace it below to change it'
-              : (adType === 'banner' ? 'Upload your banner image'
+              : (adType === 'banner' ? 'Upload your banner'
                 : (isVideoAd(adType) ? 'Upload your ad video' : 'Upload a video or image')))}
         </label>
       </div>
