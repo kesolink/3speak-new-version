@@ -62,7 +62,7 @@ Four formats. Every one is priced the same way: **per second of ad, per day it r
 | Format | Where it appears | You supply | Max length |
 |---|---|---|---|
 | **Video spot** (`video_roll`) | Inside a video on the watch page, at a position you choose | A video | 30s |
-| **Player banner** (`video_banner`) | Burned into the player over the video, for a set window | An image | 20s |
+| **Player banner** (`video_banner`) | Burned into the player over the video, for a set window | An image, or a video at least as long as the window | 20s |
 | **Pre-upload spot** (`upload_gate`) | Before a creator publishes a video, in the upload studio | A video | 30s |
 | **Shorts spot** (`shorts_roll`) | As an item in the shorts feed | A video | 30s |
 
@@ -106,6 +106,12 @@ Two things that do **not** curve:
 
 Flights run from **1 to 90 days**. An optional production fee (currently 100 HBD) covers
 3Speak making the ad video for you, if you do not have one.
+
+**A banner's seconds are seconds on screen.** For a spot, the booked length is how long
+the ad plays. For a banner it is how long the banner sits in the frame, and a banner can
+be a video: that video is played once, not looped, so it has to be at least as long as
+the window you booked. The booking form can read the length off the video and book it
+for you.
 
 ### How a booking becomes a running campaign
 

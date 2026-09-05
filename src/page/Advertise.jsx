@@ -696,8 +696,9 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
    *
    * It now covers banners too, which is the one place the number means something
    * different: for a roll it is how long the spot plays, for a banner it is how long
-   * the banner is ON SCREEN, and the video loops to fill it. Ticking it on a banner
-   * therefore books exactly one clean pass of the loop.
+   * the banner is ON SCREEN. A banner video is played once rather than looped, so it
+   * has to be at least as long as the booking, and ticking this is the easy way to
+   * guarantee that: it books exactly the length of the video that was uploaded.
    *
    * Keyed on whether a VIDEO was uploaded rather than on the format, so a banner with
    * a still has no length to read and the box stays out of reach, exactly as before. */
@@ -1052,7 +1053,7 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                   {autoOn
                     ? 'Taken from the ad video you uploaded.'
                     : (isBanner
-                      ? 'How long the banner stays on screen. A video banner loops to fill it.'
+                      ? 'How long the banner stays on screen. A video banner has to be at least this long.'
                       : (tooManySpots
                         ? 'More than one ad video uploaded, so enter the length of the one you are booking.'
                         : 'Your ad video has to fit inside this.'))}
@@ -1606,8 +1607,8 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
           ? (
             <>
               A player banner is a still or a short video, shown over the video while it
-              plays. A video banner loops for as long as the banner runs, so a few
-              seconds of footage is enough.
+              plays. A video banner is played once, so it has to be at least as long as
+              the banner runs.
               {bannerSpec
                 ? ` ${bannerSpec.recommended} works well, and it needs to be a strip between `
                   + `${bannerSpec.minAspect}:1 and ${bannerSpec.maxAspect}:1.`
@@ -1645,9 +1646,10 @@ function CreativePanel({ reference, account, maxSeconds, bannerSpec, onCreatives
         </p>
       )}
 
-      {/* A banner takes a still OR a video, and the video loops for the seconds it
-          runs. Deliberately not offering GIFs: the compositor takes real video, and a
-          GIF would be accepted by the picker and then refused by the encoder. */}
+      {/* A banner takes a still OR a video, and a video is played once for the seconds
+          it runs rather than looped, so it has to cover the booking. Deliberately not
+          offering GIFs: the compositor takes real video, and a GIF would be accepted by
+          the picker and then refused by the encoder. */}
       <div className="mkt-upload-row">
         <input
           ref={inputRef}
