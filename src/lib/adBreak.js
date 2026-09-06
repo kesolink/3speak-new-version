@@ -149,8 +149,17 @@ export function createAdBreak() {
       const sid = session?.sid || bannerSid;
       banner = null;
       bannerWindow = null;
-      if (!sid) return;
-      fetch(`${AD_BASE}/m/${encodeURIComponent(sid)}/dismiss`, {
+      if (!sid) return Promise.resolve();
+      /* ⚠️ RETURNS the request, and the caller must wait for it.
+       *
+       * The caller reloads the playlist straight afterwards, and the playlist is only
+       * clean once the server knows the banner was closed. Fire-and-forget here is a
+       * race the viewer loses about half the time: the reload arrives first, gets the
+       * burned playlist back, and closing the ad appears to do nothing.
+       *
+       * A failure still resolves. The local hide has already happened, and the banner
+       * finishing its run is a far better outcome than a rejection nobody handles. */
+      return fetch(`${AD_BASE}/m/${encodeURIComponent(sid)}/dismiss`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',

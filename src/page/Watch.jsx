@@ -539,32 +539,45 @@ function Watch({ v2 = false }) {
     try { player?.seek(to); } catch { /* the spot simply plays out */ }
   }, [player]);
 
-  const dismissBanner = useCallback(() => {
-    try { adBreakRef.current?.dismissBanner?.(); } catch { /* the local hide still happens */ }
+  const dismissBanner = useCallback(async () => {
     setBannerVisible(false);
+    try { await adBreakRef.current?.dismissBanner?.(); } catch { /* the hide still happens */ }
+
+    /* SWAP THE SOURCE. Do not try to un-burn what is already downloaded.
+     *
+     * 🚨 Flushing the buffer was the wrong tool and could never have worked. The
+     * covered seconds keep the SAME segment urls whether or not the banner is on them,
+     * so a refetch is a refetch of the burned bytes, and the browser will happily serve
+     * them from its own cache without asking anybody. Two rounds of cache headers and
+     * buffer margins went into that and none of it could have.
+     *
+     * A dismissed session's playlist points those seconds at the CDN original instead,
+     * so reloading the source genuinely changes which files play. Different urls, so
+     * nothing cached under the old ones can come back.
+     *
+     * The position is captured first and restored once the new manifest is parsed,
+     * because loading a source starts it from the beginning otherwise, and a viewer who
+     * closed an ad should not be sent back to the start of the video for it.
+     */
     try {
       const hls = player?.hls;
-      const from = videoElRef.current?.currentTime;
-      if (hls?.trigger && Number.isFinite(from)) {
-        /* ⚠️ A MARGIN, not from the playhead itself. Flushing everything ahead leaves
-         * the media element with nothing to play for a moment, and an element with no
-         * data fires `ended` — which autoplay-next reads as "video over" and carries
-         * the viewer to a different video. Keeping a second and a half means playback
-         * never starves, and the banner still goes almost immediately. */
-        /* ⚠️ FLUSH ONLY. No startLoad afterwards.
-         *
-         * hls.js refills on its own: its stream controller listens for BUFFER_FLUSHED
-         * and refetches what it dropped. Calling startLoad(position) on top of that
-         * sets a new start position and restarts loading on a stream that is already
-         * playing, which is what made the playhead jump around. The flush payload
-         * below is the same shape hls.js uses internally for its own flushes.
-         *
-         * The margin is still there: everything from a second and a half ahead of the
-         * playhead, so the element never runs dry and fires a spurious `ended`. */
-        hls.trigger('hlsBufferFlushing', {
-          startOffset: from + 1.5, endOffset: Number.POSITIVE_INFINITY, type: null,
-        });
-      }
+      const el = videoElRef.current;
+      const at = el?.currentTime;
+      const wasPlaying = el && !el.paused;
+      if (!hls?.loadSource || !hls.url || !Number.isFinite(at)) return;
+      /* `startLoad(position)` rather than setting currentTime.
+       *
+       * Reloading a source detaches and re-attaches the MediaSource, so the element
+       * starts empty at zero. Assigning currentTime against an empty buffer is ignored
+       * as often as not; telling hls.js WHERE TO BEGIN LOADING is the supported way,
+       * and the element lands there once the first fragment arrives. */
+      hls.once('hlsManifestParsed', () => {
+        try {
+          hls.startLoad(at);
+          if (wasPlaying) videoElRef.current?.play?.().catch(() => {});
+        } catch { /* the viewer can press play */ }
+      });
+      hls.loadSource(hls.url);
     } catch { /* the banner runs its course */ }
   }, [player]);
 
