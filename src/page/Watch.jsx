@@ -551,10 +551,19 @@ function Watch({ v2 = false }) {
          * data fires `ended` — which autoplay-next reads as "video over" and carries
          * the viewer to a different video. Keeping a second and a half means playback
          * never starves, and the banner still goes almost immediately. */
+        /* ⚠️ FLUSH ONLY. No startLoad afterwards.
+         *
+         * hls.js refills on its own: its stream controller listens for BUFFER_FLUSHED
+         * and refetches what it dropped. Calling startLoad(position) on top of that
+         * sets a new start position and restarts loading on a stream that is already
+         * playing, which is what made the playhead jump around. The flush payload
+         * below is the same shape hls.js uses internally for its own flushes.
+         *
+         * The margin is still there: everything from a second and a half ahead of the
+         * playhead, so the element never runs dry and fires a spurious `ended`. */
         hls.trigger('hlsBufferFlushing', {
           startOffset: from + 1.5, endOffset: Number.POSITIVE_INFINITY, type: null,
         });
-        hls.startLoad(from);
       }
     } catch { /* the banner runs its course */ }
   }, [player]);
