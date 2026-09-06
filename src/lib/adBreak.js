@@ -113,6 +113,8 @@ export function createAdBreak() {
   let window_ = null;
   // Seconds into the spot at which a Skip may be offered, or null for never.
   let skipAfter = null;
+  // Set once the spot has been passed for good; nothing shows its chrome afterwards.
+  let spotRetired = false;
   let premium = false;
   // The banner is a SEPARATE placement, from a separate advertiser, that can be
   // present with or without a spot. It is not a second kind of break: it adds no
@@ -396,8 +398,30 @@ export function createAdBreak() {
 
     isInside(playerTime) {
       if (!window_ || !Number.isFinite(playerTime)) return false;
+      // 🚨 A spot that has been RETIRED is never inside anything again. See retireSpot:
+      // this is the one place every piece of spot chrome funnels through, so silencing
+      // it here silences the disclosure, the Skip and the resume countdown together
+      // rather than leaving each to remember on its own.
+      if (spotRetired) return false;
       return playerTime >= window_.start && playerTime < window_.start + window_.duration;
     },
+
+    /**
+     * This spot is done with, whatever the clock says.
+     *
+     * Closing a banner reloads the source, and a reload walks the playhead through zero
+     * before the new manifest lands. A spot booked at the START of the video is inside
+     * its own window at zero, so its disclosure and Skip came back up over a video that
+     * was merely reloading — controls for an ad that had already finished.
+     *
+     * Timing guards could not fix that, and two attempts proved it: the moment is not
+     * knowable from a clock that is itself being reset. So the spot is retired outright
+     * once it has been passed, and no arithmetic can bring it back.
+     */
+    retireSpot() { spotRetired = true; },
+
+    /** Has the spot been passed and retired? */
+    get spotRetired() { return spotRetired; },
 
     /**
      * Player time → content time. Inside the break the content has not advanced at
@@ -412,6 +436,6 @@ export function createAdBreak() {
       return playerTime - duration;
     },
 
-    reset() { session = null; window_ = null; skipAfter = null; banner = null; bannerWindow = null; bannerSid = null; premium = false; },
+    reset() { session = null; window_ = null; skipAfter = null; spotRetired = false; banner = null; bannerWindow = null; bannerSid = null; premium = false; },
   };
 }

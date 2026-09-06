@@ -564,6 +564,27 @@ function Watch({ v2 = false }) {
 
   const dismissBanner = useCallback(async () => {
     setBannerVisible(false);
+    // Everything ad-related goes quiet until the new manifest is parsed: a reload walks
+    // the playhead through zero, and a spot booked at the start of the video is inside
+    // its own window there.
+    setAdChromeOff(true);
+
+    /* HARD RULE: a spot already passed never shows its chrome again.
+     *
+     * Silencing only for the duration of the swap was not enough. The flag comes off
+     * when the manifest parses, which is BEFORE the player has seeked back, so there
+     * was still a window where the clock read zero and the pre-roll looked live.
+     *
+     * If the break ends at or before where the viewer is being put back, it is retired
+     * outright and no clock can resurrect it. A break not yet reached is left alone:
+     * that one still has to run. */
+    try {
+      const end = adBreakRef.current?.endOfBreak?.();
+      const at0 = videoElRef.current?.currentTime;
+      if (Number.isFinite(end) && Number.isFinite(at0) && end <= at0) {
+        adBreakRef.current?.retireSpot?.();
+      }
+    } catch { /* the swap flag still covers the reload itself */ }
     try { await adBreakRef.current?.dismissBanner?.(); } catch { /* the hide still happens */ }
 
     /* SWAP THE SOURCE. Do not try to un-burn what is already downloaded.
