@@ -1701,6 +1701,11 @@ $mkt-sub: 12px;
 
   .mkt-refund { color: var(--accent-primary); font-weight: 600; }
 
+  /* Credit EARNED. Carries the same weight as .mkt-refund but not its red:
+     that colour is for the shortfall we still owe an answer on, and money
+     coming back to the advertiser was reading as a problem because of it. */
+  .mkt-credit-earned { color: var(--text-primary); font-weight: 600; }
+
   /* Credit spent on this flight. Deliberately quieter than .mkt-refund: earning
      credit is news, spending it is a receipt. */
   .mkt-credit-used {

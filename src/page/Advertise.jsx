@@ -985,6 +985,22 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         <fieldset className="mkt-group">
           <legend>The booking</legend>
         <div className="mkt-field">
+          <label htmlFor="mkt-days">Days</label>
+          <input
+            id="mkt-days" type="number" min={pricing?.minDays || 1} max={pricing?.maxDays || 90}
+            value={days} onChange={(e) => setDays(e.target.value)}
+          />
+          <span className="mkt-hint">
+            How long it runs. {pricing?.minDays || 1} to {pricing?.maxDays || 90}.
+            {/* The nudge, at the moment the number is being chosen. Once they are past
+                a month there is little left to sell them, so it stops rather than
+                badgering — and it never appears at all if the curve is off. */}
+            {daysSaving ? ` At ${days} days you pay about ${daysSaving}% less per day than a single day.` : ''}
+            {nextStep ? ` ${nextStep.days} days would make it about ${nextStep.saving}% less.` : ''}
+          </span>
+        </div>
+
+        <div className="mkt-field">
           <label htmlFor="mkt-start">Starts <span className="mkt-optional">optional</span></label>
           <input
             id="mkt-start"
@@ -999,22 +1015,6 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
               : runsUntil
                 ? `Runs to ${runsUntil}.`
                 : 'Leave blank, or pick today, to start as soon as it is approved and paid.'}
-          </span>
-        </div>
-
-        <div className="mkt-field">
-          <label htmlFor="mkt-days">Days</label>
-          <input
-            id="mkt-days" type="number" min={pricing?.minDays || 1} max={pricing?.maxDays || 90}
-            value={days} onChange={(e) => setDays(e.target.value)}
-          />
-          <span className="mkt-hint">
-            How long it runs. {pricing?.minDays || 1} to {pricing?.maxDays || 90}.
-            {/* The nudge, at the moment the number is being chosen. Once they are past
-                a month there is little left to sell them, so it stops rather than
-                badgering — and it never appears at all if the curve is off. */}
-            {daysSaving ? ` At ${days} days you pay about ${daysSaving}% less per day than a single day.` : ''}
-            {nextStep ? ` ${nextStep.days} days would make it about ${nextStep.saving}% less.` : ''}
           </span>
         </div>
         <div className="mkt-field">
@@ -1319,7 +1319,9 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                 </div>
               )}
 
-              {!c.creative && (() => {
+              {/* Nothing to attach to a flight that has already run or been called
+                  off: the picker offered a choice that could not change anything. */}
+              {!c.creative && c.status !== 'complete' && c.status !== 'cancelled' && (() => {
                 const usable = readyFor(c);
                 const kinds = kindsFor(c);
                 const canImage = kinds.includes('image');
@@ -1386,8 +1388,11 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                   {/* A shortfall against forecast is settled as credit toward the
                       next booking, not as a transfer back. Saying "we will send it"
                       would leave them waiting for money that is not coming. */}
+                  {/* Credit EARNED is good news. It shared .mkt-refund with the
+                      "we are looking at this one" case, which is a problem and is
+                      meant to read as one, so both came out in the warning red. */}
                   {c.refundHbd > 0 && (
-                    <span className="mkt-refund">
+                    <span className={c.refundStatus === 'credited' ? 'mkt-credit-earned' : 'mkt-refund'}>
                       {c.refundStatus === 'credited'
                         ? `${c.creditHbd ?? c.refundHbd} HBD credited to you for under-delivery. It comes off your next booking`
                         : `${c.refundHbd} HBD short of forecast. We are looking at this one`}
