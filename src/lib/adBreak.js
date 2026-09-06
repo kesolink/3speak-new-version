@@ -113,6 +113,8 @@ export function createAdBreak() {
   let window_ = null;
   // Seconds into the spot at which a Skip may be offered, or null for never.
   let skipAfter = null;
+  // Seconds into the banner before its close button may appear. The server decides.
+  let bannerCloseAfter = 5;
   // Set once the spot has been passed for good; nothing shows its chrome afterwards.
   let spotRetired = false;
   let premium = false;
@@ -281,6 +283,7 @@ export function createAdBreak() {
             if (banner && !bannerWindow
               && typeof d.bannerStartAt === 'number' && d.bannerDurationSeconds) {
               bannerWindow = { start: d.bannerStartAt, duration: d.bannerDurationSeconds };
+              if (typeof d.bannerCloseAfterSeconds === 'number') bannerCloseAfter = d.bannerCloseAfterSeconds;
             }
             if (session && !window_
               && typeof d.adStartAt === 'number' && d.adDurationSeconds) {
@@ -387,6 +390,19 @@ export function createAdBreak() {
         body: '{}',
         keepalive: true,
       }).catch(() => { /* the viewer still skips */ });
+    },
+
+    /**
+     * May the banner be closed yet?
+     *
+     * Not from its first frame. An ad dismissible instantly is an ad nobody reads, and
+     * the advertiser bought seconds on screen rather than a button. The threshold comes
+     * from the server so this page and the embed player cannot disagree about a number
+     * that is really one decision.
+     */
+    bannerClosable(playerTime) {
+      if (!bannerWindow || !Number.isFinite(playerTime)) return false;
+      return (this.contentTime(playerTime) - bannerWindow.start) >= bannerCloseAfter;
     },
 
     /** Does this spot offer a skip at all? Decided by the server, not here. */

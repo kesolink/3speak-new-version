@@ -458,6 +458,8 @@ function Watch({ v2 = false }) {
   // Seconds until the Skip becomes pressable, or null once it is. The control is on
   // screen for the whole spot either way; this only decides which state it is in.
   const [skipIn, setSkipIn] = useState(null);
+  // Whether the banner may be closed yet. See adBreak.bannerClosable.
+  const [bannerClosable, setBannerClosable] = useState(false);
   // Disclosure. Required by EU and US advertising rules, and driven off the same
   // clock the tracker reads so it can never disagree with what is on screen.
   useEffect(() => {
@@ -467,6 +469,7 @@ function Watch({ v2 = false }) {
     if (adChromeOff) {
       if (sponsorVisible) setSponsorVisible(false);
       if (bannerVisible) setBannerVisible(false);
+      if (bannerClosable) setBannerClosable(false);
       if (adCountdown !== null) setAdCountdown(null);
       if (resumeIn !== null) setResumeIn(null);
       if (canSkipAd) setCanSkipAd(false);
@@ -513,6 +516,11 @@ function Watch({ v2 = false }) {
     // Skippable, and only once the server's threshold has actually elapsed. Read off
     // the same clock as the disclosure, so a Skip can never appear over a spot that is
     // not running.
+    // The banner's close button waits too, on the same server-sent threshold. The
+    // click target does not: following an ad is something a viewer may do at once.
+    const closable = onBanner && ab.bannerClosable(t);
+    if (closable !== bannerClosable) setBannerClosable(closable);
+
     const skippable = inside && ab.canSkip(t);
     if (skippable !== canSkipAd) setCanSkipAd(skippable);
 
@@ -521,7 +529,7 @@ function Watch({ v2 = false }) {
     const untilSkip = inside ? ab.secondsUntilSkip(t) : null;
     const shownSkip = untilSkip == null ? null : Math.max(1, Math.ceil(untilSkip));
     if (shownSkip !== skipIn) setSkipIn(shownSkip);
-  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn, canSkipAd, skipIn, adChromeOff]);
+  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn, canSkipAd, skipIn, adChromeOff, bannerClosable]);
 
   /* The viewer closed the banner.
    *
