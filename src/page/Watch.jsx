@@ -446,6 +446,15 @@ function Watch({ v2 = false }) {
   // Whether a Skip is being offered on the spot playing right now. The server decides
   // IF and AFTER HOW LONG; this is only whether that moment has arrived.
   const [canSkipAd, setCanSkipAd] = useState(false);
+  /* A hard rule: NO ad chrome at all while the source is being swapped.
+   *
+   * Reloading a source resets the playhead to zero before the new manifest lands, and
+   * a spot booked at the start of the video is "playing" at zero. So for a moment
+   * after closing a banner, the roll's disclosure and Skip flashed up over a video
+   * that was simply reloading. Rather than teach every control to recognise that
+   * moment, one flag silences all of them, and it is a flag rather than more window
+   * arithmetic because the timeline is exactly what cannot be trusted mid-swap. */
+  const [adChromeOff, setAdChromeOff] = useState(false);
   // Seconds until the Skip becomes pressable, or null once it is. The control is on
   // screen for the whole spot either way; this only decides which state it is in.
   const [skipIn, setSkipIn] = useState(null);
@@ -453,6 +462,17 @@ function Watch({ v2 = false }) {
   // clock the tracker reads so it can never disagree with what is on screen.
   useEffect(() => {
     const ab = adBreakRef.current;
+    // Silenced while the source is swapping: the clock is meaningless until the new
+    // manifest is parsed, so nothing derived from it may be shown.
+    if (adChromeOff) {
+      if (sponsorVisible) setSponsorVisible(false);
+      if (bannerVisible) setBannerVisible(false);
+      if (adCountdown !== null) setAdCountdown(null);
+      if (resumeIn !== null) setResumeIn(null);
+      if (canSkipAd) setCanSkipAd(false);
+      if (skipIn !== null) setSkipIn(null);
+      return;
+    }
     // `active` is the SPOT. A playback can carry a banner and no spot, so the banner
     // is cleared on its own terms rather than with the break.
     if (!ab.active && !ab.bannerInfo) {
@@ -501,7 +521,7 @@ function Watch({ v2 = false }) {
     const untilSkip = inside ? ab.secondsUntilSkip(t) : null;
     const shownSkip = untilSkip == null ? null : Math.max(1, Math.ceil(untilSkip));
     if (shownSkip !== skipIn) setSkipIn(shownSkip);
-  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn, canSkipAd, skipIn]);
+  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn, canSkipAd, skipIn, adChromeOff]);
 
   /* The viewer closed the banner.
    *
@@ -534,6 +554,9 @@ function Watch({ v2 = false }) {
    */
   const skipAd = useCallback(() => {
     const to = adBreakRef.current?.endOfBreak?.();
+    // Counted as watched. The button only exists after the threshold, so pressing it
+    // means the spot got the seconds it was owed.
+    try { adBreakRef.current?.recordSkip?.(); } catch { /* the skip still happens */ }
     setCanSkipAd(false);
     if (!Number.isFinite(to)) return;
     try { player?.seek(to); } catch { /* the spot simply plays out */ }
@@ -564,7 +587,7 @@ function Watch({ v2 = false }) {
       const el = videoElRef.current;
       const at = el?.currentTime;
       const wasPlaying = el && !el.paused;
-      if (!hls?.loadSource || !hls.url || !Number.isFinite(at)) return;
+      if (!hls?.loadSource || !hls.url || !Number.isFinite(at)) { setAdChromeOff(false); return; }
       /* `startLoad(position)` rather than setting currentTime.
        *
        * Reloading a source detaches and re-attaches the MediaSource, so the element
@@ -576,9 +599,14 @@ function Watch({ v2 = false }) {
           hls.startLoad(at);
           if (wasPlaying) videoElRef.current?.play?.().catch(() => {});
         } catch { /* the viewer can press play */ }
+        // Back on only once the playhead means something again.
+        setAdChromeOff(false);
       });
       hls.loadSource(hls.url);
-    } catch { /* the banner runs its course */ }
+      // Belt and braces: a manifest that never parses must not silence the chrome for
+      // the rest of the video.
+      setTimeout(() => setAdChromeOff(false), 8000);
+    } catch { setAdChromeOff(false); }
   }, [player]);
 
 

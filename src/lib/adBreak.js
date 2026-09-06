@@ -365,6 +365,28 @@ export function createAdBreak() {
       return left > 0 ? left : null;
     },
 
+    /**
+     * The viewer pressed Skip. Tell the server, which counts it as watched.
+     *
+     * The button only appears after the threshold, so a press means they sat through
+     * the part we ask for and then chose to move on. Billing that is the honest
+     * reading, and it also means a skip costs us nothing, so it can stay generous
+     * rather than becoming something we are tempted to make harder.
+     *
+     * Fire and forget: a lost request costs the advertiser an impression they earned,
+     * which is a smaller harm than delaying the skip the viewer just asked for.
+     */
+    recordSkip() {
+      const sid = session?.sid;
+      if (!sid) return;
+      fetch(`${AD_BASE}/m/${encodeURIComponent(sid)}/skipped`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+        keepalive: true,
+      }).catch(() => { /* the viewer still skips */ });
+    },
+
     /** Does this spot offer a skip at all? Decided by the server, not here. */
     get skipOffered() { return skipAfter != null; },
 
