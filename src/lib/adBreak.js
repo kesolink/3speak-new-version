@@ -178,6 +178,19 @@ export function createAdBreak() {
      */
     isBannerVisible(playerTime) {
       if (!bannerWindow || !Number.isFinite(playerTime)) return false;
+      /* 🚨 Never while the SPOT is playing.
+       *
+       * A banner is burned into the CONTENT's frames. During a break the picture is
+       * the ad, which carries no banner, so there is nothing on screen to label or to
+       * click and its controls must not appear.
+       *
+       * It is not enough to rely on the window arithmetic, because contentTime() pins
+       * to the break's own position for the whole break. A playback carrying a pre-roll
+       * AND a banner booked early therefore reads as "banner visible" for every second
+       * of the spot: the close button and click target sat on top of a different
+       * advertiser's ad. */
+      if (this.isInside(playerTime)) return false;
+
       const t = this.contentTime(playerTime);
       return t >= bannerWindow.start && t < bannerWindow.start + bannerWindow.duration;
     },
