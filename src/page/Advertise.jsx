@@ -59,6 +59,10 @@ const SHOW_MARKETS = false;
 /** The enrollment steps, in the order they have to happen. */
 const WIZARD_STEPS = ['Your product', 'Your ad', 'Book a slot'];
 
+/* Booking, for a product that already exists. Same three things the enrollment
+   wizard ends on, minus registering the product itself. */
+const BOOK_STEPS = ['Your ad', 'The booking', 'Pay'];
+
 const EMPTY_FORM = {
   projectName: '',
   website: '',
@@ -536,6 +540,11 @@ function CampaignPanel({
      product's page is not one long scroll of form, live flights and finished
      ones. The wizard still asks for 'all', because there it IS the whole step. */
   view = 'all',
+  /* Where the booking wizard has got to, when there is one. Step 2 is the form and
+     step 3 is paying for what it just created; step 1 is the ad itself, which this
+     panel does not own. Null means no wizard, which is the enrollment flow. */
+  step = null,
+  onBooked,
 }) {
   const [campaigns, setCampaigns] = useState([]);
   const [days, setDays] = useState(pricing?.minDays || 1);
@@ -566,6 +575,8 @@ function CampaignPanel({
   // flight with no confirmation and no way back. Picking and saving are two acts.
   const [picked, setPicked] = useState({});
   const [saving, setSaving] = useState(null);
+  // The flight this panel just created, so the paying step can show that one alone.
+  const [bookedId, setBookedId] = useState(null);
 
   // Credit carried from earlier flights that under-delivered. Comes back with the
   // campaign list rather than needing its own request, because it is only ever shown
@@ -864,6 +875,10 @@ function CampaignPanel({
         : 'Booked. Send the payment to start it');
       refresh();
       if (!creatives.length) onNeedCreative?.();
+      if (res?.campaign?.id) {
+        setBookedId(res.campaign.id);
+        onBooked?.(res.campaign.id);
+      }
       return res;
     } catch (err) {
       setError(err.message || 'Could not make that booking');
@@ -954,14 +969,20 @@ function CampaignPanel({
      or was called off. Everything else is still live in some sense — being drafted,
      waiting on payment, scheduled, running or paused — and is what somebody checks on. */
   const FINISHED = new Set(['complete', 'cancelled']);
-  const showBooking = view === 'all' || view === 'book';
-  const showActive = view === 'all' || view === 'active';
-  const showHistory = view === 'all' || view === 'history';
+  const showBooking = view === 'all' || (view === 'book' && step === 2);
+  /* Credit is about what the next booking costs, so it belongs where one is being
+     made. Repeating it over the finished flights said nothing about them. */
+  const showBalance = view === 'all' || view === 'book';
   const listed = view === 'active'
     ? campaigns.filter((c) => !FINISHED.has(c.status))
     : view === 'history'
       ? campaigns.filter((c) => FINISHED.has(c.status))
-      : campaigns;
+      : view === 'book'
+        /* Only what was just booked, and only on the step that asks for payment. The
+           full list lives under Active spots; showing it here as well was the same
+           flights twice on one page. */
+        ? (step === 3 && bookedId ? campaigns.filter((c) => c.id === bookedId) : [])
+        : campaigns;
 
   return (
     <div className="mkt-campaigns">
@@ -1233,14 +1254,14 @@ function CampaignPanel({
           for is credit they will never spend, which would make "we credit you instead
           of refunding" a way of keeping the money rather than an alternative to
           sending it back. It comes off the next booking on its own. */}
-      {balanceHbd > 0 && (
+      {showBalance && balanceHbd > 0 && (
         <p className="mkt-balance">
           You have <strong>{balanceHbd} HBD</strong> in credit from flights that
           under-delivered. It comes off your next booking automatically.
         </p>
       )}
 
-      {(showActive || showHistory) && view !== 'all' && listed.length === 0 && (
+      {(view === 'active' || view === 'history') && listed.length === 0 && (
         <p className="mkt-fine">
           {view === 'active'
             ? 'No live bookings. Anything you book shows up here until it finishes.'
@@ -1996,6 +2017,15 @@ export default function Advertise({ openLoginModal }) {
      and the ones that are done are three different jobs, and a single scroll made you
      hunt for whichever one you came for. */
   const [ptab, setPtab] = useState('book');
+  /* Opening a product by its reference is the fallback path: it matters to somebody
+     who registered on another browser, and to nobody else. It sat permanently at the
+     foot of the product list, so it took up room on every visit for the one visit it
+     is needed on. */
+  const [showLookup, setShowLookup] = useState(false);
+  /* Where Book a spot has got to. It was one page holding an upload panel, a booking
+     form and every flight ever booked, which asked somebody to work out the order for
+     themselves. */
+  const [bookStep, setBookStep] = useState(1);
   const TABS = [
     { id: 'general', label: 'General' },
     { id: 'wizard', label: 'Enroll your ad' },
@@ -2671,6 +2701,7 @@ export default function Advertise({ openLoginModal }) {
           <div className="mkt-products">
             <div className="mkt-split-head">
               <h2>Your products</h2>
+              <div className="mkt-head-actions">
               {user && (() => {
                 /* The server allows many products but only ONE application under review
                    at a time, so that a reviewer is not reading the same person twice.
@@ -2703,7 +2734,37 @@ export default function Advertise({ openLoginModal }) {
                 </button>
                 );
               })()}
+              <button
+                type="button"
+                className="mkt-codebtn"
+                aria-expanded={showLookup}
+                aria-controls="mkt-lookup-form"
+                title="Open a product with the reference you were given"
+                onClick={() => setShowLookup((v) => !v)}
+              >
+                Open by code
+              </button>
+              </div>
             </div>
+
+            {showLookup && (
+              <form className="mkt-lookup" id="mkt-lookup-form" onSubmit={onLookup}>
+                <label className="mkt-visually-hidden" htmlFor="mkt-ref">Product reference</label>
+                <input
+                  id="mkt-ref"
+                  value={lookupRef}
+                  onChange={(e) => setLookupRef(e.target.value)}
+                  placeholder="Open by reference"
+                  autoComplete="off"
+                  // Only ever rendered by pressing the button above, so taking the
+                  // caret is finishing that action rather than stealing focus.
+                  autoFocus
+                />
+                <button type="submit" className="mkt-secondary" disabled={lookingUp || !lookupRef.trim()}>
+                  {lookingUp ? 'Checking…' : 'Open'}
+                </button>
+              </form>
+            )}
             {/* Said in the panel too, not only in a tooltip nobody hovers on a phone. */}
             {user && (myApps || []).some((a) => a.status === 'pending') && (
               <p className="mkt-fine">
@@ -2787,19 +2848,6 @@ export default function Advertise({ openLoginModal }) {
               </p>
             )}
 
-            <form className="mkt-lookup" onSubmit={onLookup}>
-              <label className="mkt-visually-hidden" htmlFor="mkt-ref">Product reference</label>
-              <input
-                id="mkt-ref"
-                value={lookupRef}
-                onChange={(e) => setLookupRef(e.target.value)}
-                placeholder="Open by reference"
-                autoComplete="off"
-              />
-              <button type="submit" className="mkt-secondary" disabled={lookingUp || !lookupRef.trim()}>
-                {lookingUp ? 'Checking…' : 'Open'}
-              </button>
-            </form>
           </div>
 
           <div className="mkt-split-main">
@@ -2833,6 +2881,25 @@ export default function Advertise({ openLoginModal }) {
                   </div>
                 )}
 
+                {ptab === 'book' && (lookup.status === 'pending' || lookup.status === 'approved') && (
+                  <ol className="mkt-wiz-nav">
+                    {BOOK_STEPS.map((label, i) => {
+                      const n = i + 1;
+                      const state = n < bookStep ? ' done' : (n === bookStep ? ' current' : '');
+                      return (
+                        <li
+                          key={label}
+                          className={`mkt-wiz-step${state}`}
+                          aria-current={n === bookStep ? 'step' : undefined}
+                        >
+                          <span className="mkt-wiz-num">{n < bookStep ? '✓' : n}</span>
+                          <span>{label}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+
                 {/* Uploading is open to a pending applicant; booking is not. Nothing can
                     run either way until the product is approved and a booking is paid for,
                     so the split is where it belongs.
@@ -2842,7 +2909,7 @@ export default function Advertise({ openLoginModal }) {
                     Active spots are filled from it. Rendering it conditionally left them
                     empty for anyone who opened a product straight into another tab. */}
                 {(lookup.status === 'pending' || lookup.status === 'approved') && (
-                  <div style={{ display: ptab === 'book' ? undefined : 'none' }}>
+                  <div style={{ display: ptab === 'book' && bookStep === 1 ? undefined : 'none' }}>
                   <CreativePanel
                     reference={lookupRef.trim()}
                     account={lookup.hiveAccount}
@@ -2876,7 +2943,38 @@ export default function Advertise({ openLoginModal }) {
                     production={bookProduction}
                     awaitingApproval={lookup.status !== 'approved'}
                     view={ptab}
+                    step={ptab === 'book' ? bookStep : null}
+                    onBooked={() => setBookStep(3)}
                   />
+                )}
+
+                {ptab === 'book' && (lookup.status === 'pending' || lookup.status === 'approved') && (
+                  <div className="mkt-wiz-actions">
+                    {bookStep === 1 && (
+                      <button type="button" className="mkt-primary" onClick={() => setBookStep(2)}>
+                        Next: the booking
+                      </button>
+                    )}
+                    {bookStep === 2 && (
+                      <button type="button" className="mkt-outline" onClick={() => setBookStep(1)}>
+                        Back to your ad
+                      </button>
+                    )}
+                    {bookStep === 3 && (
+                      <>
+                        <button
+                          type="button"
+                          className="mkt-primary"
+                          onClick={() => { setPtab('active'); setBookStep(1); }}
+                        >
+                          Done
+                        </button>
+                        <button type="button" className="mkt-outline" onClick={() => setBookStep(2)}>
+                          Book another
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             ) : (
