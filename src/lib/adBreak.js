@@ -261,6 +261,14 @@ export function createAdBreak() {
             if (session && !window_
               && typeof d.adStartAt === 'number' && d.adDurationSeconds) {
               window_ = { start: d.adStartAt, duration: d.adDurationSeconds };
+              /* Whether this spot may be skipped, and after how long.
+               *
+               * Read HERE, in the same breath as the window, because they arrive
+               * together and a skip threshold without a window is unusable: canSkip
+               * needs both to say anything. The SERVER decides — a page that worked it
+               * out itself could offer a skip on a spot the server considers
+               * unskippable, and nothing would say which was right. */
+              skipAfter = typeof d.skipAfterSeconds === 'number' ? d.skipAfterSeconds : null;
             }
             // Done once everything present has been located.
             const spotDone = !session || !!window_;
