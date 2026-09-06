@@ -407,6 +407,9 @@ const VideoShort = () => {
   const [swipeDirection, setSwipeDirection] = useState(null); // 'up' | 'down' | null
   const [swipeDragY, setSwipeDragY] = useState(0); // live drag offset in px
   const swipeAnimRef = useRef(null);
+  // Wheel cooldown. A ref so it survives the effect being torn down and rebuilt, which
+  // happens on every render — see the wheel handler below.
+  const wheelLockRef = useRef(false);
   const touchStartYRef = useRef(null); // Synchronous mirror of touchStart for gesture detection
 
   const progressBarRef = useRef(null);
@@ -2275,23 +2278,33 @@ const VideoShort = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNext, handlePrevious, seekTo, togglePlayPause, toggleMute, showComments, isTransitioning]);
 
-  // Desktop: the scroll wheel navigates shorts, exactly like the Up/Down arrows
-  // (scroll down = next, scroll up = previous). Attached to the video container
-  // only, so scrolling the comments side-panel still scrolls the comments.
-  // A short cooldown stops one wheel gesture from skipping several shorts.
+  /* Desktop: the scroll wheel navigates shorts, exactly like the Up/Down arrows
+   * (scroll down = next, scroll up = previous). Attached to the video container only,
+   * so scrolling the comments side-panel still scrolls the comments.
+   *
+   * A cooldown stops one wheel gesture from skipping several shorts. One flick of a
+   * wheel, and every moment of a trackpad swipe, is dozens of events.
+   *
+   * 🚨 THE COOLDOWN LIVES IN A REF, and has to.
+   *
+   * It was a local inside this effect, and the effect depends on handleNext and
+   * handlePrevious, which are rebuilt on every render. So advancing re-rendered,
+   * re-ran the effect, and the replacement started with lock = false again — the
+   * cooldown was thrown away between the events it existed to swallow, and one gesture
+   * walked through five or ten shorts. A ref is the same value across every re-run,
+   * which is the only thing that makes a cooldown mean anything here. */
   useEffect(() => {
     if (typeof window === 'undefined' || window.innerWidth <= 768) return;
     const el = videoContainerRef.current;
     if (!el) return;
-    let lock = false;
     const onWheel = (e) => {
       if (Math.abs(e.deltaY) < 8) return; // ignore tiny trackpad jitter
       e.preventDefault();
-      if (lock || isTransitioning) return;
-      lock = true;
+      if (wheelLockRef.current || isTransitioning) return;
+      wheelLockRef.current = true;
       if (e.deltaY > 0) handleNext();
       else handlePrevious();
-      setTimeout(() => { lock = false; }, 700);
+      setTimeout(() => { wheelLockRef.current = false; }, 700);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
