@@ -482,6 +482,39 @@ function Watch({ v2 = false }) {
     if (shown !== resumeIn) setResumeIn(shown);
   }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn]);
 
+  /* The viewer closed the banner.
+   *
+   * 🚨 Telling the server is not enough on its own. The banner is IN the picture, so
+   * every second the player has already buffered still carries it, and on a healthy
+   * connection that is most of its run: closing it would appear to do nothing for
+   * several seconds, which reads as a broken button rather than a slow one.
+   *
+   * So the buffer AHEAD of the playhead is dropped and refetched. Those segments come
+   * back unburned now that the server has been told, and the ad goes in about a
+   * second. It costs a moment of loading, which is the right trade for somebody who
+   * has just asked to be rid of it. Only what is ahead: flushing from zero would throw
+   * away what is behind too and make a scrub back re-download.
+   *
+   * All best-effort. hls.js is not guaranteed to be the engine, and a flush that fails
+   * leaves the old behaviour, where the banner simply finishes its run. Never a reason
+   * to throw inside a click handler on the watch page.
+   */
+  const dismissBanner = useCallback(() => {
+    try { adBreakRef.current?.dismissBanner?.(); } catch { /* the local hide still happens */ }
+    setBannerVisible(false);
+    try {
+      const hls = player?.hls;
+      const from = videoElRef.current?.currentTime;
+      if (hls?.trigger && Number.isFinite(from)) {
+        hls.trigger('hlsBufferFlushing', {
+          startOffset: from, endOffset: Number.POSITIVE_INFINITY, type: null,
+        });
+        hls.startLoad(from);
+      }
+    } catch { /* the banner runs its course */ }
+  }, [player]);
+
+
   useWatchDuration({
     api: sdkApiRef.current,
     author,
@@ -1778,6 +1811,7 @@ function Watch({ v2 = false }) {
             visible={bannerVisible}
             clickUrl={adBreakRef.current.bannerInfo?.brand?.clickUrl}
             advertiser={adBreakRef.current.bannerInfo?.advertiser}
+            onDismiss={dismissBanner}
           />
         )}
         wrapperRef={wrapperRef}

@@ -132,6 +132,31 @@ export function createAdBreak() {
     get bannerInfo() { return banner; },
 
     /**
+     * The viewer closed the banner.
+     *
+     * Tells the server to stop burning it, and forgets it locally so the click target
+     * and the close button go with it. The pixels already decoded still carry the ad:
+     * the caller flushes the player's buffer to shorten that to about a second, and
+     * the impression stands either way. It was delivered, and refunding it would make
+     * closing an ad an attack on the advertiser.
+     *
+     * Fire and forget. A failed request means the viewer keeps seeing an ad they asked
+     * to close, which is bad, but blocking the UI on it would be worse.
+     */
+    dismissBanner() {
+      const sid = session?.sid || bannerSid;
+      banner = null;
+      bannerWindow = null;
+      if (!sid) return;
+      fetch(`${AD_BASE}/m/${encodeURIComponent(sid)}/dismiss`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+        keepalive: true,
+      }).catch(() => { /* they still get the local hide */ });
+    },
+
+    /**
      * Is the banner on screen at this moment?
      *
      * Measured in CONTENT time, because that is what the banner's position is a

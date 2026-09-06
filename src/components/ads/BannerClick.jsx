@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { MdOpenInNew } from 'react-icons/md';
+import { MdOpenInNew, MdClose } from 'react-icons/md';
 import './BannerClick.scss';
 
 /**
@@ -25,7 +25,9 @@ import './BannerClick.scss';
  * by the height of them. So the displayed frame is measured from the element's own
  * intrinsic size and the target is placed inside THAT.
  */
-export default function BannerClick({ videoRef, placement, visible, clickUrl, advertiser }) {
+export default function BannerClick({
+  videoRef, placement, visible, clickUrl, advertiser, onDismiss,
+}) {
   const [rect, setRect] = useState(null);
 
   useEffect(() => {
@@ -82,9 +84,40 @@ export default function BannerClick({ videoRef, placement, visible, clickUrl, ad
     };
   }, [videoRef, placement, visible]);
 
-  if (!visible || !rect || !clickUrl) return null;
+  /* ⚠️ The close button renders whether or not there is a click URL, so the guard
+   * above cannot require one any more. A banner with no advertiser website is still a
+   * banner somebody may want gone. */
+  if (!visible || !rect) return null;
 
   return (
+    <>
+    {onDismiss ? (
+      /* Close.
+       *
+       * 🚨 This CANNOT erase the banner from frames already decoded — the ad is in the
+       * picture, which is the point of the format. What it does is tell the server to
+       * stop burning, and let the player drop what it has buffered, so the banner goes
+       * within about a second rather than at the end of its run.
+       *
+       * Placed just above the banner's top-right corner rather than on it: over the
+       * corner it would sit on the advertiser's own artwork, and inside the click
+       * target it would be a dismiss button inside a link.
+       */
+      <button
+        type="button"
+        className="watch-banner-close"
+        aria-label="Close this ad"
+        title="Close this ad"
+        style={{
+          left: `${rect.left + rect.width - 26}px`,
+          top: `${Math.max(0, rect.top - 26)}px`,
+        }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDismiss(); }}
+      >
+        <MdClose aria-hidden="true" />
+      </button>
+    ) : null}
+    {clickUrl ? (
     <a
       className="watch-banner-hit"
       href={clickUrl}
@@ -107,6 +140,8 @@ export default function BannerClick({ videoRef, placement, visible, clickUrl, ad
           aria-hidden — the anchor's label already says what happens. */}
       <MdOpenInNew className="watch-banner-open" aria-hidden="true" />
     </a>
+    ) : null}
+    </>
   );
 }
 
@@ -120,5 +155,7 @@ BannerClick.propTypes = {
   }),
   visible: PropTypes.bool,
   clickUrl: PropTypes.string,
+  /** Called when the viewer closes the ad. Absent means no close button. */
+  onDismiss: PropTypes.func,
   advertiser: PropTypes.string,
 };
