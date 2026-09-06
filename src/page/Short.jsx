@@ -2178,8 +2178,30 @@ const VideoShort = () => {
   // the touch swipe all funnel through these two. Guarding here rather than at each
   // call site is what stops the next surface that learns to navigate from quietly
   // reopening the hole.
+  /* Swiping past a spot ENDS it. It does not queue behind it.
+   *
+   * A shorts feed is a swipe, and a card that refuses to move does not read as an ad
+   * you have to watch, it reads as a broken feed: people swipe again, harder, and then
+   * leave. Every other shorts product lets you flick past the ad, so anyone arriving
+   * here already knows the gesture and expects it to work.
+   *
+   * The advertiser is not cheated by it. An impression completes only once enough of
+   * the spot has actually played, so a spot swiped away after a second was never
+   * billed. What they buy is attention; this only stops them buying the absence of an
+   * alternative.
+   */
+  const endAdForNavigation = () => {
+    if (!adPlaying) return;
+    setShortsAd(null);
+    setAdStarted(false);
+    setAdSecondsLeft(0);
+    // Deliberately NOT endShortsAd(): that reloads the short the spot interrupted,
+    // which is the one being navigated away from. Clearing the spot lets the effect
+    // that follows `currentIndex` load the short being moved TO instead.
+  };
+
   const handlePrevious = () => {
-    if (adPlaying) return;
+    endAdForNavigation();
     if (currentIndex === 0) return;
     shortHistoryRef.current = [];
     triggerSwipeAnimation('down');
@@ -2187,7 +2209,7 @@ const VideoShort = () => {
   };
 
   const handleNext = async () => {
-    if (adPlaying) return;
+    endAdForNavigation();
     if (currentIndex >= videos.length - 1) {
       if (hasMore && !loadingMoreRef.current) {
         await loadMoreVideos();
@@ -2327,10 +2349,10 @@ const VideoShort = () => {
   };
 
   const onTouchMove = (e) => {
-    // adPlaying: handleNext/handlePrevious already refuse to move, but without this
-    // the card still rubber-bands under the finger and then snaps back — which reads
-    // as the swipe having failed rather than as it being switched off.
-    if (showComments || adPlaying) return;
+    // A spot no longer blocks the gesture, so the card tracks the finger during one
+    // exactly as it does anywhere else. Only the comment sheet still swallows it,
+    // because there the vertical drag belongs to the sheet.
+    if (showComments) return;
     const y = e.targetTouches[0].clientY;
     setTouchEnd(y);
     // Live drag: clamp to ±120px for visual feedback
@@ -2364,7 +2386,7 @@ const VideoShort = () => {
     const distance = startY != null && endY != null ? startY - endY : 0;
     const wasSwipe = Math.abs(distance) > minSwipeDistance;
 
-    if (startY != null && endY != null && !showComments && !isTransitioning && !adPlaying) {
+    if (startY != null && endY != null && !showComments && !isTransitioning) {
       // `|| interestsMode` so a swipe at the END of the interests feed still reaches
       // handleNext, which is what triggers the automatic fall-back to Discover.
       if (distance > minSwipeDistance && (currentIndex < videos.length - 1 || hasMore || interestsMode)) {
