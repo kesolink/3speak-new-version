@@ -910,24 +910,38 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
    * the advertiser has done everything they can. Scoped by kind, because a video
    * sitting in review says nothing useful about a banner flight.
    */
-  const awaitingUs = (campaign) => creatives.some(
-    (cr) => (cr.status === 'review' || cr.status === 'pending')
-      && (cr.kind || 'video') === (campaign.creativeKind || 'video'),
+  const awaitingUs = (campaign) => {
+    const kinds = kindsFor(campaign);
+    return creatives.some(
+      (cr) => (cr.status === 'review' || cr.status === 'pending')
+        && (!kinds.length || kinds.includes(cr.kind || 'video')),
+    );
+  };
+  /**
+   * Every creative kind this flight can run.
+   *
+   * The banner takes a still OR a video, so the singular `creativeKind` is only the
+   * one its copy leads with and is the wrong thing to filter on. Falls back to the
+   * singular for a checker too old to send the list.
+   */
+  const kindsFor = (campaign) => (
+    campaign.creativeKinds?.length
+      ? campaign.creativeKinds
+      : (campaign.creativeKind ? [campaign.creativeKind] : [])
   );
   /**
    * Only the creatives THIS flight can use. A banner flight cannot run a video and a
    * spot flight cannot run a still, so offering both and letting the server refuse
    * is a worse experience than offering the one that works.
    */
-  const readyFor = (campaign) => (
+  const readyFor = (campaign) => {
     // No stated requirement — an older campaign shape, or a response from before the
     // server published it — means show everything. Guessing 'video' here would hide
     // a perfectly good banner from a banner flight and leave no way to attach it,
     // which is exactly the failure this filter was added to prevent.
-    campaign.creativeKind
-      ? ready.filter((cr) => (cr.kind || 'video') === campaign.creativeKind)
-      : ready
-  );
+    const kinds = kindsFor(campaign);
+    return kinds.length ? ready.filter((cr) => kinds.includes(cr.kind || 'video')) : ready;
+  };
 
   return (
     <div className="mkt-campaigns">
@@ -1307,16 +1321,24 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
 
               {!c.creative && (() => {
                 const usable = readyFor(c);
-                const wantsImage = (c.creativeKind || 'video') === 'image';
+                const kinds = kindsFor(c);
+                const canImage = kinds.includes('image');
+                const canVideo = kinds.includes('video');
+                // Only when the still is the ONLY thing that runs. A banner flight
+                // takes either, and calling that "image" is what hid a finished
+                // video banner from its own picker.
+                const wantsImage = canImage && !canVideo;
                 if (!usable.length) {
                   // Approved creatives exist, just none of the right kind. Say which
                   // kind is missing rather than showing an empty picker.
                   return ready.length > 0 ? (
                     <div className="mkt-pay">
                       <p className="mkt-hint">
-                        {wantsImage
-                          ? `This is a ${c.formatLabel || 'banner'} flight, so it needs an approved banner image${c.creativeSpec ? ` (${c.creativeSpec.recommended}, between ${c.creativeSpec.minAspect}:1 and ${c.creativeSpec.maxAspect}:1)` : ''}.`
-                          : 'This flight needs an approved ad video.'}
+                        {canImage && canVideo
+                          ? `This is a ${c.formatLabel || 'banner'} flight, so it needs an approved banner, either an image${c.creativeSpec ? ` (${c.creativeSpec.recommended}, between ${c.creativeSpec.minAspect}:1 and ${c.creativeSpec.maxAspect}:1)` : ''} or a video.`
+                          : wantsImage
+                            ? `This is a ${c.formatLabel || 'banner'} flight, so it needs an approved banner image${c.creativeSpec ? ` (${c.creativeSpec.recommended}, between ${c.creativeSpec.minAspect}:1 and ${c.creativeSpec.maxAspect}:1)` : ''}.`
+                            : 'This flight needs an approved ad video.'}
                       </p>
                     </div>
                   ) : null;
@@ -1324,7 +1346,9 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
                 return (
                 <div className="mkt-pay">
                   <label className="mkt-hint" htmlFor={`attach-${c.id}`}>
-                    {wantsImage ? 'Use one of your approved banners' : 'Use one of your approved ad videos'}
+                    {canImage && canVideo
+                      ? 'Use one of your approved banners or ad videos'
+                      : wantsImage ? 'Use one of your approved banners' : 'Use one of your approved ad videos'}
                   </label>
                   <div className="mkt-attach-row">
                     <select
