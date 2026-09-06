@@ -529,7 +529,14 @@ function StatusBadge({ status }) {
 // has to agree, or the shorts flow silently offers an image picker.
 const isVideoAd = (t) => t === 'video' || t === 'shorts';
 
-function CampaignPanel({ reference, pricing, creatives, onNeedCreative, production, awaitingApproval = false, lockFormat = null }) {
+function CampaignPanel({
+  reference, pricing, creatives, onNeedCreative, production,
+  awaitingApproval = false, lockFormat = null,
+  /* Which third of this panel to render. The page shows one at a time so a
+     product's page is not one long scroll of form, live flights and finished
+     ones. The wizard still asks for 'all', because there it IS the whole step. */
+  view = 'all',
+}) {
   const [campaigns, setCampaigns] = useState([]);
   const [days, setDays] = useState(pricing?.minDays || 1);
   // When it should start. Optional: blank means "as soon as it is approved and paid",
@@ -943,9 +950,24 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
     return kinds.length ? ready.filter((cr) => kinds.includes(cr.kind || 'video')) : ready;
   };
 
+  /* A flight nobody can act on any more belongs in history: it either ran its course
+     or was called off. Everything else is still live in some sense — being drafted,
+     waiting on payment, scheduled, running or paused — and is what somebody checks on. */
+  const FINISHED = new Set(['complete', 'cancelled']);
+  const showBooking = view === 'all' || view === 'book';
+  const showActive = view === 'all' || view === 'active';
+  const showHistory = view === 'all' || view === 'history';
+  const listed = view === 'active'
+    ? campaigns.filter((c) => !FINISHED.has(c.status))
+    : view === 'history'
+      ? campaigns.filter((c) => FINISHED.has(c.status))
+      : campaigns;
+
   return (
     <div className="mkt-campaigns">
-      <h3>Your bookings</h3>
+      {view === 'all' ? <h3>Your bookings</h3> : null}
+      {showBooking && (
+        <>
 
       {/* Said before they choose, not after they pay. Booking DOES hold the position
           now: utils/adSlots.js treats a draft or awaiting-payment campaign as holding
@@ -1204,6 +1226,8 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         </div>
       </form>
       {error ? <p className="mkt-upload-error">{error}</p> : null}
+        </>
+      )}
 
       {/* Shown whether or not they have campaigns: credit somebody has to go looking
           for is credit they will never spend, which would make "we credit you instead
@@ -1216,9 +1240,17 @@ function CampaignPanel({ reference, pricing, creatives, onNeedCreative, producti
         </p>
       )}
 
-      {campaigns.length > 0 && (
+      {(showActive || showHistory) && view !== 'all' && listed.length === 0 && (
+        <p className="mkt-fine">
+          {view === 'active'
+            ? 'No live bookings. Anything you book shows up here until it finishes.'
+            : 'Nothing here yet. Flights land here once they finish or are called off.'}
+        </p>
+      )}
+
+      {listed.length > 0 && (
         <ul className="mkt-campaign-list">
-          {campaigns.map((c) => (
+          {listed.map((c) => (
             <li key={c.id}>
               <div className="mkt-campaign-head">
                 <span className="mkt-campaign-name">{c.name}</span>
@@ -1960,10 +1992,20 @@ export default function Advertise({ openLoginModal }) {
   // for sale, filling in a form, and managing work already in flight. Tabs so each
   // one is a place you can be, rather than a stretch of page you have to find.
   const [tab, setTab] = useState('general');
+  /* Which part of ONE product you are looking at. Booking, the flights that are live
+     and the ones that are done are three different jobs, and a single scroll made you
+     hunt for whichever one you came for. */
+  const [ptab, setPtab] = useState('book');
   const TABS = [
     { id: 'general', label: 'General' },
     { id: 'wizard', label: 'Enroll your ad' },
     { id: 'mine', label: 'My products' },
+  ];
+
+  const PRODUCT_TABS = [
+    { id: 'book', label: 'Book a spot' },
+    { id: 'active', label: 'Active spots' },
+    { id: 'history', label: 'Booking history' },
   ];
 
   const toggleMarket = (code) => setForm((f) => ({
@@ -2625,8 +2667,8 @@ export default function Advertise({ openLoginModal }) {
         {/* Master/detail. The list used to sit above the detail, so opening a product
             pushed everything down and you lost sight of which one you were looking at
             once you scrolled into its bookings. */}
-        <div className="mkt-split">
-          <aside className="mkt-split-nav">
+        <div className="mkt-stack">
+          <div className="mkt-products">
             <div className="mkt-split-head">
               <h2>Your products</h2>
               {user && (() => {
@@ -2695,7 +2737,7 @@ export default function Advertise({ openLoginModal }) {
             )}
 
             {myApps && myApps.length > 0 && (
-              <ul className="mkt-mine-list">
+              <ul className="mkt-mine-strip">
                 {myApps.map((a) => (
                   <li key={a.reference}>
                     {/* The whole row is the control. A separate "Open" button made the
@@ -2758,7 +2800,7 @@ export default function Advertise({ openLoginModal }) {
                 {lookingUp ? 'Checking…' : 'Open'}
               </button>
             </form>
-          </aside>
+          </div>
 
           <div className="mkt-split-main">
             {lookup ? (
@@ -2774,10 +2816,33 @@ export default function Advertise({ openLoginModal }) {
                 </div>
                 {lookup.note ? <p className="mkt-lookup-note">{lookup.note}</p> : null}
 
+                {(lookup.status === 'pending' || lookup.status === 'approved') && (
+                  <div className="mkt-ptabs" role="tablist" aria-label="This product">
+                    {PRODUCT_TABS.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={ptab === t.id}
+                        className={`mkt-ptab${ptab === t.id ? ' selected' : ''}`}
+                        onClick={() => setPtab(t.id)}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Uploading is open to a pending applicant; booking is not. Nothing can
                     run either way until the product is approved and a booking is paid for,
-                    so the split is where it belongs. */}
+                    so the split is where it belongs.
+
+                    Kept MOUNTED on every tab rather than rendered only on its own: this
+                    panel owns the creative list, and the attach pickers on a flight under
+                    Active spots are filled from it. Rendering it conditionally left them
+                    empty for anyone who opened a product straight into another tab. */}
                 {(lookup.status === 'pending' || lookup.status === 'approved') && (
+                  <div style={{ display: ptab === 'book' ? undefined : 'none' }}>
                   <CreativePanel
                     reference={lookupRef.trim()}
                     account={lookup.hiveAccount}
@@ -2797,6 +2862,7 @@ export default function Advertise({ openLoginModal }) {
                       onChange: setBookProduction,
                     } : null}
                   />
+                  </div>
                 )}
                 {/* Booking is open before approval now. The whole thing can be filled
                     in one sitting and reviewed afterwards; nothing reaches a viewer
@@ -2809,6 +2875,7 @@ export default function Advertise({ openLoginModal }) {
                     creatives={creativeList}
                     production={bookProduction}
                     awaitingApproval={lookup.status !== 'approved'}
+                    view={ptab}
                   />
                 )}
               </div>
@@ -2816,7 +2883,7 @@ export default function Advertise({ openLoginModal }) {
               <div className="mkt-panel mkt-panel-muted mkt-split-empty">
                 <p style={{ margin: 0 }}>
                   {myApps?.length
-                    ? 'Pick a product on the left to see its ad videos and bookings.'
+                    ? 'Pick a product above to see its ad videos and bookings.'
                     : 'Open a product with its reference to see its ad videos and bookings.'}
                 </p>
               </div>

@@ -1183,6 +1183,78 @@ $mkt-sub: 12px;
     }
   }
 
+  /* The product list used to be a 300px column beside the detail. It is a strip
+     across the top now: with a handful of products that column was mostly empty
+     space, taken out of the part of the page people actually work in. */
+  .mkt-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .mkt-products { min-width: 0; }
+
+  /* Scrolls sideways on its own rather than widening the page. */
+  .mkt-mine-strip {
+    list-style: none;
+    margin: 0 0 14px;
+    /* Room for the focus ring and the selected border, which a flush edge clips. */
+    padding: 2px;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+
+    > li { flex: 0 0 auto; }
+
+    /* Cards sized to their contents instead of a column's full width. */
+    .mkt-mine-item {
+      width: auto;
+      min-width: 220px;
+      max-width: 320px;
+    }
+  }
+
+  /* One product's three jobs. Deliberately quieter than the page-level .mkt-tabs,
+     which stays the primary navigation. */
+  .mkt-ptabs {
+    display: flex;
+    gap: 4px;
+    margin: 0 0 20px;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  .mkt-ptab {
+    flex: none;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: none;
+    font: inherit;
+    font-size: $mkt-sub;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover { color: var(--text-primary); }
+
+    &.selected {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent-primary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: -2px;
+    }
+  }
+
   .mkt-split-nav {
     min-width: 0;
 
