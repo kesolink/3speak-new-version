@@ -329,6 +329,23 @@ export function createAdBreak() {
      * frame inside the spot, which puts the disclosure back on screen for an instant
      * and reads as the skip having failed.
      */
+    /**
+     * Seconds until skipping is allowed, or null when it already is (or never will be).
+     *
+     * Null means two different things on purpose, and the caller wants them collapsed:
+     * a spot with no skip offered shows no control at all, and one past its threshold
+     * shows a pressable button. `skipOffered` separates them for the one caller that
+     * needs to know which.
+     */
+    secondsUntilSkip(playerTime) {
+      if (skipAfter == null || !window_ || !Number.isFinite(playerTime)) return null;
+      const left = (window_.start + skipAfter) - playerTime;
+      return left > 0 ? left : null;
+    },
+
+    /** Does this spot offer a skip at all? Decided by the server, not here. */
+    get skipOffered() { return skipAfter != null; },
+
     endOfBreak() {
       return window_ ? window_.start + window_.duration + 0.05 : null;
     },

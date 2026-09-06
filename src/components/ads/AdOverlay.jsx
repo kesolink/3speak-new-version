@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { MdOpenInNew, MdSkipNext } from 'react-icons/md';
+import { MdOpenInNew } from 'react-icons/md';
 import './AdOverlay.scss';
 
 /**
@@ -24,9 +24,7 @@ import './AdOverlay.scss';
  * then redirects — the advertiser's real address is never in the page, and a click is
  * measurable, which is the first thing an advertiser asks about.
  */
-export default function AdOverlay({
-  account, brand, previewOnly = false, resumeIn = null, onSkip = null,
-}) {
+export default function AdOverlay({ account, brand, previewOnly = false, resumeIn = null }) {
   const productName = brand?.productName || null;
   const slogan = brand?.slogan || null;
   const logoUrl = brand?.logoUrl || null;
@@ -68,37 +66,9 @@ export default function AdOverlay({
 
   const className = `brandmark${previewOnly ? ' brandmark-preview' : ''}${clickUrl ? ' brandmark-link' : ''}`;
 
-  /* Skip.
-   *
-   * A SIBLING of the brandmark, never inside it. The brandmark becomes a link when the
-   * advertiser has a site, and a skip button inside that link is a button whose click
-   * also opens the ad, which is the opposite of what it says.
-   *
-   * Rendered only once the caller says the threshold has passed, so it appears partway
-   * through the spot rather than sitting there from the first frame.
-   */
-  const skip = onSkip ? (
-    <button
-      type="button"
-      className="ad-skip"
-      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSkip(); }}
-    >
-      Skip ad
-      <MdSkipNext aria-hidden="true" />
-    </button>
-  ) : null;
-
-  if (!clickUrl) {
-    return (
-      <>
-        <div className={className}>{inner}</div>
-        {skip}
-      </>
-    );
-  }
+  if (!clickUrl) return <div className={className}>{inner}</div>;
 
   return (
-    <>
     <a
       className={className}
       href={clickUrl}
@@ -115,8 +85,6 @@ export default function AdOverlay({
           the anchor's own label already says what happens. */}
       <MdOpenInNew className="brandmark-open" aria-hidden="true" />
     </a>
-    {skip}
-    </>
   );
 }
 
@@ -130,6 +98,4 @@ AdOverlay.propTypes = {
   }),
   previewOnly: PropTypes.bool,
   resumeIn: PropTypes.number,
-  /** Called when the viewer skips. Absent means the spot is not skippable yet. */
-  onSkip: PropTypes.func,
 };

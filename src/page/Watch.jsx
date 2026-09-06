@@ -29,6 +29,7 @@ import { batchCheckHidden, isCreatorHidden } from '../utils/hiddenCreators';
 import { usePlayer } from '@mantequilla-soft/3speak-player/react';
 import { createAdBreak } from '../lib/adBreak';
 import AdOverlay from '../components/ads/AdOverlay';
+import AdSkip from '../components/ads/AdSkip';
 import BannerClick from '../components/ads/BannerClick';
 
 // How long before a break the countdown appears. Three seconds is enough to register
@@ -445,6 +446,9 @@ function Watch({ v2 = false }) {
   // Whether a Skip is being offered on the spot playing right now. The server decides
   // IF and AFTER HOW LONG; this is only whether that moment has arrived.
   const [canSkipAd, setCanSkipAd] = useState(false);
+  // Seconds until the Skip becomes pressable, or null once it is. The control is on
+  // screen for the whole spot either way; this only decides which state it is in.
+  const [skipIn, setSkipIn] = useState(null);
   // Disclosure. Required by EU and US advertising rules, and driven off the same
   // clock the tracker reads so it can never disagree with what is on screen.
   useEffect(() => {
@@ -457,6 +461,7 @@ function Watch({ v2 = false }) {
       if (adCountdown !== null) setAdCountdown(null);
       if (resumeIn !== null) setResumeIn(null);
       if (canSkipAd) setCanSkipAd(false);
+      if (skipIn !== null) setSkipIn(null);
       return;
     }
     if (!ab.active) {
@@ -490,7 +495,13 @@ function Watch({ v2 = false }) {
     // not running.
     const skippable = inside && ab.canSkip(t);
     if (skippable !== canSkipAd) setCanSkipAd(skippable);
-  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn, canSkipAd]);
+
+    // Whole seconds, so it ticks once rather than flickering per frame — the same
+    // treatment the resume countdown gets, for the same reason.
+    const untilSkip = inside ? ab.secondsUntilSkip(t) : null;
+    const shownSkip = untilSkip == null ? null : Math.max(1, Math.ceil(untilSkip));
+    if (shownSkip !== skipIn) setSkipIn(shownSkip);
+  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn, canSkipAd, skipIn]);
 
   /* The viewer closed the banner.
    *
@@ -1823,10 +1834,12 @@ function Watch({ v2 = false }) {
             account={adBreakRef.current.info?.brand?.account || null}
             brand={adBreakRef.current.info?.brand || null}
             resumeIn={resumeIn}
-            onSkip={canSkipAd ? skipAd : null}
           />
         ) : null}
         adCountdown={adCountdown}
+        adSkip={sponsorVisible && adBreakRef.current?.skipOffered ? (
+          <AdSkip secondsUntil={skipIn} onSkip={canSkipAd ? skipAd : null} />
+        ) : null}
         bannerHit={(
           // Nothing is drawn for a banner — it is already in the picture. This is
           // only somewhere to click, and only while it is on screen.
