@@ -546,8 +546,13 @@ function Watch({ v2 = false }) {
       const hls = player?.hls;
       const from = videoElRef.current?.currentTime;
       if (hls?.trigger && Number.isFinite(from)) {
+        /* ⚠️ A MARGIN, not from the playhead itself. Flushing everything ahead leaves
+         * the media element with nothing to play for a moment, and an element with no
+         * data fires `ended` — which autoplay-next reads as "video over" and carries
+         * the viewer to a different video. Keeping a second and a half means playback
+         * never starves, and the banner still goes almost immediately. */
         hls.trigger('hlsBufferFlushing', {
-          startOffset: from, endOffset: Number.POSITIVE_INFINITY, type: null,
+          startOffset: from + 1.5, endOffset: Number.POSITIVE_INFINITY, type: null,
         });
         hls.startLoad(from);
       }
@@ -910,6 +915,21 @@ function Watch({ v2 = false }) {
     });
 
     const unsubEnded = player.on('ended', () => {
+      /* 🚨 Is this a REAL end, or did the buffer just run dry?
+       *
+       * `ended` is not only fired by reaching the end of a video. Anything that empties
+       * the media element's buffer can produce one, and then autoplay-next carries the
+       * viewer off to another video for no reason they can see. Closing a banner ad did
+       * exactly that: it flushes the buffer so the ad stops sooner, the element found
+       * itself with nothing, and the page moved on.
+       *
+       * A real end has the playhead AT the end. Anything else is the player having a
+       * moment, and the right response is to ignore it rather than to navigate. */
+      const el = videoElRef.current;
+      if (el && Number.isFinite(el.duration) && el.duration > 0
+        && el.currentTime < el.duration - 1.5) {
+        return;
+      }
       // Don't autoplay when user is selecting clip start/end or a popup is open
       if (clipModeActiveRef.current || popupOpenRef.current) {
         setVideoEnded(true);
