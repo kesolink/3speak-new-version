@@ -442,6 +442,9 @@ function Watch({ v2 = false }) {
   // the thing a viewer actually wants to know, and a number that is visibly
   // ticking down reads as shorter than the same wait with no number on it.
   const [resumeIn, setResumeIn] = useState(null);
+  // Whether a Skip is being offered on the spot playing right now. The server decides
+  // IF and AFTER HOW LONG; this is only whether that moment has arrived.
+  const [canSkipAd, setCanSkipAd] = useState(false);
   // Disclosure. Required by EU and US advertising rules, and driven off the same
   // clock the tracker reads so it can never disagree with what is on screen.
   useEffect(() => {
@@ -453,6 +456,7 @@ function Watch({ v2 = false }) {
       if (bannerVisible) setBannerVisible(false);
       if (adCountdown !== null) setAdCountdown(null);
       if (resumeIn !== null) setResumeIn(null);
+      if (canSkipAd) setCanSkipAd(false);
       return;
     }
     if (!ab.active) {
@@ -480,7 +484,13 @@ function Watch({ v2 = false }) {
     const remain = inside ? ab.secondsRemaining(t) : null;
     const shown = remain == null ? null : Math.max(0, Math.ceil(remain));
     if (shown !== resumeIn) setResumeIn(shown);
-  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn]);
+
+    // Skippable, and only once the server's threshold has actually elapsed. Read off
+    // the same clock as the disclosure, so a Skip can never appear over a spot that is
+    // not running.
+    const skippable = inside && ab.canSkip(t);
+    if (skippable !== canSkipAd) setCanSkipAd(skippable);
+  }, [playerState?.currentTime, sponsorVisible, bannerVisible, adCountdown, resumeIn, canSkipAd]);
 
   /* The viewer closed the banner.
    *
@@ -499,6 +509,25 @@ function Watch({ v2 = false }) {
    * leaves the old behaviour, where the banner simply finishes its run. Never a reason
    * to throw inside a click handler on the watch page.
    */
+  /* Skip the rest of the spot: seek to where the content resumes.
+   *
+   * The break is spliced INTO the playlist, so there is nothing to unload — the video
+   * carries on immediately after it, and moving the playhead past the break is the
+   * whole of skipping. `endOfBreak` lands a hair past the boundary, because stopping
+   * exactly on it can leave the player one frame inside the spot and flash the
+   * disclosure back up.
+   *
+   * The advertiser is not billed for what was not watched: an impression completes
+   * only once enough of the spot has actually played, so a skip at five seconds of a
+   * fifteen second spot was never a charge in the first place.
+   */
+  const skipAd = useCallback(() => {
+    const to = adBreakRef.current?.endOfBreak?.();
+    setCanSkipAd(false);
+    if (!Number.isFinite(to)) return;
+    try { player?.seek(to); } catch { /* the spot simply plays out */ }
+  }, [player]);
+
   const dismissBanner = useCallback(() => {
     try { adBreakRef.current?.dismissBanner?.(); } catch { /* the local hide still happens */ }
     setBannerVisible(false);
@@ -1794,6 +1823,7 @@ function Watch({ v2 = false }) {
             account={adBreakRef.current.info?.brand?.account || null}
             brand={adBreakRef.current.info?.brand || null}
             resumeIn={resumeIn}
+            onSkip={canSkipAd ? skipAd : null}
           />
         ) : null}
         adCountdown={adCountdown}

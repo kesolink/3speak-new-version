@@ -111,6 +111,8 @@ const CAP_ID = (() => {
 export function createAdBreak() {
   let session = null;
   let window_ = null;
+  // Seconds into the spot at which a Skip may be offered, or null for never.
+  let skipAfter = null;
   let premium = false;
   // The banner is a SEPARATE placement, from a separate advertiser, that can be
   // present with or without a spot. It is not a second kind of break: it adds no
@@ -176,6 +178,7 @@ export function createAdBreak() {
     async request({ owner, permlink, viewer, manifestUrl }) {
       session = null;
       window_ = null;
+      skipAfter = null;
       banner = null;
       bannerWindow = null;
       bannerSid = null;
@@ -297,6 +300,31 @@ export function createAdBreak() {
       return Math.max(0, start + duration - playerTime);
     },
 
+    /**
+     * May the viewer skip this spot yet?
+     *
+     * True only INSIDE the break, only once the server's threshold has actually
+     * elapsed, and only when the server offered a skip at all. Everything is measured
+     * off the same window as the disclosure and the countdown, so a Skip button can
+     * never appear over a spot that is not running.
+     */
+    canSkip(playerTime) {
+      if (skipAfter == null || !window_ || !Number.isFinite(playerTime)) return false;
+      const elapsed = playerTime - window_.start;
+      return elapsed >= skipAfter && elapsed < window_.duration;
+    },
+
+    /**
+     * Where the content resumes, for a player that is skipping the break.
+     *
+     * A hair PAST the end. Landing exactly on the boundary can leave the player one
+     * frame inside the spot, which puts the disclosure back on screen for an instant
+     * and reads as the skip having failed.
+     */
+    endOfBreak() {
+      return window_ ? window_.start + window_.duration + 0.05 : null;
+    },
+
     isInside(playerTime) {
       if (!window_ || !Number.isFinite(playerTime)) return false;
       return playerTime >= window_.start && playerTime < window_.start + window_.duration;
@@ -315,6 +343,6 @@ export function createAdBreak() {
       return playerTime - duration;
     },
 
-    reset() { session = null; window_ = null; banner = null; bannerWindow = null; bannerSid = null; premium = false; },
+    reset() { session = null; window_ = null; skipAfter = null; banner = null; bannerWindow = null; bannerSid = null; premium = false; },
   };
 }
